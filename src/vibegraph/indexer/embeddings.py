@@ -18,7 +18,7 @@ class EmbeddingConfig(BaseModel):
     """Configuration contract for the local EmbeddingGemma 2 pipeline."""
 
     model_id: str = Field(
-        default="google/embeddinggemma-2-270m",
+        default="google/embeddinggemma-2",
         description="Primary HuggingFace/SentenceTransformers model identifier.",
     )
     fallback_model_id: str = Field(

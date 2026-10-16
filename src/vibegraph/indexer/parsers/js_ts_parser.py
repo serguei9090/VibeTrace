@@ -197,6 +197,14 @@ class JavaScriptParser(LanguageParser):
                     target_id = self._resolve_call_target(called_name, ctx)
                     edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
+            elif parent_id and node.type in ("jsx_self_closing_element", "jsx_opening_element"):
+                name_node = node.child_by_field_name("name")
+                if name_node:
+                    tag_name = self._get_text(name_node)
+                    if tag_name and tag_name[0].isupper():
+                        target_id = self._resolve_call_target(tag_name, ctx)
+                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
                 traverse(child, current_scope_id, is_exported=is_exported)
