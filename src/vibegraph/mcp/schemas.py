@@ -1,0 +1,145 @@
+"""Pydantic schemas and enums for VibeGraph MCP tools."""
+
+from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ResponseFormat(str, Enum):
+    """Output format for tool responses."""
+
+    MARKDOWN = "markdown"
+    JSON = "json"
+
+
+class TraceDirection(str, Enum):
+    """Direction for call stack tracing."""
+
+    UP = "up"
+    DOWN = "down"
+    BOTH = "both"
+
+
+class StructuralSummaryInput(BaseModel):
+    """Input model for structural summary operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str = Field(
+        ...,
+        description="Path to the file to analyze (e.g., 'src/parser.py')",
+        min_length=1,
+    )
+    limit: int = Field(
+        default=100,
+        description="Maximum number of nodes to return",
+        ge=1,
+        le=500,
+    )
+    offset: int = Field(
+        default=0,
+        description="Number of nodes to skip for pagination",
+        ge=0,
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable or 'json' for machine-readable",
+    )
+
+
+class CallStackInput(BaseModel):
+    """Input model for call stack tracing operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    node_name: str = Field(
+        ...,
+        description="Name of the function or class to trace (e.g., 'parse_file', 'IndexerDB')",
+        min_length=1,
+    )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file path to disambiguate if multiple nodes have the same name",
+    )
+    direction: TraceDirection = Field(
+        default=TraceDirection.BOTH,
+        description="Trace direction: 'up' (callers), 'down' (callees), or 'both'",
+    )
+    depth: int = Field(
+        default=1,
+        description="Maximum traversal depth (how many levels to trace)",
+        ge=1,
+        le=10,
+    )
+
+
+class ImpactAnalysisInput(BaseModel):
+    """Input model for impact analysis operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str = Field(
+        ...,
+        description="Path to the file to analyze for impact (e.g., 'src/db.py')",
+        min_length=1,
+    )
+
+
+class ReindexInput(BaseModel):
+    """Input model for reindexing operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    path: str = Field(
+        default=".",
+        description=(
+            "Absolute path to the project root, directory, or file "
+            "(Relative paths may fail context resolution)"
+        ),
+    )
+
+
+class ReferencesInput(BaseModel):
+    """Input model for finding reference operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol_name: str = Field(
+        ...,
+        description="Name of the function/class/variable to find references for",
+        min_length=1,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
+
+
+class DependenciesInput(BaseModel):
+    """Input model for dependency analysis operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str = Field(
+        ...,
+        description="Path to the file to check for outgoing dependencies",
+        min_length=1,
+    )
+
+
+class SearchInput(BaseModel):
+    """Input model for signature search operations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    pattern: str = Field(
+        ...,
+        description=(
+            "SQL pattern to search for in node signatures (e.g. '%List[str]%', 'async def%')"
+        ),
+        min_length=1,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )

@@ -65,41 +65,7 @@ def get_graph(file_path: str | None = None):
     Return nodes and edges.
     If file_path is provided, filter nodes by that file (plus connected edges).
     """
-    with db._get_conn() as conn:
-        if file_path:
-            # Get nodes in file
-            nodes_cursor = conn.execute("SELECT * FROM nodes WHERE file_path = ?", (file_path,))
-        else:
-            # Get all nodes
-            nodes_cursor = conn.execute("SELECT * FROM nodes")
-
-        nodes = [dict(row) for row in nodes_cursor.fetchall()]
-
-        # Determine edges to return
-        if not nodes:
-            return {"nodes": [], "edges": []}
-
-        if file_path:
-            # Only return edges connected to these nodes (simple) or all edges?
-            # Let's return all edges for now to be safe, or filter:
-            # Since edges table uses IDs, and we have node IDs...
-            node_ids = tuple(n["id"] for n in nodes)
-            if node_ids:
-                placeholders = ",".join("?" for _ in node_ids)
-                # Edges causing these nodes (incoming) OR caused by these nodes (outgoing)
-                query = (
-                    "SELECT * FROM edges WHERE from_node_id IN "
-                    f"({placeholders}) OR to_node_id IN ({placeholders})"
-                )
-                edges_cursor = conn.execute(query, node_ids + node_ids)
-                edges = [dict(row) for row in edges_cursor.fetchall()]
-            else:
-                edges = []
-        else:
-            edges_cursor = conn.execute("SELECT * FROM edges")
-            edges = [dict(row) for row in edges_cursor.fetchall()]
-
-    return {"nodes": nodes, "edges": edges}
+    return db.get_graph_data(file_path)
 
 
 @app.websocket("/ws")
