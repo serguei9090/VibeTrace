@@ -9,6 +9,8 @@ from pydantic import BaseModel
 class Node(BaseModel):
     id: str
     name: str
+    qualified_name: str | None = None
+    parent_id: str | None = None
     kind: Literal[
         "function", "class", "module", "interface", "variable", "struct", "trait", "impl", "method"
     ]
@@ -27,6 +29,7 @@ class Edge(BaseModel):
     relation_type: Literal[
         "calls", "defines", "inherits", "references", "imports", "implements", "returns"
     ]
+    call_line: int | None = None
 
 
 class IndexerDB:
@@ -47,28 +50,53 @@ class IndexerDB:
         return conn
 
     def _init_db(self) -> None:
-        """Initialize the database schema if it doesn't exist."""
+        """Initialize the database schema if it doesn't exist, applying migrations."""
         schema_path = Path(__file__).parent / "schema.sql"
         if not schema_path.exists():
             raise FileNotFoundError(f"Schema file not found at {schema_path}")
 
         with self._get_conn() as conn:
+            # Check if existing tables need column migrations before creating indexes
+            try:
+                cursor = conn.execute("PRAGMA table_info(nodes)")
+                cols = {row["name"] for row in cursor.fetchall()}
+                if cols and "qualified_name" not in cols:
+                    conn.execute("ALTER TABLE nodes ADD COLUMN qualified_name TEXT")
+                    conn.execute(
+                        "UPDATE nodes SET qualified_name = name WHERE qualified_name IS NULL"
+                    )
+                if cols and "parent_id" not in cols:
+                    conn.execute("ALTER TABLE nodes ADD COLUMN parent_id TEXT")
+            except Exception:
+                pass
+
+            try:
+                cursor = conn.execute("PRAGMA table_info(edges)")
+                edge_cols = {row["name"] for row in cursor.fetchall()}
+                if edge_cols and "call_line" not in edge_cols:
+                    conn.execute("ALTER TABLE edges ADD COLUMN call_line INTEGER")
+            except Exception:
+                pass
+
             with open(schema_path, encoding="utf-8") as f:
                 conn.executescript(f.read())
 
     def upsert_node(self, node: Node) -> None:
-        """Insert or replace a node."""
+        """Insert or replace a node and update FTS5 search index."""
+        qualified = node.qualified_name or node.name
         with self._get_conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO nodes (
-                    id, name, kind, file_path, start_line, end_line, signature, docstring,
-                    decorators, visibility
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, name, qualified_name, parent_id, kind, file_path, start_line, end_line,
+                    signature, docstring, decorators, visibility
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     node.id,
                     node.name,
+                    qualified,
+                    node.parent_id,
                     node.kind,
                     node.file_path,
                     node.start_line,
@@ -79,6 +107,23 @@ class IndexerDB:
                     node.visibility,
                 ),
             )
+            # Maintain FTS5 index
+            conn.execute("DELETE FROM nodes_fts WHERE node_id = ?", (node.id,))
+            conn.execute(
+                """
+                INSERT INTO nodes_fts (
+                    node_id, name, qualified_name, signature, docstring, file_path
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    node.id,
+                    node.name,
+                    qualified,
+                    node.signature or "",
+                    node.docstring or "",
+                    node.file_path,
+                ),
+            )
             conn.commit()
 
     def upsert_edge(self, edge: Edge) -> None:
@@ -86,15 +131,15 @@ class IndexerDB:
         with self._get_conn() as conn:
             conn.execute(
                 """
-                INSERT INTO edges (from_node_id, to_node_id, relation_type)
-                VALUES (?, ?, ?)
+                INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line)
+                VALUES (?, ?, ?, ?)
                 """,
-                (edge.from_node_id, edge.to_node_id, edge.relation_type),
+                (edge.from_node_id, edge.to_node_id, edge.relation_type, edge.call_line),
             )
             conn.commit()
 
     def clear_file(self, file_path: str) -> None:
-        """Remove all nodes and edges associated with a file."""
+        """Remove all nodes, edges, and FTS5 entries associated with a file."""
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT id FROM nodes WHERE file_path = ?", (file_path,))
             node_ids = [row[0] for row in cursor.fetchall()]
@@ -104,8 +149,56 @@ class IndexerDB:
 
             placeholders = ",".join("?" for _ in node_ids)
             conn.execute(f"DELETE FROM edges WHERE from_node_id IN ({placeholders})", node_ids)
+            conn.execute(f"DELETE FROM nodes_fts WHERE node_id IN ({placeholders})", node_ids)
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
             conn.commit()
+
+    def get_file_hash(self, file_path: str) -> str | None:
+        """Retrieve stored content hash for a file."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT content_hash FROM indexed_files WHERE file_path = ?", (file_path,)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def update_file_hash(self, file_path: str, content_hash: str, updated_at: int) -> None:
+        """Update or insert content hash for a file."""
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (file_path, content_hash, updated_at),
+            )
+            conn.commit()
+
+    def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Search nodes using SQLite FTS5 BM25 ranking."""
+        with self._get_conn() as conn:
+            # Escape query for FTS5 syntax safety if needed
+            safe_query = query.replace('"', '""').strip()
+            if not safe_query:
+                return []
+
+            sql = """
+                SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
+                       n.start_line, n.end_line, n.signature, n.docstring,
+                       bm25(nodes_fts) as rank
+                FROM nodes_fts f
+                JOIN nodes n ON f.node_id = n.id
+                WHERE nodes_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+            """
+            try:
+                cursor = conn.execute(sql, (f'"{safe_query}"*', limit))
+                return [dict(r) for r in cursor.fetchall()]
+            except sqlite3.OperationalError:
+                # Fallback to simple match
+                cursor = conn.execute(sql, (safe_query, limit))
+                return [dict(r) for r in cursor.fetchall()]
 
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._get_conn() as conn:
