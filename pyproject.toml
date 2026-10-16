@@ -15,6 +15,12 @@ dependencies = [
     "websockets>=14.0",
 ]
 
+[project.optional-dependencies]
+embeddings = [
+    "sentence-transformers>=3.4.0",
+    "sqlite-vec>=0.1.6",
+]
+
 [project.scripts]
 vibegraph-mcp = "vibegraph.mcp.server:main"
 

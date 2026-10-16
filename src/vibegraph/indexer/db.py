@@ -150,6 +150,7 @@ class IndexerDB:
             placeholders = ",".join("?" for _ in node_ids)
             conn.execute(f"DELETE FROM edges WHERE from_node_id IN ({placeholders})", node_ids)
             conn.execute(f"DELETE FROM nodes_fts WHERE node_id IN ({placeholders})", node_ids)
+            conn.execute(f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", node_ids)
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
@@ -177,29 +178,42 @@ class IndexerDB:
 
     def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Search nodes using SQLite FTS5 BM25 ranking."""
-        with self._get_conn() as conn:
-            # Escape query for FTS5 syntax safety if needed
-            safe_query = query.replace('"', '""').strip()
-            if not safe_query:
-                return []
+        import re
 
-            sql = """
-                SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
-                       n.start_line, n.end_line, n.signature, n.docstring,
-                       bm25(nodes_fts) as rank
-                FROM nodes_fts f
-                JOIN nodes n ON f.node_id = n.id
-                WHERE nodes_fts MATCH ?
-                ORDER BY rank
-                LIMIT ?
-            """
-            try:
-                cursor = conn.execute(sql, (f'"{safe_query}"*', limit))
-                return [dict(r) for r in cursor.fetchall()]
-            except sqlite3.OperationalError:
-                # Fallback to simple match
-                cursor = conn.execute(sql, (safe_query, limit))
-                return [dict(r) for r in cursor.fetchall()]
+        tokens = re.findall(r"[A-Za-z0-9_]+", query)
+        if not tokens:
+            return []
+
+        sql = """
+            SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
+                   n.start_line, n.end_line, n.signature, n.docstring,
+                   bm25(nodes_fts) as rank
+            FROM nodes_fts f
+            JOIN nodes n ON f.node_id = n.id
+            WHERE nodes_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """
+        with self._get_conn() as conn:
+            # Try AND prefix query first, then OR prefix query for natural language recall
+            and_expr = " AND ".join(f'"{t}"*' for t in tokens)
+            or_expr = " OR ".join(f'"{t}"*' for t in tokens)
+            results: list[dict[str, Any]] = []
+            seen_ids: set[str] = set()
+
+            for expr in (and_expr, or_expr):
+                try:
+                    cursor = conn.execute(sql, (expr, limit))
+                    for row in cursor.fetchall():
+                        r_dict = dict(row)
+                        if r_dict["id"] not in seen_ids:
+                            seen_ids.add(r_dict["id"])
+                            results.append(r_dict)
+                            if len(results) >= limit:
+                                return results
+                except sqlite3.OperationalError:
+                    continue
+            return results
 
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._get_conn() as conn:
@@ -349,4 +363,84 @@ class IndexerDB:
                 "FROM nodes WHERE signature LIKE ? LIMIT ?"
             )
             cursor = conn.execute(query, (pattern, limit))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def search_ast_exact_or_prefix(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Search AST symbols ordered by exact match, prefix match, and substring match."""
+        q = query.strip()
+        if not q:
+            return []
+        with self._get_conn() as conn:
+            sql = """
+                SELECT id, name, qualified_name, kind, file_path,
+                       start_line, end_line, signature, docstring,
+                       CASE
+                           WHEN LOWER(qualified_name) = LOWER(?)
+                             OR LOWER(name) = LOWER(?) THEN 0
+                           WHEN LOWER(name) LIKE LOWER(?)
+                             OR LOWER(qualified_name) LIKE LOWER(?) THEN 1
+                           ELSE 2
+                       END AS match_tier
+                FROM nodes
+                WHERE LOWER(name) LIKE LOWER(?)
+                   OR LOWER(qualified_name) LIKE LOWER(?)
+                   OR LOWER(signature) LIKE LOWER(?)
+                ORDER BY match_tier ASC, LENGTH(qualified_name) ASC
+                LIMIT ?
+            """
+            prefix = f"{q}%"
+            sub = f"%{q}%"
+            cursor = conn.execute(sql, (q, q, prefix, prefix, sub, sub, sub, limit))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_nodes_by_ids(self, node_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch full node dictionaries keyed by node ID."""
+        if not node_ids:
+            return {}
+        placeholders = ",".join("?" for _ in node_ids)
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                f"SELECT * FROM nodes WHERE id IN ({placeholders})", tuple(node_ids)
+            )
+            return {row["id"]: dict(row) for row in cursor.fetchall()}
+
+    def upsert_embeddings(self, rows: list[tuple[str, bytes, int, str]]) -> None:
+        """Batch insert or replace serialized float32 vector embeddings."""
+        if not rows:
+            return
+        with self._get_conn() as conn:
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO node_embeddings (node_id, embedding, dimensions, model_id)
+                VALUES (?, ?, ?, ?)
+                """,
+                rows,
+            )
+            conn.commit()
+
+    def get_all_embeddings(self, model_id: str | None = None) -> list[tuple[str, bytes, int]]:
+        """Retrieve all stored node embeddings."""
+        with self._get_conn() as conn:
+            if model_id:
+                cursor = conn.execute(
+                    "SELECT node_id, embedding, dimensions FROM node_embeddings WHERE model_id = ?",
+                    (model_id,),
+                )
+            else:
+                cursor = conn.execute("SELECT node_id, embedding, dimensions FROM node_embeddings")
+            return [(row[0], bytes(row[1]), int(row[2])) for row in cursor.fetchall()]
+
+    def get_nodes_missing_embeddings(self, model_id: str) -> list[dict[str, Any]]:
+        """Return nodes that do not yet have embeddings for the specified model."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT n.*
+                FROM nodes n
+                LEFT JOIN node_embeddings e
+                  ON n.id = e.node_id AND e.model_id = ?
+                WHERE e.node_id IS NULL
+                """,
+                (model_id,),
+            )
             return [dict(r) for r in cursor.fetchall()]

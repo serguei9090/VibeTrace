@@ -47,3 +47,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
     docstring,
     file_path
 );
+
+-- Vector Embeddings Table (EmbeddingGemma 2 256d Matryoshka float32 blobs)
+CREATE TABLE IF NOT EXISTS node_embeddings (
+    node_id TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL,
+    dimensions INTEGER NOT NULL DEFAULT 256,
+    model_id TEXT NOT NULL,
+    FOREIGN KEY(node_id) REFERENCES nodes(id)
+);
+
