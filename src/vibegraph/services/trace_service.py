@@ -366,3 +366,42 @@ def get_code_slice(
         source_code=snippet,
         callees=callees,
     )
+
+
+def notify_ui_focus(
+    event_type: str,
+    node_ids: list[str],
+    summary: str = "",
+    from_symbol: str | None = None,
+    to_symbol: str | None = None,
+) -> None:
+    """Fire-and-forget notification to local Map Room server (/api/agent-focus)."""
+    import json
+    import threading
+    import urllib.request
+
+    payload = json.dumps(
+        {
+            "type": "agent_focus",
+            "event_type": event_type,
+            "node_ids": node_ids,
+            "summary": summary,
+            "from_symbol": from_symbol,
+            "to_symbol": to_symbol,
+        }
+    ).encode("utf-8")
+
+    def _send() -> None:
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:8000/api/agent-focus",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=0.15):
+                pass
+        except Exception:
+            pass
+
+    threading.Thread(target=_send, daemon=True).start()

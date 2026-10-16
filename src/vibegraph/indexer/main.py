@@ -90,10 +90,19 @@ def load_gitignore(root_path: Path) -> pathspec.PathSpec | None:
 
 
 def reindex_all(
-    db: IndexerDB, target_path_str: str, verbose: bool = True, force: bool = False
+    db: IndexerDB,
+    target_path_str: str,
+    verbose: bool = True,
+    force: bool = False,
+    project_root: Path | None = None,
 ) -> None:
     """Reindex a file or directory recursively."""
     target_path = Path(target_path_str).resolve()
+    eff_root = (
+        project_root.resolve()
+        if project_root
+        else (target_path if target_path.is_dir() else target_path.parent)
+    )
 
     # default skips
     skip_dirs = {
@@ -107,17 +116,15 @@ def reindex_all(
         "vibegraph_context",
     }
 
-    spec = None
-    resolver = None
-    if target_path.is_dir():
-        spec = load_gitignore(target_path)
-        resolver = ModuleResolver(target_path)
+    spec = load_gitignore(eff_root)
+    resolver = ModuleResolver(eff_root) if eff_root.is_dir() else None
 
     if target_path.is_file():
         index_file(
             db,
             str(target_path),
-            project_root=target_path.parent,
+            project_root=eff_root,
+            resolver=resolver,
             verbose=verbose,
             force=force,
         )
@@ -135,7 +142,7 @@ def reindex_all(
                 # Check gitignore if available
                 if spec:
                     try:
-                        rel_path = full_path.relative_to(target_path)
+                        rel_path = full_path.relative_to(eff_root)
                         if spec.match_file(str(rel_path)):
                             continue
                     except ValueError:
@@ -144,7 +151,7 @@ def reindex_all(
                 index_file(
                     db,
                     str(full_path),
-                    project_root=target_path,
+                    project_root=eff_root,
                     resolver=resolver,
                     verbose=verbose,
                     force=force,

@@ -9,16 +9,23 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from vibegraph.cli import main as cli_main
 from vibegraph.indexer.db import Edge, IndexerDB, Node
 from vibegraph.mcp.server import (
     CallStackInput,
+    CodeSliceInput,
     ImpactAnalysisInput,
     ResponseFormat,
+    SemanticSearchInput,
     StructuralSummaryInput,
     TraceDirection,
+    TracePathInput,
     vibegraph_get_call_stack,
+    vibegraph_get_code_slice,
     vibegraph_get_structural_summary,
     vibegraph_impact_analysis,
+    vibegraph_semantic_search,
+    vibegraph_trace_path,
 )
 
 
@@ -26,6 +33,16 @@ from vibegraph.mcp.server import (
 @pytest.fixture
 def mock_db(monkeypatch, tmp_path):
     """Overrides the _get_context_for_path function in server.py to use a temp file DB."""
+
+    # Create dummy source files for slicing
+    (tmp_path / "a.py").write_text(
+        'def func_a(x):\n    """Doc A"""\n    return x + 1\n\n# end\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "b.py").write_text(
+        'def func_b():\n    """Doc B"""\n    return func_a(42)\n\n# end\n',
+        encoding="utf-8",
+    )
 
     # Create a temp DB file
     db_file = tmp_path / "test_vibegraph.db"
@@ -41,10 +58,11 @@ def mock_db(monkeypatch, tmp_path):
         Node(
             id="a",
             name="func_a",
+            qualified_name="func_a",
             kind="function",
             file_path=a_py_path,
             start_line=1,
-            end_line=5,
+            end_line=3,
             signature="(x)",
             docstring="Doc A",
         )
@@ -54,10 +72,11 @@ def mock_db(monkeypatch, tmp_path):
         Node(
             id="b",
             name="func_b",
+            qualified_name="func_b",
             kind="function",
             file_path=b_py_path,
             start_line=1,
-            end_line=5,
+            end_line=3,
             signature="()",
             docstring="Doc B",
         )
@@ -65,7 +84,7 @@ def mock_db(monkeypatch, tmp_path):
 
     # Add Edges
     # func_b calls func_a
-    db.upsert_edge(Edge(from_node_id="b", to_node_id="a", relation_type="calls"))
+    db.upsert_edge(Edge(from_node_id="b", to_node_id="a", relation_type="calls", call_line=3))
 
     # Monkeypatch - mocked root is tmp_path
     import vibegraph.mcp.server
@@ -89,7 +108,7 @@ async def test_get_structural_summary(mock_db, tmp_path):
     summary = await vibegraph_get_structural_summary(params)
 
     # After path normalization, output contains absolute path
-    assert "- [f] **func_a** `(x)` (L1-5)" in summary
+    assert "- [f] **func_a** `(x)` (L1-3)" in summary
 
 
 @pytest.mark.asyncio
@@ -134,7 +153,6 @@ async def test_get_call_stack_up(mock_db, tmp_path):
 
     assert "Trace for `func_a`" in trace
     assert "Callers (Incoming):" in trace
-    # Check for the presence of func_b as a caller, allowing for variations in markdown formatting
     assert "func_b" in trace
 
 
@@ -148,7 +166,6 @@ async def test_get_call_stack_down(mock_db, tmp_path):
 
     assert "Trace for `func_b`" in trace
     assert "Callees (Outgoing):" in trace
-    # Updated to match new breadcrumb format
     assert "func_a" in trace
 
 
@@ -185,9 +202,9 @@ async def test_impact_analysis(mock_db, tmp_path):
     impact = await vibegraph_impact_analysis(params)
 
     assert "Impact Analysis" in impact
-    assert "`func_a`" in impact or "**`func_a`**" in impact or "func_a" in impact
+    assert "func_a" in impact
     assert "Level 1: Direct Impact" in impact
-    assert "- [function] func_b (L1-5) in `b.py`" in impact or "func_b" in impact
+    assert "func_b" in impact
 
 
 @pytest.mark.asyncio
@@ -204,38 +221,97 @@ async def test_impact_analysis_no_impact(mock_db, tmp_path):
 
 
 # =============================================================================
+# Tests for New MCP Tools: semantic_search, trace_path, get_code_slice
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_mcp_semantic_search(mock_db):
+    """Test vibegraph_semantic_search via hybrid RRF."""
+    params = SemanticSearchInput(query="func_a", limit=5)
+    res = await vibegraph_semantic_search(params)
+    assert "func_a" in res
+
+
+@pytest.mark.asyncio
+async def test_mcp_trace_path(mock_db):
+    """Test vibegraph_trace_path finds hop from func_b to func_a."""
+    params = TracePathInput(from_symbol="func_b", to_symbol="func_a", max_depth=4)
+    res = await vibegraph_trace_path(params)
+    assert "func_b" in res
+    assert "func_a" in res
+    assert ":L3" in res
+
+
+@pytest.mark.asyncio
+async def test_mcp_get_code_slice(mock_db):
+    """Test vibegraph_get_code_slice returns source code and call references."""
+    params = CodeSliceInput(symbol_name="func_b", include_callees=True)
+    res = await vibegraph_get_code_slice(params)
+    assert "def func_b():" in res
+    assert "func_a" in res
+
+
+# =============================================================================
+# Tests for Unified CLI (vibegraph.cli)
+# =============================================================================
+
+
+def test_cli_index_search_trace_slice(tmp_path, capsys):
+    """Test unified CLI subcommands against a temporary project directory."""
+    proj = tmp_path / "cli_proj"
+    proj.mkdir()
+    (proj / "mod.py").write_text(
+        'def helper(v: int) -> int:\n    """Helper doc"""\n    return v * 2\n\n'
+        'def entry() -> int:\n    """Entry doc"""\n    return helper(5)\n',
+        encoding="utf-8",
+    )
+
+    assert cli_main(["--root", str(proj), "index", str(proj)]) == 0
+    out_index = capsys.readouterr().out
+    assert "Extracted" in out_index
+
+    assert cli_main(["--root", str(proj), "--json", "search", "helper"]) == 0
+    out_search = capsys.readouterr().out
+    assert "helper" in out_search
+
+    assert cli_main(["--root", str(proj), "trace", "entry", "helper"]) == 0
+    out_trace = capsys.readouterr().out
+    assert "entry" in out_trace
+    assert "helper" in out_trace
+
+    assert cli_main(["--root", str(proj), "slice", "helper"]) == 0
+    out_slice = capsys.readouterr().out
+    assert "def helper" in out_slice
+
+
+# =============================================================================
 # Tests for Pydantic Validation
 # =============================================================================
 
 
 def test_structural_summary_input_validation():
     """Test input validation for structural summary."""
-    # Valid input
     params = StructuralSummaryInput(file_path="test.py", limit=50, offset=10)
     assert params.file_path == "test.py"
     assert params.limit == 50
     assert params.offset == 10
 
-    # Invalid limit (too high)
     with pytest.raises(ValidationError):
         StructuralSummaryInput(file_path="test.py", limit=1000)
 
-    # Invalid offset (negative)
     with pytest.raises(ValidationError):
         StructuralSummaryInput(file_path="test.py", offset=-1)
 
 
 def test_call_stack_input_validation():
     """Test input validation for call stack."""
-    # Valid input
     params = CallStackInput(node_name="my_func", depth=5)
     assert params.node_name == "my_func"
     assert params.depth == 5
 
-    # Invalid depth (too high)
     with pytest.raises(ValidationError):
         CallStackInput(node_name="my_func", depth=20)
 
-    # Empty node name
     with pytest.raises(ValidationError):
         CallStackInput(node_name="")

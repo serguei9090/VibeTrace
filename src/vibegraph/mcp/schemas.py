@@ -143,3 +143,88 @@ class SearchInput(BaseModel):
         default=".",
         description="Project root or relevant path to scope the search context (defaults to CWD)",
     )
+
+
+class SemanticSearchInput(BaseModel):
+    """Input model for hybrid RRF semantic + lexical + AST search."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    query: str = Field(
+        ...,
+        description="Natural language intent, symbol name, or keyword query",
+        min_length=1,
+    )
+    limit: int = Field(
+        default=15,
+        description="Maximum number of ranked symbol results to return",
+        ge=1,
+        le=100,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class TracePathInput(BaseModel):
+    """Input model for bidirectional execution tracepath discovery."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    from_symbol: str = Field(
+        ...,
+        description="Starting symbol or qualified name (e.g. 'process_checkout')",
+        min_length=1,
+    )
+    to_symbol: str = Field(
+        ...,
+        description="Target symbol or qualified name (e.g. 'save_invoice')",
+        min_length=1,
+    )
+    max_depth: int = Field(
+        default=6,
+        description="Maximum hop depth for Bidirectional BFS",
+        ge=1,
+        le=15,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class CodeSliceInput(BaseModel):
+    """Input model for surgical source code line slicing."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol_name: str = Field(
+        ...,
+        description="Symbol name or scoped qualified_name (e.g. 'IndexerDB.upsert_node')",
+        min_length=1,
+    )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file path to disambiguate symbols with identical short names",
+    )
+    include_callees: bool = Field(
+        default=True,
+        description="Whether to include direct outgoing callee signatures and call lines",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

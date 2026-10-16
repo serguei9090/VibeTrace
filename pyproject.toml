@@ -22,6 +22,7 @@ embeddings = [
 ]
 
 [project.scripts]
+vibegraph = "vibegraph.cli:main"
 vibegraph-mcp = "vibegraph.mcp.server:main"
 
 [build-system]

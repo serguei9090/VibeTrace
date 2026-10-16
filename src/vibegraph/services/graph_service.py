@@ -11,6 +11,7 @@ from vibegraph.services.trace_service import (
     TraceNodeInfo,
     TracePathResult,
     get_code_slice,
+    notify_ui_focus,
     read_file_lines,
     trace_execution_path,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "get_context_for_path",
     "handle_error",
     "normalize_path",
+    "notify_ui_focus",
     "read_file_lines",
     "safe_str",
     "trace_execution_path",
@@ -80,6 +82,7 @@ def safe_str(s: str) -> str:
         "←": "<-",
         "→": "->",
         "✅": "[OK]",
+        "—": "--",
     }
     for char, replacement in replacements.items():
         s = s.replace(char, replacement)
