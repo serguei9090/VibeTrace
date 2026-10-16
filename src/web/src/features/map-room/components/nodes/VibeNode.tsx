@@ -1,7 +1,7 @@
+import { Handle, Position } from "@xyflow/react";
 import { Globe, Lock } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
-import { Handle, Position } from "reactflow";
 import type { VibeNodeData } from "../../types";
 
 export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
@@ -10,7 +10,8 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   const isHighlighted = data.isHighlighted;
   const isDimmed = data.isDimmed;
   const isPrivate = data.visibility === "private";
-  const decorators = data.decorators ? data.decorators.split(",").filter(Boolean) : [];
+  const isTraceMode = data.layoutMode === "trace";
+  const decorators = data.decorators ? String(data.decorators).split(",").filter(Boolean) : [];
 
   let borderColor = "#6366f1";
   let bgColor = "#1a1b23";
@@ -38,7 +39,11 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
 
   return (
     <div className="vibe-node" style={style}>
-      <Handle type="target" position={Position.Top} style={{ background: borderColor }} />
+      <Handle
+        type="target"
+        position={isTraceMode ? Position.Left : Position.Top}
+        style={{ background: borderColor }}
+      />
       <div className="node-header">
         <div className="node-type">
           {isPrivate ? (
@@ -48,17 +53,47 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
           )}
           {data.kind}
         </div>
-        {decorators.length > 0 && (
-          <div className="node-decorators">
-            {decorators.map((d: string) => (
-              <span key={d} className="decorator-badge" title={d}>
-                @{d.length > 10 ? `${d.substring(0, 10)}..` : d}
-              </span>
-            ))}
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {data.stepBadge && (
+            <span
+              style={{
+                background: "#10b981",
+                color: "#090a0f",
+                fontWeight: 700,
+                fontSize: "10px",
+                padding: "1px 6px",
+                borderRadius: "999px",
+              }}
+            >
+              {data.stepBadge}
+            </span>
+          )}
+          {data.impactBadge && (
+            <span
+              style={{
+                background: data.impactBadge === "TARGET" ? "#6366f1" : "#f87171",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: "10px",
+                padding: "1px 6px",
+                borderRadius: "999px",
+              }}
+            >
+              {data.impactBadge}
+            </span>
+          )}
+          {decorators.length > 0 && (
+            <div className="node-decorators">
+              {decorators.map((d: string) => (
+                <span key={d} className="decorator-badge" title={d}>
+                  @{d.length > 10 ? `${d.substring(0, 10)}..` : d}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="node-name">{data.label}</div>
+      <div className="node-name">{data.qualified_name || data.label}</div>
       {data.signature && (
         <div
           style={{
@@ -71,7 +106,11 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
           {data.signature.length > 30 ? `${data.signature.substring(0, 30)}...` : data.signature}
         </div>
       )}
-      <Handle type="source" position={Position.Bottom} style={{ background: borderColor }} />
+      <Handle
+        type="source"
+        position={isTraceMode ? Position.Right : Position.Bottom}
+        style={{ background: borderColor }}
+      />
     </div>
   );
 });

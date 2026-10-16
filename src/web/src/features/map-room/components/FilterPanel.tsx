@@ -1,6 +1,7 @@
-import { Activity, Filter } from "lucide-react";
+import { Panel } from "@xyflow/react";
+import { Activity, Filter, GitBranch, Map as MapIcon } from "lucide-react";
 import type React from "react";
-import { Panel } from "reactflow";
+import type { LayoutMode } from "../types";
 
 interface FilterPanelProps {
   activeFilters: Set<string>;
@@ -9,6 +10,8 @@ interface FilterPanelProps {
   onTogglePrivate: (show: boolean) => void;
   impactMode: boolean;
   onToggleImpact: (impact: boolean) => void;
+  layoutMode?: LayoutMode;
+  onLayoutModeChange?: (mode: LayoutMode) => void;
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -18,6 +21,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onTogglePrivate,
   impactMode,
   onToggleImpact,
+  layoutMode = "map",
+  onLayoutModeChange,
 }) => {
   return (
     <>
@@ -30,8 +35,57 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           flexDirection: "column",
           gap: 8,
           marginTop: "80px",
+          minWidth: "175px",
         }}
       >
+        {onLayoutModeChange && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              borderBottom: "1px solid var(--border-color)",
+              paddingBottom: 8,
+              marginBottom: 4,
+            }}
+          >
+            <div style={{ fontSize: "11px", fontWeight: 600, opacity: 0.7 }}>LAYOUT MODE</div>
+            {(
+              [
+                { id: "map", label: "Architecture Map", icon: <MapIcon size={12} /> },
+                { id: "trace", label: "Tracepath LR", icon: <GitBranch size={12} /> },
+                { id: "impact", label: "Blast Radius", icon: <Activity size={12} /> },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onLayoutModeChange(item.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 8px",
+                  fontSize: "12px",
+                  borderRadius: 6,
+                  border:
+                    layoutMode === item.id
+                      ? "1px solid #6366f1"
+                      : "1px solid rgba(255,255,255,0.08)",
+                  background:
+                    layoutMode === item.id ? "rgba(99, 102, 241, 0.2)" : "rgba(255,255,255,0.03)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div
           style={{
             fontSize: "12px",

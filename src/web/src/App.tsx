@@ -1,7 +1,4 @@
-import axios from "axios";
-import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import ReactFlow, {
+import {
   addEdge,
   Background,
   type Connection,
@@ -10,10 +7,14 @@ import ReactFlow, {
   MarkerType,
   MiniMap,
   type Node,
+  ReactFlow,
   useEdgesState,
   useNodesState,
-} from "reactflow";
-import "reactflow/dist/style.css";
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import axios from "axios";
+import type React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 
 import { FilterPanel } from "./features/map-room/components/FilterPanel";
@@ -22,7 +23,12 @@ import { DistrictNode } from "./features/map-room/components/nodes/DistrictNode"
 import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNode";
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
-import type { GraphData, SelectedElement } from "./features/map-room/types";
+import type {
+  GraphData,
+  LayoutMode,
+  SelectedElement,
+  VibeNodeData,
+} from "./features/map-room/types";
 import { getGraphBounds, getLayoutedElements } from "./features/map-room/utils/elkLayout";
 import { computeSelectionHighlights } from "./features/map-room/utils/graphTraversal";
 
@@ -50,11 +56,26 @@ export default function App() {
   );
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("map");
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
   const ws = useRef<WebSocket | null>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
+
+  const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
+    setLayoutMode(mode);
+    if (mode === "impact") {
+      setImpactMode(true);
+    } else if (mode === "trace") {
+      setImpactMode(false);
+    }
+  }, []);
+
+  const handleImpactToggle = useCallback((enabled: boolean) => {
+    setImpactMode(enabled);
+    setLayoutMode((prev) => (enabled ? "impact" : prev === "impact" ? "map" : prev));
+  }, []);
 
   const applyLayoutAndFilters = useCallback(async () => {
     const { nodes: rawNodes, edges: rawEdges } = rawData.current;
@@ -74,16 +95,19 @@ export default function App() {
     const searchTerm = filter.toLowerCase();
     const searchActive = searchTerm.length > 0;
 
-    const { highlightedNodes, highlightedEdges } = computeSelectionHighlights(
-      selectedElement,
-      filteredEdges,
-      impactMode
-    );
+    const { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap } =
+      computeSelectionHighlights(
+        selectedElement,
+        filteredEdges,
+        impactMode || layoutMode === "impact"
+      );
 
-    const flowNodes: Node[] = filteredNodes.map((n) => {
+    const flowNodes: Node<VibeNodeData>[] = filteredNodes.map((n) => {
+      const qname = n.qualified_name || n.name;
       const isSearchMatch =
         searchActive &&
         (n.name.toLowerCase().includes(searchTerm) ||
+          qname.toLowerCase().includes(searchTerm) ||
           n.file_path.toLowerCase().includes(searchTerm));
 
       let isHighlighted = false;
@@ -103,15 +127,22 @@ export default function App() {
         position: { x: 0, y: 0 },
         data: {
           label: n.name,
+          qualified_name: n.qualified_name,
           kind: n.kind,
           signature: n.signature,
           docstring: n.docstring,
           file_path: n.file_path,
+          start_line: n.start_line,
+          end_line: n.end_line,
           visibility: n.visibility,
           decorators: n.decorators,
           isHighlighted,
           isDimmed,
-          isImpact: impactMode && highlightedNodes.has(n.id) && n.id !== selectedElement?.id,
+          isImpact:
+            (impactMode || layoutMode === "impact") &&
+            highlightedNodes.has(n.id) &&
+            n.id !== selectedElement?.id,
+          layoutMode,
         },
       };
     });
@@ -134,22 +165,29 @@ export default function App() {
           isDimmed = true;
         }
 
-        let label = e.relation_type;
-        if (label === "defines") label = "";
+        const lineSuffix = e.call_line ? ` :L${e.call_line}` : "";
+        let label = e.relation_type === "defines" ? "" : `${e.relation_type}${lineSuffix}`;
+        if (!isHighlighted && layoutMode === "map" && e.relation_type !== "defines") {
+          label = e.relation_type;
+        }
 
         flowEdges.push({
           id: edgeId,
           source: e.from_node_id,
           target: e.to_node_id,
-          label: isHighlighted ? e.relation_type : label,
+          label,
           type: "smoothstep",
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: isHighlighted ? "#fff" : "rgba(255, 255, 255, 0.3)",
           },
-          animated: isHighlighted,
+          animated: isHighlighted || layoutMode === "trace",
           style: {
-            stroke: isHighlighted ? "#6366f1" : "rgba(255, 255, 255, 0.2)",
+            stroke: isHighlighted
+              ? layoutMode === "trace"
+                ? "#10b981"
+                : "#6366f1"
+              : "rgba(255, 255, 255, 0.2)",
             strokeWidth: isHighlighted ? 3 : 1,
             opacity: isDimmed ? 0.05 : 0.6,
             transition: "opacity 0.3s ease, stroke 0.3s ease",
@@ -161,7 +199,12 @@ export default function App() {
     try {
       const { nodes: layoutNodes, edges: layoutEdges } = await getLayoutedElements(
         flowNodes,
-        flowEdges
+        flowEdges,
+        {
+          mode: layoutMode,
+          traceStepMap,
+          impactDepthMap,
+        }
       );
       if (layoutNodes && layoutNodes.length > 0) {
         setNodes(layoutNodes);
@@ -171,7 +214,16 @@ export default function App() {
       console.error("Layout Error:", layoutError);
       setError("Layout failed (ELK error). Check console.");
     }
-  }, [activeFilters, showPrivate, impactMode, filter, selectedElement, setNodes, setEdges]);
+  }, [
+    activeFilters,
+    showPrivate,
+    impactMode,
+    layoutMode,
+    filter,
+    selectedElement,
+    setNodes,
+    setEdges,
+  ]);
 
   const fetchGraph = useCallback(async () => {
     setLoading(true);
@@ -308,7 +360,9 @@ export default function App() {
           showPrivate={showPrivate}
           onTogglePrivate={setShowPrivate}
           impactMode={impactMode}
-          onToggleImpact={setImpactMode}
+          onToggleImpact={handleImpactToggle}
+          layoutMode={layoutMode}
+          onLayoutModeChange={handleLayoutModeChange}
         />
       </ReactFlow>
     </div>
