@@ -4,6 +4,34 @@ from pathlib import Path
 from typing import Any, Literal
 
 from vibegraph.indexer.db import IndexerDB
+from vibegraph.services.trace_service import (
+    CalleeContract,
+    CodeSliceResult,
+    TraceHop,
+    TraceNodeInfo,
+    TracePathResult,
+    get_code_slice,
+    read_file_lines,
+    trace_execution_path,
+)
+
+__all__ = [
+    "CalleeContract",
+    "CodeSliceResult",
+    "GraphTraverser",
+    "TraceHop",
+    "TraceNodeInfo",
+    "TracePathResult",
+    "categorize_file_dependencies",
+    "compute_impact_analysis",
+    "get_code_slice",
+    "get_context_for_path",
+    "handle_error",
+    "normalize_path",
+    "read_file_lines",
+    "safe_str",
+    "trace_execution_path",
+]
 
 
 def get_context_for_path(path_hint: str | None = None) -> tuple[IndexerDB, Path]:
@@ -82,7 +110,7 @@ class GraphTraverser:
         direction: Literal["up", "down"],
         indent: int,
         path_stack: list[str] | None = None,
-    ):
+    ) -> None:
         """Recursively traverse the call graph."""
         if depth > max_depth:
             return
