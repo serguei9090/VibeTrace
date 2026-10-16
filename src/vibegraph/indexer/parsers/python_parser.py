@@ -59,17 +59,21 @@ class PythonParser(LanguageParser):
         parent_id: str | None,
         ctx: ParserContext,
         decorators: list[str] | None = None,
-    ):
+    ) -> None:
         # Special handling for decorated definitions
         if node.type == "decorated_definition":
             self._handle_decorated(node, parent_id, ctx)
             return
 
         node_id = None
+        pushed_scope = False
 
         # 1. Definitions
         if node.type in ("function_definition", "class_definition"):
-            node_id = self._handle_definition(node, parent_id, ctx, decorators)
+            node_id, def_name = self._handle_definition(node, parent_id, ctx, decorators)
+            if def_name:
+                ctx.scope_stack.append(def_name)
+                pushed_scope = True
 
         # 2. Calls
         elif parent_id and node.type == "call":
@@ -84,7 +88,10 @@ class PythonParser(LanguageParser):
         for child in node.children:
             self._traverse(child, current_scope_id, ctx)
 
-    def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext):
+        if pushed_scope:
+            ctx.scope_stack.pop()
+
+    def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
         current_decorators = []
         def_node = None
         for child in node.children:
@@ -98,20 +105,20 @@ class PythonParser(LanguageParser):
 
     def _handle_definition(
         self, node: Node, parent_id: str | None, ctx: ParserContext, decorators: list[str] | None
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
         name_node = node.child_by_field_name("name")
         if not name_node:
-            return None
+            return None, None
 
         name = self._get_text(name_node)
-        node_id = self._get_id(ctx.file_path, name)
+        qualified_name = self._scoped_name(name, ctx.scope_stack)
+        node_id = self._get_id(ctx.file_path, qualified_name)
         kind = "function" if node.type == "function_definition" else "class"
 
         params_node = node.child_by_field_name("parameters")
         signature = self._get_text(params_node) if params_node else None
         docstring = self._extract_docstring(node)
 
-        # Determine visibility
         visibility = "public"
         if name.startswith("_") and not name.startswith("__"):
             visibility = "private"
@@ -127,53 +134,118 @@ class PythonParser(LanguageParser):
                 docstring,
                 decorators=decorators,
                 visibility=visibility,
+                qualified_name=qualified_name,
+                parent_id=parent_id,
             )
         )
 
         if parent_id:
-            ctx.edges.append(
-                Edge(from_node_id=parent_id, to_node_id=node_id, relation_type="defines")
-            )
-        return node_id
+            ctx.edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
-    def _handle_call(self, node: Node, parent_id: str, ctx: ParserContext):
+        # Extract base classes on class_definition
+        if node.type == "class_definition":
+            superclasses = node.child_by_field_name("superclasses")
+            if superclasses:
+                for arg in superclasses.children:
+                    if arg.type in ("identifier", "attribute"):
+                        base_name = self._get_text(arg)
+                        base_id = self._resolve_call_target(base_name, ctx)
+                        ctx.edges.append(self._create_edge(node_id, base_id, "inherits", node=arg))
+
+        return node_id, name
+
+    def _handle_call(self, node: Node, parent_id: str, ctx: ParserContext) -> None:
         func_node = node.child_by_field_name("function")
         if func_node:
             called_name = self._get_text(func_node)
-            target_id = self._get_id(ctx.file_path, called_name)
-            ctx.edges.append(
-                Edge(from_node_id=parent_id, to_node_id=target_id, relation_type="calls")
-            )
+            target_id = self._resolve_call_target(called_name, ctx)
+            ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
-    def _handle_import(self, node: Node, ctx: ParserContext):
+    def _handle_import(self, node: Node, ctx: ParserContext) -> None:
         if node.type == "import_statement":
             for child in node.children:
                 if child.type == "dotted_name":
                     module_name = self._get_text(child)
-                    self._add_import_edge(module_name, node, ctx)
+                    resolved = self._add_import_edge(module_name, node, ctx)
+                    if resolved:
+                        ctx.imported_symbols[module_name] = (resolved, "__module__")
+                        ctx.imported_symbols[module_name.split(".")[-1]] = (resolved, "__module__")
                 elif child.type == "aliased_import":
                     name_node = child.child_by_field_name("name")
+                    alias_node = child.child_by_field_name("alias")
                     if name_node:
                         module_name = self._get_text(name_node)
-                        self._add_import_edge(module_name, node, ctx)
+                        alias = self._get_text(alias_node) if alias_node else module_name
+                        resolved = self._add_import_edge(module_name, node, ctx)
+                        if resolved:
+                            ctx.imported_symbols[alias] = (resolved, "__module__")
 
         elif node.type == "import_from_statement":
             module_name_node = node.child_by_field_name("module_name")
-            if module_name_node:
-                module_name = self._get_text(module_name_node)
-                self._add_import_edge(module_name, node, ctx)
+            if not module_name_node:
+                return
+            module_name = self._get_text(module_name_node)
+            resolved_mod = self._add_import_edge(module_name, node, ctx)
 
-    def _add_import_edge(self, module_name: str, import_node: Node, ctx: ParserContext):
+            # Collect imported symbol names after the 'import' keyword
+            seen_import_kw = False
+            for child in node.children:
+                if child.type == "import":
+                    seen_import_kw = True
+                    continue
+                if not seen_import_kw:
+                    continue
+
+                orig_name: str | None = None
+                local_name: str | None = None
+                if child.type == "dotted_name":
+                    orig_name = self._get_text(child)
+                    local_name = orig_name
+                elif child.type == "aliased_import":
+                    n_node = child.child_by_field_name("name")
+                    a_node = child.child_by_field_name("alias")
+                    if n_node:
+                        orig_name = self._get_text(n_node)
+                        local_name = self._get_text(a_node) if a_node else orig_name
+
+                if orig_name and local_name:
+                    # Check if `from pkg import submodule` points to a submodule file
+                    sub_query = (
+                        f"{module_name}{orig_name}"
+                        if module_name.endswith(".")
+                        else f"{module_name}.{orig_name}"
+                    )
+                    sub_resolved = (
+                        self.resolver.resolve(sub_query, ctx.file_path) if self.resolver else None
+                    )
+                    if sub_resolved:
+                        self._add_import_edge(sub_query, node, ctx)
+                        ctx.imported_symbols[local_name] = (sub_resolved, "__module__")
+                    elif resolved_mod:
+                        ctx.imported_symbols[local_name] = (resolved_mod, orig_name)
+
+    def _add_import_edge(
+        self, module_name: str, import_node: Node, ctx: ParserContext
+    ) -> str | None:
         resolved_path = None
         if self.resolver:
             resolved_path = self.resolver.resolve(module_name, ctx.file_path)
 
         module_path = resolved_path if resolved_path else "external"
-        module_id = self._get_id(module_path, module_name, kind="module")
+        canonical_mod = module_name
+        if resolved_path and self.resolver:
+            canonical = self.resolver.get_module_name(resolved_path)
+            if canonical:
+                canonical_mod = canonical
+
+        module_id = self._get_id(module_path, canonical_mod, kind="module")
 
         if not any(n.id == module_id for n in ctx.nodes):
             ctx.nodes.append(
-                self._create_node(module_id, module_name, "module", module_path, import_node)
+                self._create_node(module_id, canonical_mod, "module", module_path, import_node)
             )
 
-        ctx.edges.append(self._create_edge(ctx.file_module_id, module_id, "imports"))
+        ctx.edges.append(
+            self._create_edge(ctx.file_module_id, module_id, "imports", node=import_node)
+        )
+        return resolved_path

@@ -1,5 +1,7 @@
+import hashlib
 import os
 import sys
+import time
 from pathlib import Path
 
 import pathspec
@@ -15,8 +17,9 @@ def index_file(
     project_root: Path | None = None,
     resolver: ModuleResolver | None = None,
     verbose: bool = True,
-):
-    """Index a single file."""
+    force: bool = False,
+) -> bool:
+    """Index a single file. Returns True if indexed, False if skipped."""
     try:
         abs_path = Path(file_path).resolve()
 
@@ -36,11 +39,17 @@ def index_file(
         if not parser:
             if verbose:
                 print(f"Skipping {file_path} (unsupported language)")
-            return
+            return False
 
-        # Read using abs_path but index using rel_path
+        # Read using abs_path
         with open(abs_path, "rb") as f:
             source_code = f.read()
+
+        content_hash = hashlib.sha256(source_code).hexdigest()
+        if not force and db.get_file_hash(rel_path) == content_hash:
+            if verbose:
+                print(f"Skipping {rel_path} (unchanged)")
+            return False
 
         if verbose:
             print(f"Indexing {rel_path}...")
@@ -56,12 +65,16 @@ def index_file(
         for edge in edges:
             db.upsert_edge(edge)
 
+        db.update_file_hash(rel_path, content_hash, int(time.time()))
+
         if verbose:
             print(f"  -> Extracted {len(nodes)} nodes, {len(edges)} edges.")
+        return True
 
     except Exception as e:
         if verbose:
             print(f"Error indexing {file_path}: {e}")
+        return False
 
 
 def load_gitignore(root_path: Path) -> pathspec.PathSpec | None:
@@ -76,7 +89,9 @@ def load_gitignore(root_path: Path) -> pathspec.PathSpec | None:
     return None
 
 
-def reindex_all(db: IndexerDB, target_path_str: str, verbose: bool = True):
+def reindex_all(
+    db: IndexerDB, target_path_str: str, verbose: bool = True, force: bool = False
+) -> None:
     """Reindex a file or directory recursively."""
     target_path = Path(target_path_str).resolve()
 
@@ -99,9 +114,13 @@ def reindex_all(db: IndexerDB, target_path_str: str, verbose: bool = True):
         resolver = ModuleResolver(target_path)
 
     if target_path.is_file():
-        # For single file, try to find root to enable resolution if possible
-        # but often it's external, so resolver remains None
-        index_file(db, str(target_path), project_root=target_path.parent, verbose=verbose)
+        index_file(
+            db,
+            str(target_path),
+            project_root=target_path.parent,
+            verbose=verbose,
+            force=force,
+        )
     elif target_path.is_dir():
         for root, dirs, files in os.walk(target_path):
             current_root = Path(root)
@@ -128,13 +147,14 @@ def reindex_all(db: IndexerDB, target_path_str: str, verbose: bool = True):
                     project_root=target_path,
                     resolver=resolver,
                     verbose=verbose,
+                    force=force,
                 )
     else:
         if verbose:
             print(f"Path not found: {target_path}")
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: python -m vibegraph.indexer.main <directory_or_file>")
         sys.exit(1)

@@ -4,7 +4,7 @@ from tree_sitter import Node
 
 from vibegraph.indexer.db import Edge
 from vibegraph.indexer.db import Node as DBNode
-from vibegraph.indexer.parsers.base import LanguageParser
+from vibegraph.indexer.parsers.base import LanguageParser, ParserContext
 from vibegraph.indexer.resolver import ModuleResolver
 
 
@@ -32,24 +32,44 @@ class GoParser(LanguageParser):
         nodes.append(
             self._create_node(file_module_id, module_name, "module", file_path, tree.root_node)
         )
+        ctx = ParserContext(file_path, nodes, edges, file_module_id)
 
-        def traverse(node: Node, parent_id: str | None = None):
+        def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
 
             if node.type in ("function_declaration", "method_declaration"):
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
-                    node_id = self._get_id(file_path, name)
+                    qualified_name = name
+                    if node.type == "method_declaration":
+                        recv_node = node.child_by_field_name("receiver")
+                        if recv_node:
+                            recv_text = (
+                                self._get_text(recv_node).strip("()").split()[-1].lstrip("*")
+                            )
+                            if recv_text:
+                                qualified_name = f"{recv_text}.{name}"
+
+                    node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
                     signature = self._get_text(params_node) if params_node else None
 
                     nodes.append(
-                        self._create_node(node_id, name, "function", file_path, node, signature)
+                        self._create_node(
+                            node_id,
+                            name,
+                            "function",
+                            file_path,
+                            node,
+                            signature,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
                     )
 
                     if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id))
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
             elif node.type == "type_declaration":
                 type_spec = node.child_by_field_name("type")
@@ -60,10 +80,29 @@ class GoParser(LanguageParser):
                         node_id = self._get_id(file_path, name)
                         kind = "interface" if type_spec.type == "interface_type" else "struct"
 
-                        nodes.append(self._create_node(node_id, name, kind, file_path, node))
+                        nodes.append(
+                            self._create_node(
+                                node_id,
+                                name,
+                                kind,
+                                file_path,
+                                node,
+                                qualified_name=name,
+                                parent_id=parent_id,
+                            )
+                        )
 
                         if parent_id:
-                            edges.append(self._create_edge(parent_id, node_id))
+                            edges.append(
+                                self._create_edge(parent_id, node_id, "defines", node=node)
+                            )
+
+            elif parent_id and node.type == "call_expression":
+                func_node = node.child_by_field_name("function")
+                if func_node:
+                    called_name = self._get_text(func_node)
+                    target_id = self._resolve_call_target(called_name, ctx)
+                    edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
@@ -97,30 +136,43 @@ class RustParser(LanguageParser):
         nodes.append(
             self._create_node(file_module_id, module_name, "module", file_path, tree.root_node)
         )
+        ctx = ParserContext(file_path, nodes, edges, file_module_id)
 
-        def traverse(node: Node, parent_id: str | None = None):
+        def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
+            pushed_scope = False
 
             if node.type == "function_item":
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
-                    node_id = self._get_id(file_path, name)
+                    qualified_name = self._scoped_name(name, ctx.scope_stack)
+                    node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
                     signature = self._get_text(params_node) if params_node else None
 
                     nodes.append(
-                        self._create_node(node_id, name, "function", file_path, node, signature)
+                        self._create_node(
+                            node_id,
+                            name,
+                            "function",
+                            file_path,
+                            node,
+                            signature,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
                     )
 
                     if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id))
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
             elif node.type in ("struct_item", "trait_item", "impl_item"):
-                name_node = node.child_by_field_name("name")
+                name_node = node.child_by_field_name("name") or node.child_by_field_name("type")
                 if name_node:
                     name = self._get_text(name_node)
-                    node_id = self._get_id(file_path, name)
+                    qualified_name = self._scoped_name(name, ctx.scope_stack)
+                    node_id = self._get_id(file_path, qualified_name)
                     kind: Any = "class"
                     if node.type == "trait_item":
                         kind = "trait"
@@ -129,14 +181,37 @@ class RustParser(LanguageParser):
                     elif node.type == "impl_item":
                         kind = "impl"
 
-                    nodes.append(self._create_node(node_id, name, kind, file_path, node))
+                    nodes.append(
+                        self._create_node(
+                            node_id,
+                            name,
+                            kind,
+                            file_path,
+                            node,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
+                    )
 
                     if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id))
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
+
+                    ctx.scope_stack.append(name)
+                    pushed_scope = True
+
+            elif parent_id and node.type == "call_expression":
+                func_node = node.child_by_field_name("function")
+                if func_node:
+                    called_name = self._get_text(func_node).replace("::", ".")
+                    target_id = self._resolve_call_target(called_name, ctx)
+                    edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
                 traverse(child, current_scope_id)
+
+            if pushed_scope:
+                ctx.scope_stack.pop()
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges
@@ -167,6 +242,7 @@ class GenericParser(LanguageParser):
         nodes.append(
             self._create_node(file_module_id, module_name, "module", file_path, tree.root_node)
         )
+        ctx = ParserContext(file_path, nodes, edges, file_module_id)
 
         function_types = {
             "function_definition",
@@ -183,8 +259,9 @@ class GenericParser(LanguageParser):
             "trait_item",
         }
 
-        def traverse(node: Node, parent_id: str | None = None):
+        def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
+            pushed_scope = False
 
             if node.type in function_types:
                 name_node = node.child_by_field_name("name") or node.child_by_field_name(
@@ -197,25 +274,53 @@ class GenericParser(LanguageParser):
                         if "(" in name_text
                         else name_text
                     )
-                    node_id = self._get_id(file_path, name)
-                    nodes.append(self._create_node(node_id, name, "function", file_path, node))
+                    qualified_name = self._scoped_name(name, ctx.scope_stack)
+                    node_id = self._get_id(file_path, qualified_name)
+                    nodes.append(
+                        self._create_node(
+                            node_id,
+                            name,
+                            "function",
+                            file_path,
+                            node,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
+                    )
 
                     if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id))
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
             elif node.type in class_types:
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
-                    node_id = self._get_id(file_path, name)
-                    nodes.append(self._create_node(node_id, name, "class", file_path, node))
+                    qualified_name = self._scoped_name(name, ctx.scope_stack)
+                    node_id = self._get_id(file_path, qualified_name)
+                    nodes.append(
+                        self._create_node(
+                            node_id,
+                            name,
+                            "class",
+                            file_path,
+                            node,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
+                    )
 
                     if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id))
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
+
+                    ctx.scope_stack.append(name)
+                    pushed_scope = True
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
                 traverse(child, current_scope_id)
+
+            if pushed_scope:
+                ctx.scope_stack.pop()
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges
