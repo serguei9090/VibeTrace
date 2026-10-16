@@ -51,3 +51,40 @@ export interface SelectedElement {
   id: string;
   type: "node" | "edge";
 }
+
+export interface TraceHopNode {
+  id: string;
+  name: string;
+  qualified_name: string;
+  kind: string;
+  file_path: string;
+  start_line?: number | null;
+  end_line?: number | null;
+  signature?: string | null;
+}
+
+export interface TraceHopData {
+  step_index: number;
+  from_node: TraceHopNode;
+  to_node: TraceHopNode;
+  relation_type: string;
+  call_line?: number | null;
+}
+
+export interface TracePathResponse {
+  from_symbol: string;
+  to_symbol: string;
+  found: boolean;
+  hops: TraceHopData[];
+  paths?: TraceHopData[][];
+  node_ids: string[];
+}
+
+export interface AgentFocusEvent {
+  type: "agent_focus";
+  event_type: string;
+  node_ids: string[];
+  summary: string;
+  from_symbol?: string | null;
+  to_symbol?: string | null;
+}

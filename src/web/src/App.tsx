@@ -4,7 +4,6 @@ import {
   type Connection,
   Controls,
   type Edge,
-  MarkerType,
   MiniMap,
   type Node,
   ReactFlow,
@@ -17,20 +16,26 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 
+import { CodeInspectorDrawer } from "./features/map-room/components/CodeInspectorDrawer";
 import { FilterPanel } from "./features/map-room/components/FilterPanel";
 import { MapHeader } from "./features/map-room/components/MapHeader";
 import { DistrictNode } from "./features/map-room/components/nodes/DistrictNode";
 import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNode";
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
+import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import type {
+  AgentFocusEvent,
   GraphData,
   LayoutMode,
   SelectedElement,
-  VibeNodeData,
+  TracePathResponse,
 } from "./features/map-room/types";
 import { getGraphBounds, getLayoutedElements } from "./features/map-room/utils/elkLayout";
-import { computeSelectionHighlights } from "./features/map-room/utils/graphTraversal";
+import {
+  buildFlowElements,
+  computeSelectionHighlights,
+} from "./features/map-room/utils/graphTraversal";
 
 const API_URL = "http://localhost:8000";
 const WS_URL = "ws://localhost:8000/ws";
@@ -59,6 +64,10 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("map");
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
+  const [followAgent, setFollowAgent] = useState(true);
+  const [lastAgentEvent, setLastAgentEvent] = useState<AgentFocusEvent | null>(null);
+  const [activeTrace, setActiveTrace] = useState<TracePathResponse | null>(null);
+
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
   const ws = useRef<WebSocket | null>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
@@ -77,6 +86,14 @@ export default function App() {
     setLayoutMode((prev) => (enabled ? "impact" : prev === "impact" ? "map" : prev));
   }, []);
 
+  const handleTraceResult = useCallback((res: TracePathResponse | null) => {
+    setActiveTrace(res);
+    if (res?.found) {
+      setLayoutMode("trace");
+      setImpactMode(false);
+    }
+  }, []);
+
   const applyLayoutAndFilters = useCallback(async () => {
     const { nodes: rawNodes, edges: rawEdges } = rawData.current;
     if (rawNodes.length === 0) return;
@@ -92,109 +109,30 @@ export default function App() {
       (e) => visibleNodeIds.has(e.from_node_id) && visibleNodeIds.has(e.to_node_id)
     );
 
-    const searchTerm = filter.toLowerCase();
-    const searchActive = searchTerm.length > 0;
+    const agentNodeIds = followAgent && lastAgentEvent ? lastAgentEvent.node_ids : [];
+    const highlights = computeSelectionHighlights(
+      selectedElement,
+      filteredEdges,
+      impactMode || layoutMode === "impact",
+      activeTrace,
+      agentNodeIds
+    );
 
-    const { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap } =
-      computeSelectionHighlights(
-        selectedElement,
-        filteredEdges,
-        impactMode || layoutMode === "impact"
-      );
+    const hasActiveHighlight =
+      Boolean(selectedElement) ||
+      Boolean(activeTrace?.found) ||
+      (followAgent && agentNodeIds.length > 0);
 
-    const flowNodes: Node<VibeNodeData>[] = filteredNodes.map((n) => {
-      const qname = n.qualified_name || n.name;
-      const isSearchMatch =
-        searchActive &&
-        (n.name.toLowerCase().includes(searchTerm) ||
-          qname.toLowerCase().includes(searchTerm) ||
-          n.file_path.toLowerCase().includes(searchTerm));
-
-      let isHighlighted = false;
-      let isDimmed = false;
-
-      if (selectedElement) {
-        isHighlighted = highlightedNodes.has(n.id);
-        isDimmed = !isHighlighted;
-      } else if (searchActive) {
-        isHighlighted = isSearchMatch;
-        isDimmed = !isHighlighted;
-      }
-
-      return {
-        id: n.id,
-        type: "vibeNode",
-        position: { x: 0, y: 0 },
-        data: {
-          label: n.name,
-          qualified_name: n.qualified_name,
-          kind: n.kind,
-          signature: n.signature,
-          docstring: n.docstring,
-          file_path: n.file_path,
-          start_line: n.start_line,
-          end_line: n.end_line,
-          visibility: n.visibility,
-          decorators: n.decorators,
-          isHighlighted,
-          isDimmed,
-          isImpact:
-            (impactMode || layoutMode === "impact") &&
-            highlightedNodes.has(n.id) &&
-            n.id !== selectedElement?.id,
-          layoutMode,
-        },
-      };
-    });
-
-    const uniqueEdgeIds = new Set<string>();
-    const flowEdges: Edge[] = [];
-
-    filteredEdges.forEach((e) => {
-      const edgeId = `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`;
-      if (!uniqueEdgeIds.has(edgeId)) {
-        uniqueEdgeIds.add(edgeId);
-
-        let isHighlighted = false;
-        let isDimmed = false;
-
-        if (selectedElement) {
-          isHighlighted = highlightedEdges.has(edgeId);
-          isDimmed = !isHighlighted;
-        } else if (searchActive) {
-          isDimmed = true;
-        }
-
-        const lineSuffix = e.call_line ? ` :L${e.call_line}` : "";
-        let label = e.relation_type === "defines" ? "" : `${e.relation_type}${lineSuffix}`;
-        if (!isHighlighted && layoutMode === "map" && e.relation_type !== "defines") {
-          label = e.relation_type;
-        }
-
-        flowEdges.push({
-          id: edgeId,
-          source: e.from_node_id,
-          target: e.to_node_id,
-          label,
-          type: "smoothstep",
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: isHighlighted ? "#fff" : "rgba(255, 255, 255, 0.3)",
-          },
-          animated: isHighlighted || layoutMode === "trace",
-          style: {
-            stroke: isHighlighted
-              ? layoutMode === "trace"
-                ? "#10b981"
-                : "#6366f1"
-              : "rgba(255, 255, 255, 0.2)",
-            strokeWidth: isHighlighted ? 3 : 1,
-            opacity: isDimmed ? 0.05 : 0.6,
-            transition: "opacity 0.3s ease, stroke 0.3s ease",
-          },
-        });
-      }
-    });
+    const { flowNodes, flowEdges } = buildFlowElements(
+      filteredNodes,
+      filteredEdges,
+      filter.toLowerCase(),
+      hasActiveHighlight,
+      selectedElement,
+      impactMode,
+      layoutMode,
+      highlights
+    );
 
     try {
       const { nodes: layoutNodes, edges: layoutEdges } = await getLayoutedElements(
@@ -202,8 +140,8 @@ export default function App() {
         flowEdges,
         {
           mode: layoutMode,
-          traceStepMap,
-          impactDepthMap,
+          traceStepMap: highlights.traceStepMap,
+          impactDepthMap: highlights.impactDepthMap,
         }
       );
       if (layoutNodes && layoutNodes.length > 0) {
@@ -221,6 +159,9 @@ export default function App() {
     layoutMode,
     filter,
     selectedElement,
+    activeTrace,
+    followAgent,
+    lastAgentEvent,
     setNodes,
     setEdges,
   ]);
@@ -262,6 +203,15 @@ export default function App() {
       ws.current.onmessage = (event) => {
         if (event.data === "refresh") {
           fetchGraph();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed?.type === "agent_focus") {
+            setLastAgentEvent(parsed as AgentFocusEvent);
+          }
+        } catch {
+          // ignore non-json frames
         }
       };
       ws.current.onclose = () => {
@@ -316,6 +266,9 @@ export default function App() {
         }
         edgeCount={edges.length}
         lastUpdate={lastUpdate}
+        followAgent={followAgent}
+        onToggleFollowAgent={setFollowAgent}
+        lastAgentEvent={lastAgentEvent}
       />
 
       <ReactFlow
@@ -353,6 +306,21 @@ export default function App() {
         <Background color="#1a1b23" gap={20} size={1} />
 
         <StatusOverlays loading={loading} error={error} onRetry={() => fetchGraph()} />
+
+        <TracePathBar
+          apiUrl={API_URL}
+          nodes={rawData.current.nodes}
+          activeTrace={activeTrace}
+          onTraceResult={handleTraceResult}
+        />
+
+        <CodeInspectorDrawer
+          apiUrl={API_URL}
+          selectedElement={selectedElement}
+          rawNodes={rawData.current.nodes}
+          rawEdges={rawData.current.edges}
+          onClose={() => setSelectedElement(null)}
+        />
 
         <FilterPanel
           activeFilters={activeFilters}

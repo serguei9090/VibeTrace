@@ -1,5 +1,7 @@
 import { Activity, Code, Layers, RefreshCw, Search } from "lucide-react";
 import type React from "react";
+import type { AgentFocusEvent } from "../types";
+import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
   filter: string;
@@ -9,6 +11,9 @@ interface MapHeaderProps {
   symbolCount: number;
   edgeCount: number;
   lastUpdate: string;
+  followAgent: boolean;
+  onToggleFollowAgent: (enabled: boolean) => void;
+  lastAgentEvent: AgentFocusEvent | null;
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
@@ -19,6 +24,9 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   symbolCount,
   edgeCount,
   lastUpdate,
+  followAgent,
+  onToggleFollowAgent,
+  lastAgentEvent,
 }) => {
   return (
     <div className="vibe-header glass-panel">
@@ -57,6 +65,12 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
         <RefreshCw size={16} className={loading ? "spin" : ""} />
         {loading ? "Syncing..." : "Sync Graph"}
       </button>
+
+      <AgentRadarBadge
+        followAgent={followAgent}
+        onToggleFollow={onToggleFollowAgent}
+        lastAgentEvent={lastAgentEvent}
+      />
 
       <div className="stats-panel">
         <Layers size={14} /> <span>{symbolCount} Symbols</span>
