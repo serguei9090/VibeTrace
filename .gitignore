@@ -38,11 +38,12 @@ venv.bak/
 *.db
 vibegraph_context/
 
-# Node
+# Node & Testing
 node_modules/
 npm-debug.log
 yarn-error.log
 .pnpm-debug.log
+test-results/
 
 # IDE & Caches
 .vscode/
