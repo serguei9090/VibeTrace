@@ -1,24 +1,15 @@
 pre-commit:
-  parallel: true
-  
+  parallel: false
   commands:
-    ruff-check:
-      glob: "{src,tests}/**/*.py"
-      run: uv run ruff check {staged_files}
-      
-    ruff-format:
-      glob: "{src,tests}/**/*.py"
-      run: uv run ruff format --check {staged_files}
-      
-    pytest-fast:
-      run: uv run pytest -x --tb=short
-      
-    type-check:
-      glob: "{src,tests}/**/*.py"
-      run: uv run mypy {staged_files} || true
-      stage_fixed: true
-
-pre-push:
-  commands:
-    pytest-full:
-      run: uv run pytest -v
+    python-lint:
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files}
+    python-format:
+      glob: "*.py"
+      run: uv run ruff format {staged_files}
+    python-types:
+      glob: "*.py"
+      run: uv run pyright
+    web-lint:
+      glob: "src/web/**/*.{ts,tsx,js,json,css}"
+      run: biome check --write {staged_files}

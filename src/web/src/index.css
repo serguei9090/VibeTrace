@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
   --bg-color: #0d0e12;
@@ -9,13 +9,13 @@
   --text-main: #e2e8f0;
   --text-dim: #94a3b8;
   --accent-glow: rgba(99, 102, 241, 0.2);
-  
+
   --node-fn-bg: #1e1b4b;
   --node-fn-border: #4338ca;
   --node-class-bg: #4c1d95;
   --node-class-border: #7c3aed;
-  
-  font-family: 'Inter', system-ui, sans-serif;
+
+  font-family: "Inter", system-ui, sans-serif;
   color-scheme: dark;
 }
 
@@ -75,7 +75,9 @@ body {
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
-  transition: transform 0.1s ease, opacity 0.2s ease;
+  transition:
+    transform 0.1s ease,
+    opacity 0.2s ease;
 }
 
 .vibe-button:hover {
@@ -98,7 +100,7 @@ body {
   border-radius: 8px;
   background: var(--panel-bg);
   border-left: 4px solid var(--primary-color);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   min-width: 180px;
 }
 
@@ -111,7 +113,7 @@ body {
 }
 
 .vibe-node .node-name {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   font-weight: 600;
   font-size: 14px;
 }
@@ -122,8 +124,12 @@ body {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* React Flow Overrides */

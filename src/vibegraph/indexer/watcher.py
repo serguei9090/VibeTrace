@@ -70,24 +70,27 @@ class CodeChangeHandler(FileSystemEventHandler):
                 print(f"Error in watcher callback: {e}")
 
     def on_modified(self, event):
-        if event.is_directory or self._should_ignore(event.src_path):
+        src_path = str(event.src_path)
+        if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File modified: {event.src_path}")
-        index_file(self.db, event.src_path)
+        print(f"File modified: {src_path}")
+        index_file(self.db, src_path)
         self._notify()
 
     def on_created(self, event):
-        if event.is_directory or self._should_ignore(event.src_path):
+        src_path = str(event.src_path)
+        if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File created: {event.src_path}")
-        index_file(self.db, event.src_path)
+        print(f"File created: {src_path}")
+        index_file(self.db, src_path)
         self._notify()
 
     def on_deleted(self, event):
-        if event.is_directory or self._should_ignore(event.src_path):
+        src_path = str(event.src_path)
+        if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File deleted: {event.src_path}")
-        self.db.clear_file(event.src_path)
+        print(f"File deleted: {src_path}")
+        self.db.clear_file(src_path)
         self._notify()
 
 

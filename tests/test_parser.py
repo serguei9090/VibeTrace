@@ -26,6 +26,7 @@ class MyClass:
     func_node = next(n for n in nodes if n.name == "hello_world")
     assert func_node.kind == "function"
     assert func_node.docstring == "This is a docstring."
+    assert func_node.signature is not None
     assert "(name)" in func_node.signature
 
     # Node 2: MyClass

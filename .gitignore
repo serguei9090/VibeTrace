@@ -23,8 +23,10 @@ share/python-wheels/
 MANIFEST
 
 # Environment
-.env
+.env*
+!.env.example
 .venv
+.venv_trash/
 env/
 venv/
 ENV/
@@ -42,8 +44,21 @@ npm-debug.log
 yarn-error.log
 .pnpm-debug.log
 
-# IDE
+# IDE & Caches
 .vscode/
 .idea/
-*.swp/
+*.swp
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.biome/
+.cache/
 
+# Windows Binaries & Symbols
+*.exe
+*.dll
+*.pdb
+*.obj
+
+# Scratch & Automation Scratchpad
+/scratch/

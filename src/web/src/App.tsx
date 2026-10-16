@@ -1,28 +1,39 @@
-import ELK from 'elkjs/lib/elk.bundled.js';
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import ELK from "elkjs/lib/elk.bundled.js";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import ReactFlow, {
-  Controls,
-  Background,
-  useNodesState,
-  useEdgesState,
   addEdge,
+  Background,
   type Connection,
+  Controls,
   type Edge,
-  type Node,
-  MarkerType,
   Handle,
-  Position,
-  Panel,
+  MarkerType,
   MiniMap,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import axios from 'axios';
-import { RefreshCw, Search, Layers, Activity, Code, Filter, Folder, FileCode, Lock, Globe } from 'lucide-react';
-import './App.css';
+  type Node,
+  Panel,
+  Position,
+  useEdgesState,
+  useNodesState,
+} from "reactflow";
+import "reactflow/dist/style.css";
+import axios from "axios";
+import {
+  Activity,
+  Code,
+  FileCode,
+  Filter,
+  Folder,
+  Globe,
+  Layers,
+  Lock,
+  RefreshCw,
+  Search,
+} from "lucide-react";
+import "./App.css";
 
 // API Configuration
-const API_URL = 'http://localhost:8000';
-const WS_URL = 'ws://localhost:8000/ws';
+const API_URL = "http://localhost:8000";
+const WS_URL = "ws://localhost:8000/ws";
 
 const elk = new ELK();
 
@@ -37,13 +48,13 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
   const tree: Record<string, Record<string, Node[]>> = {};
 
   // Track all user nodes to ignore existing groups if re-running
-  const contentNodes = nodes.filter(n => n.type === 'vibeNode'); // Assume 'vibeNode' is our content
+  const contentNodes = nodes.filter((n) => n.type === "vibeNode"); // Assume 'vibeNode' is our content
   if (contentNodes.length === 0) return { nodes: [], edges };
 
-  contentNodes.forEach(node => {
+  contentNodes.forEach((node) => {
     const filePath = node.data?.file_path || "unknown";
     const parts = filePath.split(/[\\/]/);
-    const districtName = parts.length > 1 ? parts.slice(0, -1).join('/') : 'root';
+    const districtName = parts.length > 1 ? parts.slice(0, -1).join("/") : "root";
 
     if (!tree[districtName]) tree[districtName] = {};
     if (!tree[districtName][filePath]) tree[districtName][filePath] = [];
@@ -59,7 +70,7 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
     const elkFiles = [];
 
     for (const [filePath, fileNodes] of Object.entries(files)) {
-      const elkNodes = fileNodes.map(n => ({
+      const elkNodes = fileNodes.map((n) => ({
         id: n.id,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
@@ -70,13 +81,13 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         id: `group-${filePath}`,
         children: elkNodes,
         layoutOptions: {
-          'elk.algorithm': 'rectpacking',
-          'org.eclipse.elk.padding': '[top=80,left=20,bottom=20,right=20]',
-          'elk.padding': '[top=80,left=20,bottom=20,right=20]',
-          'elk.spacing.nodeNode': '40',
-          'elk.aspectRatio': '1.5',
+          "elk.algorithm": "rectpacking",
+          "org.eclipse.elk.padding": "[top=80,left=20,bottom=20,right=20]",
+          "elk.padding": "[top=80,left=20,bottom=20,right=20]",
+          "elk.spacing.nodeNode": "40",
+          "elk.aspectRatio": "1.5",
         },
-        labels: [{ text: filePath }]
+        labels: [{ text: filePath }],
       });
     }
 
@@ -84,35 +95,33 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
       id: `district-${districtPath}`,
       children: elkFiles,
       layoutOptions: {
-        'elk.algorithm': 'rectpacking',
-        'elk.padding': '[top=80,left=40,bottom=40,right=40]', // More breathing room for district
-        'elk.spacing.nodeNode': '80', // Avoid file overlaps
-        'elk.aspectRatio': '1.2'
+        "elk.algorithm": "rectpacking",
+        "elk.padding": "[top=80,left=40,bottom=40,right=40]", // More breathing room for district
+        "elk.spacing.nodeNode": "80", // Avoid file overlaps
+        "elk.aspectRatio": "1.2",
       },
-      labels: [{ text: districtPath }]
+      labels: [{ text: districtPath }],
     });
   }
 
   const rootGraph = {
-    id: 'root',
+    id: "root",
     children: elkDistricts,
-    edges: edges.map(e => ({
+    edges: edges.map((e) => ({
       id: e.id,
       sources: [e.source],
-      targets: [e.target]
+      targets: [e.target],
     })),
     layoutOptions: {
-      'elk.algorithm': 'rectpacking', // Pack districts on the map
-      'elk.padding': '[top=50,left=50,bottom=50,right=50]',
-      'elk.spacing.nodeNode': '150', // More space between districts to prevent overlap
-      'elk.aspectRatio': '1.4'
-    }
+      "elk.algorithm": "rectpacking", // Pack districts on the map
+      "elk.padding": "[top=50,left=50,bottom=50,right=50]",
+      "elk.spacing.nodeNode": "150", // More space between districts to prevent overlap
+      "elk.aspectRatio": "1.4",
+    },
   };
 
   try {
     const layoutedGraph = await elk.layout(rootGraph);
-
-
 
     const finalNodes: Node[] = [];
 
@@ -130,17 +139,17 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
       // Create District Node
       finalNodes.push({
         id: district.id,
-        type: 'districtGroup',
-        data: { label: district.labels?.[0]?.text || 'District' },
+        type: "districtGroup",
+        data: { label: district.labels?.[0]?.text || "District" },
         position: { x: district.x, y: district.y },
         style: {
           width: district.width,
           height: district.height,
-          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-          border: '3px solid rgba(99, 102, 241, 0.4)',
-          borderRadius: '20px',
-          paddingTop: '80px', // Match layout padding
-        }
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
+          border: "3px solid rgba(99, 102, 241, 0.4)",
+          borderRadius: "20px",
+          paddingTop: "80px", // Match layout padding
+        },
       });
 
       // Files in District
@@ -148,34 +157,37 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         // Create File Node
         finalNodes.push({
           id: file.id,
-          type: 'fileGroup',
-          data: { label: file.labels?.[0]?.text || 'File', stats: `${file.children?.length} symbols` },
+          type: "fileGroup",
+          data: {
+            label: file.labels?.[0]?.text || "File",
+            stats: `${file.children?.length} symbols`,
+          },
           position: { x: file.x, y: file.y },
           parentNode: district.id,
-          extent: 'parent',
+          extent: "parent",
           style: {
             width: file.width,
             height: file.height,
-            backgroundColor: 'rgba(99, 102, 241, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '12px',
-            paddingTop: '5px' // 50px Header + 5px Padding
-          }
+            backgroundColor: "rgba(99, 102, 241, 0.05)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "12px",
+            paddingTop: "5px", // 50px Header + 5px Padding
+          },
         });
 
         // Symbols in File
         file.children?.forEach((symbol: any) => {
           // Find original data to preserve
-          const original = contentNodes.find(n => n.id === symbol.id);
+          const original = contentNodes.find((n) => n.id === symbol.id);
           if (original) {
             finalNodes.push({
               ...original,
               position: { x: symbol.x, y: symbol.y },
               parentNode: file.id,
-              extent: 'parent',
+              extent: "parent",
               // Ensure dimensions are set if ELK didn't change them
               width: symbol.width,
-              height: symbol.height
+              height: symbol.height,
             });
           }
         });
@@ -191,36 +203,36 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
 
 // Custom Node Component
 const VibeNode = memo(({ data }: { data: any }) => {
-  const isClass = data.kind === 'class';
-  const isInterface = data.kind === 'interface';
+  const isClass = data.kind === "class";
+  const isInterface = data.kind === "interface";
   const isHighlighted = data.isHighlighted;
   const isDimmed = data.isDimmed;
-  const isPrivate = data.visibility === 'private';
-  const decorators = data.decorators ? data.decorators.split(',').filter(Boolean) : [];
+  const isPrivate = data.visibility === "private";
+  const decorators = data.decorators ? data.decorators.split(",").filter(Boolean) : [];
 
-  let borderColor = '#6366f1';
-  let bgColor = '#1a1b23';
+  let borderColor = "#6366f1";
+  let bgColor = "#1a1b23";
 
-  if (isClass) borderColor = '#a855f7';
-  if (isInterface) borderColor = '#10b981';
+  if (isClass) borderColor = "#a855f7";
+  if (isInterface) borderColor = "#10b981";
 
   // highlight styles
   if (isHighlighted) {
-    bgColor = '#2e2f3d'; // slightly lighter background
-    borderColor = '#ffffff'; // bright border
+    bgColor = "#2e2f3d"; // slightly lighter background
+    borderColor = "#ffffff"; // bright border
   }
 
   if (data.isImpact) {
-    borderColor = '#f87171'; // Red for impact
+    borderColor = "#f87171"; // Red for impact
   }
 
   const style: React.CSSProperties = {
     borderLeftColor: borderColor,
     backgroundColor: bgColor,
     opacity: isDimmed ? 0.2 : 1,
-    transition: 'all 0.3s ease',
+    transition: "all 0.3s ease",
     border: isHighlighted ? `2px solid ${borderColor}` : undefined,
-    borderLeft: isHighlighted ? `2px solid ${borderColor}` : `3px solid ${borderColor}`
+    borderLeft: isHighlighted ? `2px solid ${borderColor}` : `3px solid ${borderColor}`,
   };
 
   return (
@@ -228,14 +240,18 @@ const VibeNode = memo(({ data }: { data: any }) => {
       <Handle type="target" position={Position.Top} style={{ background: borderColor }} />
       <div className="node-header">
         <div className="node-type">
-          {isPrivate ? <Lock size={10} style={{ marginRight: 4 }} /> : <Globe size={10} style={{ marginRight: 4 }} />}
+          {isPrivate ? (
+            <Lock size={10} style={{ marginRight: 4 }} />
+          ) : (
+            <Globe size={10} style={{ marginRight: 4 }} />
+          )}
           {data.kind}
         </div>
         {decorators.length > 0 && (
           <div className="node-decorators">
             {decorators.map((d: string) => (
               <span key={d} className="decorator-badge" title={d}>
-                @{d.length > 10 ? d.substring(0, 10) + '..' : d}
+                @{d.length > 10 ? d.substring(0, 10) + ".." : d}
               </span>
             ))}
           </div>
@@ -243,8 +259,8 @@ const VibeNode = memo(({ data }: { data: any }) => {
       </div>
       <div className="node-name">{data.label}</div>
       {data.signature && (
-        <div style={{ marginTop: 4, fontSize: '9px', opacity: 0.6, fontFamily: 'JetBrains Mono' }}>
-          {data.signature.length > 30 ? data.signature.substring(0, 30) + '...' : data.signature}
+        <div style={{ marginTop: 4, fontSize: "9px", opacity: 0.6, fontFamily: "JetBrains Mono" }}>
+          {data.signature.length > 30 ? data.signature.substring(0, 30) + "..." : data.signature}
         </div>
       )}
       <Handle type="source" position={Position.Bottom} style={{ background: borderColor }} />
@@ -254,16 +270,24 @@ const VibeNode = memo(({ data }: { data: any }) => {
 
 const DistrictNode = memo(({ data }: { data: any }) => {
   return (
-    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-      <div style={{
-        position: 'absolute', top: -110, left: -4,
-        background: 'transparent',
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: '22px', fontWeight: 300,
-        display: 'flex', alignItems: 'center', gap: '8px',
-        textTransform: 'uppercase', letterSpacing: '0.05em',
-        pointerEvents: 'none'
-      }}>
+    <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      <div
+        style={{
+          position: "absolute",
+          top: -110,
+          left: -4,
+          background: "transparent",
+          color: "rgba(255, 255, 255, 0.4)",
+          fontSize: "22px",
+          fontWeight: 300,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          pointerEvents: "none",
+        }}
+      >
         <Folder size={20} />
         {data.label}
       </div>
@@ -273,21 +297,54 @@ const DistrictNode = memo(({ data }: { data: any }) => {
 
 const FileGroupNode = memo(({ data }: { data: any }) => {
   return (
-    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '50px',
-        padding: '0 16px',
-        background: 'rgba(26, 27, 35, 0.95)', // More solid background
-        backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        display: 'flex', alignItems: 'center', gap: '10px',
-        color: 'rgba(255,255,255,0.95)', fontSize: '13px', fontWeight: 600,
-        borderTopLeftRadius: '11px', borderTopRightRadius: '11px',
-        zIndex: 10
-      }}>
-        <FileCode size={16} style={{ color: '#6366f1' }} />
-        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'JetBrains Mono, monospace' }}>{data.label}</span>
-        {data.stats && <span style={{ opacity: 0.5, fontSize: '11px', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px' }}>{data.stats}</span>}
+    <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "50px",
+          padding: "0 16px",
+          background: "rgba(26, 27, 35, 0.95)", // More solid background
+          backdropFilter: "blur(8px)",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          color: "rgba(255,255,255,0.95)",
+          fontSize: "13px",
+          fontWeight: 600,
+          borderTopLeftRadius: "11px",
+          borderTopRightRadius: "11px",
+          zIndex: 10,
+        }}
+      >
+        <FileCode size={16} style={{ color: "#6366f1" }} />
+        <span
+          style={{
+            flex: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            fontFamily: "JetBrains Mono, monospace",
+          }}
+        >
+          {data.label}
+        </span>
+        {data.stats && (
+          <span
+            style={{
+              opacity: 0.5,
+              fontSize: "11px",
+              background: "rgba(255,255,255,0.05)",
+              padding: "2px 8px",
+              borderRadius: "4px",
+            }}
+          >
+            {data.stats}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -309,19 +366,24 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   // Interaction State
-  const [filter, setFilter] = useState('');
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['function', 'class', 'interface', 'module']));
+  const [filter, setFilter] = useState("");
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(
+    new Set(["function", "class", "interface", "module"])
+  );
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [lastUpdate, setLastUpdate] = useState<string>("");
 
   // Ref for raw graph data to support client-side filtering
-  const rawData = useRef<{ nodes: any[], edges: any[] }>({ nodes: [], edges: [] });
+  const rawData = useRef<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   const ws = useRef<WebSocket | null>(null);
 
   // Selection state for highlighting
   // Selection state for highlighting
-  const [selectedElement, setSelectedElement] = useState<{ id: string, type: 'node' | 'edge' } | null>(null);
+  const [selectedElement, setSelectedElement] = useState<{
+    id: string;
+    type: "node" | "edge";
+  } | null>(null);
 
   // Layout Graph w/ Filters & Selection
   const applyLayoutAndFilters = useCallback(async () => {
@@ -330,16 +392,16 @@ export default function App() {
     if (rawNodes.length === 0) return;
 
     // 1. Filter Nodes by Type and Visibility
-    let filteredNodes = rawNodes.filter(n => {
+    const filteredNodes = rawNodes.filter((n) => {
       const typeMatch = activeFilters.has(n.kind);
-      const visibilityMatch = showPrivate || n.visibility !== 'private';
+      const visibilityMatch = showPrivate || n.visibility !== "private";
       return typeMatch && visibilityMatch;
     });
 
     // 2. Filter Edges (must connect two visible nodes)
-    const visibleNodeIds = new Set(filteredNodes.map(n => n.id));
-    let filteredEdges = rawEdges.filter(e =>
-      visibleNodeIds.has(e.from_node_id) && visibleNodeIds.has(e.to_node_id)
+    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
+    const filteredEdges = rawEdges.filter(
+      (e) => visibleNodeIds.has(e.from_node_id) && visibleNodeIds.has(e.to_node_id)
     );
 
     // 3. Selection / Relationship Logic
@@ -351,7 +413,7 @@ export default function App() {
     const highlightedEdges = new Set<string>();
 
     if (selectedElement) {
-      if (selectedElement.type === 'node') {
+      if (selectedElement.type === "node") {
         highlightedNodes.add(selectedElement.id);
 
         if (impactMode) {
@@ -361,7 +423,7 @@ export default function App() {
 
           for (let depth = 1; depth <= 3; depth++) {
             const nextLevel = new Set<string>();
-            filteredEdges.forEach(e => {
+            filteredEdges.forEach((e) => {
               if (currentLevel.has(e.to_node_id)) {
                 if (!highlightedNodes.has(e.from_node_id)) {
                   highlightedNodes.add(e.from_node_id);
@@ -375,7 +437,7 @@ export default function App() {
           }
         } else {
           // Normal Neighbor Highlighting (Local connections)
-          filteredEdges.forEach(e => {
+          filteredEdges.forEach((e) => {
             if (e.from_node_id === selectedElement.id) {
               highlightedNodes.add(e.to_node_id);
               highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
@@ -386,8 +448,8 @@ export default function App() {
             }
           });
         }
-      } else if (selectedElement.type === 'edge') {
-        const [from, to] = selectedElement.id.split('-');
+      } else if (selectedElement.type === "edge") {
+        const [from, to] = selectedElement.id.split("-");
         highlightedEdges.add(selectedElement.id);
         highlightedNodes.add(from);
         highlightedNodes.add(to);
@@ -395,7 +457,10 @@ export default function App() {
     }
 
     const flowNodes: Node[] = filteredNodes.map((n) => {
-      const isSearchMatch = searchActive && (n.name.toLowerCase().includes(searchTerm) || n.file_path.toLowerCase().includes(searchTerm));
+      const isSearchMatch =
+        searchActive &&
+        (n.name.toLowerCase().includes(searchTerm) ||
+          n.file_path.toLowerCase().includes(searchTerm));
 
       let isHighlighted = false;
       let isDimmed = false;
@@ -410,7 +475,7 @@ export default function App() {
 
       return {
         id: n.id,
-        type: 'vibeNode',
+        type: "vibeNode",
         position: { x: 0, y: 0 },
         data: {
           label: n.name,
@@ -422,7 +487,7 @@ export default function App() {
           decorators: n.decorators,
           isHighlighted,
           isDimmed,
-          isImpact: impactMode && highlightedNodes.has(n.id) && n.id !== selectedElement?.id
+          isImpact: impactMode && highlightedNodes.has(n.id) && n.id !== selectedElement?.id,
         },
       };
     });
@@ -447,25 +512,25 @@ export default function App() {
         }
 
         let label = e.relation_type;
-        if (label === 'defines') label = ''; // Reduce visual noise
+        if (label === "defines") label = ""; // Reduce visual noise
 
         flowEdges.push({
           id: edgeId,
           source: e.from_node_id,
           target: e.to_node_id,
           label: isHighlighted ? e.relation_type : label, // Always show on highlight, otherwise hide if defines
-          type: 'smoothstep',
+          type: "smoothstep",
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: isHighlighted ? '#fff' : 'rgba(255, 255, 255, 0.3)'
+            color: isHighlighted ? "#fff" : "rgba(255, 255, 255, 0.3)",
           },
           animated: isHighlighted,
           style: {
-            stroke: isHighlighted ? '#6366f1' : 'rgba(255, 255, 255, 0.2)',
+            stroke: isHighlighted ? "#6366f1" : "rgba(255, 255, 255, 0.2)",
             strokeWidth: isHighlighted ? 3 : 1,
             opacity: isDimmed ? 0.05 : 0.6, // Lower default opacity for edges
-            transition: 'opacity 0.3s ease, stroke 0.3s ease'
-          }
+            transition: "opacity 0.3s ease, stroke 0.3s ease",
+          },
         });
       }
     });
@@ -486,7 +551,6 @@ export default function App() {
       setError("Layout failed (ELK error). Check console.");
     }
   }, [activeFilters, showPrivate, impactMode, filter, selectedElement, setNodes, setEdges]);
-
 
   const fetchGraph = async () => {
     setLoading(true);
@@ -536,23 +600,25 @@ export default function App() {
     };
 
     connectWS();
-    return () => { ws.current?.close(); };
+    return () => {
+      ws.current?.close();
+    };
   }, []);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    [setEdges]
   );
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     // If clicking on a group, ignore or clear? Let's ignore groups for highlighting
-    if (node.type === 'vibeNode') {
-      setSelectedElement(prev => (prev?.id === node.id ? null : { id: node.id, type: 'node' }));
+    if (node.type === "vibeNode") {
+      setSelectedElement((prev) => (prev?.id === node.id ? null : { id: node.id, type: "node" }));
     }
   }, []);
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
-    setSelectedElement(prev => (prev?.id === edge.id ? null : { id: edge.id, type: 'edge' }));
+    setSelectedElement((prev) => (prev?.id === edge.id ? null : { id: edge.id, type: "edge" }));
   }, []);
 
   const onPaneClick = useCallback(() => {
@@ -571,8 +637,11 @@ export default function App() {
 
   const getBounds = () => {
     if (nodes.length === 0) return undefined;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    nodes.forEach(n => {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    nodes.forEach((n) => {
       minX = Math.min(minX, n.position.x);
       minY = Math.min(minY, n.position.y);
       const w = n.style?.width ? (n.style.width as number) : NODE_WIDTH;
@@ -581,19 +650,25 @@ export default function App() {
       maxY = Math.max(maxY, n.position.y + h);
     });
     const padding = 500;
-    return [[minX - padding, minY - padding], [maxX + padding, maxY + padding]] as [[number, number], [number, number]];
+    return [
+      [minX - padding, minY - padding],
+      [maxX + padding, maxY + padding],
+    ] as [[number, number], [number, number]];
   };
 
   return (
     <div className="graph-container">
       <div className="vibe-header glass-panel">
         <Activity size={24} color="#6366f1" />
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em' }}>
-          VIBEGRAPH <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>MAP ROOM</span>
+        <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, letterSpacing: "-0.02em" }}>
+          VIBEGRAPH <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>MAP ROOM</span>
         </h2>
 
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--text-dim)' }} />
+        <div style={{ position: "relative" }}>
+          <Search
+            size={16}
+            style={{ position: "absolute", left: 12, top: 10, color: "var(--text-dim)" }}
+          />
           <input
             className="vibe-input"
             type="text"
@@ -604,16 +679,16 @@ export default function App() {
         </div>
 
         <button className="vibe-button" onClick={() => fetchGraph()} disabled={loading}>
-          <RefreshCw size={16} className={loading ? 'spin' : ''} />
-          {loading ? 'Syncing...' : 'Sync Graph'}
+          <RefreshCw size={16} className={loading ? "spin" : ""} />
+          {loading ? "Syncing..." : "Sync Graph"}
         </button>
 
         <div className="stats-panel">
-          <Layers size={14} /> <span>{nodes.filter(n => n.type !== 'group').length} Symbols</span>
-          <div style={{ width: 1, height: 16, background: 'var(--border-color)' }}></div>
+          <Layers size={14} /> <span>{nodes.filter((n) => n.type !== "group").length} Symbols</span>
+          <div style={{ width: 1, height: 16, background: "var(--border-color)" }}></div>
           <Code size={14} /> <span>{edges.length} Edges</span>
-          <div style={{ width: 1, height: 16, background: 'var(--border-color)' }}></div>
-          <span style={{ fontSize: '11px', opacity: 0.5 }}>Last Sync: {lastUpdate}</span>
+          <div style={{ width: 1, height: 16, background: "var(--border-color)" }}></div>
+          <span style={{ fontSize: "11px", opacity: 0.5 }}>Last Sync: {lastUpdate}</span>
         </div>
       </div>
 
@@ -636,100 +711,221 @@ export default function App() {
           zoomable
           pannable
           style={{
-            backgroundColor: '#0d0d10',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
+            backgroundColor: "#0d0d10",
+            border: "1px solid rgba(99, 102, 241, 0.3)",
             width: 220,
             height: 160,
-            bottom: 60
+            bottom: 60,
           }}
           nodeColor={(n: any) => {
-            if (n.data?.kind === 'class') return '#a855f7';
-            if (n.data?.kind === 'interface') return '#10b981';
-            return '#6366f1';
+            if (n.data?.kind === "class") return "#a855f7";
+            if (n.data?.kind === "interface") return "#10b981";
+            return "#6366f1";
           }}
           maskColor="rgba(0, 0, 0, 0.7)"
         />
         <Background color="#1a1b23" gap={20} size={1} />
 
         {loading && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'rgba(26, 27, 35, 0.8)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 20,
-            backdropFilter: 'blur(4px)',
-            color: '#fff'
-          }}>
-            <RefreshCw size={48} className="spin" style={{ color: '#6366f1', marginBottom: 16 }} />
-            <div style={{ fontSize: '18px', fontWeight: 600 }}>Syncing VibeGraph...</div>
-            <div style={{ fontSize: '14px', opacity: 0.6, marginTop: 4 }}>Parsing AST & building relationships</div>
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              background: "rgba(26, 27, 35, 0.8)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 20,
+              backdropFilter: "blur(4px)",
+              color: "#fff",
+            }}
+          >
+            <RefreshCw size={48} className="spin" style={{ color: "#6366f1", marginBottom: 16 }} />
+            <div style={{ fontSize: "18px", fontWeight: 600 }}>Syncing VibeGraph...</div>
+            <div style={{ fontSize: "14px", opacity: 0.6, marginTop: 4 }}>
+              Parsing AST & building relationships
+            </div>
           </div>
         )}
 
         {error && (
-          <div style={{
-            position: 'absolute',
-            top: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(239, 68, 68, 0.9)',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            zIndex: 30,
-            backdropFilter: 'blur(4px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12
-          }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 20,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(239, 68, 68, 0.9)",
+              color: "white",
+              padding: "12px 24px",
+              borderRadius: "8px",
+              zIndex: 30,
+              backdropFilter: "blur(4px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
             <div style={{ fontWeight: 600 }}>Error:</div>
             <div>{error}</div>
-            <button onClick={() => fetchGraph()} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 4, padding: '4px 8px', color: 'white', cursor: 'pointer', marginLeft: 12 }}>
+            <button
+              onClick={() => fetchGraph()}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "none",
+                borderRadius: 4,
+                padding: "4px 8px",
+                color: "white",
+                cursor: "pointer",
+                marginLeft: 12,
+              }}
+            >
               Retry
             </button>
           </div>
         )}
 
-        <Panel position="top-right" className="glass-panel" style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, marginTop: '80px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Panel
+          position="top-right"
+          className="glass-panel"
+          style={{
+            padding: "12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginTop: "80px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
             <Filter size={12} /> Filters
           </div>
-          {['function', 'class', 'interface', 'module'].map(kind => (
-            <label key={kind} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={activeFilters.has(kind)} onChange={() => toggleFilter(kind)} />
-              <span style={{ textTransform: 'capitalize' }}>{kind}</span>
+          {["function", "class", "interface", "module"].map((kind) => (
+            <label
+              key={kind}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={activeFilters.has(kind)}
+                onChange={() => toggleFilter(kind)}
+              />
+              <span style={{ textTransform: "capitalize" }}>{kind}</span>
             </label>
           ))}
-          <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showPrivate} onChange={() => setShowPrivate(!showPrivate)} />
+          <div
+            style={{
+              borderTop: "1px solid var(--border-color)",
+              margin: "4px 0",
+              paddingTop: "8px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showPrivate}
+                onChange={() => setShowPrivate(!showPrivate)}
+              />
               <span>Show Private</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', cursor: 'pointer', color: impactMode ? '#f87171' : 'inherit' }}>
-              <input type="checkbox" checked={impactMode} onChange={() => setImpactMode(!impactMode)} />
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "12px",
+                cursor: "pointer",
+                color: impactMode ? "#f87171" : "inherit",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={impactMode}
+                onChange={() => setImpactMode(!impactMode)}
+              />
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Activity size={12} /> Deep Impact Mode
               </span>
             </label>
           </div>
         </Panel>
 
-        <Panel position="bottom-right" className="glass-panel" style={{ padding: '8px 12px', marginBottom: 20, marginRight: 20 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ display: 'inline-block', width: 8, height: 8, background: '#6366f1', borderRadius: 2 }}></span> Function
-            <span style={{ display: 'inline-block', width: 8, height: 8, background: '#a855f7', borderRadius: 2 }}></span> Class
-            <span style={{ display: 'inline-block', width: 8, height: 8, background: '#10b981', borderRadius: 2 }}></span> Interface
+        <Panel
+          position="bottom-right"
+          className="glass-panel"
+          style={{ padding: "8px 12px", marginBottom: 20, marginRight: 20 }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              color: "var(--text-dim)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                background: "#6366f1",
+                borderRadius: 2,
+              }}
+            ></span>{" "}
+            Function
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                background: "#a855f7",
+                borderRadius: 2,
+              }}
+            ></span>{" "}
+            Class
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                background: "#10b981",
+                borderRadius: 2,
+              }}
+            ></span>{" "}
+            Interface
           </div>
         </Panel>
       </ReactFlow>
-    </div >
+    </div>
   );
 }
