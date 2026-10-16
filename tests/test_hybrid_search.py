@@ -104,7 +104,7 @@ def test_embedding_engine_and_three_stream_rrf(tmp_path: Path):
             vecs.append(v)
         return vecs
 
-    config = EmbeddingConfig(model_id="google/embeddinggemma-2-270m", dimensions=256, batch_size=2)
+    config = EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=256, batch_size=2)
     engine = EmbeddingEngine(config=config, encoder=fake_gemma_encoder)
 
     # Index all 3 symbols

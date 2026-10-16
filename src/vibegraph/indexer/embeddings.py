@@ -21,10 +21,6 @@ class EmbeddingConfig(BaseModel):
         default="google/embeddinggemma-2",
         description="Primary HuggingFace/SentenceTransformers model identifier.",
     )
-    fallback_model_id: str = Field(
-        default="google/embeddinggemma-300m",
-        description="Fallback model identifier if primary model is unavailable.",
-    )
     dimensions: int = Field(
         default=256,
         ge=64,
@@ -119,10 +115,13 @@ class EmbeddingEngine:
         sentence_transformer_cls = st_mod.SentenceTransformer
         try:
             self._st_model = sentence_transformer_cls(self.config.model_id, trust_remote_code=True)
-        except Exception:
-            self._st_model = sentence_transformer_cls(
-                self.config.fallback_model_id, trust_remote_code=True
-            )
+        except Exception as err:
+            hf_url = f"https://huggingface.co/{self.config.model_id}"
+            raise RuntimeError(
+                f"Failed to load embedding model '{self.config.model_id}': {err}\n"
+                "Please ensure internet access for auto-download, "
+                f"or download the model manually at: {hf_url}"
+            ) from err
         return self._st_model
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
