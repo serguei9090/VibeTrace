@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from vibegraph.indexer.embeddings import EmbeddingEngine
+from vibegraph.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
 from vibegraph.indexer.main import reindex_all
 from vibegraph.mcp.formatters import (
     format_code_slice_md,
@@ -37,7 +38,7 @@ from vibegraph.services.saved_traces_service import (
 
 def _cmd_index(args: argparse.Namespace) -> int:
     target = str(Path(args.path).resolve())
-    db, root = get_context_for_path(target)
+    db, root = get_context_for_path(target, auto_sync=False)
     reindex_all(
         db,
         target,
@@ -245,6 +246,43 @@ def _cmd_summary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_hooks(args: argparse.Namespace) -> int:
+    target = str(Path(args.path).resolve())
+    _, root = get_context_for_path(target, auto_sync=False)
+
+    action = args.action or "status"
+    if action == "install":
+        ok, msg = install_hooks(root, provider=args.provider)
+        if args.json:
+            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
+        else:
+            print(msg)
+        return 0 if ok else 1
+    if action == "uninstall":
+        ok, msg = uninstall_hooks(root)
+        if args.json:
+            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
+        else:
+            print(msg)
+        return 0 if ok else 1
+
+    st = get_hooks_status(root)
+    if args.json:
+        print(json.dumps(st, indent=2))
+    else:
+        print("## VibeGraph Git Hooks Status")
+        print(f"- **Detected Provider**: `{st['provider']}`")
+        print(
+            f"- **Lefthook Configured**: `{st['lefthook']['configured']}` "
+            f"(available: {st['lefthook']['available']})"
+        )
+        print(f"- **Git Post-Commit Hook**: `{st['git']['post_commit']}`")
+        print(f"- **Git Post-Merge Hook**: `{st['git']['post_merge']}`")
+        if not st["lefthook"]["configured"] and not st["git"]["post_commit"]:
+            print("\nTo install automated post-commit hooks, run:\n  vibegraph hooks install")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -258,6 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="VibeGraph Code Intelligence CLI (AST + FTS5 BM25 + EmbeddingGemma 2)",
     )
     parser.add_argument("--root", default=None, help="Project root path override")
+    parser.add_argument("--no-sync", action="store_true", help="Disable Lazy JIT auto-sync")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -332,6 +371,27 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--host", default="127.0.0.1", help="Bind host")
     p_serve.add_argument("--port", type=int, default=8000, help="Bind port")
     p_serve.set_defaults(func=_cmd_serve)
+
+    # hooks
+    p_hooks = sub.add_parser(
+        "hooks", help="Manage automated post-commit and post-merge indexer hooks"
+    )
+    p_hooks.add_argument(
+        "action",
+        nargs="?",
+        choices=["status", "install", "uninstall"],
+        default="status",
+        help="Hook action (default: status)",
+    )
+    p_hooks.add_argument(
+        "--provider",
+        choices=["auto", "lefthook", "git"],
+        default="auto",
+        help="Hook provider (default: auto)",
+    )
+    p_hooks.add_argument("--path", default=".", help="Project root path")
+    p_hooks.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_hooks.set_defaults(func=_cmd_hooks)
 
     return parser
 

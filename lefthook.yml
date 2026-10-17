@@ -13,3 +13,20 @@ pre-commit:
     web-lint:
       glob: "src/web/**/*.{ts,tsx,js,json,css}"
       run: biome check --write {staged_files}
+
+post-commit:
+  commands:
+
+post-merge:
+  commands:
+
+# --- VibeGraph Automated Sync ---
+post-commit:
+  commands:
+    vibegraph-sync:
+      run: uv run vibegraph index
+
+post-merge:
+  commands:
+    vibegraph-sync:
+      run: uv run vibegraph index

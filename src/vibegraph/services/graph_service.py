@@ -34,6 +34,7 @@ __all__ = [
     "build_call_tree",
     "categorize_file_dependencies",
     "compute_impact_analysis",
+    "ensure_index_fresh",
     "format_call_tree_md",
     "get_code_slice",
     "get_context_for_path",
@@ -46,7 +47,56 @@ __all__ = [
 ]
 
 
-def get_context_for_path(path_hint: str | None = None) -> tuple[IndexerDB, Path]:
+import time
+
+from vibegraph.indexer.git_utils import get_git_delta, get_git_sha
+
+_LAST_SYNC_CHECK: dict[str, float] = {}
+
+
+def ensure_index_fresh(
+    db: IndexerDB,
+    project_root: Path,
+    debounce_seconds: float = 2.0,
+    verbose: bool = False,
+) -> bool:
+    """
+    Ensure the IndexerDB is synchronized with the latest working tree changes.
+    Uses Git-SHA delta caching (<20ms).
+    Debounced by debounce_seconds to prevent duplicate checks during burst queries.
+    """
+    from vibegraph.indexer.main import reindex_all
+
+    key = str(project_root.resolve())
+    now = time.time()
+    if now - _LAST_SYNC_CHECK.get(key, 0.0) < debounce_seconds:
+        return False
+    _LAST_SYNC_CHECK[key] = now
+
+    current_sha = get_git_sha(project_root)
+    last_sha = db.get_meta("last_indexed_git_sha")
+
+    # If repository has never been indexed, perform initial indexing
+    if not last_sha:
+        reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+        return True
+
+    # If in git repo, check for delta
+    if current_sha:
+        delta = get_git_delta(project_root, last_sha)
+        if delta is not None:
+            changed, deleted = delta
+            if changed or deleted:
+                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+                return True
+
+    return False
+
+
+def get_context_for_path(
+    path_hint: str | None = None,
+    auto_sync: bool = True,
+) -> tuple[IndexerDB, Path]:
     """Determine the project root and database connection for a given path."""
     if not path_hint or path_hint == ".":
         search_start = Path.cwd()
@@ -69,7 +119,11 @@ def get_context_for_path(path_hint: str | None = None) -> tuple[IndexerDB, Path]
     context_dir.mkdir(exist_ok=True)
     db_path = context_dir / "vibegraph.db"
 
-    return IndexerDB(db_path=str(db_path)), project_root
+    db = IndexerDB(db_path=str(db_path))
+    if auto_sync:
+        ensure_index_fresh(db, project_root)
+
+    return db, project_root
 
 
 def normalize_path(file_path: str, project_root: Path) -> str:

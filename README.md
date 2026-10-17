@@ -115,9 +115,21 @@ vibegraph slice IndexerDB.upsert_node
 # 6. Transitive 3-Level Blast Radius (Impact Analysis)
 vibegraph impact src/vibegraph/indexer/db.py
 
-# 7. Start the FastAPI & WebSocket Map Room Server (http://localhost:8000)
+# 7. Automated Hook Management (Post-Commit / Post-Merge Indexing)
+vibegraph hooks status
+vibegraph hooks install
+vibegraph hooks uninstall
+
+# 8. Start the FastAPI & WebSocket Map Room Server (http://localhost:8000)
 vibegraph serve
 ```
+
+### Zero-Friction Indexing: Lazy JIT & Git Hooks
+
+VibeGraph guarantees your index is always fresh without repetitive manual commands:
+- **Lazy JIT Auto-Sync**: Queries (CLI and MCP) automatically check for uncommitted/dirty file edits using Git-SHA and file modification time deltas. Changes are incrementally re-indexed on the fly in $<20\text{ms}$ before queries execute (pass `--no-sync` to disable).
+- **Automated Post-Commit / Post-Merge Hooks**: Run `vibegraph hooks install` to automatically detect and append background indexing to Lefthook (`lefthook.yml`) or native Git hooks (`.git/hooks/`). This cleanly updates the local index without polluting commit history or causing merge conflicts.
+
 
 ### Running the Web Map Room 2.0
 
