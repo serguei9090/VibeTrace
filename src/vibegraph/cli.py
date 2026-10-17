@@ -3,338 +3,167 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from pathlib import Path
 
-from vibegraph.indexer.embeddings import EmbeddingEngine
-from vibegraph.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
-from vibegraph.indexer.main import reindex_all
-from vibegraph.mcp.formatters import (
-    format_code_slice_md,
-    format_semantic_search_md,
-    format_structural_summary_md,
-    format_trace_path_md,
-)
-from vibegraph.services.graph_service import (
-    build_call_tree,
-    compute_impact_analysis,
-    format_call_tree_md,
-    get_code_slice,
-    get_context_for_path,
-    normalize_path,
-    notify_ui_focus,
-    safe_str,
-    trace_execution_path,
-)
-from vibegraph.services.hybrid_search import hybrid_search
-from vibegraph.services.saved_traces_service import (
-    SavedTraceCreate,
-    create_saved_trace,
-    get_saved_trace_by_name,
-    list_saved_traces,
+from vibegraph.cli_commands import (
+    cmd_call_tree,
+    cmd_hooks,
+    cmd_impact,
+    cmd_index,
+    cmd_search,
+    cmd_serve,
+    cmd_slice,
+    cmd_summary,
+    cmd_trace,
 )
 
+# Aliases for backward compatibility
+_cmd_index = cmd_index
+_cmd_search = cmd_search
+_cmd_trace = cmd_trace
+_cmd_slice = cmd_slice
+_cmd_call_tree = cmd_call_tree
+_cmd_impact = cmd_impact
+_cmd_summary = cmd_summary
+_cmd_hooks = cmd_hooks
+_cmd_serve = cmd_serve
 
-def _cmd_index(args: argparse.Namespace) -> int:
-    target = str(Path(args.path).resolve())
-    db, root = get_context_for_path(target, auto_sync=False)
-    reindex_all(
-        db,
-        target,
-        verbose=not args.json,
-        force=args.force,
-        project_root=root,
-        use_lsp=args.lsp,
-    )
-
-    embedded_count = 0
-    if args.embed:
-        engine = EmbeddingEngine()
-        if not engine.is_available():
-            msg = (
-                "Optional [embeddings] extra not installed. "
-                "Install with: uv pip install -e '.[embeddings]'"
-            )
-            if args.json:
-                print(json.dumps({"status": "indexed", "embeddings_error": msg}))
-                return 0
-            print(f"Warning: {msg}", file=sys.stderr)
-        else:
-            embedded_count = engine.index_missing_embeddings(db)
-            if not args.json:
-                print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
-
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "status": "ok",
-                    "path": target,
-                    "embedded_count": embedded_count,
-                },
-                indent=2,
-            )
-        )
-    return 0
-
-
-def _cmd_search(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
-    results = hybrid_search(db, args.query, limit=args.limit)
-    notify_ui_focus(
-        "semantic_search",
-        [r.node_id for r in results[:5]],
-        summary=f"CLI search '{args.query}'",
-    )
-    if args.json:
-        print(json.dumps([r.model_dump() for r in results], indent=2))
-    else:
-        print(safe_str(format_semantic_search_md(args.query, results)))
-    return 0
-
-
-def _cmd_trace(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
-
-    if getattr(args, "list_saved", False):
-        traces = list_saved_traces(db)
-        if args.json:
-            print(json.dumps([t.model_dump() for t in traces], indent=2))
-        else:
-            if not traces:
-                print("No saved architectural traces found.")
-            else:
-                print("## Saved Architectural Traces")
-                for t in traces:
-                    desc = f" — {t.description}" if t.description else ""
-                    line = (
-                        f"- **{t.name}**: `{t.from_symbol}` -> `{t.to_symbol}` "
-                        f"(depth {t.max_depth}){desc}"
-                    )
-                    print(line)
-        return 0
-
-    from_sym = args.from_symbol
-    to_sym = args.to_symbol
-    depth = args.depth
-
-    if getattr(args, "saved", None):
-        saved = get_saved_trace_by_name(db, args.saved)
-        if not saved:
-            print(f"Error: Saved trace '{args.saved}' not found.", file=sys.stderr)
-            return 1
-        from_sym = saved.from_symbol
-        to_sym = saved.to_symbol
-        depth = saved.max_depth
-
-    if not from_sym or not to_sym:
-        err = "Error: Specify both from_symbol and to_symbol, or use --saved <name>."
-        print(err, file=sys.stderr)
-        return 1
-
-    if getattr(args, "save_as", None):
-        create_saved_trace(
-            db,
-            SavedTraceCreate(
-                name=args.save_as,
-                from_symbol=from_sym,
-                to_symbol=to_sym,
-                max_depth=depth,
-            ),
-        )
-        if not args.json:
-            print(f"Saved trace '{args.save_as}' successfully.")
-
-    res = trace_execution_path(db, from_sym, to_sym, max_depth=depth)
-    if res.found:
-        notify_ui_focus(
-            "trace_path",
-            res.node_ids,
-            summary=f"CLI trace {from_sym} -> {to_sym}",
-            from_symbol=from_sym,
-            to_symbol=to_sym,
-        )
-    if args.json:
-        print(res.model_dump_json(indent=2))
-    else:
-        print(safe_str(format_trace_path_md(res)))
-    return 0 if res.found else 1
-
-
-def _cmd_slice(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file or args.path)
-    res = get_code_slice(
-        db,
-        root,
-        args.symbol,
-        file_path=args.file,
-        include_callees=not args.no_callees,
-    )
-    if res.found and res.node_id:
-        notify_ui_focus("code_slice", [res.node_id], summary=f"CLI slice {res.qualified_name}")
-    if args.json:
-        print(res.model_dump_json(indent=2))
-    else:
-        print(safe_str(format_code_slice_md(res)))
-    return 0 if res.found else 1
-
-
-def _cmd_call_tree(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
-    res = build_call_tree(db, args.symbol, max_depth=args.depth, file_path=args.file)
-    if res.found and res.node_ids:
-        notify_ui_focus(
-            "call_tree",
-            res.node_ids,
-            summary=f"CLI call-tree '{args.symbol}' (depth {args.depth})",
-        )
-    if args.json:
-        print(res.model_dump_json(indent=2))
-    else:
-        print(safe_str(format_call_tree_md(res)))
-    return 0 if res.found else 1
-
-
-def _cmd_impact(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file_path)
-    norm_path = normalize_path(args.file_path, root)
-    total_impact, impacts_by_level = compute_impact_analysis(db, norm_path)
-    file_nodes = db.get_nodes_in_file(norm_path)
-    notify_ui_focus(
-        "impact_analysis",
-        [n["id"] for n in file_nodes],
-        summary=f"CLI impact {norm_path}",
-    )
-
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "file_path": norm_path,
-                    "total_impact": total_impact,
-                    "levels": impacts_by_level,
-                },
-                indent=2,
-            )
-        )
-        return 0
-
-    lines = [f"## Impact Analysis for `{norm_path}`"]
-    if total_impact == 0:
-        lines.append(safe_str("✅ No external dependencies found."))
-    else:
-        lines.append(f"**Total Impact**: {total_impact} components affected.\n")
-        for lvl in (1, 2, 3):
-            if impacts_by_level.get(lvl):
-                lines.append(f"### Level {lvl}")
-                lines.extend(sorted(set(impacts_by_level[lvl])))
-    print("\n".join(lines))
-    return 0
-
-
-def _cmd_summary(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file_path)
-    norm_path = normalize_path(args.file_path, root)
-    total, rows = db.get_file_structure(norm_path, args.limit, args.offset)
-    if args.json:
-        print(json.dumps({"file_path": norm_path, "total": total, "nodes": rows}, indent=2))
-    else:
-        print(
-            safe_str(format_structural_summary_md(norm_path, total, rows, args.limit, args.offset))
-        )
-    return 0
-
-
-def _cmd_hooks(args: argparse.Namespace) -> int:
-    target = str(Path(args.path).resolve())
-    _, root = get_context_for_path(target, auto_sync=False)
-
-    action = args.action or "status"
-    if action == "install":
-        ok, msg = install_hooks(root, provider=args.provider)
-        if args.json:
-            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
-        else:
-            print(msg)
-        return 0 if ok else 1
-    if action == "uninstall":
-        ok, msg = uninstall_hooks(root)
-        if args.json:
-            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
-        else:
-            print(msg)
-        return 0 if ok else 1
-
-    st = get_hooks_status(root)
-    if args.json:
-        print(json.dumps(st, indent=2))
-    else:
-        print("## VibeGraph Git Hooks Status")
-        print(f"- **Detected Provider**: `{st['provider']}`")
-        print(
-            f"- **Lefthook Configured**: `{st['lefthook']['configured']}` "
-            f"(available: {st['lefthook']['available']})"
-        )
-        print(f"- **Git Post-Commit Hook**: `{st['git']['post_commit']}`")
-        print(f"- **Git Post-Merge Hook**: `{st['git']['post_merge']}`")
-        if not st["lefthook"]["configured"] and not st["git"]["post_commit"]:
-            print("\nTo install automated post-commit hooks, run:\n  vibegraph hooks install")
-    return 0
-
-
-def _cmd_serve(args: argparse.Namespace) -> int:
-    import uvicorn
-
-    uvicorn.run("vibegraph.server_api:app", host=args.host, port=args.port)
-    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
+    epilog = """
+examples:
+  vibegraph index . --embed             # Full index with AST, FTS5, and 256d vectors
+  vibegraph index . --lsp               # Index with dynamic LSP type inference
+  vibegraph search "upsert_node"        # 4-stream hybrid search (AST + BM25 + Vector + PageRank)
+  vibegraph trace "GET /graph" get_graph  # Bidirectional BFS trace from route to handler
+  vibegraph trace "GET /graph" get_graph --save-as "GraphFlow"  # Save trace bookmark
+  vibegraph trace --list-saved          # List saved trace queries
+  vibegraph trace --saved "GraphFlow"   # Execute saved trace query
+  vibegraph slice IndexerDB.upsert_node # Surgical source slice + callee contracts
+  vibegraph call-tree hybrid_search     # Top-down recursive call tree hierarchy
+  vibegraph impact src/vibegraph/db.py  # 3-level blast radius impact analysis
+  vibegraph hooks status                # Inspect git hook background sync status
+  vibegraph hooks install               # Auto-configure Lefthook or native git hooks
+  vibegraph serve                       # Start Map Room API and WebSocket daemon
+"""
     parser = argparse.ArgumentParser(
         prog="vibegraph",
         description="VibeGraph Code Intelligence CLI (AST + FTS5 BM25 + EmbeddingGemma 2)",
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--root", default=None, help="Project root path override")
-    parser.add_argument("--no-sync", action="store_true", help="Disable Lazy JIT auto-sync")
-    parser.add_argument("--json", action="store_true", help="Emit JSON output")
+    parser.add_argument(
+        "--no-sync",
+        action="store_true",
+        help="Disable Lazy JIT auto-sync (skip checking uncommitted file changes)",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit JSON output for machine parsing")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # index
-    p_idx = sub.add_parser("index", help="Index repository AST, FTS5, and optional embeddings")
-    p_idx.add_argument("path", nargs="?", default=".", help="Directory or file path to index")
-    p_idx.add_argument("--embed", action="store_true", help="Compute EmbeddingGemma 2 256d vectors")
-    p_idx.add_argument("--force", action="store_true", help="Force re-indexing unchanged files")
-    p_idx.add_argument("--lsp", action="store_true", help="LSP bridge for dynamic types")
+    p_idx = sub.add_parser(
+        "index",
+        help="Index repository AST, FTS5, and optional embeddings",
+        description=(
+            "Extract code symbols, references, framework routes, and generate search indices."
+        ),
+    )
+    p_idx.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Directory or file path to index (default: current directory)",
+    )
+    p_idx.add_argument(
+        "--embed", action="store_true", help="Compute EmbeddingGemma 2 256d Matryoshka vectors"
+    )
+    p_idx.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-indexing all files (bypass Git-SHA delta cache)",
+    )
+    p_idx.add_argument(
+        "--lsp",
+        action="store_true",
+        help="Enable LSP hybrid bridge for dynamic types and re-exports",
+    )
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_idx.set_defaults(func=_cmd_index)
 
     # search
-    p_search = sub.add_parser("search", help="Hybrid RRF search across AST, FTS5, and vectors")
-    p_search.add_argument("query", help="Search query or natural language intent")
-    p_search.add_argument("--limit", type=int, default=15, help="Max results (default: 15)")
-    p_search.add_argument("--path", default=".", help="Project root path")
+    p_search = sub.add_parser(
+        "search",
+        help="Hybrid RRF search across AST, FTS5, and vectors",
+        description=(
+            "Query codebase using 4-stream Reciprocal Rank Fusion with PageRank centrality boost."
+        ),
+    )
+    p_search.add_argument("query", help="Search query symbol name or natural language intent")
+    p_search.add_argument(
+        "--limit", type=int, default=15, help="Maximum number of results to return (default: 15)"
+    )
+    p_search.add_argument("--path", default=".", help="Project root directory path")
     p_search.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_search.set_defaults(func=_cmd_search)
 
     # trace
-    p_trace = sub.add_parser("trace", help="Bidirectional BFS execution tracepath between symbols")
-    p_trace.add_argument("from_symbol", nargs="?", default=None, help="Source symbol name")
-    p_trace.add_argument("to_symbol", nargs="?", default=None, help="Target symbol name")
+    p_trace = sub.add_parser(
+        "trace",
+        help="Bidirectional BFS execution tracepath between symbols",
+        description=(
+            "Find execution paths between two symbols (functions, methods, HTTP routes) "
+            "with call-site lines."
+        ),
+    )
+    p_trace.add_argument(
+        "from_symbol",
+        nargs="?",
+        default=None,
+        help="Source symbol name or HTTP route (e.g. 'GET /graph', 'main')",
+    )
+    p_trace.add_argument(
+        "to_symbol",
+        nargs="?",
+        default=None,
+        help="Target symbol name (e.g. 'IndexerDB.upsert_node')",
+    )
     p_trace.add_argument("--saved", default=None, help="Execute a named saved architectural trace")
-    p_trace.add_argument("--save-as", default=None, help="Bookmark this trace under a name")
-    p_trace.add_argument("--list-saved", action="store_true", help="List all saved trace queries")
-    p_trace.add_argument("--depth", type=int, default=6, help="Max hop depth (default: 6)")
-    p_trace.add_argument("--path", default=".", help="Project root path")
+    p_trace.add_argument(
+        "--save-as", default=None, help="Bookmark this trace under a persistent name"
+    )
+    p_trace.add_argument(
+        "--list-saved", action="store_true", help="List all saved trace queries in this project"
+    )
+    p_trace.add_argument(
+        "--depth", type=int, default=6, help="Maximum BFS traversal depth in hops (default: 6)"
+    )
+    p_trace.add_argument("--path", default=".", help="Project root directory path")
     p_trace.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_trace.set_defaults(func=_cmd_trace)
 
     # slice
-    p_slice = sub.add_parser("slice", help="Read exact symbol source lines and callee contracts")
-    p_slice.add_argument("symbol", help="Symbol name or ClassName.method_name")
-    p_slice.add_argument("--file", default=None, help="Optional file path to disambiguate")
-    p_slice.add_argument("--no-callees", action="store_true", help="Omit callee contracts")
-    p_slice.add_argument("--path", default=".", help="Project root path")
+    p_slice = sub.add_parser(
+        "slice",
+        help="Read exact symbol source lines and callee contracts",
+        description=(
+            "Surgically retrieve symbol source code without reading entire files, "
+            "including direct outgoing callee contracts."
+        ),
+    )
+    p_slice.add_argument("symbol", help="Target symbol name or ClassName.method_name")
+    p_slice.add_argument(
+        "--file",
+        default=None,
+        help="Optional relative file path to disambiguate identical symbol names",
+    )
+    p_slice.add_argument(
+        "--no-callees",
+        action="store_true",
+        help="Omit outgoing callee contracts (source lines only)",
+    )
+    p_slice.add_argument("--path", default=".", help="Project root directory path")
     p_slice.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_slice.set_defaults(func=_cmd_slice)
 
@@ -342,54 +171,96 @@ def build_parser() -> argparse.ArgumentParser:
     p_tree = sub.add_parser(
         "call-tree",
         help="Explore top-down execution call tree from an entry point",
+        description=(
+            "Generate recursive ASCII call hierarchy with exact call-site line numbers "
+            "and cycle prevention."
+        ),
     )
-    p_tree.add_argument("symbol", help="Root symbol name (e.g., 'main', 'hybrid_search')")
     p_tree.add_argument(
-        "--depth", type=int, default=3, help="Max depth of recursive calls (default: 3)"
+        "symbol", help="Root entry point symbol name (e.g., 'main', 'hybrid_search')"
     )
-    p_tree.add_argument("--file", default=None, help="Optional file path to disambiguate symbol")
-    p_tree.add_argument("--path", default=".", help="Project root path")
+    p_tree.add_argument(
+        "--depth", type=int, default=3, help="Maximum depth of recursive nested calls (default: 3)"
+    )
+    p_tree.add_argument(
+        "--file", default=None, help="Optional relative file path to disambiguate symbol"
+    )
+    p_tree.add_argument("--path", default=".", help="Project root directory path")
     p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_tree.set_defaults(func=_cmd_call_tree)
 
     # impact
-    p_impact = sub.add_parser("impact", help="Compute 3-level blast radius for a file")
-    p_impact.add_argument("file_path", help="File path to analyze")
+    p_impact = sub.add_parser(
+        "impact",
+        help="Compute 3-level blast radius for a file",
+        description=(
+            "Compute upstream blast radius: Level 1 (direct callers), "
+            "Level 2 (indirect), Level 3 (deep)."
+        ),
+    )
+    p_impact.add_argument("file_path", help="Relative or absolute file path to analyze")
     p_impact.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_impact.set_defaults(func=_cmd_impact)
 
     # summary
-    p_sum = sub.add_parser("summary", help="Get structural outline of a file")
+    p_sum = sub.add_parser(
+        "summary",
+        help="Get structural outline of a file",
+        description=(
+            "Extract all functions, classes, methods, signatures, "
+            "and visibility decorators in a file."
+        ),
+    )
     p_sum.add_argument("file_path", help="File path to summarize")
-    p_sum.add_argument("--limit", type=int, default=100, help="Max symbols")
-    p_sum.add_argument("--offset", type=int, default=0, help="Pagination offset")
+    p_sum.add_argument(
+        "--limit", type=int, default=100, help="Maximum number of symbols to list (default: 100)"
+    )
+    p_sum.add_argument("--offset", type=int, default=0, help="Pagination offset (default: 0)")
     p_sum.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_sum.set_defaults(func=_cmd_summary)
 
     # serve
-    p_serve = sub.add_parser("serve", help="Start the VibeGraph API & Map Room WebSocket server")
-    p_serve.add_argument("--host", default="127.0.0.1", help="Bind host")
-    p_serve.add_argument("--port", type=int, default=8000, help="Bind port")
+    p_serve = sub.add_parser(
+        "serve",
+        help="Start the VibeGraph API & Map Room WebSocket server",
+        description=(
+            "Launch FastAPI backend with bidirectional WebSocket support "
+            "for interactive visualizers and agent tracking."
+        ),
+    )
+    p_serve.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    p_serve.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     p_serve.set_defaults(func=_cmd_serve)
 
     # hooks
     p_hooks = sub.add_parser(
-        "hooks", help="Manage automated post-commit and post-merge indexer hooks"
+        "hooks",
+        help="Manage automated post-commit and post-merge indexer hooks",
+        description=(
+            "Inspect, install, and uninstall post-commit and post-merge "
+            "background index synchronization."
+        ),
     )
     p_hooks.add_argument(
         "action",
         nargs="?",
         choices=["status", "install", "uninstall"],
         default="status",
-        help="Hook action (default: status)",
+        help=(
+            "Hook action: 'status' (inspect configuration), "
+            "'install' (configure hooks), 'uninstall' (remove hooks)"
+        ),
     )
     p_hooks.add_argument(
         "--provider",
         choices=["auto", "lefthook", "git"],
         default="auto",
-        help="Hook provider (default: auto)",
+        help=(
+            "Hook provider to configure: 'auto' (detect existing), "
+            "'lefthook', or 'git' (default: auto)"
+        ),
     )
-    p_hooks.add_argument("--path", default=".", help="Project root path")
+    p_hooks.add_argument("--path", default=".", help="Project root directory path")
     p_hooks.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_hooks.set_defaults(func=_cmd_hooks)
 
