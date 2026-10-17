@@ -7,6 +7,7 @@ from pathlib import Path
 import pathspec
 
 from vibegraph.indexer.db import IndexerDB
+from vibegraph.indexer.git_utils import get_git_delta, get_git_sha
 from vibegraph.indexer.parser import ParserFactory
 from vibegraph.indexer.resolver import ModuleResolver
 
@@ -128,7 +129,42 @@ def reindex_all(
             verbose=verbose,
             force=force,
         )
+        db.update_centrality_scores()
     elif target_path.is_dir():
+        current_sha = get_git_sha(eff_root)
+        last_sha = db.get_meta("last_indexed_git_sha") if not force else None
+        delta = get_git_delta(eff_root, last_sha) if (last_sha and not force) else None
+
+        if delta is not None:
+            changed, deleted = delta
+            if verbose:
+                print(
+                    f"Git delta cache: {len(changed)} changed/added, {len(deleted)} deleted files."
+                )
+            indexed_any = False
+            for d in deleted:
+                db.clear_file(d)
+                indexed_any = True
+            for c in changed:
+                full_path = eff_root / c
+                if spec and spec.match_file(c):
+                    continue
+                if index_file(
+                    db,
+                    str(full_path),
+                    project_root=eff_root,
+                    resolver=resolver,
+                    verbose=verbose,
+                    force=force,
+                ):
+                    indexed_any = True
+            if indexed_any or len(deleted) > 0:
+                db.update_centrality_scores()
+            if current_sha:
+                db.set_meta("last_indexed_git_sha", current_sha)
+            return
+
+        # Full walk fallback (initial index, --force, or non-git repo)
         for root, dirs, files in os.walk(target_path):
             current_root = Path(root)
 
@@ -157,15 +193,11 @@ def reindex_all(
                     force=force,
                 )
         db.update_centrality_scores()
-    elif target_path.is_file():
-        pass
+        if current_sha:
+            db.set_meta("last_indexed_git_sha", current_sha)
     else:
         if verbose:
             print(f"Path not found: {target_path}")
-
-    # Ensure centrality is computed for single-file indexing as well
-    if target_path.is_file():
-        db.update_centrality_scores()
 
 
 def main() -> None:

@@ -13,8 +13,7 @@ def _create_route_test_project(tmp_path: Path) -> IndexerDB:
     (pkg / "__init__.py").write_text("", encoding="utf-8")
 
     (pkg / "db_layer.py").write_text(
-        "def query_db() -> list[str]:\n"
-        "    return ['item1', 'item2']\n",
+        "def query_db() -> list[str]:\n    return ['item1', 'item2']\n",
         encoding="utf-8",
     )
 

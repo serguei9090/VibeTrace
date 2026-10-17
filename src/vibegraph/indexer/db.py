@@ -149,12 +149,13 @@ class IndexerDB:
 
     def upsert_edge(self, edge: Edge) -> None:
         """Insert an edge."""
+        sql = (
+            "INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line) "
+            "VALUES (?, ?, ?, ?)"
+        )
         with self._get_conn() as conn:
             conn.execute(
-                """
-                INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line)
-                VALUES (?, ?, ?, ?)
-                """,
+                sql,
                 (edge.from_node_id, edge.to_node_id, edge.relation_type, edge.call_line),
             )
             conn.commit()
@@ -187,14 +188,28 @@ class IndexerDB:
 
     def update_file_hash(self, file_path: str, content_hash: str, updated_at: int) -> None:
         """Update or insert content hash for a file."""
+        sql = (
+            "INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at) "
+            "VALUES (?, ?, ?)"
+        )
         with self._get_conn() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at)
-                VALUES (?, ?, ?)
-                """,
-                (file_path, content_hash, updated_at),
-            )
+            conn.execute(sql, (file_path, content_hash, updated_at))
+            conn.commit()
+
+    def get_meta(self, key: str) -> str | None:
+        """Retrieve a metadata value by key."""
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+            return row["value"] if row else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        """Upsert a metadata key-value pair."""
+        sql = (
+            "INSERT INTO meta (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP"
+        )
+        with self._get_conn() as conn:
+            conn.execute(sql, (key, value))
             conn.commit()
 
     def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
@@ -455,14 +470,12 @@ class IndexerDB:
         """Batch insert or replace serialized float32 vector embeddings."""
         if not rows:
             return
+        sql = (
+            "INSERT OR REPLACE INTO node_embeddings (node_id, embedding, dimensions, model_id) "
+            "VALUES (?, ?, ?, ?)"
+        )
         with self._get_conn() as conn:
-            conn.executemany(
-                """
-                INSERT OR REPLACE INTO node_embeddings (node_id, embedding, dimensions, model_id)
-                VALUES (?, ?, ?, ?)
-                """,
-                rows,
-            )
+            conn.executemany(sql, rows)
             conn.commit()
 
     def get_all_embeddings(self, model_id: str | None = None) -> list[tuple[str, bytes, int]]:
@@ -479,15 +492,11 @@ class IndexerDB:
 
     def get_nodes_missing_embeddings(self, model_id: str) -> list[dict[str, Any]]:
         """Return nodes that do not yet have embeddings for the specified model."""
+        sql = (
+            "SELECT n.* FROM nodes n "
+            "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
+            "WHERE e.node_id IS NULL"
+        )
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                """
-                SELECT n.*
-                FROM nodes n
-                LEFT JOIN node_embeddings e
-                  ON n.id = e.node_id AND e.model_id = ?
-                WHERE e.node_id IS NULL
-                """,
-                (model_id,),
-            )
+            cursor = conn.execute(sql, (model_id,))
             return [dict(r) for r in cursor.fetchall()]

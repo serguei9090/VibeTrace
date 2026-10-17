@@ -58,3 +58,10 @@ CREATE TABLE IF NOT EXISTS node_embeddings (
     FOREIGN KEY(node_id) REFERENCES nodes(id)
 );
 
+-- Indexer Metadata Key-Value Table (Git-SHA delta cache, timestamps)
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
