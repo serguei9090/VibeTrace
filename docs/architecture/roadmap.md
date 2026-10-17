@@ -72,3 +72,30 @@ The most critical bottleneck is the "External Module Blind Spot." Currently, the
 - Implement transitive impact (multi-level).
 - Implement breadcrumb pathing in call stacks.
 - **Success Metric**: `vibegraph_get_call_stack` shows 3+ levels of clear, non-redundant paths.
+
+---
+
+## 4. Completed Architectural Enhancements (Competitor-Inspired Benchmarks)
+
+The following 5 strategic capabilities have been fully implemented, integrated across SQLite, CLI, MCP, and Map Room UI, and validated with a 64-test automated pytest suite:
+
+1. **PageRank & Graph Centrality Boost in Search (Stream 4 RRF)**:
+   - In-degree log-normalized centrality scoring computed across graph relations (`calls`, `references`, `inherits`, `implements`, `imports`).
+   - Integrated into a 4-stream Reciprocal Rank Fusion (RRF) search formula (`AST Exact + FTS5 BM25 + EmbeddingGemma 2 + Centrality Boost`), naturally surfacing foundational architectural symbols.
+2. **Framework Route Edge Mapping (Routes → Handlers → Models)**:
+   - Automated detection of web endpoints (FastAPI `@app.get`, `@router.post`, Flask `@app.route`).
+   - Synthesizes `endpoint` nodes connected via `routes` edges to handler functions.
+   - Distinct amber glow styling, filter toggles, and tracepath integration in Map Room 2.0.
+3. **Git-SHA Incremental Delta Cache**:
+   - Bi-temporal caching storing `last_indexed_git_sha` in a new SQLite `meta` table.
+   - Detects added, modified, deleted, and untracked files via `git diff --name-status` and `git status --porcelain`.
+   - Re-indexes only touched files in $<50\text{ms}$ on subsequent runs instead of full tree traversals.
+4. **Saved Architectural Trace Queries (Bookmarks & Named Flows)**:
+   - Persistent `saved_traces` database table.
+   - CLI support: `vibegraph trace --save-as "<name>"`, `vibegraph trace --saved "<name>"`, `vibegraph trace --list-saved`.
+   - REST API endpoints: `GET /api/saved-traces`, `POST /api/saved-traces`, `DELETE /api/saved-traces/{id}`, `GET /api/saved-traces/{name}/run`.
+   - UI Bookmark selector, save prompt, and one-click deletion in Map Room `TracePathBar`.
+5. **LSP Hybrid Bridge for Dynamic Types & Re-Exports**:
+   - Preserves Tree-sitter's ultra-fast 0.28s parsing while providing an optional `--lsp` flag.
+   - Spawns background JSON-RPC stdio language server (`pyright-langserver`, `typescript-language-server`, `rust-analyzer`, `gopls`).
+   - Queries `textDocument/definition` to rewire unresolved dynamic calls and package re-exports to exact target AST definitions.

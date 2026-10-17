@@ -83,17 +83,28 @@ vibegraph-mcp --help
 VibeGraph provides a unified CLI for both AI agents and developers:
 
 ```bash
-# 1. Index your codebase (incremental SHA-256 content-hash check + FTS5 BM25)
+# 1. Index your codebase (Git-SHA delta cache + AST + FTS5 BM25 + Centrality Boost)
 vibegraph index .
 
-# Optional: Compute local 256d Matryoshka EmbeddingGemma 2 vectors
+# Optional: Index with local 256d Matryoshka EmbeddingGemma 2 vectors
 vibegraph index . --embed
 
-# 2. Hybrid 3-Stream RRF Search (AST exact/prefix + SQLite FTS5 BM25 + EmbeddingGemma 2)
+# Optional: Enable LSP hybrid bridge for dynamic types and re-exports
+vibegraph index . --lsp
+
+# 2. Hybrid 4-Stream RRF Search (AST Exact + FTS5 BM25 + Vectors + Centrality Boost)
 vibegraph search "upsert_node"
 
 # 3. Bidirectional BFS Execution Tracepath with exact call-site line numbers
 vibegraph trace vibegraph_get_structural_summary format_structural_summary_md
+
+# Trace web endpoints to backend handlers (Framework Route Mapping)
+vibegraph trace "GET /graph" get_graph
+
+# Save and bookmark architectural tracepaths
+vibegraph trace "GET /graph" get_graph --save-as "GraphEndpointFlow"
+vibegraph trace --list-saved
+vibegraph trace --saved "GraphEndpointFlow"
 
 # 4. Top-Down Recursive Call-Tree Hierarchy with line coordinates and cycle detection
 vibegraph call-tree hybrid_search --depth 3
