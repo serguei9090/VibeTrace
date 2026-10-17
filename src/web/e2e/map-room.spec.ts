@@ -34,7 +34,10 @@ test.describe("VibeGraph Map Room 2.0 E2E", () => {
     await expect(searchInput).toHaveValue("CodeInspectorDrawer");
   });
 
-  test("can trigger execution trace in TracePathBar", async ({ page }) => {
+  test("can trigger execution trace in TracePathBar and capture screenshot", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
 
     const fromInput = page.getByPlaceholder("From symbol...");
@@ -46,9 +49,17 @@ test.describe("VibeGraph Map Room 2.0 E2E", () => {
     await expect(traceBtn).toBeEnabled();
 
     await traceBtn.click();
-    // After trace executes, hop results are displayed
     await expect(page.locator(".glass-panel").filter({ hasText: "hop(s):" })).toBeVisible({
       timeout: 10000,
+    });
+
+    // Wait 1s for ELK trace layout animation to settle
+    await page.waitForTimeout(1000);
+
+    // Save screenshot inside tests/ folder
+    await page.screenshot({
+      path: "../../tests/e2e_map_room.png",
+      fullPage: true,
     });
   });
 });
