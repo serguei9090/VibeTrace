@@ -21,6 +21,7 @@ from vibegraph.mcp.formatters import (
 )
 from vibegraph.mcp.schemas import (
     CallStackInput,
+    CallTreeInput,
     CodeSliceInput,
     DependenciesInput,
     ImpactAnalysisInput,
@@ -35,8 +36,10 @@ from vibegraph.mcp.schemas import (
 )
 from vibegraph.services.graph_service import (
     GraphTraverser,
+    build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
+    format_call_tree_md,
     get_code_slice,
     get_context_for_path,
     handle_error,
@@ -351,6 +354,32 @@ async def vibegraph_get_code_slice(params: CodeSliceInput) -> str:
         return format_code_slice_md(result)
     except Exception as e:
         return handle_error(e, f"slicing {params.symbol_name}")
+
+
+@mcp.tool(name="vibegraph_get_call_tree", annotations=_READ_ONLY)
+async def vibegraph_get_call_tree(params: CallTreeInput) -> str:
+    """Explore recursive top-down call tree from an entry point down to leaves."""
+    try:
+        db, _ = _get_context_for_path(params.file_path or params.scope_path)
+        result = build_call_tree(
+            db,
+            params.symbol_name,
+            max_depth=params.max_depth,
+            file_path=params.file_path,
+        )
+
+        if result.found and result.node_ids:
+            notify_ui_focus(
+                "call_tree",
+                result.node_ids,
+                summary=f"Exploring call tree for {result.root_symbol}",
+            )
+
+        if params.response_format == ResponseFormat.JSON:
+            return result.model_dump_json(indent=2)
+        return safe_str(format_call_tree_md(result))
+    except Exception as e:
+        return handle_error(e, f"building call tree for {params.symbol_name}")
 
 
 @mcp.tool(

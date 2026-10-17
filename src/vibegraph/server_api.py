@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from vibegraph.indexer.watcher import start_observer
 from vibegraph.services.graph_service import (
+    build_call_tree,
     get_context_for_path,
     read_file_lines,
     trace_execution_path,
@@ -92,6 +93,17 @@ def get_trace(
 ):
     """Compute shortest execution tracepath(s) between two symbols via Bidirectional BFS."""
     res = trace_execution_path(db, from_symbol, to_symbol, max_depth=max_depth)
+    return res.model_dump()
+
+
+@app.get("/call-tree")
+def get_call_tree(
+    symbol: str = Query(..., min_length=1),
+    depth: int = Query(default=3, ge=1, le=10),
+    file_path: str | None = Query(default=None),
+):
+    """Explore top-down execution call-tree from an entry point."""
+    res = build_call_tree(db, symbol, max_depth=depth, file_path=file_path)
     return res.model_dump()
 
 

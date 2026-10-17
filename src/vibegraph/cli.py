@@ -16,7 +16,9 @@ from vibegraph.mcp.formatters import (
     format_trace_path_md,
 )
 from vibegraph.services.graph_service import (
+    build_call_tree,
     compute_impact_analysis,
+    format_call_tree_md,
     get_code_slice,
     get_context_for_path,
     normalize_path,
@@ -111,6 +113,22 @@ def _cmd_slice(args: argparse.Namespace) -> int:
         print(res.model_dump_json(indent=2))
     else:
         print(safe_str(format_code_slice_md(res)))
+    return 0 if res.found else 1
+
+
+def _cmd_call_tree(args: argparse.Namespace) -> int:
+    db, _ = get_context_for_path(args.path)
+    res = build_call_tree(db, args.symbol, max_depth=args.depth, file_path=args.file)
+    if res.found and res.node_ids:
+        notify_ui_focus(
+            "call_tree",
+            res.node_ids,
+            summary=f"CLI call-tree '{args.symbol}' (depth {args.depth})",
+        )
+    if args.json:
+        print(res.model_dump_json(indent=2))
+    else:
+        print(safe_str(format_call_tree_md(res)))
     return 0 if res.found else 1
 
 
@@ -214,6 +232,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_slice.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_slice.set_defaults(func=_cmd_slice)
 
+    # call-tree
+    p_tree = sub.add_parser(
+        "call-tree",
+        help="Explore top-down execution call tree from an entry point",
+    )
+    p_tree.add_argument("symbol", help="Root symbol name (e.g., 'main', 'hybrid_search')")
+    p_tree.add_argument(
+        "--depth", type=int, default=3, help="Max depth of recursive calls (default: 3)"
+    )
+    p_tree.add_argument("--file", default=None, help="Optional file path to disambiguate symbol")
+    p_tree.add_argument("--path", default=".", help="Project root path")
+    p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_tree.set_defaults(func=_cmd_call_tree)
+
     # impact
     p_impact = sub.add_parser("impact", help="Compute 3-level blast radius for a file")
     p_impact.add_argument("file_path", help="File path to analyze")
@@ -238,6 +270,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.platform == "win32":
+        try:
+            reconfig_out = getattr(sys.stdout, "reconfigure", None)
+            if callable(reconfig_out):
+                reconfig_out(encoding="utf-8")
+            reconfig_err = getattr(sys.stderr, "reconfigure", None)
+            if callable(reconfig_err):
+                reconfig_err(encoding="utf-8")
+        except Exception:
+            pass
+
     top_json = False
     if argv is not None and "--json" in argv:
         top_json = True

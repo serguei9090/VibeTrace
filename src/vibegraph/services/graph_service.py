@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Any, Literal
 
 from vibegraph.indexer.db import IndexerDB
+from vibegraph.services.call_tree_service import (
+    CallTreeNode,
+    CallTreeResult,
+    build_call_tree,
+    format_call_tree_md,
+)
 from vibegraph.services.trace_service import (
     CalleeContract,
     CodeSliceResult,
@@ -17,14 +23,18 @@ from vibegraph.services.trace_service import (
 )
 
 __all__ = [
+    "CallTreeNode",
+    "CallTreeResult",
     "CalleeContract",
     "CodeSliceResult",
     "GraphTraverser",
     "TraceHop",
     "TraceNodeInfo",
     "TracePathResult",
+    "build_call_tree",
     "categorize_file_dependencies",
     "compute_impact_analysis",
+    "format_call_tree_md",
     "get_code_slice",
     "get_context_for_path",
     "handle_error",
@@ -73,20 +83,29 @@ def normalize_path(file_path: str, project_root: Path) -> str:
 
 
 def safe_str(s: str) -> str:
-    """Safely format string for output, replacing emojis on Windows if needed."""
+    """Safely format string for output, replacing emojis and box characters if needed."""
     if os.name != "nt":
         return s
 
-    replacements = {
-        "🔄": "[CYCLE]",
-        "←": "<-",
-        "→": "->",
-        "✅": "[OK]",
-        "—": "--",
-    }
-    for char, replacement in replacements.items():
-        s = s.replace(char, replacement)
-    return s
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        s.encode(encoding)
+        return s
+    except (UnicodeEncodeError, LookupError):
+        replacements = {
+            "🔄": "[CYCLE]",
+            "←": "<-",
+            "→": "->",
+            "✅": "[OK]",
+            "—": "--",
+            "├──": "+--",
+            "└──": "\\--",
+            "│": "|",
+            "─": "-",
+        }
+        for char, replacement in replacements.items():
+            s = s.replace(char, replacement)
+        return s.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
 def handle_error(e: Exception, context: str = "") -> str:

@@ -228,3 +228,33 @@ class CodeSliceInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class CallTreeInput(BaseModel):
+    """Input model for recursive top-down execution call tree exploration."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol_name: str = Field(
+        ...,
+        description="Root symbol or qualified name to trace downward (e.g. 'main')",
+        min_length=1,
+    )
+    max_depth: int = Field(
+        default=3,
+        description="Maximum depth of recursive callee expansion (default: 3)",
+        ge=1,
+        le=10,
+    )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file path to disambiguate symbols with identical short names",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
