@@ -138,6 +138,12 @@ examples:
     p_trace.add_argument(
         "--depth", type=int, default=6, help="Maximum BFS traversal depth in hops (default: 6)"
     )
+    p_trace.add_argument(
+        "--engine",
+        choices=["bfs", "cte"],
+        default="bfs",
+        help="Path engine: 'bfs' (bidirectional BFS) or 'cte' (native SQLite CTE)",
+    )
     p_trace.add_argument("--path", default=".", help="Project root directory path")
     p_trace.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_trace.set_defaults(func=_cmd_trace)

@@ -197,6 +197,44 @@ class JavaScriptParser(LanguageParser):
                     target_id = self._resolve_call_target(called_name, ctx)
                     edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
+                    # Check for clientside API requests: fetch("/api/...") or axios.get("/api/...")
+                    args_node = node.child_by_field_name("arguments")
+                    if args_node:
+                        args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
+                        if args and args[0].type in ("string", "template_string"):
+                            raw_url = self._get_text(args[0]).strip("'\"`")
+                            if raw_url.startswith("/") or "/api/" in raw_url:
+                                method = "GET"
+                                lower_func = called_name.lower()
+                                if ".post" in lower_func:
+                                    method = "POST"
+                                elif ".put" in lower_func:
+                                    method = "PUT"
+                                elif ".delete" in lower_func:
+                                    method = "DELETE"
+                                elif ".patch" in lower_func:
+                                    method = "PATCH"
+
+                                endpoint_name = f"{method} {raw_url}"
+                                endpoint_id = self._get_id(
+                                    file_path, endpoint_name, kind="endpoint"
+                                )
+                                if not any(n.id == endpoint_id for n in nodes):
+                                    nodes.append(
+                                        self._create_node(
+                                            endpoint_id,
+                                            endpoint_name,
+                                            "endpoint",
+                                            file_path,
+                                            node,
+                                            qualified_name=endpoint_name,
+                                            parent_id=file_module_id,
+                                        )
+                                    )
+                                edges.append(
+                                    self._create_edge(parent_id, endpoint_id, "routes", node=node)
+                                )
+
             elif parent_id and node.type in ("jsx_self_closing_element", "jsx_opening_element"):
                 name_node = node.child_by_field_name("name")
                 if name_node:

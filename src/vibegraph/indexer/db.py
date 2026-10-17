@@ -539,3 +539,36 @@ class IndexerDB:
         with self._get_conn() as conn:
             cursor = conn.execute(sql, (model_id,))
             return [dict(r) for r in cursor.fetchall()]
+
+    def find_path_recursive_cte(
+        self, start_id: str, target_id: str, max_depth: int = 6
+    ) -> list[dict[str, Any]] | None:
+        """Find shortest execution path using native SQLite recursive CTE query."""
+        if start_id == target_id:
+            node = self.get_node(start_id)
+            return [node] if node else None
+
+        sql = """
+        WITH RECURSIVE path_cte(current_id, depth, path_str) AS (
+            SELECT ? AS current_id, 0 AS depth, ? AS path_str
+            UNION ALL
+            SELECT e.to_node_id, p.depth + 1,
+                   p.path_str || ',' || e.to_node_id
+            FROM edges e
+            JOIN path_cte p ON e.from_node_id = p.current_id
+            WHERE p.depth < ?
+              AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0
+        )
+        SELECT path_str FROM path_cte
+        WHERE current_id = ?
+        ORDER BY depth ASC
+        LIMIT 1
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(sql, (start_id, start_id, max_depth, target_id))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            path_ids = str(row[0]).split(",")
+            nodes_by_id = self.get_nodes_by_ids(path_ids)
+            return [nodes_by_id[nid] for nid in path_ids if nid in nodes_by_id]

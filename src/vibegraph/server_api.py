@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from vibegraph.indexer.watcher import start_observer
@@ -97,9 +99,10 @@ def get_trace(
     from_symbol: str = Query(..., min_length=1),
     to_symbol: str = Query(..., min_length=1),
     max_depth: int = Query(default=6, ge=1, le=15),
+    engine: str = Query(default="bfs", pattern="^(bfs|cte)$"),
 ):
-    """Compute shortest execution tracepath(s) between two symbols via Bidirectional BFS."""
-    res = trace_execution_path(db, from_symbol, to_symbol, max_depth=max_depth)
+    """Compute shortest execution tracepath(s) between two symbols via BFS or recursive CTE."""
+    res = trace_execution_path(db, from_symbol, to_symbol, max_depth=max_depth, engine=engine)
     return res.model_dump()
 
 
@@ -186,6 +189,36 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# Mount static frontend if built (src/web/dist)
+web_dist = Path(__file__).resolve().parent.parent / "web" / "dist"
+if not web_dist.exists():
+    web_dist = Path(__file__).resolve().parent.parent.parent / "src" / "web" / "dist"
+
+if web_dist.exists() and (web_dist / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(web_dist), html=True), name="static_web")
+else:
+
+    @app.get("/", response_class=HTMLResponse)
+    def index_fallback():
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><title>VibeGraph Map Room</title></head>
+        <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem;">
+            <h1>VibeGraph API Running</h1>
+            <p>The Map Room Web UI is not built yet.</p>
+            <pre style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+bun run --cwd src/web build
+            </pre>
+            <p>Or run the live development server on port 5173:</p>
+            <pre style="background: #1e293b; padding: 1rem; border-radius: 8px;">
+bun run --cwd src/web dev
+            </pre>
+        </body>
+        </html>
+        """
 
 
 if __name__ == "__main__":

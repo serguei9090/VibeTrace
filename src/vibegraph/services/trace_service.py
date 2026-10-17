@@ -101,13 +101,40 @@ def trace_execution_path(
     from_symbol: str,
     to_symbol: str,
     max_depth: int = 6,
+    engine: str = "bfs",
 ) -> TracePathResult:
-    """Find shortest execution tracepaths between two symbols using Bidirectional BFS."""
+    """Find shortest execution tracepaths between two symbols using BFS or recursive CTE."""
     start_rows = _resolve_symbol_candidates(db, from_symbol)
     target_rows = _resolve_symbol_candidates(db, to_symbol)
 
     if not start_rows or not target_rows:
         return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
+
+    if engine == "cte":
+        path_nodes = db.find_path_recursive_cte(
+            start_rows[0]["id"], target_rows[0]["id"], max_depth=max_depth
+        )
+        if not path_nodes:
+            return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
+        node_ids = [n["id"] for n in path_nodes]
+        hops: list[TraceHop] = []
+        for i in range(len(path_nodes) - 1):
+            hops.append(
+                TraceHop(
+                    step_index=i + 1,
+                    from_node=_row_to_trace_node(path_nodes[i]),
+                    to_node=_row_to_trace_node(path_nodes[i + 1]),
+                    relation_type="calls",
+                )
+            )
+        return TracePathResult(
+            from_symbol=from_symbol,
+            to_symbol=to_symbol,
+            found=True,
+            hops=hops,
+            paths=[hops] if hops else [],
+            node_ids=node_ids,
+        )
 
     node_map: dict[str, TraceNodeInfo] = {}
     fwd_parent: dict[str, tuple[str | None, dict[str, Any] | None]] = {}

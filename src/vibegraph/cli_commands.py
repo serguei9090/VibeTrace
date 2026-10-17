@@ -146,7 +146,8 @@ def cmd_trace(args: argparse.Namespace) -> int:
         if not args.json:
             print(f"Saved trace '{args.save_as}' successfully.")
 
-    res = trace_execution_path(db, from_sym, to_sym, max_depth=depth)
+    engine = getattr(args, "engine", "bfs")
+    res = trace_execution_path(db, from_sym, to_sym, max_depth=depth, engine=engine)
     if res.found:
         notify_ui_focus(
             "trace_path",
