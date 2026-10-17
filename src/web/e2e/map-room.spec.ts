@@ -34,9 +34,7 @@ test.describe("VibeGraph Map Room 2.0 E2E", () => {
     await expect(searchInput).toHaveValue("CodeInspectorDrawer");
   });
 
-  test("can trigger execution trace in TracePathBar and capture screenshot", async ({
-    page,
-  }) => {
+  test("can trigger execution trace in TracePathBar and capture screenshot", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
 
