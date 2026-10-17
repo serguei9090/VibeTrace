@@ -1,6 +1,9 @@
 import json
 import math
+import random
 import sqlite3
+import time
+from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
 
@@ -50,6 +53,32 @@ class Edge(BaseModel):
     call_line: int | None = None
 
 
+def with_write_retry(max_attempts: int = 5, initial_delay: float = 0.05):
+    """Decorator to retry SQLite writes when locked under concurrent agent access."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_err = None
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as err:
+                    err_msg = str(err).lower()
+                    if "locked" in err_msg or "busy" in err_msg:
+                        last_err = err
+                        sleep_time = initial_delay * (2**attempt) + random.uniform(0.01, 0.05)
+                        time.sleep(sleep_time)
+                        continue
+                    raise
+            if last_err:
+                raise last_err
+
+        return wrapper
+
+    return decorator
+
+
 class IndexerDB:
     def __init__(self, db_path: str | None = None):
         if db_path is None:
@@ -63,8 +92,11 @@ class IndexerDB:
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA busy_timeout = 30000")
         return conn
 
     def _init_db(self) -> None:
@@ -101,6 +133,7 @@ class IndexerDB:
             with open(schema_path, encoding="utf-8") as f:
                 conn.executescript(f.read())
 
+    @with_write_retry()
     def upsert_node(self, node: Node) -> None:
         """Insert or replace a node and update FTS5 search index."""
         qualified = node.qualified_name or node.name
@@ -147,6 +180,7 @@ class IndexerDB:
             )
             conn.commit()
 
+    @with_write_retry()
     def upsert_edge(self, edge: Edge) -> None:
         """Insert an edge."""
         sql = (
@@ -160,6 +194,7 @@ class IndexerDB:
             )
             conn.commit()
 
+    @with_write_retry()
     def clear_file(self, file_path: str) -> None:
         """Remove all nodes, edges, and FTS5 entries associated with a file."""
         with self._get_conn() as conn:
@@ -186,6 +221,7 @@ class IndexerDB:
             row = cursor.fetchone()
             return row[0] if row else None
 
+    @with_write_retry()
     def update_file_hash(self, file_path: str, content_hash: str, updated_at: int) -> None:
         """Update or insert content hash for a file."""
         sql = (
@@ -202,6 +238,7 @@ class IndexerDB:
             row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
             return row["value"] if row else None
 
+    @with_write_retry()
     def set_meta(self, key: str, value: str) -> None:
         """Upsert a metadata key-value pair."""
         sql = (
@@ -284,6 +321,7 @@ class IndexerDB:
 
         return {"nodes": nodes, "edges": edges}
 
+    @with_write_retry()
     def update_centrality_scores(self) -> dict[str, float]:
         """Compute and persist log-normalized in-degree graph centrality for all nodes."""
         with self._get_conn() as conn:
@@ -466,6 +504,7 @@ class IndexerDB:
             )
             return {row["id"]: dict(row) for row in cursor.fetchall()}
 
+    @with_write_retry()
     def upsert_embeddings(self, rows: list[tuple[str, bytes, int, str]]) -> None:
         """Batch insert or replace serialized float32 vector embeddings."""
         if not rows:

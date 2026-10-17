@@ -1,3 +1,8 @@
+-- Concurrency and performance pragmas
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 30000;
+
 -- Files tracking for incremental content-hash indexing
 CREATE TABLE IF NOT EXISTS indexed_files (
     file_path TEXT PRIMARY KEY,

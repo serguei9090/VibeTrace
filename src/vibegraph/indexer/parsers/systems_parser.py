@@ -1,4 +1,3 @@
-from typing import Any
 
 from tree_sitter import Node
 
@@ -72,30 +71,80 @@ class GoParser(LanguageParser):
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
             elif node.type == "type_declaration":
-                type_spec = node.child_by_field_name("type")
-                if type_spec:
-                    name_node = type_spec.child_by_field_name("name")
-                    if name_node:
-                        name = self._get_text(name_node)
-                        node_id = self._get_id(file_path, name)
-                        kind = "interface" if type_spec.type == "interface_type" else "struct"
+                for child in node.children:
+                    if child.type == "type_spec":
+                        name_node = child.child_by_field_name("name")
+                        type_node = child.child_by_field_name("type")
+                        if name_node:
+                            name = self._get_text(name_node)
+                            node_id = self._get_id(file_path, name)
+                            is_iface = type_node and type_node.type == "interface_type"
+                            kind = "interface" if is_iface else "struct"
 
-                        nodes.append(
-                            self._create_node(
-                                node_id,
-                                name,
-                                kind,
-                                file_path,
-                                node,
-                                qualified_name=name,
-                                parent_id=parent_id,
+                            nodes.append(
+                                self._create_node(
+                                    node_id,
+                                    name,
+                                    kind,
+                                    file_path,
+                                    child,
+                                    qualified_name=name,
+                                    parent_id=parent_id,
+                                )
                             )
-                        )
 
-                        if parent_id:
-                            edges.append(
-                                self._create_edge(parent_id, node_id, "defines", node=node)
-                            )
+                            if parent_id:
+                                edges.append(
+                                    self._create_edge(parent_id, node_id, "defines", node=child)
+                                )
+
+                            if type_node and type_node.type == "struct_type":
+                                for struct_child in type_node.children:
+                                    if struct_child.type == "field_declaration_list":
+                                        for f in struct_child.children:
+                                            if f.type == "field_declaration":
+                                                has_field_id = any(
+                                                    fc.type == "field_identifier"
+                                                    for fc in f.children
+                                                )
+                                                if not has_field_id:
+                                                    emb_type = self._get_text(f).strip("* ")
+                                                    if emb_type:
+                                                        emb_id = self._resolve_call_target(
+                                                            emb_type, ctx
+                                                        )
+                                                        edges.append(
+                                                            self._create_edge(
+                                                                node_id,
+                                                                emb_id,
+                                                                "inherits",
+                                                                node=f,
+                                                            )
+                                                        )
+                            elif type_node and type_node.type == "interface_type":
+                                for iface_child in type_node.children:
+                                    if iface_child.type == "method_spec":
+                                        m_name_node = iface_child.child_by_field_name("name")
+                                        if m_name_node:
+                                            m_name = self._get_text(m_name_node)
+                                            m_qual = f"{name}.{m_name}"
+                                            m_id = self._get_id(file_path, m_qual)
+                                            nodes.append(
+                                                self._create_node(
+                                                    m_id,
+                                                    m_name,
+                                                    "function",
+                                                    file_path,
+                                                    iface_child,
+                                                    qualified_name=m_qual,
+                                                    parent_id=node_id,
+                                                )
+                                            )
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, m_id, "defines", node=iface_child
+                                                )
+                                            )
 
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")
@@ -142,7 +191,7 @@ class RustParser(LanguageParser):
             node_id = None
             pushed_scope = False
 
-            if node.type == "function_item":
+            if node.type in ("function_item", "function_signature_item"):
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
@@ -167,37 +216,65 @@ class RustParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
-            elif node.type in ("struct_item", "trait_item", "impl_item"):
-                name_node = node.child_by_field_name("name") or node.child_by_field_name("type")
+            elif node.type == "trait_item":
+                name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    kind: Any = "class"
-                    if node.type == "trait_item":
-                        kind = "trait"
-                    elif node.type == "struct_item":
-                        kind = "struct"
-                    elif node.type == "impl_item":
-                        kind = "impl"
-
                     nodes.append(
                         self._create_node(
                             node_id,
                             name,
-                            kind,
+                            "trait",
                             file_path,
                             node,
                             qualified_name=qualified_name,
                             parent_id=parent_id,
                         )
                     )
-
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
-
                     ctx.scope_stack.append(name)
                     pushed_scope = True
+
+            elif node.type == "struct_item":
+                name_node = node.child_by_field_name("name")
+                if name_node:
+                    name = self._get_text(name_node)
+                    qualified_name = self._scoped_name(name, ctx.scope_stack)
+                    node_id = self._get_id(file_path, qualified_name)
+                    nodes.append(
+                        self._create_node(
+                            node_id,
+                            name,
+                            "struct",
+                            file_path,
+                            node,
+                            qualified_name=qualified_name,
+                            parent_id=parent_id,
+                        )
+                    )
+                    if parent_id:
+                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
+                    ctx.scope_stack.append(name)
+                    pushed_scope = True
+
+            elif node.type == "impl_item":
+                type_node = node.child_by_field_name("type")
+                trait_node = node.child_by_field_name("trait")
+                if type_node:
+                    struct_name = self._get_text(type_node)
+                    struct_id = self._get_id(file_path, struct_name)
+                    if trait_node:
+                        trait_name = self._get_text(trait_node)
+                        trait_id = self._resolve_call_target(trait_name, ctx)
+                        edges.append(
+                            self._create_edge(struct_id, trait_id, "implements", node=node)
+                        )
+                    ctx.scope_stack.append(struct_name)
+                    pushed_scope = True
+                    node_id = struct_id
 
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")

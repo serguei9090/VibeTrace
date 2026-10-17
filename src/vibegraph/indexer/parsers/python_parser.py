@@ -84,6 +84,10 @@ class PythonParser(LanguageParser):
         elif node.type in ("import_statement", "import_from_statement"):
             self._handle_import(node, ctx)
 
+        # 4. Dispatch maps: dictionary with symbol references
+        elif parent_id and node.type == "dictionary":
+            self._handle_dictionary(node, parent_id, ctx)
+
         # Recurse
         current_scope_id = node_id if node_id else parent_id
         for child in node.children:
@@ -91,6 +95,17 @@ class PythonParser(LanguageParser):
 
         if pushed_scope:
             ctx.scope_stack.pop()
+
+    def _handle_dictionary(self, node: Node, parent_id: str, ctx: ParserContext) -> None:
+        for child in node.children:
+            if child.type == "pair":
+                val_node = child.child_by_field_name("value")
+                if val_node and val_node.type in ("identifier", "attribute"):
+                    val_name = self._get_text(val_node)
+                    target_id = self._resolve_call_target(val_name, ctx)
+                    ctx.edges.append(
+                        self._create_edge(parent_id, target_id, "references", node=val_node)
+                    )
 
     def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
         current_decorators = []
@@ -166,10 +181,41 @@ class PythonParser(LanguageParser):
 
     def _handle_call(self, node: Node, parent_id: str, ctx: ParserContext) -> None:
         func_node = node.child_by_field_name("function")
-        if func_node:
-            called_name = self._get_text(func_node)
-            target_id = self._resolve_call_target(called_name, ctx)
-            ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+        if not func_node:
+            return
+
+        called_name = self._get_text(func_node)
+
+        # Dynamic heuristic 1: getattr(obj, "method")
+        if called_name == "getattr":
+            args_node = node.child_by_field_name("arguments")
+            if args_node:
+                args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
+                if len(args) >= 2 and args[1].type == "string":
+                    attr_name = self._get_text(args[1]).strip("'\"")
+                    obj_name = self._get_text(args[0])
+                    target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
+                    ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+                    return
+
+        # Dynamic heuristic 2: getattr(obj, "method")()
+        if func_node.type == "call":
+            sub_func = func_node.child_by_field_name("function")
+            if sub_func and self._get_text(sub_func) == "getattr":
+                sub_args = func_node.child_by_field_name("arguments")
+                if sub_args:
+                    args = [c for c in sub_args.children if c.type not in ("(", ")", ",")]
+                    if len(args) >= 2 and args[1].type == "string":
+                        attr_name = self._get_text(args[1]).strip("'\"")
+                        obj_name = self._get_text(args[0])
+                        target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
+                        ctx.edges.append(
+                            self._create_edge(parent_id, target_id, "calls", node=node)
+                        )
+                        return
+
+        target_id = self._resolve_call_target(called_name, ctx)
+        ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
     def _handle_import(self, node: Node, ctx: ParserContext) -> None:
         if node.type == "import_statement":
