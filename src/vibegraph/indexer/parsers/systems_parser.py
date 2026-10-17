@@ -1,4 +1,3 @@
-
 from tree_sitter import Node
 
 from vibegraph.indexer.db import Edge

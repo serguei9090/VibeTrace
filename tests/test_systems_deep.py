@@ -90,6 +90,5 @@ impl Bot {
     bot_node = node_map["Bot"]
     greeter_node = node_map["Greeter"]
     assert any(
-        e.from_node_id == bot_node.id and e.to_node_id == greeter_node.id
-        for e in implements_edges
+        e.from_node_id == bot_node.id and e.to_node_id == greeter_node.id for e in implements_edges
     )
