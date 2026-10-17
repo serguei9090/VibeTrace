@@ -27,6 +27,12 @@ from vibegraph.services.graph_service import (
     trace_execution_path,
 )
 from vibegraph.services.hybrid_search import hybrid_search
+from vibegraph.services.saved_traces_service import (
+    SavedTraceCreate,
+    create_saved_trace,
+    get_saved_trace_by_name,
+    list_saved_traces,
+)
 
 
 def _cmd_index(args: argparse.Namespace) -> int:
@@ -82,14 +88,64 @@ def _cmd_search(args: argparse.Namespace) -> int:
 
 def _cmd_trace(args: argparse.Namespace) -> int:
     db, _ = get_context_for_path(args.path)
-    res = trace_execution_path(db, args.from_symbol, args.to_symbol, max_depth=args.depth)
+
+    if getattr(args, "list_saved", False):
+        traces = list_saved_traces(db)
+        if args.json:
+            print(json.dumps([t.model_dump() for t in traces], indent=2))
+        else:
+            if not traces:
+                print("No saved architectural traces found.")
+            else:
+                print("## Saved Architectural Traces")
+                for t in traces:
+                    desc = f" — {t.description}" if t.description else ""
+                    line = (
+                        f"- **{t.name}**: `{t.from_symbol}` -> `{t.to_symbol}` "
+                        f"(depth {t.max_depth}){desc}"
+                    )
+                    print(line)
+        return 0
+
+    from_sym = args.from_symbol
+    to_sym = args.to_symbol
+    depth = args.depth
+
+    if getattr(args, "saved", None):
+        saved = get_saved_trace_by_name(db, args.saved)
+        if not saved:
+            print(f"Error: Saved trace '{args.saved}' not found.", file=sys.stderr)
+            return 1
+        from_sym = saved.from_symbol
+        to_sym = saved.to_symbol
+        depth = saved.max_depth
+
+    if not from_sym or not to_sym:
+        err = "Error: Specify both from_symbol and to_symbol, or use --saved <name>."
+        print(err, file=sys.stderr)
+        return 1
+
+    if getattr(args, "save_as", None):
+        create_saved_trace(
+            db,
+            SavedTraceCreate(
+                name=args.save_as,
+                from_symbol=from_sym,
+                to_symbol=to_sym,
+                max_depth=depth,
+            ),
+        )
+        if not args.json:
+            print(f"Saved trace '{args.save_as}' successfully.")
+
+    res = trace_execution_path(db, from_sym, to_sym, max_depth=depth)
     if res.found:
         notify_ui_focus(
             "trace_path",
             res.node_ids,
-            summary=f"CLI trace {args.from_symbol} -> {args.to_symbol}",
-            from_symbol=args.from_symbol,
-            to_symbol=args.to_symbol,
+            summary=f"CLI trace {from_sym} -> {to_sym}",
+            from_symbol=from_sym,
+            to_symbol=to_sym,
         )
     if args.json:
         print(res.model_dump_json(indent=2))
@@ -216,8 +272,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # trace
     p_trace = sub.add_parser("trace", help="Bidirectional BFS execution tracepath between symbols")
-    p_trace.add_argument("from_symbol", help="Source symbol name")
-    p_trace.add_argument("to_symbol", help="Target symbol name")
+    p_trace.add_argument("from_symbol", nargs="?", default=None, help="Source symbol name")
+    p_trace.add_argument("to_symbol", nargs="?", default=None, help="Target symbol name")
+    p_trace.add_argument("--saved", default=None, help="Execute a named saved architectural trace")
+    p_trace.add_argument("--save-as", default=None, help="Bookmark this trace under a name")
+    p_trace.add_argument("--list-saved", action="store_true", help="List all saved trace queries")
     p_trace.add_argument("--depth", type=int, default=6, help="Max hop depth (default: 6)")
     p_trace.add_argument("--path", default=".", help="Project root path")
     p_trace.add_argument("--json", action="store_true", default=False, help="Emit JSON output")

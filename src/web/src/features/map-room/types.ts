@@ -88,3 +88,13 @@ export interface AgentFocusEvent {
   from_symbol?: string | null;
   to_symbol?: string | null;
 }
+
+export interface SavedTrace {
+  id: number;
+  name: string;
+  description?: string;
+  from_symbol: string;
+  to_symbol: string;
+  max_depth: number;
+  created_at?: string | null;
+}

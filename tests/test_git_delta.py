@@ -33,9 +33,7 @@ def test_git_delta_lifecycle(tmp_path: Path) -> None:
 
     # Initialize a temporary git repo
     subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True
-    )
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
 
     # File 1: Python module

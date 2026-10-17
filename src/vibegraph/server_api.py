@@ -13,6 +13,13 @@ from vibegraph.services.graph_service import (
     read_file_lines,
     trace_execution_path,
 )
+from vibegraph.services.saved_traces_service import (
+    SavedTraceCreate,
+    create_saved_trace,
+    delete_saved_trace,
+    get_saved_trace_by_name,
+    list_saved_traces,
+)
 
 
 class AgentFocusPayload(BaseModel):
@@ -128,6 +135,42 @@ def get_source(
         raise HTTPException(status_code=400, detail=str(err)) from err
     except FileNotFoundError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@app.get("/api/saved-traces")
+def get_saved_traces_endpoint():
+    """List all saved architectural trace queries."""
+    return [t.model_dump() for t in list_saved_traces(db)]
+
+
+@app.post("/api/saved-traces")
+def post_saved_trace_endpoint(payload: SavedTraceCreate):
+    """Save or update an architectural trace query."""
+    return create_saved_trace(db, payload).model_dump()
+
+
+@app.delete("/api/saved-traces/{trace_id}")
+def delete_saved_trace_endpoint(trace_id: int):
+    """Delete a saved trace query by ID."""
+    deleted = delete_saved_trace(db, trace_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved trace not found")
+    return {"status": "deleted", "id": trace_id}
+
+
+@app.get("/api/saved-traces/{name}/run")
+def run_saved_trace_endpoint(name: str):
+    """Execute a saved trace query by name."""
+    saved = get_saved_trace_by_name(db, name)
+    if not saved:
+        raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
+    res = trace_execution_path(
+        db, saved.from_symbol, saved.to_symbol, max_depth=saved.max_depth
+    )
+    return {
+        "saved_trace": saved.model_dump(),
+        "trace_result": res.model_dump(),
+    }
 
 
 @app.post("/api/agent-focus")

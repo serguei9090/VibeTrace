@@ -65,3 +65,14 @@ CREATE TABLE IF NOT EXISTS meta (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Saved Architectural Trace Queries (Map Room bookmarks & named flows)
+CREATE TABLE IF NOT EXISTS saved_traces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    from_symbol TEXT NOT NULL,
+    to_symbol TEXT NOT NULL,
+    max_depth INTEGER DEFAULT 6,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
