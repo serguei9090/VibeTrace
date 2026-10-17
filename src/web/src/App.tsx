@@ -58,10 +58,10 @@ export default function App() {
 
   const [filter, setFilter] = useState("");
   const [activeFilters, setActiveFilters] = useState<Set<string>>(
-    new Set(["function", "class", "interface", "module"])
+    new Set(["function", "class", "interface", "module", "endpoint"])
   );
   const [activeEdgeTypes, setActiveEdgeTypes] = useState<Set<string>>(
-    new Set(["calls", "imports", "inherits"])
+    new Set(["calls", "routes", "imports", "inherits"])
   );
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);

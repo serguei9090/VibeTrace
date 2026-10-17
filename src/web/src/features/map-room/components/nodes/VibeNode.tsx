@@ -8,6 +8,7 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   const isClass = data.kind === "class";
   const isInterface = data.kind === "interface";
   const isModule = data.kind === "module";
+  const isEndpoint = data.kind === "endpoint";
   const isHighlighted = data.isHighlighted;
   const isDimmed = data.isDimmed;
   const isPrivate = data.visibility === "private";
@@ -17,7 +18,10 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   let accentColor = "#818cf8"; // indigo-400
   let glowColor = "rgba(129, 140, 248, 0.4)";
 
-  if (isClass) {
+  if (isEndpoint) {
+    accentColor = "#f59e0b"; // amber-500
+    glowColor = "rgba(245, 158, 11, 0.4)";
+  } else if (isClass) {
     accentColor = "#c084fc"; // purple-400
     glowColor = "rgba(192, 132, 252, 0.4)";
   } else if (isInterface) {

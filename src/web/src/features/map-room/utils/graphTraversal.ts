@@ -229,6 +229,11 @@ export const buildFlowElements = (
             strokeWidth = 1.5;
             markerColor = "rgba(56, 189, 248, 0.75)";
             break;
+          case "routes":
+            stroke = "rgba(245, 158, 11, 0.85)"; // vibrant amber for HTTP routes
+            strokeWidth = 1.8;
+            markerColor = "rgba(245, 158, 11, 0.95)";
+            break;
           case "imports":
             stroke = "rgba(167, 139, 250, 0.55)"; // purple
             strokeWidth = 1.3;

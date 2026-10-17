@@ -3,6 +3,7 @@ from tree_sitter import Node
 from vibegraph.indexer.db import Edge
 from vibegraph.indexer.db import Node as DBNode
 from vibegraph.indexer.parsers.base import LanguageParser, ParserContext
+from vibegraph.indexer.parsers.route_extractor import extract_python_routes
 from vibegraph.indexer.resolver import ModuleResolver
 
 
@@ -123,21 +124,30 @@ class PythonParser(LanguageParser):
         if name.startswith("_") and not name.startswith("__"):
             visibility = "private"
 
-        ctx.nodes.append(
-            self._create_node(
-                node_id,
-                name,
-                kind,
-                ctx.file_path,
-                node,
-                signature,
-                docstring,
-                decorators=decorators,
-                visibility=visibility,
-                qualified_name=qualified_name,
-                parent_id=parent_id,
-            )
+        new_node = self._create_node(
+            node_id,
+            name,
+            kind,
+            ctx.file_path,
+            node,
+            signature,
+            docstring,
+            decorators=decorators,
+            visibility=visibility,
+            qualified_name=qualified_name,
+            parent_id=parent_id,
         )
+        ctx.nodes.append(new_node)
+
+        if decorators:
+            endpoint_nodes, route_edges = extract_python_routes(
+                decorators, new_node, ctx.file_path, self._get_id
+            )
+            ctx.nodes.extend(endpoint_nodes)
+            ctx.edges.extend(route_edges)
+            if parent_id:
+                for ep in endpoint_nodes:
+                    ctx.edges.append(self._create_edge(parent_id, ep.id, "defines", node=node))
 
         if parent_id:
             ctx.edges.append(self._create_edge(parent_id, node_id, "defines", node=node))

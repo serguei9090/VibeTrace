@@ -101,7 +101,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         >
           <Filter size={12} /> Symbol Filters
         </div>
-        {["function", "class", "interface", "module"].map((kind) => (
+        {["function", "class", "interface", "module", "endpoint"].map((kind) => (
           <label
             key={kind}
             style={{
@@ -137,6 +137,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </div>
         {[
           { id: "calls", label: "Calls", color: "#38bdf8", stroke: "solid" },
+          { id: "routes", label: "Routes (HTTP)", color: "#f59e0b", stroke: "solid" },
           { id: "imports", label: "Imports", color: "#a78bfa", stroke: "dashed" },
           { id: "inherits", label: "Inherits", color: "#34d399", stroke: "solid" },
           { id: "defines", label: "Defines", color: "#94a3b8", stroke: "dotted" },
@@ -263,6 +264,16 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             }}
           />{" "}
           Interface
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              background: "#f59e0b",
+              borderRadius: 2,
+            }}
+          />{" "}
+          Endpoint
           <span style={{ opacity: 0.4 }}>|</span>
           <span style={{ fontWeight: 600, color: "var(--text-main)" }}>Lines:</span>
           <span
