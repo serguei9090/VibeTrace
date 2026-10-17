@@ -67,9 +67,7 @@ class LSPClient:
         except (BrokenPipeError, OSError):
             pass
 
-    def send_request(
-        self, method: str, params: dict[str, Any], timeout: float = 3.0
-    ) -> Any:
+    def send_request(self, method: str, params: dict[str, Any], timeout: float = 3.0) -> Any:
         """Send a JSON-RPC request and wait synchronously for the response."""
         if not self.process or not self.process.stdin or not self.process.stdout:
             return None

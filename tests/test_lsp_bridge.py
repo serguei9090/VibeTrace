@@ -67,7 +67,9 @@ def test_resolve_unresolved_edges_with_mock_lsp(tmp_path: Path) -> None:
 
     # Verify edge currently points to phantom
     with db._get_conn() as conn:
-        row = conn.execute("SELECT to_node_id FROM edges WHERE from_node_id = ?", (node_a.id,)).fetchone()
+        row = conn.execute(
+            "SELECT to_node_id FROM edges WHERE from_node_id = ?", (node_a.id,)
+        ).fetchone()
         assert row["to_node_id"] == "phantom_unresolved_id"
 
     # Create dummy caller file on disk
@@ -83,5 +85,7 @@ def test_resolve_unresolved_edges_with_mock_lsp(tmp_path: Path) -> None:
 
     # Verify edge has been rewired to node_b.id!
     with db._get_conn() as conn:
-        row = conn.execute("SELECT to_node_id FROM edges WHERE from_node_id = ?", (node_a.id,)).fetchone()
+        row = conn.execute(
+            "SELECT to_node_id FROM edges WHERE from_node_id = ?", (node_a.id,)
+        ).fetchone()
         assert row["to_node_id"] == node_b.id
