@@ -63,3 +63,9 @@ test-results/
 
 # Scratch & Automation Scratchpad
 /scratch/
+.codanna/
+.codannaignore
+.fastembed_cache
+
+
+
