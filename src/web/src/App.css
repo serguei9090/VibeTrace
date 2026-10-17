@@ -82,6 +82,8 @@ body {
   border-radius: 10px;
   font-size: 13px;
   min-width: 220px;
+  max-width: 280px;
+  overflow: hidden;
   color: #fff;
   box-shadow:
     0 4px 16px -2px rgba(0, 0, 0, 0.5),
@@ -116,6 +118,9 @@ body {
   font-weight: 600;
   font-size: 14px;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .vibe-input {

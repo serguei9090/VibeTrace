@@ -128,7 +128,8 @@ export const buildFlowElements = (
   selectedElement: SelectedElement | null,
   impactMode: boolean,
   layoutMode: LayoutMode,
-  highlights: SelectionHighlightResult
+  highlights: SelectionHighlightResult,
+  activeEdgeTypes?: Set<string>
 ): { flowNodes: Node<VibeNodeData>[]; flowEdges: Edge[] } => {
   const { highlightedNodes, highlightedEdges } = highlights;
   const searchActive = searchTerm.length > 0;
@@ -196,10 +197,58 @@ export const buildFlowElements = (
         isDimmed = true;
       }
 
+      // Check relation filter when not actively highlighted or in trace
+      if (
+        activeEdgeTypes &&
+        !activeEdgeTypes.has(e.relation_type) &&
+        !isHighlighted &&
+        layoutMode !== "trace"
+      ) {
+        return;
+      }
+
+      // Hide labels on unselected static edges to eliminate visual clutter
+      const showLabel = isHighlighted || layoutMode === "trace";
       const lineSuffix = e.call_line ? ` :L${e.call_line}` : "";
-      let label = e.relation_type === "defines" ? "" : `${e.relation_type}${lineSuffix}`;
-      if (!isHighlighted && layoutMode === "map" && e.relation_type !== "defines") {
-        label = e.relation_type;
+      const label = showLabel ? `${e.relation_type}${lineSuffix}` : "";
+
+      // Differentiate colors and line patterns by relation type
+      let stroke = "rgba(148, 163, 184, 0.25)";
+      let strokeWidth = 1.2;
+      let strokeDasharray: string | undefined;
+      let markerColor = "rgba(148, 163, 184, 0.4)";
+
+      if (isHighlighted) {
+        stroke = layoutMode === "trace" ? "#10b981" : "#818cf8";
+        strokeWidth = 3;
+        markerColor = stroke;
+      } else {
+        switch (e.relation_type) {
+          case "calls":
+            stroke = "rgba(56, 189, 248, 0.65)"; // bright cyan
+            strokeWidth = 1.5;
+            markerColor = "rgba(56, 189, 248, 0.75)";
+            break;
+          case "imports":
+            stroke = "rgba(167, 139, 250, 0.55)"; // purple
+            strokeWidth = 1.3;
+            strokeDasharray = "5 5";
+            markerColor = "rgba(167, 139, 250, 0.65)";
+            break;
+          case "inherits":
+          case "implements":
+          case "extends":
+            stroke = "rgba(52, 211, 153, 0.65)"; // emerald
+            strokeWidth = 1.5;
+            markerColor = "rgba(52, 211, 153, 0.75)";
+            break;
+          default:
+            stroke = "rgba(148, 163, 184, 0.2)"; // subtle muted slate
+            strokeWidth = 1;
+            strokeDasharray = "2 3";
+            markerColor = "rgba(148, 163, 184, 0.3)";
+            break;
+        }
       }
 
       flowEdges.push({
@@ -210,18 +259,33 @@ export const buildFlowElements = (
         type: "smoothstep",
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: isHighlighted ? "#fff" : "rgba(255, 255, 255, 0.3)",
+          color: markerColor,
         },
         animated: isHighlighted || layoutMode === "trace",
+        labelStyle: showLabel
+          ? {
+              fill: "#f8fafc",
+              fontSize: 10,
+              fontWeight: 600,
+              fontFamily: "JetBrains Mono, monospace",
+            }
+          : undefined,
+        labelBgStyle: showLabel
+          ? {
+              fill: "rgba(15, 17, 28, 0.95)",
+              stroke: stroke,
+              strokeWidth: 1,
+              rx: 4,
+              ry: 4,
+            }
+          : undefined,
+        labelBgPadding: [6, 4] as [number, number],
         style: {
-          stroke: isHighlighted
-            ? layoutMode === "trace"
-              ? "#10b981"
-              : "#6366f1"
-            : "rgba(255, 255, 255, 0.2)",
-          strokeWidth: isHighlighted ? 3 : 1,
-          opacity: isDimmed ? 0.05 : 0.6,
-          transition: "opacity 0.3s ease, stroke 0.3s ease",
+          stroke,
+          strokeWidth,
+          strokeDasharray,
+          opacity: isDimmed ? 0.04 : 0.8,
+          transition: "opacity 0.25s ease, stroke 0.25s ease",
         },
       });
     }

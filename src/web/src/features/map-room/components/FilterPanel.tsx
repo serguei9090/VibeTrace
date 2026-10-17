@@ -6,6 +6,8 @@ import type { LayoutMode } from "../types";
 interface FilterPanelProps {
   activeFilters: Set<string>;
   onToggleFilter: (kind: string) => void;
+  activeEdgeTypes: Set<string>;
+  onToggleEdgeType: (relType: string) => void;
   showPrivate: boolean;
   onTogglePrivate: (show: boolean) => void;
   impactMode: boolean;
@@ -17,6 +19,8 @@ interface FilterPanelProps {
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   activeFilters,
   onToggleFilter,
+  activeEdgeTypes,
+  onToggleEdgeType,
   showPrivate,
   onTogglePrivate,
   impactMode,
@@ -35,7 +39,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           flexDirection: "column",
           gap: 8,
           marginTop: "80px",
-          minWidth: "175px",
+          minWidth: "185px",
         }}
       >
         {onLayoutModeChange && (
@@ -95,7 +99,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             gap: 6,
           }}
         >
-          <Filter size={12} /> Filters
+          <Filter size={12} /> Symbol Filters
         </div>
         {["function", "class", "interface", "module"].map((kind) => (
           <label
@@ -116,6 +120,55 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <span style={{ textTransform: "capitalize" }}>{kind}</span>
           </label>
         ))}
+
+        <div
+          style={{
+            fontSize: "12px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            borderTop: "1px solid var(--border-color)",
+            paddingTop: 8,
+            marginTop: 4,
+          }}
+        >
+          <GitBranch size={12} /> Connection Types
+        </div>
+        {[
+          { id: "calls", label: "Calls", color: "#38bdf8", stroke: "solid" },
+          { id: "imports", label: "Imports", color: "#a78bfa", stroke: "dashed" },
+          { id: "inherits", label: "Inherits", color: "#34d399", stroke: "solid" },
+          { id: "defines", label: "Defines", color: "#94a3b8", stroke: "dotted" },
+        ].map((rel) => (
+          <label
+            key={rel.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: "12px",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={activeEdgeTypes.has(rel.id)}
+              onChange={() => onToggleEdgeType(rel.id)}
+            />
+            <span
+              style={{
+                display: "inline-block",
+                width: 14,
+                height: 2,
+                backgroundColor: rel.color,
+                borderRadius: 1,
+              }}
+            />
+            <span>{rel.label}</span>
+          </label>
+        ))}
+
         <div
           style={{
             borderTop: "1px solid var(--border-color)",
@@ -176,8 +229,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             display: "flex",
             alignItems: "center",
             gap: 8,
+            flexWrap: "wrap",
           }}
         >
+          <span style={{ fontWeight: 600, color: "var(--text-main)" }}>Nodes:</span>
           <span
             style={{
               display: "inline-block",
@@ -208,6 +263,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             }}
           />{" "}
           Interface
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span style={{ fontWeight: 600, color: "var(--text-main)" }}>Lines:</span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 12,
+              height: 2,
+              background: "#38bdf8",
+            }}
+          />{" "}
+          Calls
+          <span
+            style={{
+              display: "inline-block",
+              width: 12,
+              height: 2,
+              background: "#a78bfa",
+            }}
+          />{" "}
+          Imports
         </div>
       </Panel>
     </>

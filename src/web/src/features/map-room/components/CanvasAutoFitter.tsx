@@ -13,7 +13,7 @@ export const CanvasAutoFitter = ({ layoutMode, nodeCount }: CanvasAutoFitterProp
   useEffect(() => {
     if (nodeCount > 0 && layoutMode) {
       const timer = setTimeout(() => {
-        fitView({ padding: 0.35, duration: 300 });
+        fitView({ padding: 0.4, duration: 300, minZoom: 0.1, maxZoom: 1 });
       }, 150);
       return () => clearTimeout(timer);
     }

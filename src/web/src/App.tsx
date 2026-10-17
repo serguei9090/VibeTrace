@@ -60,6 +60,9 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<Set<string>>(
     new Set(["function", "class", "interface", "module"])
   );
+  const [activeEdgeTypes, setActiveEdgeTypes] = useState<Set<string>>(
+    new Set(["calls", "imports", "inherits"])
+  );
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("map");
@@ -134,7 +137,8 @@ export default function App() {
       selectedElement,
       impactMode,
       layoutMode,
-      highlights
+      highlights,
+      activeEdgeTypes
     );
 
     try {
@@ -157,6 +161,7 @@ export default function App() {
     }
   }, [
     activeFilters,
+    activeEdgeTypes,
     showPrivate,
     impactMode,
     layoutMode,
@@ -257,6 +262,16 @@ export default function App() {
     setActiveFilters(newFilters);
   };
 
+  const toggleEdgeType = (relType: string) => {
+    const newEdgeTypes = new Set(activeEdgeTypes);
+    if (newEdgeTypes.has(relType)) {
+      newEdgeTypes.delete(relType);
+    } else {
+      newEdgeTypes.add(relType);
+    }
+    setActiveEdgeTypes(newEdgeTypes);
+  };
+
   return (
     <div className="graph-container">
       <MapHeader
@@ -292,6 +307,7 @@ export default function App() {
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         fitView
+        fitViewOptions={{ padding: 0.35 }}
         translateExtent={getGraphBounds(nodes)}
       >
         <Controls />
@@ -336,6 +352,8 @@ export default function App() {
         <FilterPanel
           activeFilters={activeFilters}
           onToggleFilter={toggleFilter}
+          activeEdgeTypes={activeEdgeTypes}
+          onToggleEdgeType={toggleEdgeType}
           showPrivate={showPrivate}
           onTogglePrivate={setShowPrivate}
           impactMode={impactMode}

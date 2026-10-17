@@ -117,7 +117,11 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
           )}
         </div>
       </div>
-      <div className="node-name" style={{ color: "#f8fafc" }}>
+      <div
+        className="node-name"
+        style={{ color: "#f8fafc" }}
+        title={String(data.qualified_name || data.label)}
+      >
         {data.qualified_name || data.label}
       </div>
       {data.signature && (
@@ -134,6 +138,7 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
           }}
+          title={String(data.signature)}
         >
           {data.signature.length > 36 ? `${data.signature.substring(0, 36)}...` : data.signature}
         </div>
