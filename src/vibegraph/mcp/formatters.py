@@ -63,9 +63,10 @@ def format_semantic_search_md(query: str, results: list[SearchResult]) -> str:
         sig = f" `{hit.signature}`" if hit.signature else ""
         span = f":L{hit.start_line}-{hit.end_line}" if hit.start_line else ""
         streams = ", ".join(hit.match_sources)
+        cent_str = f" | cent={hit.centrality:.2f}" if hit.centrality > 0 else ""
         lines.append(
             f"{idx}. **`{hit.qualified_name}`** ({hit.kind}){sig} — "
-            f"`{hit.file_path}{span}` `[RRF={hit.rrf_score:.4f} | {streams}]`"
+            f"`{hit.file_path}{span}` `[RRF={hit.rrf_score:.4f} | {streams}{cent_str}]`"
         )
         if hit.docstring:
             first_line = hit.docstring.strip().splitlines()[0]

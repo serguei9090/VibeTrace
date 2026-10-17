@@ -25,7 +25,13 @@ class SearchResult(BaseModel):
     rrf_score: float = Field(description="Reciprocal Rank Fusion combined score.")
     match_sources: list[str] = Field(
         default_factory=list,
-        description="Search streams that surfaced this symbol ('ast', 'fts5', 'semantic').",
+        description=(
+            "Search streams surfacing this symbol ('ast', 'fts5', 'semantic', 'centrality')"
+        ),
+    )
+    centrality: float = Field(
+        default=0.0,
+        description="Graph in-degree log-normalized centrality score.",
     )
 
 
@@ -36,7 +42,7 @@ def hybrid_search(
     embedding_engine: EmbeddingEngine | None = None,
     rrf_k: int = 60,
 ) -> list[SearchResult]:
-    """Execute 3-stream Reciprocal Rank Fusion over AST, FTS5 BM25, and EmbeddingGemma 2 vectors.
+    """Execute 4-stream Reciprocal Rank Fusion over AST, FTS5, Semantic, and Graph Centrality.
 
     Formula:
         RRF_Score(d) = sum_{s in Streams} (w_s / (rrf_k + rank_s(d)))
@@ -52,6 +58,7 @@ def hybrid_search(
     weight_ast = 1.2
     weight_fts5 = 1.0
     weight_semantic = 1.1
+    weight_centrality = 0.8
 
     scores: dict[str, float] = {}
     sources: dict[str, list[str]] = {}
@@ -89,6 +96,16 @@ def hybrid_search(
             if nid in node_cache:
                 _accumulate(nid, idx, weight_semantic, "semantic")
 
+    # Stream 4: Graph Centrality boost for candidate pool
+    centrality_candidates = [
+        (nid, float(node_cache[nid].get("centrality") or 0.0))
+        for nid in node_cache
+        if float(node_cache[nid].get("centrality") or 0.0) > 0.0
+    ]
+    centrality_candidates.sort(key=lambda x: x[1], reverse=True)
+    for idx, (nid, _cent) in enumerate(centrality_candidates, start=1):
+        _accumulate(nid, idx, weight_centrality, "centrality")
+
     # Sort combined hits by descending RRF score
     ranked_ids = sorted(scores.keys(), key=lambda nid: scores[nid], reverse=True)[:limit]
 
@@ -110,6 +127,7 @@ def hybrid_search(
                 docstring=row.get("docstring"),
                 rrf_score=round(scores[nid], 6),
                 match_sources=sources.get(nid, []),
+                centrality=float(row.get("centrality") or 0.0),
             )
         )
 

@@ -156,9 +156,16 @@ def reindex_all(
                     verbose=verbose,
                     force=force,
                 )
+        db.update_centrality_scores()
+    elif target_path.is_file():
+        pass
     else:
         if verbose:
             print(f"Path not found: {target_path}")
+
+    # Ensure centrality is computed for single-file indexing as well
+    if target_path.is_file():
+        db.update_centrality_scores()
 
 
 def main() -> None:

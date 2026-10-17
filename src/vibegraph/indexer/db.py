@@ -1,4 +1,5 @@
 import json
+import math
 import sqlite3
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +22,7 @@ class Node(BaseModel):
     docstring: str | None = None
     decorators: list[str] | None = None
     visibility: str | None = None
+    centrality: float = 0.0
 
 
 class Edge(BaseModel):
@@ -67,6 +69,8 @@ class IndexerDB:
                     )
                 if cols and "parent_id" not in cols:
                     conn.execute("ALTER TABLE nodes ADD COLUMN parent_id TEXT")
+                if cols and "centrality" not in cols:
+                    conn.execute("ALTER TABLE nodes ADD COLUMN centrality REAL DEFAULT 0.0")
             except Exception:
                 pass
 
@@ -89,8 +93,8 @@ class IndexerDB:
                 """
                 INSERT OR REPLACE INTO nodes (
                     id, name, qualified_name, parent_id, kind, file_path, start_line, end_line,
-                    signature, docstring, decorators, visibility
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    signature, docstring, decorators, visibility, centrality
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     node.id,
@@ -105,6 +109,7 @@ class IndexerDB:
                     node.docstring,
                     json.dumps(node.decorators) if node.decorators else None,
                     node.visibility,
+                    node.centrality,
                 ),
             )
             # Maintain FTS5 index
@@ -186,7 +191,7 @@ class IndexerDB:
 
         sql = """
             SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
-                   n.start_line, n.end_line, n.signature, n.docstring,
+                   n.start_line, n.end_line, n.signature, n.docstring, n.centrality,
                    bm25(nodes_fts) as rank
             FROM nodes_fts f
             JOIN nodes n ON f.node_id = n.id
@@ -247,6 +252,32 @@ class IndexerDB:
                 edges = [dict(row) for row in edges_cursor.fetchall()]
 
         return {"nodes": nodes, "edges": edges}
+
+    def update_centrality_scores(self) -> dict[str, float]:
+        """Compute and persist log-normalized in-degree graph centrality for all nodes."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT to_node_id, COUNT(*) as cnt
+                FROM edges
+                WHERE relation_type IN ('calls', 'references', 'inherits', 'implements', 'imports')
+                GROUP BY to_node_id
+                """
+            )
+            scores: dict[str, float] = {}
+            updates: list[tuple[float, str]] = []
+            for row in cursor.fetchall():
+                nid = str(row[0])
+                cnt = int(row[1])
+                score = round(math.log1p(cnt), 4)
+                scores[nid] = score
+                updates.append((score, nid))
+
+            conn.execute("UPDATE nodes SET centrality = 0.0")
+            if updates:
+                conn.executemany("UPDATE nodes SET centrality = ? WHERE id = ?", updates)
+            conn.commit()
+            return scores
 
     def get_file_structure(
         self, file_path: str, limit: int = 100, offset: int = 0
@@ -373,7 +404,7 @@ class IndexerDB:
         with self._get_conn() as conn:
             sql = """
                 SELECT id, name, qualified_name, kind, file_path,
-                       start_line, end_line, signature, docstring,
+                       start_line, end_line, signature, docstring, centrality,
                        CASE
                            WHEN LOWER(qualified_name) = LOWER(?)
                              OR LOWER(name) = LOWER(?) THEN 0

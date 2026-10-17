@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     signature TEXT,                -- The code signature for quick reference
     docstring TEXT,                -- Extracted comments for semantic context
     decorators TEXT,               -- JSON list of decorators (e.g. ["@mcp.tool"])
-    visibility TEXT                -- 'public', 'private', 'protected', 'exported'
+    visibility TEXT,               -- 'public', 'private', 'protected', 'exported'
+    centrality REAL DEFAULT 0.0    -- In-degree log-normalized graph centrality score
 );
 
 -- Represents "Neural Connections" (Calls, Imports, Inheritance, References)
