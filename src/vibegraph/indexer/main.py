@@ -96,6 +96,7 @@ def reindex_all(
     verbose: bool = True,
     force: bool = False,
     project_root: Path | None = None,
+    use_lsp: bool = False,
 ) -> None:
     """Reindex a file or directory recursively."""
     target_path = Path(target_path_str).resolve()
@@ -195,7 +196,31 @@ def reindex_all(
         db.update_centrality_scores()
         if current_sha:
             db.set_meta("last_indexed_git_sha", current_sha)
-    else:
+
+    if use_lsp and eff_root.is_dir():
+        from vibegraph.indexer.lsp_bridge import (
+            LSPClient,
+            get_default_lsp_command,
+            resolve_unresolved_edges,
+        )
+
+        cmd = get_default_lsp_command(eff_root)
+        if cmd:
+            if verbose:
+                print(f"Connecting to LSP hybrid bridge ({cmd[0]})...")
+            client = LSPClient(cmd, eff_root)
+            if client.start():
+                try:
+                    rewired = resolve_unresolved_edges(db, eff_root, client, verbose=verbose)
+                    if rewired > 0:
+                        db.update_centrality_scores()
+                finally:
+                    client.stop()
+            elif verbose:
+                print(f"Notice: Failed to initialize LSP session with {cmd[0]}.")
+        elif verbose:
+            print("Notice: No supported LSP server found in PATH.")
+    elif not target_path.exists():
         if verbose:
             print(f"Path not found: {target_path}")
 

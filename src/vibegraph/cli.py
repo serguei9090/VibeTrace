@@ -38,7 +38,14 @@ from vibegraph.services.saved_traces_service import (
 def _cmd_index(args: argparse.Namespace) -> int:
     target = str(Path(args.path).resolve())
     db, root = get_context_for_path(target)
-    reindex_all(db, target, verbose=not args.json, force=args.force, project_root=root)
+    reindex_all(
+        db,
+        target,
+        verbose=not args.json,
+        force=args.force,
+        project_root=root,
+        use_lsp=args.lsp,
+    )
 
     embedded_count = 0
     if args.embed:
@@ -259,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_idx.add_argument("path", nargs="?", default=".", help="Directory or file path to index")
     p_idx.add_argument("--embed", action="store_true", help="Compute EmbeddingGemma 2 256d vectors")
     p_idx.add_argument("--force", action="store_true", help="Force re-indexing unchanged files")
+    p_idx.add_argument("--lsp", action="store_true", help="LSP bridge for dynamic types")
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_idx.set_defaults(func=_cmd_index)
 

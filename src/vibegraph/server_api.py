@@ -164,9 +164,7 @@ def run_saved_trace_endpoint(name: str):
     saved = get_saved_trace_by_name(db, name)
     if not saved:
         raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
-    res = trace_execution_path(
-        db, saved.from_symbol, saved.to_symbol, max_depth=saved.max_depth
-    )
+    res = trace_execution_path(db, saved.from_symbol, saved.to_symbol, max_depth=saved.max_depth)
     return {
         "saved_trace": saved.model_dump(),
         "trace_result": res.model_dump(),
