@@ -29,7 +29,6 @@ _cmd_hooks = cmd_hooks
 _cmd_serve = cmd_serve
 
 
-
 def build_parser() -> argparse.ArgumentParser:
     epilog = """
 examples:
