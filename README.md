@@ -60,31 +60,52 @@ uv pip install -e ".[embeddings]"
 bun install --cwd src/web
 ```
 
+### Global CLI & MCP Installation via `uv tool`
+
+You can install VibeGraph system-wide so that `vibegraph` and `vibegraph-mcp` are available globally from any directory:
+
+```bash
+# Global editable install (changes to local code reflect immediately without reinstalling)
+uv tool install --force --python 3.12 -e .
+
+# Or standard global installation
+uv tool install --python 3.12 .
+```
+
+Verify global commands from any directory:
+```bash
+vibegraph --help
+vibegraph-mcp --help
+```
+
 ### Unified `vibegraph` CLI
 
 VibeGraph provides a unified CLI for both AI agents and developers:
 
 ```bash
 # 1. Index your codebase (incremental SHA-256 content-hash check + FTS5 BM25)
-uv run vibegraph index .
+vibegraph index .
 
 # Optional: Compute local 256d Matryoshka EmbeddingGemma 2 vectors
-uv run vibegraph index . --embed
+vibegraph index . --embed
 
 # 2. Hybrid 3-Stream RRF Search (AST exact/prefix + SQLite FTS5 BM25 + EmbeddingGemma 2)
-uv run vibegraph search "upsert_node"
+vibegraph search "upsert_node"
 
 # 3. Bidirectional BFS Execution Tracepath with exact call-site line numbers
-uv run vibegraph trace vibegraph_get_structural_summary format_structural_summary_md
+vibegraph trace vibegraph_get_structural_summary format_structural_summary_md
 
-# 4. Surgical Source Code Slice (exact start_line..end_line + outgoing callee contracts)
-uv run vibegraph slice IndexerDB.upsert_node
+# 4. Top-Down Recursive Call-Tree Hierarchy with line coordinates and cycle detection
+vibegraph call-tree hybrid_search --depth 3
 
-# 5. Transitive 3-Level Blast Radius (Impact Analysis)
-uv run vibegraph impact src/vibegraph/indexer/db.py
+# 5. Surgical Source Code Slice (exact start_line..end_line + outgoing callee contracts)
+vibegraph slice IndexerDB.upsert_node
 
-# 6. Start the FastAPI & WebSocket Map Room Server (http://localhost:8000)
-uv run vibegraph serve
+# 6. Transitive 3-Level Blast Radius (Impact Analysis)
+vibegraph impact src/vibegraph/indexer/db.py
+
+# 7. Start the FastAPI & WebSocket Map Room Server (http://localhost:8000)
+vibegraph serve
 ```
 
 ### Running the Web Map Room 2.0
@@ -94,25 +115,46 @@ bun run --cwd src/web dev
 # Visualizer runs on http://localhost:5173
 ```
 
-### Starting the MCP Server (Claude Code / Cursor / Antigravity)
+### Starting the MCP Server (Claude Desktop / Cursor / Antigravity)
 
-```bash
-uv run vibegraph-mcp
+VibeGraph includes a FastMCP server running over `stdio` or `sse`.
+
+**Connecting to Claude Desktop / Cursor / Antigravity:**
+Add VibeGraph to your `claude_desktop_config.json` or IDE MCP settings:
+```json
+{
+  "mcpServers": {
+    "vibegraph": {
+      "command": "vibegraph-mcp"
+    }
+  }
+}
+```
+
+Or without installing globally:
+```json
+{
+  "mcpServers": {
+    "vibegraph": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/VibeGraph", "vibegraph-mcp"]
+    }
+  }
+}
 ```
 
 ## MCP Tools (The Intelligence Layer)
 
 VibeGraph exposes 10 **Model Context Protocol (MCP)** tools in `src/vibegraph/mcp/server.py`:
 
-- **`vibegraph_semantic_search(query, limit, scope_path)`**: 3-stream **Reciprocal Rank Fusion (RRF)** combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, and local `EmbeddingGemma 2` (256d Matryoshka) cosine similarity.
-- **`vibegraph_trace_path(from_symbol, to_symbol, max_depth)`**: **Bidirectional BFS** execution tracepath finding the shortest call/reference chain between two symbols with exact `file_path:L<call_line>` hops.
-- **`vibegraph_get_code_slice(symbol_name, file_path, include_callees)`**: Reads only the exact `start_line..end_line` of a symbol from disk plus compact signatures of its direct outgoing callees.
-- **`vibegraph_get_structural_summary(file_path)`**: Returns all definitions in a file with visibility icons (`[f]`, `[c]`), scoped `qualified_name`, signatures, and decorators.
-- **`vibegraph_get_call_stack(node_name, direction, depth)`**: Traces callers (`up`), callees (`down`), or `both` with breadcrumb paths (`A > B > C`).
-- **`vibegraph_impact_analysis(file_path)`**: **Transitive Impact Analysis**. Returns Direct (L1), Secondary (L2), and Deep (L3) blast radius of changing a file.
-- **`vibegraph_get_dependencies(file_path)`**: Categorizes dependencies into Internal modules, 3rd-party packages, and standard library.
+- **`vibegraph_get_call_tree(symbol_name, max_depth, file_path)`**: **Top-Down Recursive Call Hierarchy**. Explores direct and nested callees from an entry point down to leaf database or system primitives with cycle-safe ASCII connectors and exact call-site line numbers.
+- **`vibegraph_trace_execution_path(from_symbol, to_symbol, max_depth)`**: **Bidirectional BFS** execution tracepath finding shortest and divergent call chains between two symbols with exact `file_path:L<call_line>` hops.
+- **`vibegraph_get_code_slice(symbol_name, file_path, include_callees)`**: Reads only the exact `start_line..end_line` of a symbol from disk plus compact signatures of its direct outgoing callees in a single round-trip.
+- **`vibegraph_search(query, limit, scope_path)`**: 3-stream **Reciprocal Rank Fusion (RRF)** combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, and local `EmbeddingGemma 2` (256d Matryoshka) cosine similarity.
+- **`vibegraph_get_impact(file_path)`**: **Transitive Impact Analysis**. Returns Direct (L1), Secondary (L2), and Deep (L3) blast radius of changing a file with dependency risk scoring.
+- **`vibegraph_get_structure(file_path)`**: Returns all definitions in a file with visibility icons (`[f]`, `[c]`), scoped `qualified_name`, signatures, and decorators.
 - **`vibegraph_find_references(symbol_name, scope_path)`**: Finds all call-sites and references to a specific function or class across the project.
-- **`vibegraph_search_by_signature(pattern, scope_path)`**: Searches node signatures using SQL `LIKE` patterns (e.g. `%IndexerDB%`).
+- **`vibegraph_get_file_tree(scope_path)`**: Lists all indexed files organized by directory.
 - **`vibegraph_reindex_project(path)`**: Triggers an incremental refresh of the index for a directory or file.
 
 ## Map Room 2.0 (`@xyflow/react` v12 + ELK.js)
@@ -147,7 +189,7 @@ VibeGraph/
 │   ├── services/             # Graph traversal, Hybrid RRF search, & Trace/Slice services
 │   └── server_api.py         # FastAPI + WebSocket backend (/graph, /trace, /source, /api/agent-focus)
 ├── src/web/                  # React 19 + @xyflow/react v12 + ELK.js + Biome frontend
-└── tests/                    # Pytest suite (46 tests)
+└── tests/                    # Pytest suite (51 tests)
 ```
 
 ## License
