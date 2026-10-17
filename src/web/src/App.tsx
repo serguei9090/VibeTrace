@@ -16,6 +16,7 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 
+import { CanvasAutoFitter } from "./features/map-room/components/CanvasAutoFitter";
 import { CodeInspectorDrawer } from "./features/map-room/components/CodeInspectorDrawer";
 import { FilterPanel } from "./features/map-room/components/FilterPanel";
 import { MapHeader } from "./features/map-room/components/MapHeader";
@@ -91,6 +92,8 @@ export default function App() {
     if (res?.found) {
       setLayoutMode("trace");
       setImpactMode(false);
+    } else if (!res) {
+      setLayoutMode("map");
     }
   }, []);
 
@@ -261,10 +264,17 @@ export default function App() {
         onFilterChange={setFilter}
         loading={loading}
         onRefresh={() => fetchGraph()}
-        symbolCount={
+        totalSymbols={rawData.current.nodes.length}
+        totalEdges={rawData.current.edges.length}
+        visibleSymbols={
           nodes.filter((n) => n.type !== "districtGroup" && n.type !== "fileGroup").length
         }
-        edgeCount={edges.length}
+        layoutMode={layoutMode}
+        activeTrace={activeTrace}
+        onResetTrace={() => {
+          setActiveTrace(null);
+          setLayoutMode("map");
+        }}
         lastUpdate={lastUpdate}
         followAgent={followAgent}
         onToggleFollowAgent={setFollowAgent}
@@ -306,6 +316,7 @@ export default function App() {
         <Background color="#1a1b23" gap={20} size={1} />
 
         <StatusOverlays loading={loading} error={error} onRetry={() => fetchGraph()} />
+        <CanvasAutoFitter layoutMode={layoutMode} nodeCount={nodes.length} />
 
         <TracePathBar
           apiUrl={API_URL}

@@ -1,6 +1,6 @@
-import { Activity, Code, Layers, RefreshCw, Search } from "lucide-react";
+import { Activity, Code, Layers, RefreshCw, Search, X } from "lucide-react";
 import type React from "react";
-import type { AgentFocusEvent } from "../types";
+import type { AgentFocusEvent, LayoutMode, TracePathResponse } from "../types";
 import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
@@ -8,8 +8,12 @@ interface MapHeaderProps {
   onFilterChange: (val: string) => void;
   loading: boolean;
   onRefresh: () => void;
-  symbolCount: number;
-  edgeCount: number;
+  totalSymbols: number;
+  totalEdges: number;
+  visibleSymbols: number;
+  layoutMode: LayoutMode;
+  activeTrace: TracePathResponse | null;
+  onResetTrace?: () => void;
   lastUpdate: string;
   followAgent: boolean;
   onToggleFollowAgent: (enabled: boolean) => void;
@@ -21,8 +25,12 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   onFilterChange,
   loading,
   onRefresh,
-  symbolCount,
-  edgeCount,
+  totalSymbols,
+  totalEdges,
+  visibleSymbols,
+  layoutMode,
+  activeTrace,
+  onResetTrace,
   lastUpdate,
   followAgent,
   onToggleFollowAgent,
@@ -34,12 +42,33 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
       <h2
         style={{
           margin: 0,
-          fontSize: "18px",
+          fontSize: "17px",
           fontWeight: 700,
           letterSpacing: "-0.02em",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
         }}
       >
-        VIBEGRAPH <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>MAP ROOM</span>
+        <span>VIBEGRAPH</span>
+        <span
+          style={{
+            fontSize: "11px",
+            fontWeight: 600,
+            color: "#a5b4fc",
+            background: "rgba(99, 102, 241, 0.15)",
+            padding: "2px 8px",
+            borderRadius: "6px",
+            border: "1px solid rgba(99, 102, 241, 0.3)",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {layoutMode === "trace"
+            ? "TRACEPATH ISOLATED"
+            : layoutMode === "impact"
+              ? "BLAST RADIUS"
+              : "ARCHITECTURE MAP"}
+        </span>
       </h2>
 
       <div style={{ position: "relative" }}>
@@ -66,6 +95,50 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
         {loading ? "Syncing..." : "Sync Graph"}
       </button>
 
+      {activeTrace?.found && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(99, 102, 241, 0.2)",
+            border: "1px solid rgba(99, 102, 241, 0.45)",
+            borderRadius: 8,
+            padding: "6px 12px",
+            fontSize: "12px",
+            color: "#e0e7ff",
+          }}
+        >
+          <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace Active:</span>
+          <span>
+            {activeTrace.from_symbol} ➔ {activeTrace.to_symbol}
+          </span>
+          <span style={{ opacity: 0.7, fontSize: "11px" }}>
+            ({activeTrace.hops.length} hop{activeTrace.hops.length > 1 ? "s" : ""})
+          </span>
+          {onResetTrace && (
+            <button
+              type="button"
+              onClick={onResetTrace}
+              title="Clear Trace (Return to Architecture Map)"
+              style={{
+                background: "rgba(255, 255, 255, 0.1)",
+                border: "none",
+                borderRadius: 4,
+                color: "#fff",
+                cursor: "pointer",
+                padding: "2px 4px",
+                display: "flex",
+                alignItems: "center",
+                marginLeft: 4,
+              }}
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
       <AgentRadarBadge
         followAgent={followAgent}
         onToggleFollow={onToggleFollowAgent}
@@ -73,7 +146,12 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
       />
 
       <div className="stats-panel">
-        <Layers size={14} /> <span>{symbolCount} Symbols</span>
+        <Layers size={14} style={{ color: "#6366f1" }} />
+        <span>
+          {visibleSymbols < totalSymbols && visibleSymbols > 0
+            ? `Showing ${visibleSymbols} of ${totalSymbols} Symbols`
+            : `${totalSymbols || visibleSymbols} Symbols`}
+        </span>
         <div
           style={{
             width: 1,
@@ -81,7 +159,7 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             background: "var(--border-color)",
           }}
         />
-        <Code size={14} /> <span>{edgeCount} Edges</span>
+        <Code size={14} style={{ color: "#a855f7" }} /> <span>{totalEdges} Edges</span>
         <div
           style={{
             width: 1,
@@ -89,7 +167,7 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             background: "var(--border-color)",
           }}
         />
-        <span style={{ fontSize: "11px", opacity: 0.5 }}>Last Sync: {lastUpdate}</span>
+        <span style={{ fontSize: "11px", opacity: 0.6 }}>Last Sync: {lastUpdate}</span>
       </div>
     </div>
   );

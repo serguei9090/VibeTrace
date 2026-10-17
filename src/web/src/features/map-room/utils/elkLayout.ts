@@ -96,10 +96,11 @@ const layoutArchitectureMap = async (
       style: {
         width: district.width,
         height: district.height,
-        backgroundColor: "rgba(255, 255, 255, 0.02)",
-        border: "3px solid rgba(99, 102, 241, 0.4)",
-        borderRadius: "20px",
+        backgroundColor: "rgba(15, 17, 28, 0.45)",
+        border: "1.5px solid rgba(99, 102, 241, 0.3)",
+        borderRadius: "16px",
         paddingTop: "80px",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
       },
     });
 
@@ -117,10 +118,11 @@ const layoutArchitectureMap = async (
         style: {
           width: file.width,
           height: file.height,
-          backgroundColor: "rgba(99, 102, 241, 0.05)",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          borderRadius: "12px",
+          backgroundColor: "rgba(20, 23, 36, 0.65)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "10px",
           paddingTop: "5px",
+          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.2)",
         },
       });
 
