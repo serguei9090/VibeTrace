@@ -111,6 +111,11 @@ def reindex_all(
     spec = load_gitignore(eff_root)
     resolver = ModuleResolver(eff_root) if eff_root.is_dir() else None
 
+    if not target_path.exists():
+        if verbose:
+            print(f"Path not found: {target_path}")
+        return
+
     if target_path.is_file():
         index_file(
             db,
@@ -153,58 +158,59 @@ def reindex_all(
                 db.update_centrality_scores()
             if current_sha:
                 db.set_meta("last_indexed_git_sha", current_sha)
-            return
+        else:
+            # Full walk fallback (initial index, --force, or non-git repo)
+            seen_rel_paths: set[str] = set()
+            for root, dirs, files in os.walk(target_path):
+                current_root = Path(root)
 
-        # Full walk fallback (initial index, --force, or non-git repo)
-        seen_rel_paths: set[str] = set()
-        for root, dirs, files in os.walk(target_path):
-            current_root = Path(root)
+                # 1. Prune standard noisy directories first (optimization)
+                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
 
-            # 1. Prune standard noisy directories first (optimization)
-            dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
+                # 2. Filter files using gitignore
+                for file in files:
+                    full_path = current_root / file
 
-            # 2. Filter files using gitignore
-            for file in files:
-                full_path = current_root / file
+                    try:
+                        rel_path = str(full_path.relative_to(eff_root)).replace("\\", "/")
+                    except ValueError:
+                        rel_path = str(full_path).replace("\\", "/")
 
-                try:
-                    rel_path = str(full_path.relative_to(eff_root)).replace("\\", "/")
-                except ValueError:
-                    rel_path = str(full_path).replace("\\", "/")
+                    # Check gitignore if available
+                    if spec and spec.match_file(rel_path):
+                        continue
 
-                # Check gitignore if available
-                if spec and spec.match_file(rel_path):
+                    seen_rel_paths.add(rel_path)
+                    index_file(
+                        db,
+                        str(full_path),
+                        project_root=eff_root,
+                        resolver=resolver,
+                        verbose=verbose,
+                        force=force,
+                    )
+
+            # Reconcile stale files: purge any file recorded in indexed_files
+            # that no longer exists on disk
+            target_rel = ""
+            try:
+                target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
+            except ValueError:
+                pass
+
+            for indexed_file in db.get_all_indexed_file_paths():
+                if target_rel not in ("", ".") and not (
+                    indexed_file == target_rel or indexed_file.startswith(f"{target_rel}/")
+                ):
                     continue
+                if indexed_file not in seen_rel_paths:
+                    if verbose:
+                        print(f"Purging deleted/stale file from index: {indexed_file}")
+                    db.clear_file(indexed_file)
 
-                seen_rel_paths.add(rel_path)
-                index_file(
-                    db,
-                    str(full_path),
-                    project_root=eff_root,
-                    resolver=resolver,
-                    verbose=verbose,
-                    force=force,
-                )
-
-        # Reconcile stale files: purge any file recorded in indexed_files
-        # that no longer exists on disk
-        target_rel = ""
-        try:
-            target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
-        except ValueError:
-            pass
-
-        for indexed_file in db.get_all_indexed_file_paths():
-            if target_rel and not indexed_file.startswith(target_rel) and target_rel != ".":
-                continue
-            if indexed_file not in seen_rel_paths:
-                if verbose:
-                    print(f"Purging deleted/stale file from index: {indexed_file}")
-                db.clear_file(indexed_file)
-
-        db.update_centrality_scores()
-        if current_sha:
-            db.set_meta("last_indexed_git_sha", current_sha)
+            db.update_centrality_scores()
+            if current_sha:
+                db.set_meta("last_indexed_git_sha", current_sha)
 
     if use_lsp and eff_root.is_dir():
         from vibegraph.indexer.lsp_bridge import (
@@ -229,9 +235,6 @@ def reindex_all(
                 print(f"Notice: Failed to initialize LSP session with {cmd[0]}.")
         elif verbose:
             print("Notice: No supported LSP server found in PATH.")
-    elif not target_path.exists():
-        if verbose:
-            print(f"Path not found: {target_path}")
 
 
 def main() -> None:

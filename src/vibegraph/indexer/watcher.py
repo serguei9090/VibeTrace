@@ -99,6 +99,7 @@ class CodeChangeHandler(FileSystemEventHandler):
             return
         rel_path = self._to_rel_path(src_path)
         print(f"File created: {rel_path}")
+        self.resolver.add_file(rel_path)
         if index_file(
             self.db,
             src_path,
@@ -115,8 +116,33 @@ class CodeChangeHandler(FileSystemEventHandler):
             return
         rel_path = self._to_rel_path(src_path)
         print(f"File deleted: {rel_path}")
+        self.resolver.remove_file(rel_path)
         self.db.clear_file(rel_path)
         self.db.update_centrality_scores()
+        self._notify()
+
+    def on_moved(self, event):
+        src_path = str(event.src_path)
+        dest_path = str(event.dest_path)
+        if event.is_directory:
+            return
+        rel_src = self._to_rel_path(src_path)
+        rel_dest = self._to_rel_path(dest_path)
+        print(f"File moved: {rel_src} -> {rel_dest}")
+        self.resolver.remove_file(rel_src)
+        self.db.clear_file(rel_src)
+        if not self._should_ignore(dest_path):
+            self.resolver.add_file(rel_dest)
+            if index_file(
+                self.db,
+                dest_path,
+                project_root=self.root_path,
+                resolver=self.resolver,
+                force=True,
+            ):
+                self.db.update_centrality_scores()
+        else:
+            self.db.update_centrality_scores()
         self._notify()
 
 

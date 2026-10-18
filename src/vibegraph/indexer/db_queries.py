@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 
 class DBQueriesMixin:
@@ -148,3 +148,110 @@ class DBQueriesMixin:
             if len(nodes_by_id) != len(path_ids):
                 return None
             return [nodes_by_id[nid] for nid in path_ids]
+
+    def get_file_structure(
+        self, file_path: str, limit: int = 100, offset: int = 0
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Return total count and paginated list of symbols in a file."""
+        with self._get_conn() as conn:
+            count_cursor = conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE file_path = ?", (file_path,)
+            )
+            total = count_cursor.fetchone()[0]
+
+            cursor = conn.execute(
+                """SELECT id, name, qualified_name, parent_id, kind, signature,
+                          start_line, end_line, decorators, visibility 
+                   FROM nodes 
+                   WHERE file_path = ? 
+                   ORDER BY start_line
+                   LIMIT ? OFFSET ?""",
+                (file_path, limit, offset),
+            )
+            rows = [dict(r) for r in cursor.fetchall()]
+        return total, rows
+
+    def find_nodes_by_name(self, name: str, file_path: str | None = None) -> list[dict[str, Any]]:
+        """Find nodes matching name or qualified_name, optionally scoped to a file."""
+        with self._get_conn() as conn:
+            query = (
+                "SELECT id, name, qualified_name, parent_id, file_path, kind, "
+                "start_line, end_line, signature, docstring "
+                "FROM nodes WHERE (name = ? OR qualified_name = ?)"
+            )
+            params: list[Any] = [name, name]
+            if file_path:
+                query += " AND file_path = ?"
+                params.append(file_path)
+            cursor = conn.execute(query, tuple(params))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_neighbors(self, node_id: str, direction: Literal["up", "down"]) -> list[dict[str, Any]]:
+        """Get callers (up) or callees (down) for a node."""
+        with self._get_conn() as conn:
+            if direction == "up":
+                query = """
+                    SELECT e.from_node_id as neighbor_id, e.relation_type, e.call_line,
+                           n.name, n.qualified_name, n.file_path, n.kind,
+                           n.start_line, n.end_line, n.signature
+                    FROM edges e
+                    JOIN nodes n ON e.from_node_id = n.id
+                    WHERE e.to_node_id = ?
+                """
+            else:
+                query = """
+                    SELECT e.to_node_id as neighbor_id, e.relation_type, e.call_line,
+                           n.name, n.qualified_name, n.file_path, n.kind,
+                           n.start_line, n.end_line, n.signature
+                    FROM edges e
+                    JOIN nodes n ON e.to_node_id = n.id
+                    WHERE e.from_node_id = ?
+                """
+            cursor = conn.execute(query, (node_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_nodes_in_file(self, file_path: str) -> list[dict[str, Any]]:
+        """Get all node IDs and names in a file."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, qualified_name FROM nodes WHERE file_path = ?", (file_path,)
+            )
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_incoming_dependents(self, node_id: str) -> list[dict[str, Any]]:
+        """Find all incoming dependencies pointing to a node."""
+        with self._get_conn() as conn:
+            query = """
+                SELECT DISTINCT n.id, n.name, n.qualified_name, n.file_path, n.kind, e.relation_type
+                FROM edges e
+                JOIN nodes n ON e.from_node_id = n.id
+                WHERE e.to_node_id = ?
+            """
+            cursor = conn.execute(query, (node_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_symbol_references(self, node_id: str) -> list[dict[str, Any]]:
+        """Find calls or references incoming to a node."""
+        with self._get_conn() as conn:
+            query = """
+                SELECT n.name, n.qualified_name, n.file_path, n.start_line,
+                       e.relation_type, e.call_line
+                FROM edges e
+                JOIN nodes n ON e.from_node_id = n.id
+                WHERE e.to_node_id = ? AND e.relation_type IN ('calls', 'references')
+            """
+            cursor = conn.execute(query, (node_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_file_imports(self, file_path: str) -> list[dict[str, Any]]:
+        """Find all imported modules and symbols from a file."""
+        with self._get_conn() as conn:
+            query = """
+                SELECT DISTINCT n_to.name, n_to.file_path, n_to.kind
+                FROM nodes n_from
+                JOIN edges e ON n_from.id = e.from_node_id
+                JOIN nodes n_to ON e.to_node_id = n_to.id
+                WHERE n_from.file_path = ? AND e.relation_type = 'imports'
+            """
+            cursor = conn.execute(query, (file_path,))
+            return [dict(r) for r in cursor.fetchall()]

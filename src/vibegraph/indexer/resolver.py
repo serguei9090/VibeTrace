@@ -67,6 +67,32 @@ class ModuleResolver:
         if module_name:
             self.module_map[module_name] = path
 
+    def add_file(self, rel_path: str) -> None:
+        """Register a new or updated file in the module resolver."""
+        rel_path_str = rel_path.replace("\\", "/")
+        if rel_path_str.startswith("./"):
+            rel_path_str = rel_path_str[2:]
+        if not rel_path_str.endswith(self.SUPPORTED_EXTENSIONS):
+            return
+        self.known_files.add(rel_path_str)
+        path_obj = Path(rel_path_str)
+        name_parts = [p for p in path_obj.parent.parts if p != "."]
+        base_name = path_obj.stem
+        self._add_to_map(name_parts, base_name, rel_path_str)
+        src_dirs = {"src", "lib", "python"}
+        if name_parts and name_parts[0] in src_dirs:
+            self._add_to_map(name_parts[1:], base_name, rel_path_str)
+
+    def remove_file(self, rel_path: str) -> None:
+        """Remove a deleted file from the module resolver."""
+        rel_path_str = rel_path.replace("\\", "/")
+        if rel_path_str.startswith("./"):
+            rel_path_str = rel_path_str[2:]
+        self.known_files.discard(rel_path_str)
+        to_del = [k for k, v in self.module_map.items() if v == rel_path_str]
+        for k in to_del:
+            del self.module_map[k]
+
     def resolve(self, module_name: str, current_file: str | None = None) -> str | None:
         """Resolves a module name to a relative path within the project."""
         if not module_name:
