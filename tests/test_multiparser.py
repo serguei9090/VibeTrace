@@ -106,6 +106,26 @@ function processUser(user: User): void {
         assert any(e.relation_type == "imports" for e in edges)
         assert any(e.relation_type == "references" for e in edges)
 
+    def test_ts_enums_types_and_constants(self):
+        """TypeScript parser extracts enums, type aliases, and exported constants."""
+        parser = TypeScriptParser()
+        code = b"""
+export type UserId = string;
+export enum Role { ADMIN, USER }
+export const MAX_RETRIES = 5;
+export let config = { timeout: 1000 };
+"""
+        nodes, _edges = parser.extract("types.ts", code)
+        names = {n.name: n.kind for n in nodes}
+        assert "UserId" in names
+        assert names["UserId"] == "interface"
+        assert "Role" in names
+        assert names["Role"] == "enum"
+        assert "MAX_RETRIES" in names
+        assert names["MAX_RETRIES"] == "variable"
+        assert "config" in names
+        assert names["config"] == "variable"
+
 
 class TestGoParser:
     """Test Go parser"""

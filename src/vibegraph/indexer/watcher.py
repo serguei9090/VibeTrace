@@ -124,7 +124,7 @@ def start_observer(path: str, db: IndexerDB, callback: Callable[[], None] | None
     """Start the observer and return it (non-blocking)."""
     path_obj = Path(path).resolve()
     if not path_obj.exists():
-        print(f"Warning: Path not found: {path}")
+        raise FileNotFoundError(f"Watcher target path does not exist: {path_obj}")
 
     event_handler = CodeChangeHandler(db, callback, root_path=str(path_obj))
     observer = Observer()

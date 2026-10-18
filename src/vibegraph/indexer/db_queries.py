@@ -77,19 +77,20 @@ class DBQueriesMixin:
                        CASE
                            WHEN LOWER(qualified_name) = LOWER(?)
                              OR LOWER(name) = LOWER(?) THEN 0
-                           WHEN LOWER(name) LIKE LOWER(?)
-                             OR LOWER(qualified_name) LIKE LOWER(?) THEN 1
+                           WHEN LOWER(name) LIKE LOWER(?) ESCAPE '\\'
+                             OR LOWER(qualified_name) LIKE LOWER(?) ESCAPE '\\' THEN 1
                            ELSE 2
                        END AS match_tier
                 FROM nodes
-                WHERE LOWER(name) LIKE LOWER(?)
-                   OR LOWER(qualified_name) LIKE LOWER(?)
-                   OR LOWER(signature) LIKE LOWER(?)
+                WHERE LOWER(name) LIKE LOWER(?) ESCAPE '\\'
+                   OR LOWER(qualified_name) LIKE LOWER(?) ESCAPE '\\'
+                   OR LOWER(signature) LIKE LOWER(?) ESCAPE '\\'
                 ORDER BY match_tier ASC, LENGTH(qualified_name) ASC
                 LIMIT ?
             """
-            prefix = f"{q}%"
-            sub = f"%{q}%"
+            escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            prefix = f"{escaped_q}%"
+            sub = f"%{escaped_q}%"
             cursor = conn.execute(sql, (q, q, prefix, prefix, sub, sub, sub, limit))
             return [dict(r) for r in cursor.fetchall()]
 

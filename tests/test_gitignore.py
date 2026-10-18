@@ -38,3 +38,14 @@ def test_reindex_respects_gitignore(tmp_path, monkeypatch):
 
     assert "keep" in names
     assert "ignore" not in names
+
+
+def test_start_observer_missing_directory_raises(tmp_path):
+    import pytest
+
+    from vibegraph.indexer.watcher import start_observer
+
+    db = IndexerDB(str(tmp_path / "test.db"))
+    non_existent = tmp_path / "non_existent_folder"
+    with pytest.raises(FileNotFoundError, match="Watcher target path does not exist"):
+        start_observer(str(non_existent), db)

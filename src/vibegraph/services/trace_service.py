@@ -118,15 +118,26 @@ def trace_execution_path(
             return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
         node_ids = [n["id"] for n in path_nodes]
         hops: list[TraceHop] = []
-        for i in range(len(path_nodes) - 1):
-            hops.append(
-                TraceHop(
-                    step_index=i + 1,
-                    from_node=_row_to_trace_node(path_nodes[i]),
-                    to_node=_row_to_trace_node(path_nodes[i + 1]),
-                    relation_type="calls",
+        with db._get_conn() as conn:
+            for i in range(len(path_nodes) - 1):
+                u_id = path_nodes[i]["id"]
+                v_id = path_nodes[i + 1]["id"]
+                row = conn.execute(
+                    "SELECT relation_type, call_line FROM edges "
+                    "WHERE from_node_id = ? AND to_node_id = ? LIMIT 1",
+                    (u_id, v_id),
+                ).fetchone()
+                rel_type = row["relation_type"] if (row and row["relation_type"]) else "calls"
+                c_line = row["call_line"] if row else None
+                hops.append(
+                    TraceHop(
+                        step_index=i + 1,
+                        from_node=_row_to_trace_node(path_nodes[i]),
+                        to_node=_row_to_trace_node(path_nodes[i + 1]),
+                        relation_type=rel_type,
+                        call_line=c_line,
+                    )
                 )
-            )
         return TracePathResult(
             from_symbol=from_symbol,
             to_symbol=to_symbol,

@@ -106,3 +106,25 @@ def test_read_file_lines_blocks_path_traversal(tmp_path: Path):
     """read_file_lines must reject paths escaping the project root."""
     with pytest.raises(ValueError, match="Path traversal blocked"):
         read_file_lines(tmp_path, "../outside_secret.py", 1, 10)
+
+
+def test_cte_trace_execution_path_preserves_metadata(tmp_path: Path):
+    """CTE trace path finding should preserve authentic relation_type and call_line metadata."""
+    db = _create_sample_project(tmp_path)
+
+    trace = trace_execution_path(db, "process_checkout", "save_invoice", max_depth=6, engine="cte")
+    assert trace.found is True
+    assert len(trace.hops) == 2
+
+    hop1, hop2 = trace.hops
+    assert hop1.step_index == 1
+    assert hop1.from_node.name == "process_checkout"
+    assert hop1.to_node.name == "charge_customer"
+    assert hop1.relation_type == "calls"
+    assert hop1.call_line == 5
+
+    assert hop2.step_index == 2
+    assert hop2.from_node.name == "charge_customer"
+    assert hop2.to_node.name == "save_invoice"
+    assert hop2.relation_type == "calls"
+    assert hop2.call_line == 5

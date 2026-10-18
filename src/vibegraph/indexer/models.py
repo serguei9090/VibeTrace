@@ -23,6 +23,7 @@ class Node(BaseModel):
         "impl",
         "method",
         "endpoint",
+        "enum",
     ]
     file_path: str
     start_line: int | None = None

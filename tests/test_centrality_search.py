@@ -107,3 +107,24 @@ def test_centrality_search_latency(tmp_path: Path) -> None:
 
     assert len(results) >= 2
     assert duration_ms < 50.0  # Well within performance bounds
+
+
+def test_search_ast_exact_or_prefix_wildcard_escaping(tmp_path: Path) -> None:
+    """Symbols with underscores like _resolve should not match xresolve via SQL wildcard."""
+    from vibegraph.indexer.models import Node
+
+    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir.mkdir()
+    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+
+    db.upsert_node(
+        Node(id="n1", name="_resolve", qualified_name="_resolve", kind="function", file_path="a.py")
+    )
+    db.upsert_node(
+        Node(id="n2", name="xresolve", qualified_name="xresolve", kind="function", file_path="b.py")
+    )
+
+    results = db.search_ast_exact_or_prefix("_resolve", limit=10)
+    matched_names = [r["name"] for r in results]
+    assert "_resolve" in matched_names
+    assert "xresolve" not in matched_names

@@ -5,6 +5,21 @@ from vibegraph.indexer.db import Node as DBNode
 from vibegraph.indexer.parsers.base import LanguageParser, ParserContext
 from vibegraph.indexer.resolver import ModuleResolver
 
+_FUNC_TYPES = {
+    "function_declaration",
+    "arrow_function",
+    "function",
+    "method_definition",
+    "method_signature",
+}
+_SYM_TYPES = {
+    "function_declaration",
+    "class_declaration",
+    "interface_declaration",
+    "enum_declaration",
+    "type_alias_declaration",
+}
+
 
 class JavaScriptParser(LanguageParser):
     """Parser for JavaScript and JSX files."""
@@ -170,11 +185,7 @@ class JavaScriptParser(LanguageParser):
                                 spec_name = spec.child_by_field_name("name")
                                 if spec_name:
                                     ctx.defined_symbols.add(self._get_text(spec_name))
-            if target.type in (
-                "function_declaration",
-                "class_declaration",
-                "interface_declaration",
-            ):
+            if target.type in _SYM_TYPES:
                 name_node = target.child_by_field_name("name")
                 if name_node:
                     ctx.defined_symbols.add(self._get_text(name_node))
@@ -198,13 +209,7 @@ class JavaScriptParser(LanguageParser):
             saved_local_types: dict[str, str] | None = None
             visibility = "exported" if is_exported else "internal"
 
-            if node.type in (
-                "function_declaration",
-                "arrow_function",
-                "function",
-                "method_definition",
-                "method_signature",
-            ):
+            if node.type in _FUNC_TYPES:
                 saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
                 name = self._get_text(name_node) if name_node else "<anonymous>"
@@ -292,6 +297,27 @@ class JavaScriptParser(LanguageParser):
                 val_node = node.child_by_field_name("value")
                 if v_name_node:
                     v_name = self._get_text(v_name_node)
+                    # Exported constant/variable (excluding arrow functions)
+                    if is_exported and (not val_node or val_node.type != "arrow_function"):
+                        v_qid = self._scoped_name(v_name, ctx.scope_stack)
+                        v_id = self._get_id(file_path, v_qid)
+                        if not any(n.id == v_id for n in nodes):
+                            nodes.append(
+                                self._create_node(
+                                    v_id,
+                                    v_name,
+                                    "variable",
+                                    file_path,
+                                    node,
+                                    visibility="exported",
+                                    qualified_name=v_qid,
+                                    parent_id=parent_id,
+                                )
+                            )
+                            if parent_id:
+                                edges.append(
+                                    self._create_edge(parent_id, v_id, "defines", node=node)
+                                )
                     if type_node:
                         v_type = self._get_text(type_node).lstrip(": ").strip()
                         if v_type:
@@ -305,13 +331,23 @@ class JavaScriptParser(LanguageParser):
                         if r_name in ctx.local_types:
                             ctx.local_types[v_name] = ctx.local_types[r_name]
 
-            elif node.type in ("class_declaration", "interface_declaration"):
+            elif node.type in (
+                "class_declaration",
+                "interface_declaration",
+                "enum_declaration",
+                "type_alias_declaration",
+            ):
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    kind = "interface" if node.type == "interface_declaration" else "class"
+                    if node.type in ("interface_declaration", "type_alias_declaration"):
+                        kind = "interface"
+                    elif node.type == "enum_declaration":
+                        kind = "enum"
+                    else:
+                        kind = "class"
 
                     nodes.append(
                         self._create_node(
@@ -366,7 +402,7 @@ class JavaScriptParser(LanguageParser):
                     if target_id:
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
-                    # Check for clientside API requests: fetch("/api/...") or axios.get("/api/...")
+                    # Check for clientside or backend API requests/routes
                     args_node = node.child_by_field_name("arguments")
                     if args_node:
                         args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
@@ -375,14 +411,10 @@ class JavaScriptParser(LanguageParser):
                             if raw_url.startswith("/") or "/api/" in raw_url:
                                 method = "GET"
                                 lower_func = called_name.lower()
-                                if ".post" in lower_func:
-                                    method = "POST"
-                                elif ".put" in lower_func:
-                                    method = "PUT"
-                                elif ".delete" in lower_func:
-                                    method = "DELETE"
-                                elif ".patch" in lower_func:
-                                    method = "PATCH"
+                                for m in ("post", "put", "delete", "patch"):
+                                    if f".{m}" in lower_func:
+                                        method = m.upper()
+                                        break
 
                                 endpoint_name = f"{method} {raw_url}"
                                 endpoint_id = self._get_id(
@@ -400,9 +432,35 @@ class JavaScriptParser(LanguageParser):
                                             parent_id=file_module_id,
                                         )
                                     )
-                                edges.append(
-                                    self._create_edge(parent_id, endpoint_id, "routes", node=node)
+                                # Check backend route definition: app.get("/users", handler)
+                                is_backend_route = (
+                                    any(
+                                        called_name.startswith(pfx)
+                                        for pfx in ("app.", "router.", "server.", "api.")
+                                    )
+                                    and len(args) >= 2
                                 )
+                                if is_backend_route:
+                                    handler_arg = args[-1]
+                                    if handler_arg.type == "identifier":
+                                        h_name = self._get_text(handler_arg)
+                                        h_target_id = self._resolve_call_target(h_name, ctx)
+                                        if h_target_id:
+                                            edges.append(
+                                                self._create_edge(
+                                                    endpoint_id,
+                                                    h_target_id,
+                                                    "routes",
+                                                    node=handler_arg,
+                                                )
+                                            )
+                                else:
+                                    # Clientside call: caller -> endpoint
+                                    edges.append(
+                                        self._create_edge(
+                                            parent_id, endpoint_id, "routes", node=node
+                                        )
+                                    )
 
             elif parent_id and node.type in ("jsx_self_closing_element", "jsx_opening_element"):
                 name_node = node.child_by_field_name("name")
@@ -423,17 +481,7 @@ class JavaScriptParser(LanguageParser):
                 ctx.scope_stack.pop()
 
             if saved_local_types is not None:
-                if (
-                    node.type
-                    in (
-                        "function_declaration",
-                        "arrow_function",
-                        "function",
-                        "method_definition",
-                        "method_signature",
-                    )
-                    and ctx.scope_stack
-                ):
+                if node.type in _FUNC_TYPES and ctx.scope_stack:
                     for k, v in ctx.local_types.items():
                         if k.startswith("this."):
                             saved_local_types[k] = v

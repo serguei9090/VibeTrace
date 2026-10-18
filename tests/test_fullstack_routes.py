@@ -100,3 +100,33 @@ def test_end_to_end_cross_language_fullstack_trace(tmp_path) -> None:
     hop_targets = [h.to_node.name for h in res.hops]
     assert "GET /api/feed" in hop_targets
     assert "get_feed" in hop_targets
+
+
+def test_express_backend_route_extraction() -> None:
+    """Express app.get('/users', handleUsers) links endpoint -> handleUsers via routes edge."""
+    parser = TypeScriptParser()
+    code = b"""
+function handleUsers(req: any, res: any) {
+    res.json([]);
+}
+
+function handleCreate(req: any, res: any) {
+    res.send("created");
+}
+
+app.get("/api/users", handleUsers);
+router.post("/api/users", handleCreate);
+"""
+    nodes, edges = parser.extract("src/routes.ts", code)
+
+    endpoint_nodes = [n for n in nodes if n.kind == "endpoint"]
+    names = [n.name for n in endpoint_nodes]
+    assert "GET /api/users" in names
+    assert "POST /api/users" in names
+
+    # Outgoing edge from endpoint to handler
+    get_ep = next(n for n in endpoint_nodes if n.name == "GET /api/users")
+    routes_from_ep = [
+        e for e in edges if e.from_node_id == get_ep.id and e.relation_type == "routes"
+    ]
+    assert len(routes_from_ep) == 1
