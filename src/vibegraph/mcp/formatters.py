@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from vibegraph.services.graph_service import CodeSliceResult, TracePathResult, safe_str
 from vibegraph.services.hybrid_search import SearchResult
+
+_EXT_LANG_MAP: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".js": "javascript",
+    ".jsx": "jsx",
+    ".go": "go",
+    ".rs": "rust",
+    ".html": "html",
+    ".css": "css",
+    ".json": "json",
+    ".sql": "sql",
+}
 
 
 def format_structural_summary_md(
@@ -111,7 +126,10 @@ def format_code_slice_md(result: CodeSliceResult) -> str:
     if result.docstring:
         lines.append(f"**Docstring**: {result.docstring}")
 
-    lines.append("\n```python")
+    ext = Path(result.file_path).suffix.lower() if result.file_path else ""
+    fence_lang = _EXT_LANG_MAP.get(ext, "python" if ext == ".py" else "")
+
+    lines.append(f"\n```{fence_lang}")
     lines.append(result.source_code)
     lines.append("```")
 

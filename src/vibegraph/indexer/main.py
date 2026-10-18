@@ -156,6 +156,7 @@ def reindex_all(
             return
 
         # Full walk fallback (initial index, --force, or non-git repo)
+        seen_rel_paths: set[str] = set()
         for root, dirs, files in os.walk(target_path):
             current_root = Path(root)
 
@@ -166,15 +167,16 @@ def reindex_all(
             for file in files:
                 full_path = current_root / file
 
-                # Check gitignore if available
-                if spec:
-                    try:
-                        rel_path = full_path.relative_to(eff_root)
-                        if spec.match_file(str(rel_path)):
-                            continue
-                    except ValueError:
-                        pass
+                try:
+                    rel_path = str(full_path.relative_to(eff_root)).replace("\\", "/")
+                except ValueError:
+                    rel_path = str(full_path).replace("\\", "/")
 
+                # Check gitignore if available
+                if spec and spec.match_file(rel_path):
+                    continue
+
+                seen_rel_paths.add(rel_path)
                 index_file(
                     db,
                     str(full_path),
@@ -183,6 +185,23 @@ def reindex_all(
                     verbose=verbose,
                     force=force,
                 )
+
+        # Reconcile stale files: purge any file recorded in indexed_files
+        # that no longer exists on disk
+        target_rel = ""
+        try:
+            target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
+        except ValueError:
+            pass
+
+        for indexed_file in db.get_all_indexed_file_paths():
+            if target_rel and not indexed_file.startswith(target_rel) and target_rel != ".":
+                continue
+            if indexed_file not in seen_rel_paths:
+                if verbose:
+                    print(f"Purging deleted/stale file from index: {indexed_file}")
+                db.clear_file(indexed_file)
+
         db.update_centrality_scores()
         if current_sha:
             db.set_meta("last_indexed_git_sha", current_sha)

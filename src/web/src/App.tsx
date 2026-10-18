@@ -75,6 +75,11 @@ export default function App() {
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
   const ws = useRef<WebSocket | null>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
+  const cachedLayout = useRef<{
+    key: string;
+    nodes: Node[];
+    edges: Edge[];
+  } | null>(null);
 
   const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
     setLayoutMode(mode);
@@ -141,6 +146,29 @@ export default function App() {
       activeEdgeTypes
     );
 
+    const layoutKey = `${layoutMode}_${showPrivate}_${Array.from(activeFilters).sort().join(",")}_${Array.from(activeEdgeTypes).sort().join(",")}_${filteredNodes.length}_${filteredEdges.length}`;
+
+    // Fast-path: In "map" mode, if layout structure has not changed, reuse cached node coordinates
+    // and update only visual highlights and edge styling in place without re-invoking ELK.
+    if (layoutMode === "map" && cachedLayout.current && cachedLayout.current.key === layoutKey) {
+      const flowNodeMap = new Map(flowNodes.map((fn) => [fn.id, fn]));
+      const updatedNodes = cachedLayout.current.nodes.map((n) => {
+        const symbolUpdate = flowNodeMap.get(n.id);
+        if (symbolUpdate) {
+          return {
+            ...n,
+            data: symbolUpdate.data,
+            className: symbolUpdate.className,
+            style: { ...n.style, ...symbolUpdate.style },
+          };
+        }
+        return n;
+      });
+      setNodes(updatedNodes);
+      setEdges(flowEdges);
+      return;
+    }
+
     try {
       const { nodes: layoutNodes, edges: layoutEdges } = await getLayoutedElements(
         flowNodes,
@@ -152,6 +180,11 @@ export default function App() {
         }
       );
       if (layoutNodes && layoutNodes.length > 0) {
+        cachedLayout.current = {
+          key: layoutKey,
+          nodes: layoutNodes,
+          edges: layoutEdges,
+        };
         setNodes(layoutNodes);
         setEdges(layoutEdges);
       }

@@ -316,3 +316,99 @@ def test_phantom_builtin_filtering(tmp_path: Path) -> None:
     assert len(custom_nodes) == 1
     assert len(callees) == 1
     assert callees[0]["neighbor_id"] == custom_nodes[0]["id"]
+
+
+def test_bidirectional_edge_cleanup(tmp_path: Path) -> None:
+    """When a file is cleared or reindexed, both incoming and outgoing edges must be purged."""
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+
+    file_b = pkg_dir / "service.py"
+    file_b.write_text(
+        "def compute_total(val):\n    return val * 2\n",
+        encoding="utf-8",
+    )
+
+    file_a = pkg_dir / "handler.py"
+    file_a.write_text(
+        "from .service import compute_total\n\ndef handle_req(x):\n    return compute_total(x)\n",
+        encoding="utf-8",
+    )
+
+    resolver = ModuleResolver(tmp_path)
+    db = IndexerDB(str(tmp_path / "test.db"))
+
+    assert index_file(db, str(file_b), project_root=tmp_path, resolver=resolver, verbose=False)
+    assert index_file(db, str(file_a), project_root=tmp_path, resolver=resolver, verbose=False)
+
+    handle_node = db.find_nodes_by_name("handle_req")[0]
+    compute_node = db.find_nodes_by_name("compute_total")[0]
+
+    # Verify edge exists from handle_req -> compute_total
+    outgoing = [
+        c for c in db.get_neighbors(handle_node["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert len(outgoing) == 1
+    assert outgoing[0]["neighbor_id"] == compute_node["id"]
+
+    # Purge file_b (service.py)
+    db.clear_file("pkg/service.py")
+
+    # Inbound edges pointing to service.py must be completely purged from database!
+    with db._get_conn() as conn:
+        orphaned = conn.execute(
+            "SELECT COUNT(*) FROM edges WHERE to_node_id = ?", (compute_node["id"],)
+        ).fetchone()[0]
+        assert orphaned == 0
+
+    # handle_req should now have 0 callees
+    callees_after = db.get_neighbors(handle_node["id"], "down")
+    assert len(callees_after) == 0
+
+
+def test_full_walk_stale_file_reconciliation(tmp_path: Path) -> None:
+    """Full-walk indexer must reconcile and purge files that were deleted from disk."""
+    from vibegraph.indexer.main import reindex_all
+
+    pkg_dir = tmp_path / "src"
+    pkg_dir.mkdir()
+
+    file1 = pkg_dir / "file1.py"
+    file1.write_text("def func1(): pass\n", encoding="utf-8")
+    file2 = pkg_dir / "file2.py"
+    file2.write_text("def func2(): pass\n", encoding="utf-8")
+
+    db = IndexerDB(str(tmp_path / "test.db"))
+    reindex_all(db, str(tmp_path), force=True, project_root=tmp_path, verbose=False)
+
+    indexed = db.get_all_indexed_file_paths()
+    assert "src/file1.py" in indexed
+    assert "src/file2.py" in indexed
+    assert len(db.find_nodes_by_name("func2")) == 1
+
+    # Delete file2 from disk
+    file2.unlink()
+
+    # Re-run full walk
+    reindex_all(db, str(tmp_path), force=True, project_root=tmp_path, verbose=False)
+
+    indexed_after = db.get_all_indexed_file_paths()
+    assert "src/file1.py" in indexed_after
+    assert "src/file2.py" not in indexed_after
+    assert len(db.find_nodes_by_name("func2")) == 0
+
+
+def test_watcher_relative_path_normalization(tmp_path: Path) -> None:
+    """Watcher handler must normalize OS paths and instantiate ModuleResolver."""
+    from vibegraph.indexer.watcher import CodeChangeHandler
+
+    db = IndexerDB(str(tmp_path / "test.db"))
+    handler = CodeChangeHandler(db, root_path=str(tmp_path))
+
+    assert handler.resolver is not None
+    assert handler.root_path == tmp_path.resolve()
+
+    nested_file = tmp_path / "nested" / "deep" / "module.py"
+    rel = handler._to_rel_path(str(nested_file))
+    assert rel == "nested/deep/module.py"

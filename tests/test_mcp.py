@@ -315,3 +315,53 @@ def test_call_stack_input_validation():
 
     with pytest.raises(ValidationError):
         CallStackInput(node_name="")
+
+
+def test_polyglot_code_slice_markdown_fences():
+    """format_code_slice_md must output correct markdown fence according to language extension."""
+    from vibegraph.mcp.formatters import format_code_slice_md
+    from vibegraph.services.graph_service import CodeSliceResult
+
+    py_slice = CodeSliceResult(
+        found=True,
+        name="hello",
+        qualified_name="hello",
+        file_path="src/main.py",
+        source_code="def hello(): pass",
+        start_line=1,
+        end_line=1,
+    )
+    assert "```python" in format_code_slice_md(py_slice)
+
+    ts_slice = CodeSliceResult(
+        found=True,
+        name="handleClick",
+        qualified_name="handleClick",
+        file_path="src/web/Button.tsx",
+        source_code="export const Button = () => <button />;",
+        start_line=1,
+        end_line=1,
+    )
+    assert "```tsx" in format_code_slice_md(ts_slice)
+
+    go_slice = CodeSliceResult(
+        found=True,
+        name="ServeHTTP",
+        qualified_name="Server.ServeHTTP",
+        file_path="pkg/server.go",
+        source_code="func (s *Server) ServeHTTP() {}",
+        start_line=1,
+        end_line=1,
+    )
+    assert "```go" in format_code_slice_md(go_slice)
+
+    rs_slice = CodeSliceResult(
+        found=True,
+        name="process",
+        qualified_name="process",
+        file_path="src/lib.rs",
+        source_code="pub fn process() {}",
+        start_line=1,
+        end_line=1,
+    )
+    assert "```rust" in format_code_slice_md(rs_slice)

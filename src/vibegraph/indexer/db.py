@@ -177,20 +177,24 @@ class IndexerDB(DBQueriesMixin):
         ]
 
         with self._get_conn() as conn:
-            # 1. Clear previous data for this file
-            cursor = conn.execute("SELECT id FROM nodes WHERE file_path = ?", (file_path,))
-            old_node_ids = [row[0] for row in cursor.fetchall()]
-            if old_node_ids:
-                placeholders = ",".join("?" for _ in old_node_ids)
-                conn.execute(
-                    f"DELETE FROM edges WHERE from_node_id IN ({placeholders})", old_node_ids
-                )
-                conn.execute(
-                    f"DELETE FROM nodes_fts WHERE node_id IN ({placeholders})", old_node_ids
-                )
-                conn.execute(
-                    f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", old_node_ids
-                )
+            # 1. Clear previous data for this file (inbound & outbound edges)
+            conn.execute(
+                """
+                DELETE FROM edges 
+                WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                   OR to_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                """,
+                (file_path, file_path),
+            )
+            conn.execute(
+                "DELETE FROM nodes_fts WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
+            conn.execute(
+                "DELETE FROM node_embeddings WHERE node_id IN "
+                "(SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
             # 2. Batch insert nodes and maintain FTS5
@@ -236,21 +240,34 @@ class IndexerDB(DBQueriesMixin):
 
     @with_write_retry()
     def clear_file(self, file_path: str) -> None:
-        """Remove all nodes, edges, and FTS5 entries associated with a file."""
+        """Remove all nodes, edges (inbound & outbound), FTS5, and file metadata."""
         with self._get_conn() as conn:
-            cursor = conn.execute("SELECT id FROM nodes WHERE file_path = ?", (file_path,))
-            node_ids = [row[0] for row in cursor.fetchall()]
-
-            if not node_ids:
-                return
-
-            placeholders = ",".join("?" for _ in node_ids)
-            conn.execute(f"DELETE FROM edges WHERE from_node_id IN ({placeholders})", node_ids)
-            conn.execute(f"DELETE FROM nodes_fts WHERE node_id IN ({placeholders})", node_ids)
-            conn.execute(f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", node_ids)
+            conn.execute(
+                """
+                DELETE FROM edges 
+                WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                   OR to_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                """,
+                (file_path, file_path),
+            )
+            conn.execute(
+                "DELETE FROM nodes_fts WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
+            conn.execute(
+                "DELETE FROM node_embeddings WHERE node_id IN "
+                "(SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
+
+    def get_all_indexed_file_paths(self) -> set[str]:
+        """Retrieve all indexed file paths currently recorded in the database."""
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT file_path FROM indexed_files")
+            return {row[0] for row in cursor.fetchall()}
 
     def get_file_hash(self, file_path: str) -> str | None:
         """Retrieve stored content hash for a file."""
@@ -324,9 +341,8 @@ class IndexerDB(DBQueriesMixin):
 
     @with_write_retry()
     def update_centrality_scores(self) -> dict[str, float]:
-        """Compute and persist log-normalized in-degree graph centrality for all nodes."""
+        """Compute and persist log-normalized in-degree graph centrality for dirty nodes."""
         sql = """
-        UPDATE nodes SET centrality = 0.0;
         WITH edge_counts AS (
             SELECT to_node_id, ROUND(LN(1.0 + COUNT(*)), 4) AS score
             FROM edges
@@ -334,12 +350,14 @@ class IndexerDB(DBQueriesMixin):
             GROUP BY to_node_id
         )
         UPDATE nodes
-        SET centrality = edge_counts.score
-        FROM edge_counts
-        WHERE nodes.id = edge_counts.to_node_id;
+        SET centrality = COALESCE(edge_counts.score, 0.0)
+        FROM nodes n
+        LEFT JOIN edge_counts ON n.id = edge_counts.to_node_id
+        WHERE nodes.id = n.id AND nodes.centrality != COALESCE(edge_counts.score, 0.0);
         """
         with self._get_conn() as conn:
-            conn.executescript(sql)
+            conn.execute(sql)
+            conn.commit()
             cursor = conn.execute("SELECT id, centrality FROM nodes WHERE centrality > 0")
             return {str(row[0]): float(row[1]) for row in cursor.fetchall()}
 

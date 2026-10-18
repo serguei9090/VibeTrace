@@ -8,6 +8,7 @@ from watchdog.observers import Observer
 
 from vibegraph.indexer.db import IndexerDB
 from vibegraph.indexer.main import index_file
+from vibegraph.indexer.resolver import ModuleResolver
 
 
 class CodeChangeHandler(FileSystemEventHandler):
@@ -20,6 +21,7 @@ class CodeChangeHandler(FileSystemEventHandler):
         self.db = db
         self.on_change = on_change
         self.root_path = Path(root_path).resolve()
+        self.resolver = ModuleResolver(self.root_path)
         self.gitignore_spec = self._load_gitignore()
 
     def _load_gitignore(self):
@@ -33,6 +35,12 @@ class CodeChangeHandler(FileSystemEventHandler):
             except Exception as e:
                 print(f"Warning: Failed to load .gitignore: {e}")
         return None
+
+    def _to_rel_path(self, src_path: str) -> str:
+        try:
+            return str(Path(src_path).resolve().relative_to(self.root_path)).replace("\\", "/")
+        except ValueError:
+            return str(Path(src_path).resolve()).replace("\\", "/")
 
     def _should_ignore(self, file_path: str) -> bool:
         """Check if file should be ignored based on gitignore and common patterns."""
@@ -73,24 +81,42 @@ class CodeChangeHandler(FileSystemEventHandler):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File modified: {src_path}")
-        index_file(self.db, src_path)
+        rel_path = self._to_rel_path(src_path)
+        print(f"File modified: {rel_path}")
+        if index_file(
+            self.db,
+            src_path,
+            project_root=self.root_path,
+            resolver=self.resolver,
+            force=True,
+        ):
+            self.db.update_centrality_scores()
         self._notify()
 
     def on_created(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File created: {src_path}")
-        index_file(self.db, src_path)
+        rel_path = self._to_rel_path(src_path)
+        print(f"File created: {rel_path}")
+        if index_file(
+            self.db,
+            src_path,
+            project_root=self.root_path,
+            resolver=self.resolver,
+            force=True,
+        ):
+            self.db.update_centrality_scores()
         self._notify()
 
     def on_deleted(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
-        print(f"File deleted: {src_path}")
-        self.db.clear_file(src_path)
+        rel_path = self._to_rel_path(src_path)
+        print(f"File deleted: {rel_path}")
+        self.db.clear_file(rel_path)
+        self.db.update_centrality_scores()
         self._notify()
 
 

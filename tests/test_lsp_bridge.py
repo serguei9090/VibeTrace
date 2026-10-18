@@ -89,3 +89,23 @@ def test_resolve_unresolved_edges_with_mock_lsp(tmp_path: Path) -> None:
             "SELECT to_node_id FROM edges WHERE from_node_id = ?", (node_a.id,)
         ).fetchone()
         assert row["to_node_id"] == node_b.id
+
+
+def test_lsp_timeout_protection(tmp_path: Path) -> None:
+    """Verify send_request returns None when response takes longer than timeout."""
+    import time
+
+    client = LSPClient(["mock_lsp"], tmp_path)
+    client.process = MagicMock()
+    client.process.stdin = MagicMock()
+    client.process.stdout = MagicMock()
+
+    def slow_read(req_id: int):
+        time.sleep(0.3)
+        return {"result": 42}
+
+    client._read_response = slow_read  # type: ignore
+
+    res = client.send_request("slow_method", {}, timeout=0.05)
+    assert res is None
+    client.stop()

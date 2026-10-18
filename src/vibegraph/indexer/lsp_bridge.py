@@ -6,6 +6,8 @@ import json
 import os
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -21,12 +23,14 @@ class LSPClient:
         self.root_path = root_path.resolve()
         self.process: subprocess.Popen[bytes] | None = None
         self._req_id = 0
+        self._executor: ThreadPoolExecutor | None = None
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
         if not shutil.which(self.command[0]):
             return False
         try:
+            self._executor = ThreadPoolExecutor(max_workers=1)
             self.process = subprocess.Popen(
                 self.command,
                 stdin=subprocess.PIPE,
@@ -67,10 +71,34 @@ class LSPClient:
         except (BrokenPipeError, OSError):
             pass
 
+    def _read_response(self, req_id: int) -> Any:
+        """Read stdout until the matching response id is found."""
+        if not self.process or not self.process.stdout:
+            return None
+        while True:
+            content_length: int | None = None
+            while True:
+                line = self.process.stdout.readline().decode("latin1")
+                if not line or line == "\r\n":
+                    break
+                if line.lower().startswith("content-length:"):
+                    content_length = int(line.split(":", 1)[1].strip())
+
+            if content_length is None:
+                return None
+
+            body_bytes = self.process.stdout.read(content_length)
+            msg = json.loads(body_bytes.decode("utf-8"))
+            if msg.get("id") == req_id:
+                return msg.get("result")
+
     def send_request(self, method: str, params: dict[str, Any], timeout: float = 3.0) -> Any:
-        """Send a JSON-RPC request and wait synchronously for the response."""
+        """Send a JSON-RPC request and wait with an enforceable timeout for the response."""
         if not self.process or not self.process.stdin or not self.process.stdout:
             return None
+        if not self._executor:
+            self._executor = ThreadPoolExecutor(max_workers=1)
+
         self._req_id += 1
         req_id = self._req_id
         payload = json.dumps(
@@ -82,23 +110,10 @@ class LSPClient:
             self.process.stdin.write(header + payload)
             self.process.stdin.flush()
 
-            # Read response
-            while True:
-                content_length: int | None = None
-                while True:
-                    line = self.process.stdout.readline().decode("latin1")
-                    if not line or line == "\r\n":
-                        break
-                    if line.lower().startswith("content-length:"):
-                        content_length = int(line.split(":", 1)[1].strip())
-
-                if content_length is None:
-                    return None
-
-                body_bytes = self.process.stdout.read(content_length)
-                msg = json.loads(body_bytes.decode("utf-8"))
-                if msg.get("id") == req_id:
-                    return msg.get("result")
+            future = self._executor.submit(self._read_response, req_id)
+            return future.result(timeout=timeout)
+        except (FuturesTimeoutError, TimeoutError):
+            return None
         except Exception:
             return None
 
@@ -141,7 +156,13 @@ class LSPClient:
         return rel_file, start_line
 
     def stop(self) -> None:
-        """Terminate the LSP server process."""
+        """Terminate the LSP server process and worker threads."""
+        if self._executor:
+            try:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+            self._executor = None
         if self.process:
             try:
                 self.send_notification("exit", {})
