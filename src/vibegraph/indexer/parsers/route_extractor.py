@@ -10,16 +10,26 @@ from vibegraph.indexer.db import Node as DBNode
 
 # Matches @app.get("/path"), @router.post('/path', ...), @api_router.delete(...)
 FASTAPI_ROUTE_RE = re.compile(
-    r"@(?:\w+\.)?(?:app|router|api_router)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\"']([^\"']+)[\"']",
+    r"@(?:\w+\.)?(\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 
 # Matches @app.route("/path", methods=["GET", "POST"])
 FLASK_ROUTE_RE = re.compile(
-    r"@(?:\w+\.)?(?:app|bp|blueprint)\.route\s*\(\s*[\"']([^\"']+)[\"']",
+    r"@(?:\w+\.)?(app|bp|blueprint|\w+)\.route\s*\(\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 FLASK_METHODS_RE = re.compile(r"methods\s*=\s*\[(.*?)\]", re.IGNORECASE)
+
+# Matches APIRouter(prefix="/...") and Blueprint(..., url_prefix="/...")
+API_ROUTER_RE = re.compile(
+    r"(\w+)\s*=\s*(?:fastapi\.)?APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
+    re.IGNORECASE,
+)
+BLUEPRINT_RE = re.compile(
+    r"(\w+)\s*=\s*(?:flask\.)?Blueprint\s*\([^)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",
+    re.IGNORECASE,
+)
 
 # Matches Express app.get("/path", ...) or router.post('/path', ...)
 EXPRESS_ROUTE_RE = re.compile(
@@ -28,11 +38,23 @@ EXPRESS_ROUTE_RE = re.compile(
 )
 
 
+def extract_python_router_prefixes(source: str | bytes) -> dict[str, str]:
+    """Extract router/blueprint variable prefixes from Python code."""
+    text = source.decode("utf-8", errors="replace") if isinstance(source, bytes) else source
+    prefixes: dict[str, str] = {}
+    for var, prefix in API_ROUTER_RE.findall(text):
+        prefixes[var] = prefix
+    for var, prefix in BLUEPRINT_RE.findall(text):
+        prefixes[var] = prefix
+    return prefixes
+
+
 def extract_python_routes(
     decorators: list[str] | None,
     handler_node: DBNode,
     file_path: str,
     node_id_fn: Any,
+    router_prefixes: dict[str, str] | None = None,
 ) -> tuple[list[DBNode], list[Edge]]:
     """Extract synthetic Endpoint nodes and 'routes' edges from Python route decorators."""
     if not decorators:
@@ -45,8 +67,15 @@ def extract_python_routes(
         # 1. FastAPI / Starlette
         m_fastapi = FASTAPI_ROUTE_RE.search(dec)
         if m_fastapi:
-            method = m_fastapi.group(1).upper()
-            route_path = m_fastapi.group(2)
+            router_var = m_fastapi.group(1).lower()
+            method = m_fastapi.group(2).upper()
+            route_path = m_fastapi.group(3)
+
+            if router_prefixes and router_var in router_prefixes:
+                pfx = router_prefixes[router_var].rstrip("/")
+                sub_path = route_path.lstrip("/")
+                route_path = f"{pfx}/{sub_path}" if pfx else f"/{sub_path}"
+
             endpoint_name = f"{method} {route_path}"
             endpoint_id = node_id_fn("__endpoint__", endpoint_name, kind="endpoint")
 
@@ -77,7 +106,12 @@ def extract_python_routes(
         # 2. Flask
         m_flask = FLASK_ROUTE_RE.search(dec)
         if m_flask:
-            route_path = m_flask.group(1)
+            bp_var = m_flask.group(1).lower()
+            route_path = m_flask.group(2)
+            if router_prefixes and bp_var in router_prefixes:
+                pfx = router_prefixes[bp_var].rstrip("/")
+                sub_path = route_path.lstrip("/")
+                route_path = f"{pfx}/{sub_path}" if pfx else f"/{sub_path}"
             methods = ["GET"]
             m_methods = FLASK_METHODS_RE.search(dec)
             if m_methods:

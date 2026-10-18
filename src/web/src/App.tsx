@@ -49,6 +49,18 @@ const nodeTypes = {
 
 const initialNodes: Node[] = [];
 const initialEdges: Edge[] = [];
+const DEFAULT_ACTIVE_FILTERS = new Set([
+  "function",
+  "class",
+  "interface",
+  "struct",
+  "trait",
+  "impl",
+  "variable",
+  "module",
+  "endpoint",
+]);
+const DEFAULT_EDGE_TYPES = new Set(["calls", "routes", "imports", "inherits"]);
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -57,12 +69,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [filter, setFilter] = useState("");
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(
-    new Set(["function", "class", "interface", "module", "endpoint"])
-  );
-  const [activeEdgeTypes, setActiveEdgeTypes] = useState<Set<string>>(
-    new Set(["calls", "routes", "imports", "inherits"])
-  );
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(DEFAULT_ACTIVE_FILTERS);
+  const [activeEdgeTypes, setActiveEdgeTypes] = useState<Set<string>>(DEFAULT_EDGE_TYPES);
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("map");

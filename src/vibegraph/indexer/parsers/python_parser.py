@@ -3,7 +3,10 @@ from tree_sitter import Node
 from vibegraph.indexer.db import Edge
 from vibegraph.indexer.db import Node as DBNode
 from vibegraph.indexer.parsers.base import LanguageParser, ParserContext
-from vibegraph.indexer.parsers.route_extractor import extract_python_routes
+from vibegraph.indexer.parsers.route_extractor import (
+    extract_python_router_prefixes,
+    extract_python_routes,
+)
 from vibegraph.indexer.resolver import ModuleResolver
 
 
@@ -50,6 +53,7 @@ class PythonParser(LanguageParser):
         )
 
         ctx = ParserContext(file_path, nodes, edges, file_module_id)
+        ctx.router_prefixes = extract_python_router_prefixes(source_code)  # type: ignore[attr-defined]
         # Pre-populate defined top-level symbol names to avoid false-positive builtin filtering
         for child in tree.root_node.children:
             target = child
@@ -64,6 +68,45 @@ class PythonParser(LanguageParser):
                     ctx.defined_symbols.add(self._get_text(name_node))
 
         self._traverse(tree.root_node, file_module_id, ctx)
+
+        # Link explicit __all__ re-exports
+        for child in tree.root_node.children:
+            if child.type == "expression_statement":
+                for sub in child.children:
+                    if sub.type == "assignment":
+                        left = sub.child_by_field_name("left")
+                        if left and self._get_text(left).strip() == "__all__":
+                            right = sub.child_by_field_name("right")
+                            if right and right.type in ("list", "tuple"):
+                                for item in right.children:
+                                    if item.type == "string":
+                                        exp_name = self._get_text(item).strip("\"'")
+                                        if exp_name in ctx.imported_symbols:
+                                            target_f, orig_n = ctx.imported_symbols[exp_name]
+                                            exp_id = self._get_id(ctx.file_path, exp_name)
+                                            if not any(n.id == exp_id for n in ctx.nodes):
+                                                nodes.append(
+                                                    self._create_node(
+                                                        exp_id,
+                                                        exp_name,
+                                                        "function",
+                                                        ctx.file_path,
+                                                        item,
+                                                        visibility="public",
+                                                        parent_id=file_module_id,
+                                                    )
+                                                )
+                                                edges.append(
+                                                    self._create_edge(
+                                                        file_module_id, exp_id, "defines", node=item
+                                                    )
+                                                )
+                                                target_id = self._get_id(target_f, orig_n)
+                                                edges.append(
+                                                    self._create_edge(
+                                                        exp_id, target_id, "references", node=item
+                                                    )
+                                                )
 
         return nodes, edges
 
@@ -278,7 +321,11 @@ class PythonParser(LanguageParser):
 
         if decorators:
             endpoint_nodes, route_edges = extract_python_routes(
-                decorators, new_node, ctx.file_path, self._get_id
+                decorators,
+                new_node,
+                ctx.file_path,
+                self._get_id,
+                router_prefixes=getattr(ctx, "router_prefixes", None),
             )
             ctx.nodes.extend(endpoint_nodes)
             ctx.edges.extend(route_edges)

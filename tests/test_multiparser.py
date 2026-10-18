@@ -85,6 +85,27 @@ function processUser(user: User): void {
         assert isinstance(nodes, list)
         assert isinstance(edges, list)
 
+    def test_barrel_re_exports(self, tmp_path):
+        """TypeScript parser handles re-exports from other modules in barrels"""
+        from vibegraph.indexer.resolver import ModuleResolver
+
+        (tmp_path / "components").mkdir()
+        button_file = tmp_path / "components" / "Button.tsx"
+        button_file.write_text("export function Button() { return null; }", encoding="utf-8")
+        barrel_file = tmp_path / "components" / "index.ts"
+        barrel_file.write_text("export { Button } from './Button';", encoding="utf-8")
+
+        resolver = ModuleResolver(tmp_path)
+        parser = TypeScriptParser(resolver=resolver)
+
+        nodes, edges = parser.extract(
+            "components/index.ts",
+            b"export { Button } from './Button';",
+        )
+        assert any(n.name == "Button" for n in nodes)
+        assert any(e.relation_type == "imports" for e in edges)
+        assert any(e.relation_type == "references" for e in edges)
+
 
 class TestGoParser:
     """Test Go parser"""

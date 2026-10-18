@@ -146,6 +146,21 @@ def get_source(
         raise HTTPException(status_code=404, detail=str(err)) from err
 
 
+@app.get("/api/search")
+def search_nodes_endpoint(
+    q: str = Query(..., min_length=1),
+    kind: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """Search code symbols and endpoints by name, qualified name, or lexical query."""
+    results = db.search_ast_exact_or_prefix(q, limit=limit)
+    if not results:
+        results = db.search_lexical(q, limit=limit)
+    if kind:
+        results = [r for r in results if r.get("kind") == kind]
+    return results[:limit]
+
+
 @app.get("/api/saved-traces")
 def get_saved_traces_endpoint():
     """List all saved architectural trace queries."""

@@ -138,4 +138,26 @@ def test_recursive_cte_orphan_protection(tmp_path: Path) -> None:
 
     # Start or target is an orphan node not in nodes table
     assert db.find_path_recursive_cte("orphan_node", "n_2") is None
+
+
+def test_recursive_cte_allowed_relations(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    db = IndexerDB(str(db_path))
+
+    nodes = [_make_node("n_0", "func_0"), _make_node("n_1", "func_1")]
+    for n in nodes:
+        db.upsert_node(n)
+
+    # Edge is 'imports'
+    db.upsert_edge(Edge(from_node_id="n_0", to_node_id="n_1", relation_type="imports", call_line=1))
+
+    # When restricting to calls, it should not find the path
+    path = db.find_path_recursive_cte("n_0", "n_1", allowed_relations=["calls"])
+    assert path is None
+
+    # When allowing imports, it finds the path
+    path = db.find_path_recursive_cte("n_0", "n_1", allowed_relations=["imports", "calls"])
+    assert path is not None
+    assert len(path) == 2
+
     assert db.find_path_recursive_cte("n_0", "non_existent_target") is None

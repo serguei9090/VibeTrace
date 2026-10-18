@@ -7,6 +7,10 @@ import type { VibeNodeData } from "../../types";
 export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   const isClass = data.kind === "class";
   const isInterface = data.kind === "interface";
+  const isStruct = data.kind === "struct";
+  const isTrait = data.kind === "trait";
+  const isImpl = data.kind === "impl";
+  const isVariable = data.kind === "variable";
   const isModule = data.kind === "module";
   const isEndpoint = data.kind === "endpoint";
   const isHighlighted = data.isHighlighted;
@@ -24,9 +28,18 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   } else if (isClass) {
     accentColor = "#c084fc"; // purple-400
     glowColor = "rgba(192, 132, 252, 0.4)";
-  } else if (isInterface) {
+  } else if (isInterface || isTrait) {
     accentColor = "#34d399"; // emerald-400
     glowColor = "rgba(52, 211, 153, 0.4)";
+  } else if (isStruct) {
+    accentColor = "#06b6d4"; // cyan-500
+    glowColor = "rgba(6, 182, 212, 0.4)";
+  } else if (isImpl) {
+    accentColor = "#a855f7"; // purple-500
+    glowColor = "rgba(168, 85, 247, 0.4)";
+  } else if (isVariable) {
+    accentColor = "#94a3b8"; // slate-400
+    glowColor = "rgba(148, 163, 184, 0.4)";
   } else if (isModule) {
     accentColor = "#38bdf8"; // sky-400
     glowColor = "rgba(56, 189, 248, 0.4)";

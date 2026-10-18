@@ -108,3 +108,16 @@ def test_post_agent_focus(mock_db):
     )
     assert response.status_code == 200
     assert response.json()["status"] == "broadcast"
+
+
+def test_search_nodes_endpoint(mock_db):
+    response = client.get("/api/search?q=NodeA")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+    assert data[0]["name"] == "NodeA"
+
+    # Filter by kind
+    response_kind = client.get("/api/search?q=run&kind=function")
+    assert response_kind.status_code == 200
+    assert any(n["name"] == "run" for n in response_kind.json())

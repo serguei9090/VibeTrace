@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -145,13 +146,28 @@ def build_call_tree(
     )
 
 
-def format_call_tree_md(result: CallTreeResult) -> str:
+def _can_encode_unicode() -> bool:
+    try:
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        "├── └── │".encode(encoding)
+        return True
+    except Exception:
+        return False
+
+
+def format_call_tree_md(result: CallTreeResult, ascii_only: bool | None = None) -> str:
     """Format CallTreeResult into a clean markdown call tree with ASCII/Unicode connectors."""
     if not result.found or not result.tree:
         return (
             f"## Call Tree: `{result.root_symbol}`\n"
             f"Symbol '{result.root_symbol}' not found in index."
         )
+
+    use_ascii = (not _can_encode_unicode()) if ascii_only is None else ascii_only
+    conn_last = "\\-- " if use_ascii else "└── "
+    conn_mid = "|-- " if use_ascii else "├── "
+    child_pipe = "|   " if use_ascii else "│   "
+    child_space = "    "
 
     root = result.tree
     sig = f" `{root.signature}`" if root.signature else ""
@@ -168,14 +184,14 @@ def format_call_tree_md(result: CallTreeResult) -> str:
         if node.depth == 0:
             lines.append(f"{node.name} ({node.file_path}:L{node.start_line or 1})")
         else:
-            connector = "└── " if is_last else "├── "
+            connector = conn_last if is_last else conn_mid
             call_at = f":L{node.call_line}" if node.call_line else ""
             rel = f"[{node.relation_type}{call_at}] " if node.relation_type else ""
             cycle_note = " (recursive / cycle)" if node.is_cycle else ""
             loc = f"({node.file_path}:L{node.start_line or 1})"
             lines.append(f"{prefix}{connector}{rel}{node.name} {loc}{cycle_note}")
 
-        child_prefix = prefix + ("    " if is_last else "│   ") if node.depth > 0 else ""
+        child_prefix = prefix + (child_space if is_last else child_pipe) if node.depth > 0 else ""
         for idx, child in enumerate(node.children):
             is_child_last = idx == len(node.children) - 1
             _render_ascii(child, child_prefix, is_child_last)

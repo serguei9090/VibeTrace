@@ -85,3 +85,26 @@ def test_tracepath_from_endpoint_to_database(tmp_path: Path) -> None:
     assert hop2.from_node.name == "get_items"
     assert hop2.to_node.name == "query_db"
     assert hop2.relation_type == "calls"
+
+
+def test_fastapi_router_prefix_extraction(tmp_path: Path) -> None:
+    """Route extractor should prepend router prefix when defined via APIRouter(prefix=...)."""
+    pkg = tmp_path / "app"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "users.py").write_text(
+        "from fastapi import APIRouter\n\n"
+        "router = APIRouter(prefix='/api/v1')\n\n"
+        "@router.get('/users')\n"
+        "def list_users():\n"
+        "    return []\n",
+        encoding="utf-8",
+    )
+    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir.mkdir()
+    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    reindex_all(db, str(tmp_path), verbose=False)
+
+    users_ep = db.find_nodes_by_name("GET /api/v1/users")
+    assert len(users_ep) == 1
+    assert users_ep[0]["kind"] == "endpoint"

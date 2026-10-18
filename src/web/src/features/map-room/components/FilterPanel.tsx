@@ -101,7 +101,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         >
           <Filter size={12} /> Symbol Filters
         </div>
-        {["function", "class", "interface", "module", "endpoint"].map((kind) => (
+        {[
+          "function",
+          "class",
+          "interface",
+          "struct",
+          "trait",
+          "impl",
+          "variable",
+          "module",
+          "endpoint",
+        ].map((kind) => (
           <label
             key={kind}
             style={{

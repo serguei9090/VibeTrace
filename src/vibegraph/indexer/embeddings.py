@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import importlib
 import math
 import sqlite3
@@ -178,8 +179,7 @@ class EmbeddingEngine:
         self, db: IndexerDB, query: str, limit: int = 20
     ) -> list[tuple[str, float]]:
         """Return (node_id, cosine_similarity) pairs ranked descending."""
-        stored = db.get_all_embeddings(self.config.model_id)
-        if not stored or not self.is_available():
+        if not self.is_available() or not query.strip():
             return []
 
         query_vecs = self.embed_texts([query])
@@ -202,18 +202,32 @@ class EmbeddingEngine:
                         """,
                         (q_blob, self.config.model_id, limit),
                     )
-                    return [(row[0], float(row[1])) for row in cursor.fetchall()]
+                    results = [(row[0], float(row[1])) for row in cursor.fetchall()]
+                    if results:
+                        return results
                 except sqlite3.Error:
                     pass
 
-        # Pure-stdlib fallback: unpack float32 blobs and compute dot-product cosine similarity
-        scored: list[tuple[str, float]] = []
-        for node_id, blob, dims in stored:
-            if dims != len(q_vec):
-                continue
-            cand_vec = unpack_vector(blob, dims)
-            score = cosine_similarity(q_vec, cand_vec)
-            scored.append((node_id, score))
+        # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
+        top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
+        with db._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT node_id, embedding, dimensions FROM node_embeddings WHERE model_id = ?",
+                (self.config.model_id,),
+            )
+            while True:
+                batch = cursor.fetchmany(1000)
+                if not batch:
+                    break
+                for node_id, blob, dims in batch:
+                    if dims != len(q_vec):
+                        continue
+                    cand_vec = unpack_vector(blob, dims)
+                    score = cosine_similarity(q_vec, cand_vec)
+                    if len(top_heap) < limit:
+                        heapq.heappush(top_heap, (score, node_id))
+                    elif score > top_heap[0][0]:
+                        heapq.heapreplace(top_heap, (score, node_id))
 
-        scored.sort(key=lambda item: item[1], reverse=True)
-        return scored[:limit]
+        top_heap.sort(key=lambda item: item[0], reverse=True)
+        return [(node_id, score) for score, node_id in top_heap]

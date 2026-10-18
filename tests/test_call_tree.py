@@ -138,7 +138,11 @@ def test_format_call_tree_md(tmp_path: Path) -> None:
     assert "handle_payment" in md
     assert "```text" in md
     # ASCII connectors present
-    assert "└──" in md or "├──" in md
+    assert "└──" in md or "├──" in md or "\\--" in md
+
+    # Explicit ASCII-only fallback check
+    md_ascii = format_call_tree_md(res, ascii_only=True)
+    assert "\\--" in md_ascii or "|--" in md_ascii
 
 
 def test_cli_call_tree(tmp_path: Path, capsys) -> None:

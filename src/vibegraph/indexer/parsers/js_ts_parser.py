@@ -59,6 +59,79 @@ class JavaScriptParser(LanguageParser):
 
         visit_clause(node)
 
+    def _handle_es_export(self, node: Node, ctx: ParserContext) -> None:
+        source_node = node.child_by_field_name("source")
+        if not source_node:
+            for child in node.children:
+                if child.type == "export_clause":
+                    for spec in child.children:
+                        if spec.type == "export_specifier":
+                            name_node = spec.child_by_field_name("name")
+                            if name_node:
+                                ctx.defined_symbols.add(self._get_text(name_node))
+            return
+
+        mod_spec = self._get_text(source_node).strip("\"'`")
+        resolved_path = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
+        module_path = resolved_path if resolved_path else "external"
+        canonical_mod = mod_spec
+        if resolved_path and self.resolver:
+            canonical = self.resolver.get_module_name(resolved_path)
+            if canonical:
+                canonical_mod = canonical
+
+        module_id = self._get_id(module_path, canonical_mod, kind="module")
+        if not any(n.id == module_id for n in ctx.nodes):
+            ctx.nodes.append(
+                self._create_node(module_id, canonical_mod, "module", module_path, node)
+            )
+        ctx.edges.append(self._create_edge(ctx.file_module_id, module_id, "imports", node=node))
+
+        # Check wildcard: export * from './mod'
+        is_wildcard = any(
+            c.type == "*" or (c.type == "identifier" and self._get_text(c) == "*")
+            for c in node.children
+        )
+        if is_wildcard:
+            ctx.imported_symbols["*"] = (resolved_path or module_path, "__module__")
+            return
+
+        for child in node.children:
+            if child.type == "export_clause":
+                for spec in child.children:
+                    if spec.type == "export_specifier":
+                        name_node = spec.child_by_field_name("name")
+                        alias_node = spec.child_by_field_name("alias")
+                        if name_node:
+                            orig = self._get_text(name_node)
+                            local_exported = self._get_text(alias_node) if alias_node else orig
+                            export_node_id = self._get_id(ctx.file_path, local_exported)
+                            if not any(n.id == export_node_id for n in ctx.nodes):
+                                exp_node = self._create_node(
+                                    export_node_id,
+                                    local_exported,
+                                    "variable",
+                                    ctx.file_path,
+                                    spec,
+                                    visibility="exported",
+                                    qualified_name=local_exported,
+                                    parent_id=ctx.file_module_id,
+                                )
+                                ctx.nodes.append(exp_node)
+                                ctx.edges.append(
+                                    self._create_edge(
+                                        ctx.file_module_id, export_node_id, "defines", node=spec
+                                    )
+                                )
+                            if resolved_path:
+                                target_id = self._get_id(resolved_path, orig)
+                                ctx.edges.append(
+                                    self._create_edge(
+                                        export_node_id, target_id, "references", node=spec
+                                    )
+                                )
+                                ctx.imported_symbols[local_exported] = (resolved_path, orig)
+
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():
             return [], []
@@ -91,6 +164,12 @@ class JavaScriptParser(LanguageParser):
                     ):
                         target = c
                         break
+                    if c.type == "export_clause":
+                        for spec in c.children:
+                            if spec.type == "export_specifier":
+                                spec_name = spec.child_by_field_name("name")
+                                if spec_name:
+                                    ctx.defined_symbols.add(self._get_text(spec_name))
             if target.type in (
                 "function_declaration",
                 "class_declaration",
@@ -102,6 +181,10 @@ class JavaScriptParser(LanguageParser):
 
         def traverse(node: Node, parent_id: str | None = None, is_exported: bool = False) -> None:
             if node.type == "export_statement":
+                source_node = node.child_by_field_name("source")
+                if source_node:
+                    self._handle_es_export(node, ctx)
+                    return
                 for child in node.children:
                     traverse(child, parent_id, is_exported=True)
                 return

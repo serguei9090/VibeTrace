@@ -94,7 +94,11 @@ class DBQueriesMixin:
             return [dict(r) for r in cursor.fetchall()]
 
     def find_path_recursive_cte(
-        self, start_id: str, target_id: str, max_depth: int = 6
+        self,
+        start_id: str,
+        target_id: str,
+        max_depth: int = 6,
+        allowed_relations: list[str] | tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]] | None:
         """Find shortest execution path using native SQLite recursive CTE query."""
         if start_id == target_id:
@@ -105,7 +109,13 @@ class DBQueriesMixin:
         if not self.get_node(start_id) or not self.get_node(target_id):
             return None
 
-        sql = """
+        rel_filter = ""
+        params: list[Any] = [start_id, start_id]
+        if allowed_relations:
+            placeholders = ",".join("?" for _ in allowed_relations)
+            rel_filter = f" AND e.relation_type IN ({placeholders})"
+
+        sql = f"""
         WITH RECURSIVE path_cte(current_id, depth, path_str) AS (
             SELECT ? AS current_id, 0 AS depth, ? AS path_str
             UNION ALL
@@ -115,15 +125,20 @@ class DBQueriesMixin:
             JOIN path_cte p ON e.from_node_id = p.current_id
             JOIN nodes n ON e.to_node_id = n.id
             WHERE p.depth < ?
-              AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0
+              AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0{rel_filter}
         )
         SELECT path_str FROM path_cte
         WHERE current_id = ?
         ORDER BY depth ASC
         LIMIT 1
         """
+        params.append(max_depth)
+        if allowed_relations:
+            params.extend(allowed_relations)
+        params.append(target_id)
+
         with self._get_conn() as conn:
-            cursor = conn.execute(sql, (start_id, start_id, max_depth, target_id))
+            cursor = conn.execute(sql, tuple(params))
             row = cursor.fetchone()
             if not row:
                 return None
