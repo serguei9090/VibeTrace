@@ -56,6 +56,7 @@ const DEFAULT_ACTIVE_FILTERS = new Set([
   "struct",
   "trait",
   "impl",
+  "enum",
   "variable",
   "module",
   "endpoint",

@@ -108,6 +108,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           "struct",
           "trait",
           "impl",
+          "enum",
           "variable",
           "module",
           "endpoint",

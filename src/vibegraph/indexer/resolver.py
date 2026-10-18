@@ -5,7 +5,25 @@ from pathlib import Path
 class ModuleResolver:
     """Resolves language-specific module names to local filesystem paths."""
 
-    SUPPORTED_EXTENSIONS = (".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs")
+    SUPPORTED_EXTENSIONS = (
+        ".py",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".c",
+        ".h",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".hpp",
+        ".cs",
+        ".rb",
+        ".php",
+    )
 
     def __init__(self, project_root: Path):
         self.project_root = project_root.resolve()

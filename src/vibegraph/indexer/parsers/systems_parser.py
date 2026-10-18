@@ -334,7 +334,10 @@ class RustParser(LanguageParser):
                 trait_node = node.child_by_field_name("trait")
                 if type_node:
                     struct_name = self._get_text(type_node)
-                    struct_id = self._get_id(file_path, struct_name)
+                    resolved_struct = self._resolve_call_target(struct_name, ctx)
+                    struct_id = (
+                        resolved_struct if resolved_struct else self._get_id(file_path, struct_name)
+                    )
                     if trait_node:
                         trait_name = self._get_text(trait_node)
                         trait_id = self._resolve_call_target(trait_name, ctx)
@@ -407,6 +410,16 @@ class GenericParser(LanguageParser):
             "trait_item",
         }
 
+        for child in tree.root_node.children:
+            if child.type in function_types or child.type in class_types:
+                n_node = child.child_by_field_name("name") or child.child_by_field_name(
+                    "declarator"
+                )
+                if n_node:
+                    n_text = self._get_text(n_node)
+                    sym = n_text.split("(")[0].strip().split()[-1] if "(" in n_text else n_text
+                    ctx.defined_symbols.add(sym)
+
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
             pushed_scope = False
@@ -462,6 +475,14 @@ class GenericParser(LanguageParser):
 
                     ctx.scope_stack.append(name)
                     pushed_scope = True
+
+            elif parent_id and node.type in ("call_expression", "method_invocation"):
+                func_node = node.child_by_field_name("function") or node.child_by_field_name("name")
+                if func_node:
+                    called_name = self._get_text(func_node).replace("::", ".")
+                    target_id = self._resolve_call_target(called_name, ctx)
+                    if target_id:
+                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:

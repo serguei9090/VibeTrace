@@ -155,3 +155,11 @@ def test_cli_call_tree(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert "Top-Down Call Tree: `main_entry`" in captured.out
     assert "handle_payment" in captured.out
+
+
+def test_call_tree_max_nodes_ceiling(tmp_path: Path) -> None:
+    """build_call_tree must respect max_nodes limit on dense graphs."""
+    db = _create_sample_tree_project(tmp_path)
+    res = build_call_tree(db, "main_entry", max_depth=3, max_nodes=2)
+    assert res.found is True
+    assert res.total_nodes <= 2

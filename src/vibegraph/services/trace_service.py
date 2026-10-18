@@ -263,7 +263,7 @@ def trace_execution_path(
 
         full_chain = [*fwd_edges, (u_mid, v_mid, mid_edge), *bwd_edges]
         node_seq = (full_chain[0][0], *(step[1] for step in full_chain))
-        if node_seq in seen_signatures:
+        if node_seq in seen_signatures or len(node_seq) != len(set(node_seq)):
             continue
         seen_signatures.add(node_seq)
 

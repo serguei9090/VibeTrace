@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import deque
 from pathlib import Path
 from typing import Any, Literal
 
@@ -226,14 +227,14 @@ def compute_impact_analysis(
     if not file_nodes:
         return 0, {}
 
-    queue = [(n["id"], 0, n["name"]) for n in file_nodes]
+    queue = deque((n["id"], 0, n["name"]) for n in file_nodes)
     visited = {n["id"] for n in file_nodes}
 
     impacts_by_level: dict[int, list[str]] = {1: [], 2: [], 3: []}
     total_impact = 0
 
     while queue:
-        curr_id, depth, path_desc = queue.pop(0)
+        curr_id, depth, path_desc = queue.popleft()
         if depth >= 3:
             continue
 

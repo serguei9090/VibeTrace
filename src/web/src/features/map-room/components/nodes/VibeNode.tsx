@@ -10,6 +10,7 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   const isStruct = data.kind === "struct";
   const isTrait = data.kind === "trait";
   const isImpl = data.kind === "impl";
+  const isEnum = data.kind === "enum";
   const isVariable = data.kind === "variable";
   const isModule = data.kind === "module";
   const isEndpoint = data.kind === "endpoint";
@@ -37,6 +38,9 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
   } else if (isImpl) {
     accentColor = "#a855f7"; // purple-500
     glowColor = "rgba(168, 85, 247, 0.4)";
+  } else if (isEnum) {
+    accentColor = "#fb923c"; // orange-400
+    glowColor = "rgba(251, 146, 60, 0.4)";
   } else if (isVariable) {
     accentColor = "#94a3b8"; // slate-400
     glowColor = "rgba(148, 163, 184, 0.4)";

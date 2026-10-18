@@ -5,6 +5,7 @@ from vibegraph.indexer.parser import (
     RustParser,
     TypeScriptParser,
 )
+from vibegraph.indexer.resolver import ModuleResolver
 
 
 class TestJavaScriptParser:
@@ -208,6 +209,23 @@ fn distance(p1: &Point, p2: &Point) -> f64 {
         assert isinstance(nodes, list)
         assert isinstance(edges, list)
 
+    def test_rust_cross_file_impl_resolution(self):
+        """RustParser resolves imported struct for impl blocks."""
+        parser = RustParser()
+        code = b"""
+impl User {
+    fn get_id(&self) -> u32 {
+        1
+    }
+}
+"""
+        nodes, edges = parser.extract("methods.rs", code)
+        fn_node = next((n for n in nodes if n.name == "get_id"), None)
+        assert fn_node is not None
+        assert fn_node.qualified_name == "User.get_id"
+        # Should link struct to method with defines edge
+        assert any(e.relation_type == "defines" and e.to_node_id == fn_node.id for e in edges)
+
 
 class TestGenericParser:
     """Test generic parser for C-family languages"""
@@ -264,9 +282,38 @@ int main() {
         assert isinstance(nodes, list)
         assert isinstance(edges, list)
 
+    def test_generic_parser_call_extraction(self):
+        """GenericParser must extract calls edges between functions."""
+        parser = GenericParser("cpp")
+        code = b"""
+void helper() {
+}
+
+int main() {
+    helper();
+    return 0;
+}
+"""
+        nodes, edges = parser.extract("main.cpp", code)
+        call_edges = [e for e in edges if e.relation_type == "calls"]
+        assert len(call_edges) >= 1
+        main_node = next(n for n in nodes if n.name == "main")
+        helper_node = next(n for n in nodes if n.name == "helper")
+        assert any(
+            e.from_node_id == main_node.id and e.to_node_id == helper_node.id for e in call_edges
+        )
+
 
 class TestEdgeCases:
     """Test edge cases across all parsers"""
+
+    def test_module_resolver_supported_extensions(self, tmp_path):
+        """ModuleResolver must track C, C++, Java, and systems files."""
+        (tmp_path / "Main.java").write_text("public class Main {}", encoding="utf-8")
+        (tmp_path / "native.cpp").write_text("int main() { return 0; }", encoding="utf-8")
+        resolver = ModuleResolver(tmp_path)
+        assert "Main.java" in resolver.known_files
+        assert "native.cpp" in resolver.known_files
 
     def test_empty_file(self):
         """Empty files should return empty lists"""

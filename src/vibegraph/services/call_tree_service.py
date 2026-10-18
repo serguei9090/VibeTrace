@@ -58,8 +58,9 @@ def build_call_tree(
     max_depth: int = 3,
     relations: tuple[str, ...] = ("calls", "references"),
     file_path: str | None = None,
+    max_nodes: int = 500,
 ) -> CallTreeResult:
-    """Build a top-down execution call-tree down to max_depth with cycle detection."""
+    """Build a top-down execution call-tree with cycle detection and node ceiling."""
     root_data = _resolve_root_node(db, root_symbol, file_path=file_path)
     if not root_data:
         return CallTreeResult(root_symbol=root_symbol, found=False, max_depth=max_depth)
@@ -91,7 +92,7 @@ def build_call_tree(
             is_cycle=is_cycle,
         )
 
-        if is_cycle or current_depth >= max_depth:
+        if is_cycle or current_depth >= max_depth or total_nodes_count[0] >= max_nodes:
             return tree_node
 
         next_ancestors = ancestor_ids | {node_id}
@@ -105,6 +106,8 @@ def build_call_tree(
         seen_child_at_line: set[tuple[str, int | None]] = set()
 
         for edge in filtered_callees:
+            if total_nodes_count[0] >= max_nodes:
+                break
             child_id = edge["neighbor_id"]
             c_line = edge.get("call_line")
             rel = edge.get("relation_type", "calls")
