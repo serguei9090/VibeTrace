@@ -310,7 +310,11 @@ async def vibegraph_trace_path(params: TracePathInput) -> str:
     try:
         db, _ = _get_context_for_path(params.scope_path)
         result = trace_execution_path(
-            db, params.from_symbol, params.to_symbol, max_depth=params.max_depth
+            db,
+            params.from_symbol,
+            params.to_symbol,
+            max_depth=params.max_depth,
+            engine=params.engine,
         )
 
         if result.found:

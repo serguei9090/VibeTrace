@@ -217,7 +217,7 @@ class JavaScriptParser(LanguageParser):
 
                                 endpoint_name = f"{method} {raw_url}"
                                 endpoint_id = self._get_id(
-                                    file_path, endpoint_name, kind="endpoint"
+                                    "__endpoint__", endpoint_name, kind="endpoint"
                                 )
                                 if not any(n.id == endpoint_id for n in nodes):
                                     nodes.append(

@@ -1,85 +1,17 @@
 import json
-import math
-import random
 import sqlite3
 import time
-from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from vibegraph.indexer.db_queries import DBQueriesMixin
+from vibegraph.indexer.db_retry import with_write_retry
+from vibegraph.indexer.models import Edge, Node
+
+__all__ = ["Edge", "IndexerDB", "Node", "with_write_retry"]
 
 
-class Node(BaseModel):
-    id: str
-    name: str
-    qualified_name: str | None = None
-    parent_id: str | None = None
-    kind: Literal[
-        "function",
-        "class",
-        "module",
-        "interface",
-        "variable",
-        "struct",
-        "trait",
-        "impl",
-        "method",
-        "endpoint",
-    ]
-    file_path: str
-    start_line: int | None = None
-    end_line: int | None = None
-    signature: str | None = None
-    docstring: str | None = None
-    decorators: list[str] | None = None
-    visibility: str | None = None
-    centrality: float = 0.0
-
-
-class Edge(BaseModel):
-    from_node_id: str
-    to_node_id: str
-    relation_type: Literal[
-        "calls",
-        "defines",
-        "inherits",
-        "references",
-        "imports",
-        "implements",
-        "returns",
-        "routes",
-    ]
-    call_line: int | None = None
-
-
-def with_write_retry(max_attempts: int = 5, initial_delay: float = 0.05):
-    """Decorator to retry SQLite writes when locked under concurrent agent access."""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            last_err = None
-            for attempt in range(max_attempts):
-                try:
-                    return func(*args, **kwargs)
-                except sqlite3.OperationalError as err:
-                    err_msg = str(err).lower()
-                    if "locked" in err_msg or "busy" in err_msg:
-                        last_err = err
-                        sleep_time = initial_delay * (2**attempt) + random.uniform(0.01, 0.05)
-                        time.sleep(sleep_time)
-                        continue
-                    raise
-            if last_err:
-                raise last_err
-
-        return wrapper
-
-    return decorator
-
-
-class IndexerDB:
+class IndexerDB(DBQueriesMixin):
     def __init__(self, db_path: str | None = None):
         if db_path is None:
             pkg_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -195,6 +127,114 @@ class IndexerDB:
             conn.commit()
 
     @with_write_retry()
+    def batch_save_file_index(
+        self,
+        file_path: str,
+        content_hash: str,
+        nodes: list[Node],
+        edges: list[Edge],
+        indexed_time: int | None = None,
+    ) -> None:
+        """Atomically clear old file data and persist new nodes, edges, FTS5, and hash."""
+        idx_time = indexed_time if indexed_time is not None else int(time.time())
+        node_tuples = [
+            (
+                n.id,
+                n.name,
+                n.qualified_name or n.name,
+                n.parent_id,
+                n.kind,
+                n.file_path,
+                n.start_line,
+                n.end_line,
+                n.signature,
+                n.docstring,
+                json.dumps(n.decorators) if n.decorators else None,
+                n.visibility,
+                n.centrality,
+            )
+            for n in nodes
+        ]
+        fts_tuples = [
+            (
+                n.id,
+                n.name,
+                n.qualified_name or n.name,
+                n.signature or "",
+                n.docstring or "",
+                n.file_path,
+            )
+            for n in nodes
+        ]
+        edge_tuples = [
+            (
+                e.from_node_id,
+                e.to_node_id,
+                e.relation_type,
+                e.call_line,
+            )
+            for e in edges
+        ]
+
+        with self._get_conn() as conn:
+            # 1. Clear previous data for this file
+            cursor = conn.execute("SELECT id FROM nodes WHERE file_path = ?", (file_path,))
+            old_node_ids = [row[0] for row in cursor.fetchall()]
+            if old_node_ids:
+                placeholders = ",".join("?" for _ in old_node_ids)
+                conn.execute(
+                    f"DELETE FROM edges WHERE from_node_id IN ({placeholders})", old_node_ids
+                )
+                conn.execute(
+                    f"DELETE FROM nodes_fts WHERE node_id IN ({placeholders})", old_node_ids
+                )
+                conn.execute(
+                    f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", old_node_ids
+                )
+            conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
+
+            # 2. Batch insert nodes and maintain FTS5
+            if node_tuples:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO nodes (
+                        id, name, qualified_name, parent_id, kind, file_path,
+                        start_line, end_line, signature, docstring,
+                        decorators, visibility, centrality
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    node_tuples,
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO nodes_fts (
+                        node_id, name, qualified_name, signature, docstring, file_path
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    fts_tuples,
+                )
+
+            # 3. Batch insert edges
+            if edge_tuples:
+                conn.executemany(
+                    """
+                    INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    edge_tuples,
+                )
+
+            # 4. Update file hash tracking
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (file_path, content_hash, idx_time),
+            )
+            conn.commit()
+
+    @with_write_retry()
     def clear_file(self, file_path: str) -> None:
         """Remove all nodes, edges, and FTS5 entries associated with a file."""
         with self._get_conn() as conn:
@@ -249,45 +289,6 @@ class IndexerDB:
             conn.execute(sql, (key, value))
             conn.commit()
 
-    def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        """Search nodes using SQLite FTS5 BM25 ranking."""
-        import re
-
-        tokens = re.findall(r"[A-Za-z0-9_]+", query)
-        if not tokens:
-            return []
-
-        sql = """
-            SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
-                   n.start_line, n.end_line, n.signature, n.docstring, n.centrality,
-                   bm25(nodes_fts) as rank
-            FROM nodes_fts f
-            JOIN nodes n ON f.node_id = n.id
-            WHERE nodes_fts MATCH ?
-            ORDER BY rank
-            LIMIT ?
-        """
-        with self._get_conn() as conn:
-            # Try AND prefix query first, then OR prefix query for natural language recall
-            and_expr = " AND ".join(f'"{t}"*' for t in tokens)
-            or_expr = " OR ".join(f'"{t}"*' for t in tokens)
-            results: list[dict[str, Any]] = []
-            seen_ids: set[str] = set()
-
-            for expr in (and_expr, or_expr):
-                try:
-                    cursor = conn.execute(sql, (expr, limit))
-                    for row in cursor.fetchall():
-                        r_dict = dict(row)
-                        if r_dict["id"] not in seen_ids:
-                            seen_ids.add(r_dict["id"])
-                            results.append(r_dict)
-                            if len(results) >= limit:
-                                return results
-                except sqlite3.OperationalError:
-                    continue
-            return results
-
     def get_node(self, node_id: str) -> dict[str, Any] | None:
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
@@ -324,29 +325,23 @@ class IndexerDB:
     @with_write_retry()
     def update_centrality_scores(self) -> dict[str, float]:
         """Compute and persist log-normalized in-degree graph centrality for all nodes."""
+        sql = """
+        UPDATE nodes SET centrality = 0.0;
+        WITH edge_counts AS (
+            SELECT to_node_id, ROUND(LN(1.0 + COUNT(*)), 4) AS score
+            FROM edges
+            WHERE relation_type IN ('calls', 'references', 'inherits', 'implements', 'imports')
+            GROUP BY to_node_id
+        )
+        UPDATE nodes
+        SET centrality = edge_counts.score
+        FROM edge_counts
+        WHERE nodes.id = edge_counts.to_node_id;
+        """
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                """
-                SELECT to_node_id, COUNT(*) as cnt
-                FROM edges
-                WHERE relation_type IN ('calls', 'references', 'inherits', 'implements', 'imports')
-                GROUP BY to_node_id
-                """
-            )
-            scores: dict[str, float] = {}
-            updates: list[tuple[float, str]] = []
-            for row in cursor.fetchall():
-                nid = str(row[0])
-                cnt = int(row[1])
-                score = round(math.log1p(cnt), 4)
-                scores[nid] = score
-                updates.append((score, nid))
-
-            conn.execute("UPDATE nodes SET centrality = 0.0")
-            if updates:
-                conn.executemany("UPDATE nodes SET centrality = ? WHERE id = ?", updates)
-            conn.commit()
-            return scores
+            conn.executescript(sql)
+            cursor = conn.execute("SELECT id, centrality FROM nodes WHERE centrality > 0")
+            return {str(row[0]): float(row[1]) for row in cursor.fetchall()}
 
     def get_file_structure(
         self, file_path: str, limit: int = 100, offset: int = 0
@@ -455,44 +450,6 @@ class IndexerDB:
             cursor = conn.execute(query, (file_path,))
             return [dict(r) for r in cursor.fetchall()]
 
-    def search_by_signature_pattern(self, pattern: str, limit: int = 50) -> list[dict[str, Any]]:
-        """Search functions matching SQL LIKE pattern in signature."""
-        with self._get_conn() as conn:
-            query = (
-                "SELECT id, name, qualified_name, kind, signature, file_path, start_line, end_line "
-                "FROM nodes WHERE signature LIKE ? LIMIT ?"
-            )
-            cursor = conn.execute(query, (pattern, limit))
-            return [dict(r) for r in cursor.fetchall()]
-
-    def search_ast_exact_or_prefix(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        """Search AST symbols ordered by exact match, prefix match, and substring match."""
-        q = query.strip()
-        if not q:
-            return []
-        with self._get_conn() as conn:
-            sql = """
-                SELECT id, name, qualified_name, kind, file_path,
-                       start_line, end_line, signature, docstring, centrality,
-                       CASE
-                           WHEN LOWER(qualified_name) = LOWER(?)
-                             OR LOWER(name) = LOWER(?) THEN 0
-                           WHEN LOWER(name) LIKE LOWER(?)
-                             OR LOWER(qualified_name) LIKE LOWER(?) THEN 1
-                           ELSE 2
-                       END AS match_tier
-                FROM nodes
-                WHERE LOWER(name) LIKE LOWER(?)
-                   OR LOWER(qualified_name) LIKE LOWER(?)
-                   OR LOWER(signature) LIKE LOWER(?)
-                ORDER BY match_tier ASC, LENGTH(qualified_name) ASC
-                LIMIT ?
-            """
-            prefix = f"{q}%"
-            sub = f"%{q}%"
-            cursor = conn.execute(sql, (q, q, prefix, prefix, sub, sub, sub, limit))
-            return [dict(r) for r in cursor.fetchall()]
-
     def get_nodes_by_ids(self, node_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Fetch full node dictionaries keyed by node ID."""
         if not node_ids:
@@ -539,36 +496,3 @@ class IndexerDB:
         with self._get_conn() as conn:
             cursor = conn.execute(sql, (model_id,))
             return [dict(r) for r in cursor.fetchall()]
-
-    def find_path_recursive_cte(
-        self, start_id: str, target_id: str, max_depth: int = 6
-    ) -> list[dict[str, Any]] | None:
-        """Find shortest execution path using native SQLite recursive CTE query."""
-        if start_id == target_id:
-            node = self.get_node(start_id)
-            return [node] if node else None
-
-        sql = """
-        WITH RECURSIVE path_cte(current_id, depth, path_str) AS (
-            SELECT ? AS current_id, 0 AS depth, ? AS path_str
-            UNION ALL
-            SELECT e.to_node_id, p.depth + 1,
-                   p.path_str || ',' || e.to_node_id
-            FROM edges e
-            JOIN path_cte p ON e.from_node_id = p.current_id
-            WHERE p.depth < ?
-              AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0
-        )
-        SELECT path_str FROM path_cte
-        WHERE current_id = ?
-        ORDER BY depth ASC
-        LIMIT 1
-        """
-        with self._get_conn() as conn:
-            cursor = conn.execute(sql, (start_id, start_id, max_depth, target_id))
-            row = cursor.fetchone()
-            if not row:
-                return None
-            path_ids = str(row[0]).split(",")
-            nodes_by_id = self.get_nodes_by_ids(path_ids)
-            return [nodes_by_id[nid] for nid in path_ids if nid in nodes_by_id]

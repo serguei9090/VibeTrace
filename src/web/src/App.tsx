@@ -205,7 +205,11 @@ export default function App() {
 
   useEffect(() => {
     fetchGraph();
+    let isCancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
     const connectWS = () => {
+      if (isCancelled) return;
       ws.current = new WebSocket(WS_URL);
       ws.current.onopen = () => console.log("Vibe-Sync Active");
       ws.current.onmessage = (event) => {
@@ -223,12 +227,18 @@ export default function App() {
         }
       };
       ws.current.onclose = () => {
-        setTimeout(connectWS, 3000);
+        if (!isCancelled) {
+          reconnectTimer = setTimeout(connectWS, 3000);
+        }
       };
     };
 
     connectWS();
     return () => {
+      isCancelled = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       ws.current?.close();
     };
   }, [fetchGraph]);

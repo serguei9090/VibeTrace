@@ -48,7 +48,7 @@ def extract_python_routes(
             method = m_fastapi.group(1).upper()
             route_path = m_fastapi.group(2)
             endpoint_name = f"{method} {route_path}"
-            endpoint_id = node_id_fn(file_path, endpoint_name, kind="endpoint")
+            endpoint_id = node_id_fn("__endpoint__", endpoint_name, kind="endpoint")
 
             node = DBNode(
                 id=endpoint_id,
@@ -87,7 +87,7 @@ def extract_python_routes(
 
             for method in methods:
                 endpoint_name = f"{method} {route_path}"
-                endpoint_id = node_id_fn(file_path, endpoint_name, kind="endpoint")
+                endpoint_id = node_id_fn("__endpoint__", endpoint_name, kind="endpoint")
 
                 node = DBNode(
                     id=endpoint_id,

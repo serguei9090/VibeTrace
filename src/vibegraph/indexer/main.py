@@ -1,7 +1,6 @@
 import hashlib
 import os
 import sys
-import time
 from pathlib import Path
 
 import pathspec
@@ -56,17 +55,8 @@ def index_file(
             print(f"Indexing {rel_path}...")
         nodes, edges = parser.extract(rel_path, source_code)
 
-        # Clear old data for this file
-        db.clear_file(rel_path)
-
-        # Insert new data
-        for node in nodes:
-            db.upsert_node(node)
-
-        for edge in edges:
-            db.upsert_edge(edge)
-
-        db.update_file_hash(rel_path, content_hash, int(time.time()))
+        # Atomically clear and persist in a single transaction
+        db.batch_save_file_index(rel_path, content_hash, nodes, edges)
 
         if verbose:
             print(f"  -> Extracted {len(nodes)} nodes, {len(edges)} edges.")

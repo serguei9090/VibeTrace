@@ -1,6 +1,7 @@
-"""Pydantic schemas and enums for VibeGraph MCP tools."""
+from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -199,6 +200,10 @@ class TracePathInput(BaseModel):
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
+    )
+    engine: Literal["bfs", "cte"] = Field(
+        default="bfs",
+        description="Path engine: 'bfs' (bidirectional BFS) or 'cte' (native SQLite CTE)",
     )
 
 
