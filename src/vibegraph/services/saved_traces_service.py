@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from vibegraph.indexer.db import IndexerDB
+from vibegraph.indexer.db_retry import with_write_retry
 
 
 class SavedTrace(BaseModel):
@@ -72,6 +73,7 @@ def get_saved_trace_by_name(db: IndexerDB, name: str) -> SavedTrace | None:
         )
 
 
+@with_write_retry()
 def create_saved_trace(
     db: IndexerDB,
     payload: SavedTraceCreate,
@@ -102,6 +104,7 @@ def create_saved_trace(
     return saved
 
 
+@with_write_retry()
 def delete_saved_trace(db: IndexerDB, trace_id: int) -> bool:
     """Delete a saved trace by ID. Returns True if deleted, False if not found."""
     with db._get_conn() as conn:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
+from vibegraph.indexer.db import Edge, IndexerDB, Node
 from vibegraph.indexer.main import index_file
 from vibegraph.indexer.parser import PythonParser
 from vibegraph.indexer.resolver import ModuleResolver
@@ -412,3 +412,49 @@ def test_watcher_relative_path_normalization(tmp_path: Path) -> None:
     nested_file = tmp_path / "nested" / "deep" / "module.py"
     rel = handler._to_rel_path(str(nested_file))
     assert rel == "nested/deep/module.py"
+
+
+def test_batch_save_file_index_edge_deduplication(tmp_path: Path) -> None:
+    """batch_save_file_index should deduplicate duplicate edge tuples."""
+
+    db = IndexerDB(str(tmp_path / "test_dedup.db"))
+    node_a = Node(
+        id="file.py:func_a",
+        name="func_a",
+        qualified_name="func_a",
+        kind="function",
+        file_path="file.py",
+        start_line=1,
+        end_line=5,
+    )
+    node_b = Node(
+        id="file.py:func_b",
+        name="func_b",
+        qualified_name="func_b",
+        kind="function",
+        file_path="file.py",
+        start_line=6,
+        end_line=10,
+    )
+    # Pass duplicate identical edges
+    edge1 = Edge(
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+        relation_type="calls",
+        call_line=3,
+    )
+    edge2 = Edge(
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+        relation_type="calls",
+        call_line=3,
+    )
+
+    db.batch_save_file_index("file.py", "test_hash_val", [node_a, node_b], [edge1, edge2])
+
+    with db._get_conn() as conn:
+        edge_count = conn.execute(
+            "SELECT COUNT(*) FROM edges WHERE from_node_id = ? AND to_node_id = ?",
+            (node_a.id, node_b.id),
+        ).fetchone()[0]
+    assert edge_count == 1

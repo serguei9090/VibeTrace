@@ -179,7 +179,7 @@ class EmbeddingEngine:
         self, db: IndexerDB, query: str, limit: int = 20
     ) -> list[tuple[str, float]]:
         """Return (node_id, cosine_similarity) pairs ranked descending."""
-        if not self.is_available() or not query.strip():
+        if not self.is_available() or not query.strip() or limit <= 0:
             return []
 
         query_vecs = self.embed_texts([query])

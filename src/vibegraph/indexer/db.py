@@ -166,15 +166,17 @@ class IndexerDB(DBQueriesMixin):
             )
             for n in nodes
         ]
-        edge_tuples = [
-            (
-                e.from_node_id,
-                e.to_node_id,
-                e.relation_type,
-                e.call_line,
+        edge_tuples = list(
+            dict.fromkeys(
+                (
+                    e.from_node_id,
+                    e.to_node_id,
+                    e.relation_type,
+                    e.call_line,
+                )
+                for e in edges
             )
-            for e in edges
-        ]
+        )
 
         with self._get_conn() as conn:
             # 1. Clear previous data for this file (inbound & outbound edges)

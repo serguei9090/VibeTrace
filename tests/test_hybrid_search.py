@@ -134,3 +134,14 @@ def test_embedding_engine_and_three_stream_rrf(tmp_path: Path):
 
     doc_str = build_symbol_document(all_stream_results[0].model_dump())
     assert "AuthService.authenticate_jwt" in doc_str
+
+
+def test_search_semantic_zero_and_negative_limit(tmp_path: Path):
+    """search_semantic should safely return empty list when limit <= 0 without IndexError."""
+    db = _populate_sample_db(tmp_path)
+    config = EmbeddingConfig(model_id="test-model", dimensions=64)
+    engine = EmbeddingEngine(config=config, encoder=lambda texts: [[0.5] * 64 for _ in texts])
+    engine.index_missing_embeddings(db)
+
+    assert engine.search_semantic(db, "query", limit=0) == []
+    assert engine.search_semantic(db, "query", limit=-1) == []

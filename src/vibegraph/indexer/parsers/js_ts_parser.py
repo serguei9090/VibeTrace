@@ -368,28 +368,17 @@ class JavaScriptParser(LanguageParser):
                     class_heritage = node.child_by_field_name("class_heritage")
                     if class_heritage:
                         for child in class_heritage.children:
-                            if child.type == "extends_clause":
+                            if child.type in ("extends_clause", "implements_clause"):
+                                rel = "inherits" if child.type == "extends_clause" else "implements"
                                 for type_node in child.children:
                                     if type_node.type in ("identifier", "type_identifier"):
-                                        base_name = self._get_text(type_node)
-                                        base_id = self._resolve_call_target(base_name, ctx)
-                                        if base_id:
-                                            edges.append(
-                                                self._create_edge(
-                                                    node_id, base_id, "inherits", node=type_node
-                                                )
+                                        t_name = self._get_text(type_node)
+                                        t_id = self._resolve_call_target(t_name, ctx)
+                                        if t_id:
+                                            edge = self._create_edge(
+                                                node_id, t_id, rel, node=type_node
                                             )
-                            elif child.type == "implements_clause":
-                                for type_node in child.children:
-                                    if type_node.type in ("identifier", "type_identifier"):
-                                        iface_name = self._get_text(type_node)
-                                        iface_id = self._resolve_call_target(iface_name, ctx)
-                                        if iface_id:
-                                            edges.append(
-                                                self._create_edge(
-                                                    node_id, iface_id, "implements", node=type_node
-                                                )
-                                            )
+                                            edges.append(edge)
 
                     ctx.scope_stack.append(name)
                     pushed_scope = True

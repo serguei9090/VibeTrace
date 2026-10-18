@@ -108,3 +108,26 @@ def test_fastapi_router_prefix_extraction(tmp_path: Path) -> None:
     users_ep = db.find_nodes_by_name("GET /api/v1/users")
     assert len(users_ep) == 1
     assert users_ep[0]["kind"] == "endpoint"
+
+
+def test_fastapi_router_camelcase_prefix_extraction(tmp_path: Path) -> None:
+    """Route extractor should handle camelCase APIRouter variable names."""
+    pkg = tmp_path / "app"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "billing.py").write_text(
+        "from fastapi import APIRouter\n\n"
+        "billingRouter = APIRouter(prefix='/api/v2')\n\n"
+        "@billingRouter.post('/charge')\n"
+        "def process_charge():\n"
+        "    return {'status': 'ok'}\n",
+        encoding="utf-8",
+    )
+    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir.mkdir()
+    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    reindex_all(db, str(tmp_path), verbose=False)
+
+    charge_ep = db.find_nodes_by_name("POST /api/v2/charge")
+    assert len(charge_ep) == 1
+    assert charge_ep[0]["kind"] == "endpoint"

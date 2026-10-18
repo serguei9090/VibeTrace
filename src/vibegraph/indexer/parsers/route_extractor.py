@@ -39,13 +39,13 @@ EXPRESS_ROUTE_RE = re.compile(
 
 
 def extract_python_router_prefixes(source: str | bytes) -> dict[str, str]:
-    """Extract router/blueprint variable prefixes from Python code."""
+    """Extract router/blueprint variable prefixes from Python code (case-insensitive keys)."""
     text = source.decode("utf-8", errors="replace") if isinstance(source, bytes) else source
     prefixes: dict[str, str] = {}
     for var, prefix in API_ROUTER_RE.findall(text):
-        prefixes[var] = prefix
+        prefixes[var.lower()] = prefix
     for var, prefix in BLUEPRINT_RE.findall(text):
-        prefixes[var] = prefix
+        prefixes[var.lower()] = prefix
     return prefixes
 
 
