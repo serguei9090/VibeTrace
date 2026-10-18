@@ -35,7 +35,8 @@ const layoutArchitectureMap = async (
     const elkFiles = [];
 
     for (const [filePath, fileNodes] of Object.entries(files)) {
-      const elkNodes = fileNodes.map((n) => ({
+      const uniqueFileNodes = Array.from(new Map(fileNodes.map((n) => [n.id, n])).values());
+      const elkNodes = uniqueFileNodes.map((n) => ({
         id: n.id,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
@@ -157,7 +158,8 @@ const layoutDirectionalGraph = async (
   // Filter to highlighted subgraph when a selection or trace is active
   const highlighted = contentNodes.filter((n) => n.data?.isHighlighted);
   const activeNodes = highlighted.length > 0 ? highlighted : contentNodes;
-  const activeIds = new Set(activeNodes.map((n) => n.id));
+  const uniqueActiveNodes = Array.from(new Map(activeNodes.map((n) => [n.id, n])).values());
+  const activeIds = new Set(uniqueActiveNodes.map((n) => n.id));
   const activeEdges = edges.filter(
     (e) => activeIds.has(e.source) && activeIds.has(e.target) && e.label !== "defines"
   );
@@ -167,7 +169,7 @@ const layoutDirectionalGraph = async (
 
   const rootGraph = {
     id: "root",
-    children: activeNodes.map((n) => ({
+    children: uniqueActiveNodes.map((n) => ({
       id: n.id,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
@@ -193,7 +195,7 @@ const layoutDirectionalGraph = async (
   });
 
   // Sort by X in trace mode to assign fallback sequential step badges (#1, #2, ...)
-  const sortedByX = [...activeNodes].sort(
+  const sortedByX = [...uniqueActiveNodes].sort(
     (a, b) => (posMap.get(a.id)?.x ?? 0) - (posMap.get(b.id)?.x ?? 0)
   );
   const fallbackOrder = new Map<string, number>();
@@ -201,7 +203,7 @@ const layoutDirectionalGraph = async (
     fallbackOrder.set(n.id, idx + 1);
   });
 
-  const finalNodes: Node[] = activeNodes.map((n) => {
+  const finalNodes: Node[] = uniqueActiveNodes.map((n) => {
     const pos = posMap.get(n.id) || { x: 0, y: 0 };
     const stepNum = config?.traceStepMap?.get(n.id) ?? fallbackOrder.get(n.id);
     const impactDepth = config?.impactDepthMap?.get(n.id);

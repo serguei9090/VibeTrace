@@ -153,12 +153,28 @@ def search_nodes_endpoint(
     limit: int = Query(default=20, ge=1, le=100),
 ):
     """Search code symbols and endpoints by name, qualified name, or lexical query."""
-    results = db.search_ast_exact_or_prefix(q, limit=limit)
-    if not results:
-        results = db.search_lexical(q, limit=limit)
+    fetch_limit = limit if not kind else max(limit * 5, 50)
+    ast_results = db.search_ast_exact_or_prefix(q, limit=fetch_limit)
     if kind:
-        results = [r for r in results if r.get("kind") == kind]
-    return results[:limit]
+        ast_results = [r for r in ast_results if r.get("kind") == kind]
+
+    if len(ast_results) >= limit:
+        return ast_results[:limit]
+
+    fts_results = db.search_lexical(q, limit=fetch_limit)
+    if kind:
+        fts_results = [r for r in fts_results if r.get("kind") == kind]
+
+    seen_ids = {r["id"] for r in ast_results}
+    combined = list(ast_results)
+    for r in fts_results:
+        if r["id"] not in seen_ids:
+            seen_ids.add(r["id"])
+            combined.append(r)
+            if len(combined) >= limit:
+                break
+
+    return combined[:limit]
 
 
 @app.get("/api/saved-traces")

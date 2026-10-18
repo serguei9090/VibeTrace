@@ -128,3 +128,111 @@ def test_cte_trace_execution_path_preserves_metadata(tmp_path: Path):
     assert hop2.to_node.name == "save_invoice"
     assert hop2.relation_type == "calls"
     assert hop2.call_line == 5
+
+
+def test_trace_execution_path_pure_cycle_graceful_empty(tmp_path: Path):
+    """When only cyclic paths exist between frontier bridges,
+
+    tracepath gracefully returns found=False instead of crashing.
+    """
+    from vibegraph.indexer.models import Edge, Node
+
+    db = IndexerDB(str(tmp_path / "cycle_test.db"))
+    nodes = [
+        Node(
+            id="A",
+            name="func_a",
+            qualified_name="func_a",
+            kind="function",
+            file_path="app.py",
+            start_line=1,
+            end_line=5,
+        ),
+        Node(
+            id="B",
+            name="func_b",
+            qualified_name="func_b",
+            kind="function",
+            file_path="app.py",
+            start_line=6,
+            end_line=10,
+        ),
+        Node(
+            id="C",
+            name="func_c",
+            qualified_name="func_c",
+            kind="function",
+            file_path="app.py",
+            start_line=11,
+            end_line=15,
+        ),
+    ]
+    edges = [
+        Edge(from_node_id="A", to_node_id="B", relation_type="calls", call_line=3),
+        Edge(from_node_id="B", to_node_id="A", relation_type="calls", call_line=8),
+    ]
+    db.batch_save_file_index("app.py", "hash1", nodes, edges)
+
+    trace = trace_execution_path(db, "func_a", "func_c", max_depth=4)
+    assert trace.found is False
+    assert trace.hops == []
+
+
+def test_graph_traverser_diamond_dag_no_false_cycle(tmp_path: Path):
+    """Diamond DAG (A -> B -> D and A -> C -> D) must NOT flag D as circular dependency."""
+    from vibegraph.indexer.models import Edge, Node
+    from vibegraph.services.graph_service import GraphTraverser
+
+    db = IndexerDB(str(tmp_path / "diamond_test.db"))
+    nodes = [
+        Node(
+            id="A",
+            name="entry",
+            qualified_name="entry",
+            kind="function",
+            file_path="app.py",
+            start_line=1,
+            end_line=2,
+        ),
+        Node(
+            id="B",
+            name="svc_b",
+            qualified_name="svc_b",
+            kind="function",
+            file_path="app.py",
+            start_line=3,
+            end_line=4,
+        ),
+        Node(
+            id="C",
+            name="svc_c",
+            qualified_name="svc_c",
+            kind="function",
+            file_path="app.py",
+            start_line=5,
+            end_line=6,
+        ),
+        Node(
+            id="D",
+            name="common_util",
+            qualified_name="common_util",
+            kind="function",
+            file_path="app.py",
+            start_line=7,
+            end_line=8,
+        ),
+    ]
+    edges = [
+        Edge(from_node_id="A", to_node_id="B", relation_type="calls", call_line=2),
+        Edge(from_node_id="A", to_node_id="C", relation_type="calls", call_line=2),
+        Edge(from_node_id="B", to_node_id="D", relation_type="calls", call_line=4),
+        Edge(from_node_id="C", to_node_id="D", relation_type="calls", call_line=6),
+    ]
+    db.batch_save_file_index("app.py", "hash1", nodes, edges)
+
+    traverser = GraphTraverser(db)
+    traverser.traverse("A", 1, 3, "down", 0, path_stack=["entry"])
+    full_output = "\n".join(traverser.output)
+
+    assert "circular dependency" not in full_output
+    assert "common_util" in full_output

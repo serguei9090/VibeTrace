@@ -187,6 +187,7 @@ class GraphTraverser:
         direction: Literal["up", "down"],
         indent: int,
         path_stack: list[str] | None = None,
+        ancestor_ids: set[str] | None = None,
     ) -> None:
         """Recursively traverse the call graph."""
         if depth > max_depth:
@@ -194,13 +195,21 @@ class GraphTraverser:
 
         if path_stack is None:
             path_stack = []
+        if ancestor_ids is None:
+            ancestor_ids = set()
 
-        if current_id in self.visited:
+        if current_id in ancestor_ids:
             msg = safe_str("🔄 [CYCLE DETECTED - circular dependency]")
             self.output.append(f"{'  ' * indent}{msg}")
             return
 
+        if current_id in self.visited:
+            msg = safe_str("↪ [already traversed in another branch]")
+            self.output.append(f"{'  ' * indent}{msg}")
+            return
+
         self.visited.add(current_id)
+        next_ancestors = ancestor_ids | {current_id}
 
         prefix = safe_str("← called by") if direction == "up" else safe_str("→ calls")
         neighbors = self.db.get_neighbors(current_id, direction)
@@ -215,7 +224,13 @@ class GraphTraverser:
             )
             self.output.append(line)
             self.traverse(
-                n["neighbor_id"], depth + 1, max_depth, direction, indent + 1, current_path
+                n["neighbor_id"],
+                depth + 1,
+                max_depth,
+                direction,
+                indent + 1,
+                current_path,
+                next_ancestors,
             )
 
 

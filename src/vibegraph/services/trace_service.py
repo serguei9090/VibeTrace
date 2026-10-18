@@ -280,6 +280,9 @@ def trace_execution_path(
             )
         paths.append(hops)
 
+    if not paths:
+        return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
+
     paths.sort(
         key=lambda p: (
             len(p),
@@ -415,8 +418,15 @@ def notify_ui_focus(
 ) -> None:
     """Fire-and-forget notification to local Map Room server (/api/agent-focus)."""
     import json
+    import os
     import threading
     import urllib.request
+
+    base_url = (
+        os.getenv("VIBEGRAPH_SERVER_URL")
+        or f"http://127.0.0.1:{os.getenv('VIBEGRAPH_PORT', '8000')}"
+    )
+    focus_url = f"{base_url.rstrip('/')}/api/agent-focus"
 
     payload = json.dumps(
         {
@@ -432,7 +442,7 @@ def notify_ui_focus(
     def _send() -> None:
         try:
             req = urllib.request.Request(
-                "http://127.0.0.1:8000/api/agent-focus",
+                focus_url,
                 data=payload,
                 headers={"Content-Type": "application/json"},
                 method="POST",

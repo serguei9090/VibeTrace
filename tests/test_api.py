@@ -121,3 +121,14 @@ def test_search_nodes_endpoint(mock_db):
     response_kind = client.get("/api/search?q=run&kind=function")
     assert response_kind.status_code == 200
     assert any(n["name"] == "run" for n in response_kind.json())
+
+    # Test class kind filtering
+    res_class = client.get("/api/search?q=NodeA&kind=class")
+    assert res_class.status_code == 200
+    assert len(res_class.json()) >= 1
+    assert all(r["kind"] == "class" for r in res_class.json())
+
+    # Non-existent kind returns empty list gracefully
+    res_none = client.get("/api/search?q=NodeA&kind=trait")
+    assert res_none.status_code == 200
+    assert res_none.json() == []
