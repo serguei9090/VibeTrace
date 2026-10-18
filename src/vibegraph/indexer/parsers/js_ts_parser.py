@@ -79,6 +79,27 @@ class JavaScriptParser(LanguageParser):
         )
         ctx = ParserContext(file_path, nodes, edges, file_module_id)
 
+        # Pre-populate defined top-level symbol names to avoid false-positive builtin filtering
+        for child in tree.root_node.children:
+            target = child
+            if child.type == "export_statement":
+                for c in child.children:
+                    if c.type in (
+                        "function_declaration",
+                        "class_declaration",
+                        "interface_declaration",
+                    ):
+                        target = c
+                        break
+            if target.type in (
+                "function_declaration",
+                "class_declaration",
+                "interface_declaration",
+            ):
+                name_node = target.child_by_field_name("name")
+                if name_node:
+                    ctx.defined_symbols.add(self._get_text(name_node))
+
         def traverse(node: Node, parent_id: str | None = None, is_exported: bool = False) -> None:
             if node.type == "export_statement":
                 for child in node.children:
@@ -91,6 +112,7 @@ class JavaScriptParser(LanguageParser):
 
             node_id = None
             pushed_scope = False
+            saved_local_types: dict[str, str] | None = None
             visibility = "exported" if is_exported else "internal"
 
             if node.type in (
@@ -100,6 +122,7 @@ class JavaScriptParser(LanguageParser):
                 "method_definition",
                 "method_signature",
             ):
+                saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
                 name = self._get_text(name_node) if name_node else "<anonymous>"
                 # Support `const divide = (a, b) => a / b` variable declarator names
@@ -117,6 +140,18 @@ class JavaScriptParser(LanguageParser):
                 kind = "function"
                 params_node = node.child_by_field_name("parameters")
                 signature = self._get_text(params_node) if params_node else None
+                if params_node:
+                    for p in params_node.children:
+                        if p.type in ("required_parameter", "optional_parameter"):
+                            p_name = None
+                            p_type = None
+                            for c in p.children:
+                                if c.type == "identifier":
+                                    p_name = self._get_text(c)
+                                elif c.type == "type_annotation":
+                                    p_type = self._get_text(c).lstrip(": ").strip()
+                            if p_name and p_type:
+                                ctx.local_types[p_name] = p_type
 
                 nodes.append(
                     self._create_node(
@@ -138,6 +173,54 @@ class JavaScriptParser(LanguageParser):
                 if name != "<anonymous>":
                     ctx.scope_stack.append(name)
                     pushed_scope = True
+
+            elif node.type in ("public_field_definition", "field_definition"):
+                f_name_node = node.child_by_field_name("name")
+                f_type_node = node.child_by_field_name("type")
+                f_val_node = node.child_by_field_name("value")
+                if f_name_node:
+                    f_name = self._get_text(f_name_node)
+                    if f_type_node:
+                        f_type = self._get_text(f_type_node).lstrip(": ").strip()
+                        if f_type:
+                            ctx.local_types[f"this.{f_name}"] = f_type
+                    elif f_val_node and f_val_node.type == "new_expression":
+                        ctor = f_val_node.child_by_field_name("constructor")
+                        if ctor:
+                            ctx.local_types[f"this.{f_name}"] = self._get_text(ctor).strip()
+
+            elif node.type == "assignment_expression":
+                left_node = node.child_by_field_name("left")
+                right_node = node.child_by_field_name("right")
+                if left_node and right_node:
+                    l_name = self._get_text(left_node).strip()
+                    if right_node.type == "new_expression":
+                        ctor = right_node.child_by_field_name("constructor")
+                        if ctor:
+                            ctx.local_types[l_name] = self._get_text(ctor).strip()
+                    elif right_node.type == "identifier":
+                        r_name = self._get_text(right_node).strip()
+                        if r_name in ctx.local_types:
+                            ctx.local_types[l_name] = ctx.local_types[r_name]
+
+            elif node.type == "variable_declarator":
+                v_name_node = node.child_by_field_name("name")
+                type_node = node.child_by_field_name("type")
+                val_node = node.child_by_field_name("value")
+                if v_name_node:
+                    v_name = self._get_text(v_name_node)
+                    if type_node:
+                        v_type = self._get_text(type_node).lstrip(": ").strip()
+                        if v_type:
+                            ctx.local_types[v_name] = v_type
+                    elif val_node and val_node.type == "new_expression":
+                        ctor = val_node.child_by_field_name("constructor")
+                        if ctor:
+                            ctx.local_types[v_name] = self._get_text(ctor).strip()
+                    elif val_node and val_node.type == "identifier":
+                        r_name = self._get_text(val_node).strip()
+                        if r_name in ctx.local_types:
+                            ctx.local_types[v_name] = ctx.local_types[r_name]
 
             elif node.type in ("class_declaration", "interface_declaration"):
                 name_node = node.child_by_field_name("name")
@@ -171,21 +254,23 @@ class JavaScriptParser(LanguageParser):
                                     if type_node.type in ("identifier", "type_identifier"):
                                         base_name = self._get_text(type_node)
                                         base_id = self._resolve_call_target(base_name, ctx)
-                                        edges.append(
-                                            self._create_edge(
-                                                node_id, base_id, "inherits", node=type_node
+                                        if base_id:
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, base_id, "inherits", node=type_node
+                                                )
                                             )
-                                        )
                             elif child.type == "implements_clause":
                                 for type_node in child.children:
                                     if type_node.type in ("identifier", "type_identifier"):
                                         iface_name = self._get_text(type_node)
                                         iface_id = self._resolve_call_target(iface_name, ctx)
-                                        edges.append(
-                                            self._create_edge(
-                                                node_id, iface_id, "implements", node=type_node
+                                        if iface_id:
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, iface_id, "implements", node=type_node
+                                                )
                                             )
-                                        )
 
                     ctx.scope_stack.append(name)
                     pushed_scope = True
@@ -195,7 +280,8 @@ class JavaScriptParser(LanguageParser):
                 if func_node:
                     called_name = self._get_text(func_node)
                     target_id = self._resolve_call_target(called_name, ctx)
-                    edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+                    if target_id:
+                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
                     # Check for clientside API requests: fetch("/api/...") or axios.get("/api/...")
                     args_node = node.child_by_field_name("arguments")
@@ -241,7 +327,10 @@ class JavaScriptParser(LanguageParser):
                     tag_name = self._get_text(name_node)
                     if tag_name and tag_name[0].isupper():
                         target_id = self._resolve_call_target(tag_name, ctx)
-                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+                        if target_id:
+                            edges.append(
+                                self._create_edge(parent_id, target_id, "calls", node=node)
+                            )
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
@@ -249,6 +338,23 @@ class JavaScriptParser(LanguageParser):
 
             if pushed_scope:
                 ctx.scope_stack.pop()
+
+            if saved_local_types is not None:
+                if (
+                    node.type
+                    in (
+                        "function_declaration",
+                        "arrow_function",
+                        "function",
+                        "method_definition",
+                        "method_signature",
+                    )
+                    and ctx.scope_stack
+                ):
+                    for k, v in ctx.local_types.items():
+                        if k.startswith("this."):
+                            saved_local_types[k] = v
+                ctx.local_types = saved_local_types
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges

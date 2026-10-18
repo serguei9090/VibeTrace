@@ -112,3 +112,30 @@ def test_recursive_cte_unreachable_and_same_node(tmp_path: Path) -> None:
     assert same_path is not None
     assert len(same_path) == 1
     assert same_path[0]["id"] == "n_0"
+
+
+def test_recursive_cte_orphan_protection(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    db = IndexerDB(str(db_path))
+
+    # n_0 and n_2 exist in nodes table, but orphan_node does NOT exist in nodes table
+    n_0 = _make_node("n_0", "start_func")
+    n_2 = _make_node("n_2", "target_func")
+    db.upsert_node(n_0)
+    db.upsert_node(n_2)
+
+    # Edge points to an orphan node that does not exist in nodes table
+    db.upsert_edge(
+        Edge(from_node_id="n_0", to_node_id="orphan_node", relation_type="calls", call_line=2)
+    )
+    db.upsert_edge(
+        Edge(from_node_id="orphan_node", to_node_id="n_2", relation_type="calls", call_line=3)
+    )
+
+    # The only edge path goes through orphan_node, which must not be traversed
+    path = db.find_path_recursive_cte("n_0", "n_2")
+    assert path is None
+
+    # Start or target is an orphan node not in nodes table
+    assert db.find_path_recursive_cte("orphan_node", "n_2") is None
+    assert db.find_path_recursive_cte("n_0", "non_existent_target") is None

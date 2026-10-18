@@ -153,3 +153,166 @@ def test_cross_file_call_resolution_and_incremental_hash(tmp_path: Path):
     assert call_targets[0]["neighbor_id"] == compute_nodes[0]["id"]
     assert call_targets[0]["file_path"] == "pkg/service.py"
     assert call_targets[0]["call_line"] == 4
+
+
+def test_instance_method_resolution_parameter_and_assignment(tmp_path: Path) -> None:
+    """Instance method calls on typed params and constructors must resolve to TargetClass.method."""
+    pkg_dir = tmp_path / "app"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+
+    db_file = pkg_dir / "db.py"
+    db_file.write_text(
+        "class IndexerDB:\n    def batch_save_file_index(self, items):\n        pass\n",
+        encoding="utf-8",
+    )
+
+    worker_file = pkg_dir / "worker.py"
+    worker_file.write_text(
+        "from .db import IndexerDB\n\n"
+        "def process_with_param(db: IndexerDB):\n"
+        "    db.batch_save_file_index([1, 2, 3])\n\n"
+        "def process_with_ctor():\n"
+        "    db = IndexerDB()\n"
+        "    db.batch_save_file_index([4, 5, 6])\n\n"
+        "class WorkerService:\n"
+        "    def __init__(self):\n"
+        "        self.db = IndexerDB()\n"
+        "    def run(self):\n"
+        "        self.db.batch_save_file_index([7, 8, 9])\n\n"
+        "class ParamWorkerService:\n"
+        "    def __init__(self, db: IndexerDB):\n"
+        "        self.db = db\n"
+        "    def execute(self):\n"
+        "        self.db.batch_save_file_index([10])\n\n"
+        "class IsolatedService:\n"
+        "    def run(self):\n"
+        "        self.db.batch_save_file_index([11])\n\n"
+        "def orphan_func():\n"
+        "    db.batch_save_file_index([12])\n",
+        encoding="utf-8",
+    )
+
+    resolver = ModuleResolver(tmp_path)
+    db = IndexerDB(str(tmp_path / "test.db"))
+
+    assert index_file(db, str(db_file), project_root=tmp_path, resolver=resolver, verbose=False)
+    assert index_file(db, str(worker_file), project_root=tmp_path, resolver=resolver, verbose=False)
+
+    target_method_nodes = [
+        n
+        for n in db.find_nodes_by_name("batch_save_file_index")
+        if n["qualified_name"] == "IndexerDB.batch_save_file_index"
+    ]
+    assert len(target_method_nodes) == 1
+    target_method_id = target_method_nodes[0]["id"]
+
+    # 1. Parameter type resolution: process_with_param -> IndexerDB.batch_save_file_index
+    param_func = db.find_nodes_by_name("process_with_param")[0]
+    param_callees = [
+        c for c in db.get_neighbors(param_func["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert any(c["neighbor_id"] == target_method_id for c in param_callees)
+
+    # 2. Local constructor resolution: process_with_ctor -> IndexerDB.batch_save_file_index
+    ctor_func = db.find_nodes_by_name("process_with_ctor")[0]
+    ctor_callees = [
+        c for c in db.get_neighbors(ctor_func["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert any(c["neighbor_id"] == target_method_id for c in ctor_callees)
+
+    # 3. Instance self.db resolution: WorkerService.run -> IndexerDB.batch_save_file_index
+    run_nodes = [
+        n for n in db.find_nodes_by_name("run") if n["qualified_name"] == "WorkerService.run"
+    ]
+    assert len(run_nodes) == 1
+    run_callees = [
+        c for c in db.get_neighbors(run_nodes[0]["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert any(c["neighbor_id"] == target_method_id for c in run_callees)
+
+    # 4. Constructor param to self assignment:
+    # ParamWorkerService.execute -> IndexerDB.batch_save_file_index
+    exec_nodes = [
+        n
+        for n in db.find_nodes_by_name("execute")
+        if n["qualified_name"] == "ParamWorkerService.execute"
+    ]
+    assert len(exec_nodes) == 1
+    exec_callees = [
+        c for c in db.get_neighbors(exec_nodes[0]["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert any(c["neighbor_id"] == target_method_id for c in exec_callees)
+
+    # 5. Scope isolation: IsolatedService.run must NOT leak to IndexerDB.batch_save_file_index
+    isolated_nodes = [
+        n for n in db.find_nodes_by_name("run") if n["qualified_name"] == "IsolatedService.run"
+    ]
+    assert len(isolated_nodes) == 1
+    isolated_callees = [
+        c
+        for c in db.get_neighbors(isolated_nodes[0]["id"], "down")
+        if c["relation_type"] == "calls"
+    ]
+    assert not any(c["neighbor_id"] == target_method_id for c in isolated_callees)
+
+    # 6. Scope isolation: orphan_func must NOT leak to IndexerDB.batch_save_file_index
+    orphan_nodes = db.find_nodes_by_name("orphan_func")
+    assert len(orphan_nodes) == 1
+    orphan_callees = [
+        c for c in db.get_neighbors(orphan_nodes[0]["id"], "down") if c["relation_type"] == "calls"
+    ]
+    assert not any(c["neighbor_id"] == target_method_id for c in orphan_callees)
+
+
+def test_phantom_builtin_filtering(tmp_path: Path) -> None:
+    """Bare calls to standard builtins must not emit phantom edges into the SQLite database."""
+    pkg_dir = tmp_path / "builtins_test"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+
+    src_file = pkg_dir / "sample.py"
+    src_file.write_text(
+        "def custom_worker():\n"
+        "    return 42\n\n"
+        "def main_func(items):\n"
+        "    # Builtin calls that must NOT emit call edges\n"
+        "    a = len(items)\n"
+        "    b = range(10)\n"
+        "    print(a, b)\n"
+        "    f = open('test.txt', 'r')\n"
+        "    s = str(a)\n"
+        "    i = int('123')\n"
+        "    fl = float('1.23')\n"
+        "    bo = bool(1)\n"
+        "    d = dict()\n"
+        "    li = list()\n"
+        "    se = set()\n"
+        "    tu = tuple()\n"
+        "    is_inst = isinstance(items, list)\n"
+        "    t = type(items)\n"
+        "    en = enumerate(items)\n"
+        "    z = zip(items, items)\n"
+        "    dyn_attr = getattr(items, 'unknown_' + str(a))\n"
+        "    setattr(items, 'key', 'val')\n"
+        "    has_k = hasattr(items, 'key')\n"
+        "    # Custom local function call that MUST emit a call edge\n"
+        "    return custom_worker()\n",
+        encoding="utf-8",
+    )
+
+    resolver = ModuleResolver(tmp_path)
+    db = IndexerDB(str(tmp_path / "test.db"))
+    assert index_file(db, str(src_file), project_root=tmp_path, resolver=resolver, verbose=False)
+
+    main_nodes = db.find_nodes_by_name("main_func")
+    assert len(main_nodes) == 1
+    callees = [
+        c for c in db.get_neighbors(main_nodes[0]["id"], "down") if c["relation_type"] == "calls"
+    ]
+
+    # Only custom_worker should be a callee! None of the builtins should be present.
+    custom_nodes = db.find_nodes_by_name("custom_worker")
+    assert len(custom_nodes) == 1
+    assert len(callees) == 1
+    assert callees[0]["neighbor_id"] == custom_nodes[0]["id"]

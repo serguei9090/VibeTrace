@@ -86,6 +86,7 @@ const layoutArchitectureMap = async (
 
   const layoutedGraph = await elk.layout(rootGraph);
   const finalNodes: Node[] = [];
+  const nodeMap = new Map(contentNodes.map((n) => [n.id, n]));
 
   layoutedGraph.children?.forEach((district: any) => {
     finalNodes.push({
@@ -127,7 +128,7 @@ const layoutArchitectureMap = async (
       });
 
       file.children?.forEach((symbol: any) => {
-        const original = contentNodes.find((n) => n.id === symbol.id);
+        const original = nodeMap.get(symbol.id);
         if (original) {
           finalNodes.push({
             ...original,

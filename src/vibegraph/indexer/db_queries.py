@@ -101,6 +101,10 @@ class DBQueriesMixin:
             node = self.get_node(start_id)
             return [node] if node else None
 
+        # Orphan protection: verify start and target exist in nodes table
+        if not self.get_node(start_id) or not self.get_node(target_id):
+            return None
+
         sql = """
         WITH RECURSIVE path_cte(current_id, depth, path_str) AS (
             SELECT ? AS current_id, 0 AS depth, ? AS path_str
@@ -109,6 +113,7 @@ class DBQueriesMixin:
                    p.path_str || ',' || e.to_node_id
             FROM edges e
             JOIN path_cte p ON e.from_node_id = p.current_id
+            JOIN nodes n ON e.to_node_id = n.id
             WHERE p.depth < ?
               AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0
         )
@@ -124,4 +129,6 @@ class DBQueriesMixin:
                 return None
             path_ids = str(row[0]).split(",")
             nodes_by_id = self.get_nodes_by_ids(path_ids)
-            return [nodes_by_id[nid] for nid in path_ids if nid in nodes_by_id]
+            if len(nodes_by_id) != len(path_ids):
+                return None
+            return [nodes_by_id[nid] for nid in path_ids]

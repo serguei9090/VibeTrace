@@ -50,9 +50,113 @@ class PythonParser(LanguageParser):
         )
 
         ctx = ParserContext(file_path, nodes, edges, file_module_id)
+        # Pre-populate defined top-level symbol names to avoid false-positive builtin filtering
+        for child in tree.root_node.children:
+            target = child
+            if child.type == "decorated_definition":
+                for sub in child.children:
+                    if sub.type in ("function_definition", "class_definition"):
+                        target = sub
+                        break
+            if target.type in ("function_definition", "class_definition"):
+                name_node = target.child_by_field_name("name")
+                if name_node:
+                    ctx.defined_symbols.add(self._get_text(name_node))
+
         self._traverse(tree.root_node, file_module_id, ctx)
 
         return nodes, edges
+
+    def _extract_type_name(self, type_node: Node | None) -> str | None:
+        """Extract clean type identifier from type annotation node."""
+        if not type_node:
+            return None
+        text = self._get_text(type_node).strip()
+        if text.startswith("Optional[") and text.endswith("]"):
+            text = text[9:-1].strip()
+        if " | " in text:
+            parts = [p.strip() for p in text.split("|") if p.strip() != "None"]
+            if parts:
+                text = parts[0]
+        text = text.strip("'\"")
+        return text if text else None
+
+    def _extract_param_types(self, params_node: Node, ctx: ParserContext) -> None:
+        """Record parameter type annotations into ctx.local_types."""
+        for child in params_node.children:
+            if child.type == "typed_parameter":
+                name_node = None
+                for c in child.children:
+                    if c.type == "identifier":
+                        name_node = c
+                        break
+                type_node = child.child_by_field_name("type")
+                if name_node and type_node:
+                    p_name = self._get_text(name_node)
+                    p_type = self._extract_type_name(type_node)
+                    if p_type:
+                        ctx.local_types[p_name] = p_type
+
+            elif child.type == "typed_default_parameter":
+                name_node = child.child_by_field_name("name")
+                if not name_node:
+                    for c in child.children:
+                        if c.type == "identifier":
+                            name_node = c
+                            break
+                type_node = child.child_by_field_name("type")
+                if name_node and type_node:
+                    p_name = self._get_text(name_node)
+                    p_type = self._extract_type_name(type_node)
+                    if p_type:
+                        ctx.local_types[p_name] = p_type
+
+            elif child.type == "default_parameter":
+                name_node = child.child_by_field_name("name")
+                val_node = child.child_by_field_name("value")
+                if name_node and val_node and val_node.type == "call":
+                    func = val_node.child_by_field_name("function")
+                    if func:
+                        ctor_name = self._get_text(func).strip()
+                        if ctor_name and (
+                            ctor_name in ctx.imported_symbols
+                            or (ctor_name[0].isupper() and "(" not in ctor_name)
+                            or "." in ctor_name
+                        ):
+                            ctx.local_types[self._get_text(name_node)] = ctor_name
+
+    def _handle_assignment(self, node: Node, ctx: ParserContext) -> None:
+        """Record local variable types from explicit annotations, constructors, or assignments."""
+        left_node = node.child_by_field_name("left")
+        if not left_node:
+            return
+        var_name = self._get_text(left_node).strip()
+
+        # Check explicit type annotation: var: ClassType = ...
+        type_node = node.child_by_field_name("type")
+        if type_node:
+            type_name = self._extract_type_name(type_node)
+            if type_name:
+                ctx.local_types[var_name] = type_name
+                return
+
+        right_node = node.child_by_field_name("right")
+        # Check constructor assignment: var = ClassType(...)
+        if right_node and right_node.type == "call":
+            func_node = right_node.child_by_field_name("function")
+            if func_node:
+                ctor_name = self._get_text(func_node).strip()
+                if ctor_name and (
+                    ctor_name in ctx.imported_symbols
+                    or (ctor_name[0].isupper() and "(" not in ctor_name)
+                    or "." in ctor_name
+                ):
+                    ctx.local_types[var_name] = ctor_name
+        # Check assignment from typed parameter or variable: self.db = db
+        elif right_node and right_node.type in ("identifier", "attribute"):
+            right_name = self._get_text(right_node).strip()
+            if right_name in ctx.local_types:
+                ctx.local_types[var_name] = ctx.local_types[right_name]
 
     def _traverse(
         self,
@@ -68,9 +172,11 @@ class PythonParser(LanguageParser):
 
         node_id = None
         pushed_scope = False
+        saved_local_types: dict[str, str] | None = None
 
         # 1. Definitions
         if node.type in ("function_definition", "class_definition"):
+            saved_local_types = dict(ctx.local_types)
             node_id, def_name = self._handle_definition(node, parent_id, ctx, decorators)
             if def_name:
                 ctx.scope_stack.append(def_name)
@@ -88,6 +194,10 @@ class PythonParser(LanguageParser):
         elif parent_id and node.type == "dictionary":
             self._handle_dictionary(node, parent_id, ctx)
 
+        # 5. Assignments (constructor instantiation & type annotations)
+        elif node.type == "assignment":
+            self._handle_assignment(node, ctx)
+
         # Recurse
         current_scope_id = node_id if node_id else parent_id
         for child in node.children:
@@ -96,6 +206,15 @@ class PythonParser(LanguageParser):
         if pushed_scope:
             ctx.scope_stack.pop()
 
+        if saved_local_types is not None:
+            if node.type == "function_definition" and ctx.scope_stack:
+                # Inside a class method: preserve instance attributes on self for sibling methods
+                for k, v in ctx.local_types.items():
+                    if k.startswith(("self.", "this.")):
+                        saved_local_types[k] = v
+            # Restore saved_local_types (cleanly isolates top-level functions and class scopes)
+            ctx.local_types = saved_local_types
+
     def _handle_dictionary(self, node: Node, parent_id: str, ctx: ParserContext) -> None:
         for child in node.children:
             if child.type == "pair":
@@ -103,9 +222,10 @@ class PythonParser(LanguageParser):
                 if val_node and val_node.type in ("identifier", "attribute"):
                     val_name = self._get_text(val_node)
                     target_id = self._resolve_call_target(val_name, ctx)
-                    ctx.edges.append(
-                        self._create_edge(parent_id, target_id, "references", node=val_node)
-                    )
+                    if target_id:
+                        ctx.edges.append(
+                            self._create_edge(parent_id, target_id, "references", node=val_node)
+                        )
 
     def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
         current_decorators = []
@@ -132,6 +252,8 @@ class PythonParser(LanguageParser):
         kind = "function" if node.type == "function_definition" else "class"
 
         params_node = node.child_by_field_name("parameters")
+        if params_node:
+            self._extract_param_types(params_node, ctx)
         signature = self._get_text(params_node) if params_node else None
         docstring = self._extract_docstring(node)
 
@@ -175,7 +297,10 @@ class PythonParser(LanguageParser):
                     if arg.type in ("identifier", "attribute"):
                         base_name = self._get_text(arg)
                         base_id = self._resolve_call_target(base_name, ctx)
-                        ctx.edges.append(self._create_edge(node_id, base_id, "inherits", node=arg))
+                        if base_id:
+                            ctx.edges.append(
+                                self._create_edge(node_id, base_id, "inherits", node=arg)
+                            )
 
         return node_id, name
 
@@ -195,7 +320,10 @@ class PythonParser(LanguageParser):
                     attr_name = self._get_text(args[1]).strip("'\"")
                     obj_name = self._get_text(args[0])
                     target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
-                    ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+                    if target_id:
+                        ctx.edges.append(
+                            self._create_edge(parent_id, target_id, "calls", node=node)
+                        )
                     return
 
         # Dynamic heuristic 2: getattr(obj, "method")()
@@ -209,13 +337,15 @@ class PythonParser(LanguageParser):
                         attr_name = self._get_text(args[1]).strip("'\"")
                         obj_name = self._get_text(args[0])
                         target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
-                        ctx.edges.append(
-                            self._create_edge(parent_id, target_id, "calls", node=node)
-                        )
+                        if target_id:
+                            ctx.edges.append(
+                                self._create_edge(parent_id, target_id, "calls", node=node)
+                            )
                         return
 
         target_id = self._resolve_call_target(called_name, ctx)
-        ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+        if target_id:
+            ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
     def _handle_import(self, node: Node, ctx: ParserContext) -> None:
         if node.type == "import_statement":
