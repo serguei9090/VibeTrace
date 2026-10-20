@@ -161,7 +161,11 @@ const layoutDirectionalGraph = async (
   const uniqueActiveNodes = Array.from(new Map(activeNodes.map((n) => [n.id, n])).values());
   const activeIds = new Set(uniqueActiveNodes.map((n) => n.id));
   const activeEdges = edges.filter(
-    (e) => activeIds.has(e.source) && activeIds.has(e.target) && e.label !== "defines"
+    (e) =>
+      activeIds.has(e.source) &&
+      activeIds.has(e.target) &&
+      (e.data as any)?.relation_type !== "defines" &&
+      !e.id.endsWith("-defines")
   );
 
   const isTrace = mode === "trace";

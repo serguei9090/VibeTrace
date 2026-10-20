@@ -132,3 +132,24 @@ def test_search_nodes_endpoint(mock_db):
     res_none = client.get("/api/search?q=NodeA&kind=trait")
     assert res_none.status_code == 200
     assert res_none.json() == []
+
+
+def test_source_endpoint_empty_file(mock_db, tmp_path):
+    (tmp_path / "empty_mod.py").write_text("", encoding="utf-8")
+    res = client.get("/source?file_path=empty_mod.py&start_line=1&end_line=5")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["source_code"] == ""
+    assert data["start_line"] == 0
+    assert data["end_line"] == 0
+
+
+def test_server_api_root_env_override(monkeypatch, tmp_path):
+    import os
+
+    from vibegraph.services.graph_service import get_context_for_path
+
+    monkeypatch.setenv("VIBEGRAPH_PROJECT_ROOT", str(tmp_path))
+    root_override = os.environ.get("VIBEGRAPH_PROJECT_ROOT")
+    _, proj_root = get_context_for_path(".", root_override=root_override, auto_sync=False)
+    assert proj_root.resolve() == tmp_path.resolve()

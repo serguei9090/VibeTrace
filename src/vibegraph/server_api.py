@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -63,7 +64,8 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-db, project_root = get_context_for_path(".")
+root_override = os.environ.get("VIBEGRAPH_PROJECT_ROOT")
+db, project_root = get_context_for_path(".", root_override=root_override)
 
 
 # Lifespan for Watcher

@@ -98,7 +98,7 @@ class ModuleResolver:
         if not module_name:
             return None
 
-        if module_name.startswith("."):
+        if module_name.startswith((".", "crate/", "super/")):
             return self._resolve_relative(module_name, current_file)
 
         res = self.module_map.get(module_name)
@@ -117,6 +117,27 @@ class ModuleResolver:
 
         norm_current = current_file.replace("\\", "/")
         current_dir = Path(norm_current).parent
+
+        # Case 0: Rust crate:: and super:: relative module paths
+        if module_name.startswith("crate/"):
+            sub_path = module_name[6:]
+            curr_str = str(current_dir).replace("\\", "/")
+            candidates = [
+                f"{curr_str}/{sub_path}" if curr_str != "." else sub_path,
+                f"{curr_str}/src/{sub_path}" if curr_str != "." else f"src/{sub_path}",
+                sub_path,
+            ]
+            for prefix in candidates:
+                norm_p = os.path.normpath(prefix).replace("\\", "/")
+                res = self._match_known_file(norm_p, current_file)
+                if res:
+                    return res
+            for kf in sorted(self.known_files):
+                if kf.endswith(f"/{sub_path}.rs") or kf == f"{sub_path}.rs":
+                    return kf
+
+        if module_name.startswith("super/"):
+            return self._resolve_relative(f"../{module_name[6:]}", current_file)
 
         # Case 1: JS/TS slash-based relative import (e.g. './utils', '../components/Node')
         if "/" in module_name:

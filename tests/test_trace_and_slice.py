@@ -301,3 +301,13 @@ def test_prefix_collision_trace_disambiguation(tmp_path: Path):
     # Since from_symbol != to_symbol and only node_target matches both, no false 0-hop
     assert res_phantom.found is False
     assert len(res_phantom.hops) == 0
+
+
+def test_read_file_lines_empty_file(tmp_path: Path):
+    """Empty files must return empty string and (0, 0) line range without inverted bounds."""
+    empty_file = tmp_path / "empty.py"
+    empty_file.write_text("", encoding="utf-8")
+    content, s_line, e_line = read_file_lines(tmp_path, "empty.py")
+    assert content == ""
+    assert s_line == 0
+    assert e_line == 0

@@ -291,6 +291,10 @@ export const buildFlowElements = (
         target: e.to_node_id,
         label,
         type: "smoothstep",
+        data: {
+          relation_type: e.relation_type,
+          call_line: e.call_line,
+        },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: markerColor,

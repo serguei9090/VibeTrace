@@ -99,6 +99,18 @@ def test_code_ingest_multilanguage_e2e(tmp_path: Path) -> None:
     assert trace_go.found is True
     assert len(trace_go.hops) >= 2
 
+    trace_rs = trace_execution_path(db, "run_scheduler", "Worker.execute_task")
+    assert trace_rs.found is True
+    assert len(trace_rs.hops) >= 2
+
+    trace_cpp = trace_execution_path(db, "calculate_total", "Calculator.add")
+    assert trace_cpp.found is True
+    assert len(trace_cpp.hops) >= 1
+
+    trace_java = trace_execution_path(db, "processOrder", "PaymentGateway.charge")
+    assert trace_java.found is True
+    assert len(trace_java.hops) >= 1
+
     # 8. Impact Analysis
     total_impact, _ = compute_impact_analysis(db, "python/service.py")
     assert total_impact >= 0

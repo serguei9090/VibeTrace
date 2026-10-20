@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -290,6 +291,9 @@ def cmd_hooks(args: argparse.Namespace) -> int:
 
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
+
+    if getattr(args, "root", None):
+        os.environ["VIBEGRAPH_PROJECT_ROOT"] = str(Path(args.root).resolve())
 
     uvicorn.run("vibegraph.server_api:app", host=args.host, port=args.port)
     return 0

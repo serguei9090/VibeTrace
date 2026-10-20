@@ -337,6 +337,8 @@ def read_file_lines(
 
     lines = target_file.read_text(encoding="utf-8", errors="replace").splitlines()
     total = len(lines)
+    if total == 0:
+        return "", 0, 0
     s_line = max(1, start_line or 1)
     e_line = min(total, end_line or total)
     if s_line > e_line and total > 0:
