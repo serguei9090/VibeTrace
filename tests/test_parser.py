@@ -485,3 +485,15 @@ def run_transaction():
         and e.to_node_id == exec_query.id
     ]
     assert len(call_edges) == 1
+
+
+def test_resolver_root_relative_imports(tmp_path: Path) -> None:
+    """ModuleResolver must resolve root relative imports ('./', '.') to index files."""
+    (tmp_path / "index.ts").write_text("export const answer = 42;\n")
+    (tmp_path / "__init__.py").write_text("# root package\n")
+    (tmp_path / "client.ts").write_text("import { answer } from './';\n")
+    (tmp_path / "client.py").write_text("from . import answer\n")
+
+    resolver = ModuleResolver(tmp_path)
+    assert resolver.resolve("./", "client.ts") == "index.ts"
+    assert resolver.resolve(".", "client.py") == "__init__.py"

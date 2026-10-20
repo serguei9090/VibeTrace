@@ -13,6 +13,7 @@ from vibegraph.cli import main as cli_main
 from vibegraph.indexer.db import Edge, IndexerDB, Node
 from vibegraph.mcp.server import (
     CallStackInput,
+    CallTreeInput,
     CodeSliceInput,
     ImpactAnalysisInput,
     ResponseFormat,
@@ -21,6 +22,7 @@ from vibegraph.mcp.server import (
     TraceDirection,
     TracePathInput,
     vibegraph_get_call_stack,
+    vibegraph_get_call_tree,
     vibegraph_get_code_slice,
     vibegraph_get_structural_summary,
     vibegraph_impact_analysis,
@@ -250,6 +252,33 @@ async def test_mcp_get_code_slice(mock_db):
     res = await vibegraph_get_code_slice(params)
     assert "def func_b():" in res
     assert "func_a" in res
+
+
+@pytest.mark.asyncio
+async def test_mcp_code_slice_and_call_tree_scope_priority(monkeypatch, tmp_path):
+    """Verify vibegraph_get_code_slice and vibegraph_get_call_tree prioritize scope_path."""
+    captured_paths = []
+
+    def mock_get_context(path=None):
+        captured_paths.append(path)
+        db = IndexerDB(str(tmp_path / "test.db"))
+        return db, tmp_path
+
+    import vibegraph.mcp.server
+
+    monkeypatch.setattr(vibegraph.mcp.server, "_get_context_for_path", mock_get_context)
+
+    params_slice = CodeSliceInput(
+        symbol_name="dummy", file_path="relative/file.py", scope_path="/custom/project/root"
+    )
+    await vibegraph_get_code_slice(params_slice)
+    assert captured_paths[-1] == "/custom/project/root"
+
+    params_tree = CallTreeInput(
+        symbol_name="dummy", file_path="relative/file.py", scope_path="/custom/project/root"
+    )
+    await vibegraph_get_call_tree(params_tree)
+    assert captured_paths[-1] == "/custom/project/root"
 
 
 # =============================================================================

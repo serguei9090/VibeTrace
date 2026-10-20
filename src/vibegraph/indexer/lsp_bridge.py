@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import shutil
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any
@@ -23,14 +24,16 @@ class LSPClient:
         self.root_path = root_path.resolve()
         self.process: subprocess.Popen[bytes] | None = None
         self._req_id = 0
-        self._executor: ThreadPoolExecutor | None = None
+        self._pending_requests: dict[int, concurrent.futures.Future[Any]] = {}
+        self._reader_thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._running = False
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
         if not shutil.which(self.command[0]):
             return False
         try:
-            self._executor = ThreadPoolExecutor(max_workers=1)
             self.process = subprocess.Popen(
                 self.command,
                 stdin=subprocess.PIPE,
@@ -38,6 +41,10 @@ class LSPClient:
                 stderr=subprocess.DEVNULL,
                 cwd=str(self.root_path),
             )
+            self._running = True
+            self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+            self._reader_thread.start()
+
             root_uri = self.root_path.as_uri()
             init_res = self.send_request(
                 "initialize",
@@ -59,6 +66,48 @@ class LSPClient:
             self.stop()
         return False
 
+    def _reader_loop(self) -> None:
+        """Continuously read LSP JSON-RPC frames from process stdout."""
+        proc = self.process
+        if not proc or not proc.stdout:
+            return
+
+        while self._running:
+            try:
+                content_length: int | None = None
+                while self._running:
+                    line = proc.stdout.readline().decode("latin1")
+                    if not line:
+                        self._running = False
+                        break
+                    if line == "\r\n":
+                        break
+                    if line.lower().startswith("content-length:"):
+                        content_length = int(line.split(":", 1)[1].strip())
+
+                if not self._running or content_length is None:
+                    break
+
+                body_bytes = proc.stdout.read(content_length)
+                if len(body_bytes) < content_length:
+                    break
+
+                msg = json.loads(body_bytes.decode("utf-8"))
+                req_id = msg.get("id")
+                if req_id is not None:
+                    with self._lock:
+                        fut = self._pending_requests.pop(req_id, None)
+                    if fut and not fut.done():
+                        fut.set_result(msg.get("result"))
+            except Exception:
+                break
+
+        with self._lock:
+            for fut in self._pending_requests.values():
+                if not fut.done():
+                    fut.cancel()
+            self._pending_requests.clear()
+
     def send_notification(self, method: str, params: dict[str, Any]) -> None:
         """Send a one-way notification without expecting a response."""
         if not self.process or not self.process.stdin:
@@ -71,36 +120,17 @@ class LSPClient:
         except (BrokenPipeError, OSError):
             pass
 
-    def _read_response(self, req_id: int) -> Any:
-        """Read stdout until the matching response id is found."""
-        if not self.process or not self.process.stdout:
-            return None
-        while True:
-            content_length: int | None = None
-            while True:
-                line = self.process.stdout.readline().decode("latin1")
-                if not line or line == "\r\n":
-                    break
-                if line.lower().startswith("content-length:"):
-                    content_length = int(line.split(":", 1)[1].strip())
-
-            if content_length is None:
-                return None
-
-            body_bytes = self.process.stdout.read(content_length)
-            msg = json.loads(body_bytes.decode("utf-8"))
-            if msg.get("id") == req_id:
-                return msg.get("result")
-
     def send_request(self, method: str, params: dict[str, Any], timeout: float = 3.0) -> Any:
         """Send a JSON-RPC request and wait with an enforceable timeout for the response."""
-        if not self.process or not self.process.stdin or not self.process.stdout:
+        if not self.process or not self.process.stdin:
             return None
-        if not self._executor:
-            self._executor = ThreadPoolExecutor(max_workers=1)
 
-        self._req_id += 1
-        req_id = self._req_id
+        with self._lock:
+            self._req_id += 1
+            req_id = self._req_id
+            future: concurrent.futures.Future[Any] = concurrent.futures.Future()
+            self._pending_requests[req_id] = future
+
         payload = json.dumps(
             {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
         ).encode("utf-8")
@@ -109,13 +139,14 @@ class LSPClient:
         try:
             self.process.stdin.write(header + payload)
             self.process.stdin.flush()
-
-            future = self._executor.submit(self._read_response, req_id)
             return future.result(timeout=timeout)
         except (FuturesTimeoutError, TimeoutError):
             return None
         except Exception:
             return None
+        finally:
+            with self._lock:
+                self._pending_requests.pop(req_id, None)
 
     def get_definition(
         self, file_path: Path, line: int, character: int = 0
@@ -156,16 +187,19 @@ class LSPClient:
         return rel_file, start_line
 
     def stop(self) -> None:
-        """Terminate the LSP server process and worker threads."""
-        if self._executor:
-            try:
-                self._executor.shutdown(wait=False, cancel_futures=True)
-            except Exception:
-                pass
-            self._executor = None
+        """Terminate the LSP server process and reader thread."""
+        self._running = False
+        with self._lock:
+            for fut in self._pending_requests.values():
+                if not fut.done():
+                    fut.cancel()
+            self._pending_requests.clear()
+
         if self.process:
             try:
                 self.send_notification("exit", {})
+                if self.process.stdin:
+                    self.process.stdin.close()
                 self.process.terminate()
                 self.process.wait(timeout=1.0)
             except Exception:
@@ -174,6 +208,9 @@ class LSPClient:
                 except Exception:
                     pass
             self.process = None
+        if self._reader_thread and self._reader_thread.is_alive():
+            self._reader_thread.join(timeout=0.5)
+            self._reader_thread = None
 
 
 def resolve_unresolved_edges(

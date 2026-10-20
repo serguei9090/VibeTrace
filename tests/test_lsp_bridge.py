@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -108,4 +109,34 @@ def test_lsp_timeout_protection(tmp_path: Path) -> None:
 
     res = client.send_request("slow_method", {}, timeout=0.05)
     assert res is None
+    client.stop()
+
+
+def test_lsp_async_reader_matching(tmp_path: Path) -> None:
+    """Verify asynchronous reader thread frames JSON-RPC responses and matches request IDs."""
+    import io
+    import json
+
+    client = LSPClient(["mock_lsp"], tmp_path)
+    mock_proc = MagicMock()
+    mock_stdin = MagicMock()
+    mock_proc.stdin = mock_stdin
+    client.process = mock_proc
+
+    # Prepare serialized response payload
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"key": "val"}}).encode("utf-8")
+    frame = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
+
+    # Deliver response when request is written to stdin
+    def fake_write(data: bytes) -> int:
+        mock_proc.stdout = io.BytesIO(frame)
+        client._running = True
+        client._reader_thread = threading.Thread(target=client._reader_loop, daemon=True)
+        client._reader_thread.start()
+        return len(data)
+
+    mock_stdin.write.side_effect = fake_write
+
+    res = client.send_request("test_method", {}, timeout=1.0)
+    assert res == {"key": "val"}
     client.stop()

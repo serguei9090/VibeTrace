@@ -116,9 +116,11 @@ class ModuleResolver:
             raw_target = os.path.normpath(os.path.join(str(current_dir), module_name)).replace(
                 "\\", "/"
             )
-            if raw_target.startswith("./"):
+            if raw_target == ".":
+                raw_target = ""
+            elif raw_target.startswith("./"):
                 raw_target = raw_target[2:]
-            return self._match_known_file(raw_target)
+            return self._match_known_file(raw_target, current_file)
 
         # Case 2: Python dot-based relative import (e.g. '.', '.base', '..resolver')
         dots = len(module_name) - len(module_name.lstrip("."))
@@ -134,20 +136,32 @@ class ModuleResolver:
         else:
             target_prefix = "/".join(p for p in base_dir.parts if p != ".")
 
-        return self._match_known_file(target_prefix)
+        return self._match_known_file(target_prefix, current_file)
 
-    def _match_known_file(self, target_prefix: str) -> str | None:
+    def _match_known_file(self, target_prefix: str, current_file: str | None = None) -> str | None:
         """Match a relative path prefix against indexed project files."""
         if target_prefix in self.known_files:
             return target_prefix
 
-        for ext in self.SUPPORTED_EXTENSIONS:
+        ext_order = list(self.SUPPORTED_EXTENSIONS)
+        if current_file and "." in current_file:
+            curr_ext = f".{current_file.rsplit('.', 1)[1]}"
+            if curr_ext in ext_order:
+                ext_order.remove(curr_ext)
+                ext_order.insert(0, curr_ext)
+
+        for ext in ext_order:
             candidate = f"{target_prefix}{ext}"
             if candidate in self.known_files:
                 return candidate
 
-        for index_base in ("__init__", "index"):
-            for ext in self.SUPPORTED_EXTENSIONS:
+        is_js_ts = current_file and any(
+            current_file.endswith(ext) for ext in (".js", ".jsx", ".ts", ".tsx")
+        )
+        index_bases = ("index", "__init__") if is_js_ts else ("__init__", "index")
+
+        for index_base in index_bases:
+            for ext in ext_order:
                 candidate = (
                     f"{target_prefix}/{index_base}{ext}" if target_prefix else f"{index_base}{ext}"
                 )

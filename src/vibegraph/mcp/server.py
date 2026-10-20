@@ -337,7 +337,7 @@ async def vibegraph_trace_path(params: TracePathInput) -> str:
 async def vibegraph_get_code_slice(params: CodeSliceInput) -> str:
     """Read exact source lines (start_line..end_line) and callee contracts for a symbol."""
     try:
-        db, root = _get_context_for_path(params.file_path or params.scope_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         result = get_code_slice(
             db,
             root,
@@ -364,7 +364,7 @@ async def vibegraph_get_code_slice(params: CodeSliceInput) -> str:
 async def vibegraph_get_call_tree(params: CallTreeInput) -> str:
     """Explore recursive top-down call tree from an entry point down to leaves."""
     try:
-        db, _ = _get_context_for_path(params.file_path or params.scope_path)
+        db, _ = _get_context_for_path(params.scope_path or params.file_path)
         result = build_call_tree(
             db,
             params.symbol_name,

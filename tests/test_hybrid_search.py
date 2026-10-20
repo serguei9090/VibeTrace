@@ -145,3 +145,24 @@ def test_search_semantic_zero_and_negative_limit(tmp_path: Path):
 
     assert engine.search_semantic(db, "query", limit=0) == []
     assert engine.search_semantic(db, "query", limit=-1) == []
+
+
+def test_node_embeddings_index_query_plan(tmp_path: Path):
+    """Verify composite index on node_embeddings exists and is selected by SQLite planner."""
+    db = _populate_sample_db(tmp_path)
+    with db._get_conn() as conn:
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'node_embeddings'"
+        )
+        indexes = {row[0] for row in cursor.fetchall()}
+        assert "idx_node_embeddings_model_id" in indexes
+        assert "idx_node_embeddings_model_node" in indexes
+
+        # Verify query plan uses index for model_id lookups
+        plan_sql = (
+            "EXPLAIN QUERY PLAN SELECT node_id, embedding, dimensions "
+            "FROM node_embeddings WHERE model_id = ?"
+        )
+        plan_cursor = conn.execute(plan_sql, ("test-model",))
+        plan_rows = [row[3] for row in plan_cursor.fetchall()]
+        assert any("idx_node_embeddings" in line for line in plan_rows)

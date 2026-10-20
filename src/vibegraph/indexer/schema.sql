@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS node_embeddings (
     FOREIGN KEY(node_id) REFERENCES nodes(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_node_embeddings_model_id ON node_embeddings(model_id);
+CREATE INDEX IF NOT EXISTS idx_node_embeddings_model_node ON node_embeddings(model_id, node_id);
+
 -- Indexer Metadata Key-Value Table (Git-SHA delta cache, timestamps)
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
