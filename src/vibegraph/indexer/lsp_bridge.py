@@ -173,7 +173,12 @@ class LSPClient:
         if not target_uri or not target_range:
             return None
 
-        parsed_path = unquote(urlparse(target_uri).path)
+        u = urlparse(target_uri)
+        if os.name == "nt" and u.netloc and len(u.netloc) == 2 and u.netloc[1] == ":":
+            parsed_path = unquote(f"{u.netloc}{u.path}")
+        else:
+            parsed_path = unquote(u.path)
+
         if os.name == "nt" and parsed_path.startswith("/"):
             parsed_path = parsed_path[1:]
         target_file = Path(parsed_path)
@@ -187,7 +192,7 @@ class LSPClient:
         return rel_file, start_line
 
     def stop(self) -> None:
-        """Terminate the LSP server process and reader thread."""
+        """Terminate the LSP server process and reader thread conforming to LSP spec."""
         self._running = False
         with self._lock:
             for fut in self._pending_requests.values():
@@ -197,6 +202,10 @@ class LSPClient:
 
         if self.process:
             try:
+                try:
+                    self.send_request("shutdown", {}, timeout=1.0)
+                except Exception:
+                    pass
                 self.send_notification("exit", {})
                 if self.process.stdin:
                     self.process.stdin.close()
@@ -249,10 +258,10 @@ def resolve_unresolved_edges(
                 continue
 
             target_file, target_line = def_target
-            # Find closest node in target file covering the line
+            # Find closest node in target file covering the line (case-insensitive on Windows)
             find_node_sql = """
                 SELECT id FROM nodes
-                WHERE file_path = ? AND start_line <= ? AND end_line >= ?
+                WHERE LOWER(file_path) = LOWER(?) AND start_line <= ? AND end_line >= ?
                 ORDER BY (end_line - start_line) ASC
                 LIMIT 1
             """

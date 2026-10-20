@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -137,8 +138,24 @@ class CodeChangeHandler(FileSystemEventHandler):
 
     def on_deleted(self, event):
         src_path = str(event.src_path)
-        if event.is_directory or self._should_ignore(src_path):
+        if self._should_ignore(src_path):
             return
+
+        if event.is_directory:
+            rel_dir = self._to_rel_path(src_path)
+            prefix = f"{rel_dir}/" if rel_dir not in ("", ".") else ""
+            all_files = self.db.get_all_indexed_file_paths()
+            deleted_any = False
+            for f in all_files:
+                if f.startswith(prefix) or f == rel_dir:
+                    self.db.clear_file(f)
+                    self.resolver.remove_file(f)
+                    deleted_any = True
+            if deleted_any:
+                print(f"Directory deleted: {rel_dir} (cleared indexed files)")
+                self._schedule_post_sync()
+            return
+
         rel_path = self._to_rel_path(src_path)
         print(f"File deleted: {rel_path}")
         self.resolver.remove_file(rel_path)
@@ -148,10 +165,38 @@ class CodeChangeHandler(FileSystemEventHandler):
     def on_moved(self, event):
         src_path = str(event.src_path)
         dest_path = str(event.dest_path)
-        if event.is_directory:
-            return
         rel_src = self._to_rel_path(src_path)
         rel_dest = self._to_rel_path(dest_path)
+
+        if event.is_directory:
+            prefix = f"{rel_src}/" if rel_src not in ("", ".") else ""
+            all_files = self.db.get_all_indexed_file_paths()
+            for f in all_files:
+                if f.startswith(prefix) or f == rel_src:
+                    self.db.clear_file(f)
+                    self.resolver.remove_file(f)
+
+            if not self._should_ignore(dest_path):
+                dest_dir = Path(dest_path)
+                if dest_dir.exists():
+                    for root, dirs, files in os.walk(dest_dir):
+                        dirs[:] = [d for d in dirs if not self._should_ignore(str(Path(root) / d))]
+                        for file in files:
+                            full_file = Path(root) / file
+                            if not self._should_ignore(str(full_file)):
+                                rel_f = self._to_rel_path(str(full_file))
+                                self.resolver.add_file(rel_f)
+                                index_file(
+                                    self.db,
+                                    str(full_file),
+                                    project_root=self.root_path,
+                                    resolver=self.resolver,
+                                    force=True,
+                                )
+            print(f"Directory moved: {rel_src} -> {rel_dest}")
+            self._schedule_post_sync()
+            return
+
         print(f"File moved: {rel_src} -> {rel_dest}")
         self.resolver.remove_file(rel_src)
         self.db.clear_file(rel_src)

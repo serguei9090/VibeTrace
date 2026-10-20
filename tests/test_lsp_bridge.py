@@ -140,3 +140,61 @@ def test_lsp_async_reader_matching(tmp_path: Path) -> None:
     res = client.send_request("test_method", {}, timeout=1.0)
     assert res == {"key": "val"}
     client.stop()
+
+
+def test_lsp_definition_uri_formats(tmp_path: Path) -> None:
+    """Verify get_definition handles both 2-slash and 3-slash file URIs."""
+    client = LSPClient(["mock_lsp"], tmp_path)
+
+    # 1. Test 3-slash format
+    uri_3 = (
+        "file:///C:/project/src/service.py"
+        if Path.cwd().drive
+        else "file:///project/src/service.py"
+    )
+    client.send_request = MagicMock(  # type: ignore
+        return_value=[{"uri": uri_3, "range": {"start": {"line": 14, "character": 4}}}]
+    )
+    res = client.get_definition(tmp_path / "caller.py", 5)
+    assert res is not None
+    rel_path, line = res
+    assert line == 15
+    assert rel_path.endswith("service.py")
+    assert not rel_path.startswith("/")
+
+    # 2. Test 2-slash format (e.g. file://C:/project/src/service.py)
+    if Path.cwd().drive:
+        uri_2 = "file://C:/project/src/service.py"
+        client.send_request = MagicMock(  # type: ignore
+            return_value=[{"uri": uri_2, "range": {"start": {"line": 29, "character": 0}}}]
+        )
+        res_2 = client.get_definition(tmp_path / "caller.py", 10)
+        assert res_2 is not None
+        rel_path_2, line_2 = res_2
+        assert line_2 == 30
+        assert "C:" in rel_path_2 or rel_path_2.endswith("service.py")
+        assert not rel_path_2.startswith("/")
+
+
+def test_lsp_stop_shutdown_order(tmp_path: Path) -> None:
+    """Verify stop() sends shutdown request before exit notification per LSP 3.x spec."""
+    client = LSPClient(["mock_lsp"], tmp_path)
+    client.process = MagicMock()
+    client.process.stdin = MagicMock()
+
+    calls: list[str] = []
+
+    def mock_send_req(method: str, params: dict, timeout: float = 1.0):
+        calls.append(f"request:{method}")
+        return {}
+
+    def mock_send_notif(method: str, params: dict):
+        calls.append(f"notification:{method}")
+
+    client.send_request = mock_send_req  # type: ignore
+    client.send_notification = mock_send_notif  # type: ignore
+
+    client.stop()
+    assert "request:shutdown" in calls
+    assert "notification:exit" in calls
+    assert calls.index("request:shutdown") < calls.index("notification:exit")

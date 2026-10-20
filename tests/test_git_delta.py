@@ -181,3 +181,41 @@ def test_git_delta_resolver_sync(tmp_path: Path) -> None:
 
     assert len(db.find_nodes_by_name("b")) == 0
     assert len(db.find_nodes_by_name("c")) == 1
+
+
+def test_git_delta_staged_rename(tmp_path: Path) -> None:
+    """Incremental git delta must recognize staged file renames ('old -> new')."""
+    repo_dir = tmp_path / "rename_repo"
+    repo_dir.mkdir()
+
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
+
+    old_file = repo_dir / "old_service.py"
+    old_file.write_text("def run_service():\n    return 'service_v1'\n")
+
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "init service"], cwd=repo_dir, check=True)
+    initial_sha = get_git_sha(repo_dir)
+
+    db = IndexerDB(str(tmp_path / "test_rename.db"))
+    reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
+    assert len(db.find_nodes_by_name("run_service")) == 1
+
+    # Execute git mv to stage a rename
+    subprocess.run(["git", "mv", "old_service.py", "new_service.py"], cwd=repo_dir, check=True)
+
+    delta = get_git_delta(repo_dir, initial_sha)
+    assert delta is not None
+    changed, deleted = delta
+    assert "new_service.py" in changed
+    assert "old_service.py" in deleted
+    assert "old_service.py -> new_service.py" not in changed
+    assert "old_service.py -> new_service.py" not in deleted
+
+    # Incremental reindex
+    reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
+    nodes = db.find_nodes_by_name("run_service")
+    assert len(nodes) == 1
+    assert nodes[0]["file_path"] == "new_service.py"

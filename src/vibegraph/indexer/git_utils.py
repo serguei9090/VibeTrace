@@ -89,13 +89,21 @@ def get_git_delta(
             if len(line) < 4:
                 continue
             status = line[:2]
-            path = line[3:].strip().replace("\\", "/")
-            if not path:
+            raw_path = line[3:].strip()
+            if not raw_path:
                 continue
-            if "D" in status:
-                deleted.add(path)
+
+            # Handle staged or working-tree file renames: 'R  old_file -> new_file'
+            if " -> " in raw_path:
+                old_p, new_p = raw_path.split(" -> ", 1)
+                deleted.add(old_p.strip("\"'").replace("\\", "/"))
+                changed.add(new_p.strip("\"'").replace("\\", "/"))
             else:
-                changed.add(path)
+                clean_p = raw_path.strip("\"'").replace("\\", "/")
+                if "D" in status:
+                    deleted.add(clean_p)
+                else:
+                    changed.add(clean_p)
 
         # Reconcile deleted vs changed
         changed -= deleted

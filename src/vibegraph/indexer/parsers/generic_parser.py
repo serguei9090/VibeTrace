@@ -132,6 +132,26 @@ class GenericParser(LanguageParser):
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
             pushed_scope = False
+            saved_local_types: dict[str, str] | None = None
+
+            # Java import extraction: import com.example.service.PaymentGateway;
+            if node.type == "import_declaration":
+                raw_imp = (
+                    self._get_text(node).replace("import", "").replace("static", "").strip("; \r\n")
+                )
+                if raw_imp:
+                    sym_name = raw_imp.split(".")[-1]
+                    res_path = self.resolver.resolve(raw_imp, file_path) if self.resolver else None
+                    if not res_path and self.resolver:
+                        # Try resolving by class name
+                        res_path = self.resolver.resolve(sym_name, file_path)
+                    m_path = res_path or "external"
+                    ctx.imported_symbols[sym_name] = (m_path, sym_name)
+                    m_id = self._get_id(m_path, sym_name, kind="module")
+                    if not any(x.id == m_id for x in ctx.nodes):
+                        ctx.nodes.append(self._create_node(m_id, sym_name, "module", m_path, node))
+                    ctx.edges.append(self._create_edge(file_module_id, m_id, "imports", node=node))
+                return
 
             # C/C++ #include extraction
             if node.type == "preproc_include":
@@ -164,6 +184,24 @@ class GenericParser(LanguageParser):
 
             if node.type in function_types or node.type in class_types:
                 is_func = node.type in function_types
+                if is_func:
+                    saved_local_types = dict(ctx.local_types)
+                    # Extract parameter types from Java formal_parameters or C++ parameter_list
+                    for ch in node.children:
+                        if ch.type in ("formal_parameters", "parameter_list"):
+                            for param in ch.children:
+                                if param.type in ("formal_parameter", "parameter_declaration"):
+                                    pt = param.child_by_field_name("type")
+                                    pn = param.child_by_field_name(
+                                        "name"
+                                    ) or param.child_by_field_name("declarator")
+                                    if pt and pn:
+                                        p_tname = self._get_text(pt).split("<")[0].strip("*& ")
+                                        p_raw = self._get_text(pn).split("=")[0].split("(")[0]
+                                        p_vname = p_raw.strip("*& ")
+                                        if p_tname and p_vname:
+                                            ctx.local_types[p_vname] = p_tname
+
                 name_node = node.child_by_field_name("name") or (
                     node.child_by_field_name("declarator") if is_func else None
                 )
@@ -255,6 +293,9 @@ class GenericParser(LanguageParser):
 
             if pushed_scope:
                 ctx.scope_stack.pop()
+
+            if saved_local_types is not None:
+                ctx.local_types = saved_local_types
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges

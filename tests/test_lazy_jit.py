@@ -106,3 +106,54 @@ def test_incremental_inbound_edge_preservation(tmp_path: Path) -> None:
     db.batch_save_file_index("b.py", "hash_b_v3", [node_b_other], [])
     graph_v3 = db.get_graph_data()
     assert len(graph_v3["edges"]) == 0, "Orphaned edge to deleted helper was not pruned!"
+
+
+def test_watcher_directory_events(tmp_path: Path) -> None:
+    """Verify CodeChangeHandler correctly handles directory deletion and directory rename/move."""
+    import shutil
+    from unittest.mock import MagicMock
+
+    from vibegraph.indexer.watcher import CodeChangeHandler
+
+    proj_dir = tmp_path / "watcher_proj"
+    proj_dir.mkdir()
+    services_dir = proj_dir / "services"
+    services_dir.mkdir()
+
+    auth_file = services_dir / "auth.py"
+    auth_file.write_text("def authenticate(): return True\n")
+
+    db = IndexerDB(str(tmp_path / "watcher_test.db"))
+    handler = CodeChangeHandler(db, root_path=str(proj_dir), debounce_seconds=0.01)
+
+    # Initial index
+    reindex_all(db, str(proj_dir), verbose=False, project_root=proj_dir)
+    assert len(db.find_nodes_by_name("authenticate")) == 1
+    assert "services/auth.py" in handler.resolver.known_files
+
+    # 1. Test directory move (rename services -> core_services)
+    core_services = proj_dir / "core_services"
+    services_dir.rename(core_services)
+
+    mock_move_event = MagicMock()
+    mock_move_event.is_directory = True
+    mock_move_event.src_path = str(services_dir)
+    mock_move_event.dest_path = str(core_services)
+
+    handler.on_moved(mock_move_event)
+    assert "services/auth.py" not in handler.resolver.known_files
+    assert "core_services/auth.py" in handler.resolver.known_files
+    nodes = db.find_nodes_by_name("authenticate")
+    assert len(nodes) == 1
+    assert nodes[0]["file_path"] == "core_services/auth.py"
+
+    # 2. Test directory deletion (delete core_services)
+    shutil.rmtree(core_services)
+
+    mock_del_event = MagicMock()
+    mock_del_event.is_directory = True
+    mock_del_event.src_path = str(core_services)
+
+    handler.on_deleted(mock_del_event)
+    assert "core_services/auth.py" not in handler.resolver.known_files
+    assert len(db.find_nodes_by_name("authenticate")) == 0

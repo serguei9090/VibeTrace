@@ -91,6 +91,7 @@ export const computeSelectionHighlights = (
           const incoming = inEdges.get(targetId);
           if (incoming) {
             for (const e of incoming) {
+              if (e.relation_type === "defines") continue;
               if (!highlightedNodes.has(e.from_node_id)) {
                 highlightedNodes.add(e.from_node_id);
                 impactDepthMap.set(e.from_node_id, depth);

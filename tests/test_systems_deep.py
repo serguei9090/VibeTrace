@@ -251,3 +251,33 @@ fn run() {}
     _, edges = parser.extract("main.rs", code)
     import_edges = [e for e in edges if e.relation_type == "imports"]
     assert len(import_edges) >= 2
+
+
+def test_java_parameter_type_tracking_and_cross_file_call(tmp_path: Path) -> None:
+    """Verify GenericParser extracts Java imports and parameter types to resolve calls."""
+    from vibegraph.indexer.parsers.generic_parser import GenericParser
+
+    (tmp_path / "PaymentGateway.java").write_text(
+        "public class PaymentGateway {\n    public void charge() {}\n}\n"
+    )
+    resolver = ModuleResolver(tmp_path)
+    parser = GenericParser("java", resolver=resolver)
+
+    code = b"""
+import com.example.PaymentGateway;
+
+public class OrderService {
+    public void process(PaymentGateway gateway) {
+        gateway.charge();
+    }
+}
+"""
+    _, edges = parser.extract("OrderService.java", code)
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    assert len(import_edges) >= 1
+
+    call_edges = [e for e in edges if e.relation_type == "calls"]
+    assert len(call_edges) >= 1
+    target_id = call_edges[0].to_node_id
+    expected_id = parser._get_id("PaymentGateway.java", "PaymentGateway.charge")
+    assert target_id == expected_id
