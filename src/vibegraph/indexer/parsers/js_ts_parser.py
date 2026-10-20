@@ -27,9 +27,17 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
+    def _record_ts_val_type(self, target_name: str, val_node: Node, ctx: ParserContext) -> None:
+        if val_node.type == "new_expression":
+            if ctor := val_node.child_by_field_name("constructor"):
+                ctx.local_types[target_name] = self._get_text(ctor).strip()
+        elif val_node.type == "identifier":
+            r_name = self._get_text(val_node).strip()
+            if r_name in ctx.local_types:
+                ctx.local_types[target_name] = ctx.local_types[r_name]
+
     def _handle_es_import(self, node: Node, ctx: ParserContext) -> None:
-        source_node = node.child_by_field_name("source")
-        if not source_node:
+        if not (source_node := node.child_by_field_name("source")):
             return
         mod_spec = self._get_text(source_node).strip("\"'`")
         resolved_path = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
@@ -181,14 +189,12 @@ class JavaScriptParser(LanguageParser):
                         break
                     if c.type == "export_clause":
                         for spec in c.children:
-                            if spec.type == "export_specifier":
-                                spec_name = spec.child_by_field_name("name")
-                                if spec_name:
-                                    ctx.defined_symbols.add(self._get_text(spec_name))
-            if target.type in _SYM_TYPES:
-                name_node = target.child_by_field_name("name")
-                if name_node:
-                    ctx.defined_symbols.add(self._get_text(name_node))
+                            if spec.type == "export_specifier" and (
+                                sn := spec.child_by_field_name("name")
+                            ):
+                                ctx.defined_symbols.add(self._get_text(sn))
+            if target.type in _SYM_TYPES and (name_node := target.child_by_field_name("name")):
+                ctx.defined_symbols.add(self._get_text(name_node))
 
         def traverse(node: Node, parent_id: str | None = None, is_exported: bool = False) -> None:
             if node.type == "export_statement":
@@ -231,13 +237,18 @@ class JavaScriptParser(LanguageParser):
                 if params_node:
                     for p in params_node.children:
                         if p.type in ("required_parameter", "optional_parameter"):
-                            p_name = None
-                            p_type = None
-                            for c in p.children:
-                                if c.type == "identifier":
-                                    p_name = self._get_text(c)
-                                elif c.type == "type_annotation":
-                                    p_type = self._get_text(c).lstrip(": ").strip()
+                            p_name = next(
+                                (self._get_text(c) for c in p.children if c.type == "identifier"),
+                                None,
+                            )
+                            p_type = next(
+                                (
+                                    self._get_text(c).lstrip(": ").strip()
+                                    for c in p.children
+                                    if c.type == "type_annotation"
+                                ),
+                                None,
+                            )
                             if p_name and p_type:
                                 ctx.local_types[p_name] = p_type
 
@@ -267,29 +278,17 @@ class JavaScriptParser(LanguageParser):
                 f_type_node = node.child_by_field_name("type")
                 f_val_node = node.child_by_field_name("value")
                 if f_name_node:
-                    f_name = self._get_text(f_name_node)
-                    if f_type_node:
-                        f_type = self._get_text(f_type_node).lstrip(": ").strip()
-                        if f_type:
-                            ctx.local_types[f"this.{f_name}"] = f_type
-                    elif f_val_node and f_val_node.type == "new_expression":
-                        ctor = f_val_node.child_by_field_name("constructor")
-                        if ctor:
-                            ctx.local_types[f"this.{f_name}"] = self._get_text(ctor).strip()
+                    f_name = f"this.{self._get_text(f_name_node)}"
+                    if f_type_node and (f_type := self._get_text(f_type_node).lstrip(": ").strip()):
+                        ctx.local_types[f_name] = f_type
+                    elif f_val_node:
+                        self._record_ts_val_type(f_name, f_val_node, ctx)
 
             elif node.type == "assignment_expression":
                 left_node = node.child_by_field_name("left")
                 right_node = node.child_by_field_name("right")
                 if left_node and right_node:
-                    l_name = self._get_text(left_node).strip()
-                    if right_node.type == "new_expression":
-                        ctor = right_node.child_by_field_name("constructor")
-                        if ctor:
-                            ctx.local_types[l_name] = self._get_text(ctor).strip()
-                    elif right_node.type == "identifier":
-                        r_name = self._get_text(right_node).strip()
-                        if r_name in ctx.local_types:
-                            ctx.local_types[l_name] = ctx.local_types[r_name]
+                    self._record_ts_val_type(self._get_text(left_node).strip(), right_node, ctx)
 
             elif node.type == "variable_declarator":
                 v_name_node = node.child_by_field_name("name")
@@ -318,18 +317,10 @@ class JavaScriptParser(LanguageParser):
                                 edges.append(
                                     self._create_edge(parent_id, v_id, "defines", node=node)
                                 )
-                    if type_node:
-                        v_type = self._get_text(type_node).lstrip(": ").strip()
-                        if v_type:
-                            ctx.local_types[v_name] = v_type
-                    elif val_node and val_node.type == "new_expression":
-                        ctor = val_node.child_by_field_name("constructor")
-                        if ctor:
-                            ctx.local_types[v_name] = self._get_text(ctor).strip()
-                    elif val_node and val_node.type == "identifier":
-                        r_name = self._get_text(val_node).strip()
-                        if r_name in ctx.local_types:
-                            ctx.local_types[v_name] = ctx.local_types[r_name]
+                    if type_node and (v_type := self._get_text(type_node).lstrip(": ").strip()):
+                        ctx.local_types[v_name] = v_type
+                    elif val_node:
+                        self._record_ts_val_type(v_name, val_node, ctx)
 
             elif node.type in (
                 "class_declaration",
@@ -342,12 +333,13 @@ class JavaScriptParser(LanguageParser):
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    if node.type in ("interface_declaration", "type_alias_declaration"):
-                        kind = "interface"
-                    elif node.type == "enum_declaration":
-                        kind = "enum"
-                    else:
-                        kind = "class"
+                    kind = (
+                        "interface"
+                        if node.type in ("interface_declaration", "type_alias_declaration")
+                        else "enum"
+                        if node.type == "enum_declaration"
+                        else "class"
+                    )
 
                     nodes.append(
                         self._create_node(
@@ -387,13 +379,11 @@ class JavaScriptParser(LanguageParser):
                 func_node = node.child_by_field_name("function")
                 if func_node:
                     called_name = self._get_text(func_node)
-                    target_id = self._resolve_call_target(called_name, ctx)
-                    if target_id:
+                    if target_id := self._resolve_call_target(called_name, ctx):
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
                     # Check for clientside or backend API requests/routes
-                    args_node = node.child_by_field_name("arguments")
-                    if args_node:
+                    if args_node := node.child_by_field_name("arguments"):
                         args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
                         if args and args[0].type in ("string", "template_string"):
                             raw_url = self._get_text(args[0]).strip("'\"`")

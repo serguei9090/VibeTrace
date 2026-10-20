@@ -58,10 +58,14 @@ class PythonParser(LanguageParser):
         for child in tree.root_node.children:
             target = child
             if child.type == "decorated_definition":
-                for sub in child.children:
-                    if sub.type in ("function_definition", "class_definition"):
-                        target = sub
-                        break
+                target = next(
+                    (
+                        c
+                        for c in child.children
+                        if c.type in ("function_definition", "class_definition")
+                    ),
+                    child,
+                )
             if target.type in ("function_definition", "class_definition"):
                 name_node = target.child_by_field_name("name")
                 if name_node:
@@ -124,68 +128,8 @@ class PythonParser(LanguageParser):
         text = text.strip("'\"")
         return text if text else None
 
-    def _extract_param_types(self, params_node: Node, ctx: ParserContext) -> None:
-        """Record parameter type annotations into ctx.local_types."""
-        for child in params_node.children:
-            if child.type == "typed_parameter":
-                name_node = None
-                for c in child.children:
-                    if c.type == "identifier":
-                        name_node = c
-                        break
-                type_node = child.child_by_field_name("type")
-                if name_node and type_node:
-                    p_name = self._get_text(name_node)
-                    p_type = self._extract_type_name(type_node)
-                    if p_type:
-                        ctx.local_types[p_name] = p_type
-
-            elif child.type == "typed_default_parameter":
-                name_node = child.child_by_field_name("name")
-                if not name_node:
-                    for c in child.children:
-                        if c.type == "identifier":
-                            name_node = c
-                            break
-                type_node = child.child_by_field_name("type")
-                if name_node and type_node:
-                    p_name = self._get_text(name_node)
-                    p_type = self._extract_type_name(type_node)
-                    if p_type:
-                        ctx.local_types[p_name] = p_type
-
-            elif child.type == "default_parameter":
-                name_node = child.child_by_field_name("name")
-                val_node = child.child_by_field_name("value")
-                if name_node and val_node and val_node.type == "call":
-                    func = val_node.child_by_field_name("function")
-                    if func:
-                        ctor_name = self._get_text(func).strip()
-                        if ctor_name and (
-                            ctor_name in ctx.imported_symbols
-                            or (ctor_name[0].isupper() and "(" not in ctor_name)
-                            or "." in ctor_name
-                        ):
-                            ctx.local_types[self._get_text(name_node)] = ctor_name
-
-    def _handle_assignment(self, node: Node, ctx: ParserContext) -> None:
-        """Record local variable types from explicit annotations, constructors, or assignments."""
-        left_node = node.child_by_field_name("left")
-        if not left_node:
-            return
-        var_name = self._get_text(left_node).strip()
-
-        # Check explicit type annotation: var: ClassType = ...
-        type_node = node.child_by_field_name("type")
-        if type_node:
-            type_name = self._extract_type_name(type_node)
-            if type_name:
-                ctx.local_types[var_name] = type_name
-                return
-
-        right_node = node.child_by_field_name("right")
-        # Check constructor assignment: var = ClassType(...)
-        if right_node and right_node.type == "call":
+    def _record_var_type(self, var_name: str, right_node: Node, ctx: ParserContext) -> None:
+        if right_node.type == "call":
             func_node = right_node.child_by_field_name("function")
             if func_node:
                 ctor_name = self._get_text(func_node).strip()
@@ -195,11 +139,62 @@ class PythonParser(LanguageParser):
                     or "." in ctor_name
                 ):
                     ctx.local_types[var_name] = ctor_name
-        # Check assignment from typed parameter or variable: self.db = db
-        elif right_node and right_node.type in ("identifier", "attribute"):
+        elif right_node.type in ("identifier", "attribute"):
             right_name = self._get_text(right_node).strip()
             if right_name in ctx.local_types:
                 ctx.local_types[var_name] = ctx.local_types[right_name]
+
+    def _extract_param_types(self, params_node: Node, ctx: ParserContext) -> None:
+        """Record parameter type annotations into ctx.local_types."""
+        for child in params_node.children:
+            if child.type in ("typed_parameter", "typed_default_parameter"):
+                name_node = child.child_by_field_name("name") or next(
+                    (c for c in child.children if c.type == "identifier"), None
+                )
+                type_node = child.child_by_field_name("type")
+                if name_node and type_node:
+                    p_name = self._get_text(name_node)
+                    p_type = self._extract_type_name(type_node)
+                    if p_type:
+                        ctx.local_types[p_name] = p_type
+            elif child.type == "default_parameter":
+                name_node = child.child_by_field_name("name")
+                val_node = child.child_by_field_name("value")
+                if name_node and val_node:
+                    self._record_var_type(self._get_text(name_node), val_node, ctx)
+
+    def _handle_assignment(self, node: Node, ctx: ParserContext) -> None:
+        """Record local variable types from explicit annotations, constructors, or assignments."""
+        left_node = node.child_by_field_name("left")
+        if not left_node:
+            return
+        var_name = self._get_text(left_node).strip()
+
+        type_node = node.child_by_field_name("type")
+        if type_node:
+            type_name = self._extract_type_name(type_node)
+            if type_name:
+                ctx.local_types[var_name] = type_name
+                return
+
+        right_node = node.child_by_field_name("right")
+        if right_node:
+            self._record_var_type(var_name, right_node, ctx)
+
+    def _handle_with_statement(self, node: Node, ctx: ParserContext) -> None:
+        """Record context manager variable bindings in ctx.local_types."""
+        for clause in node.children:
+            if clause.type != "with_clause":
+                continue
+            for item in clause.children:
+                if item.type != "with_item":
+                    continue
+                for pattern in item.children:
+                    if pattern.type == "as_pattern":
+                        alias = pattern.child_by_field_name("alias")
+                        val = pattern.children[0] if pattern.children else None
+                        if alias and val:
+                            self._record_var_type(self._get_text(alias).strip(), val, ctx)
 
     def _traverse(
         self,
@@ -241,6 +236,10 @@ class PythonParser(LanguageParser):
         elif node.type == "assignment":
             self._handle_assignment(node, ctx)
 
+        # 6. Context managers
+        elif node.type == "with_statement":
+            self._handle_with_statement(node, ctx)
+
         # Recurse
         current_scope_id = node_id if node_id else parent_id
         for child in node.children:
@@ -271,22 +270,18 @@ class PythonParser(LanguageParser):
                         )
 
     def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
-        current_decorators = []
-        def_node = None
-        for child in node.children:
-            if child.type == "decorator":
-                current_decorators.append(self._get_text(child))
-            elif child.type in ("function_definition", "class_definition"):
-                def_node = child
-
+        decorators = [self._get_text(c) for c in node.children if c.type == "decorator"]
+        def_node = next(
+            (c for c in node.children if c.type in ("function_definition", "class_definition")),
+            None,
+        )
         if def_node:
-            self._traverse(def_node, parent_id, ctx, current_decorators)
+            self._traverse(def_node, parent_id, ctx, decorators)
 
     def _handle_definition(
         self, node: Node, parent_id: str | None, ctx: ParserContext, decorators: list[str] | None
     ) -> tuple[str | None, str | None]:
-        name_node = node.child_by_field_name("name")
-        if not name_node:
+        if not (name_node := node.child_by_field_name("name")):
             return None, None
 
         name = self._get_text(name_node)
@@ -338,12 +333,11 @@ class PythonParser(LanguageParser):
 
         # Extract base classes on class_definition
         if node.type == "class_definition":
-            superclasses = node.child_by_field_name("superclasses")
-            if superclasses:
-                for arg in superclasses.children:
+            sc = node.child_by_field_name("superclasses")
+            if sc:
+                for arg in sc.children:
                     if arg.type in ("identifier", "attribute"):
-                        base_name = self._get_text(arg)
-                        base_id = self._resolve_call_target(base_name, ctx)
+                        base_id = self._resolve_call_target(self._get_text(arg), ctx)
                         if base_id:
                             ctx.edges.append(
                                 self._create_edge(node_id, base_id, "inherits", node=arg)
@@ -399,8 +393,7 @@ class PythonParser(LanguageParser):
             for child in node.children:
                 if child.type == "dotted_name":
                     module_name = self._get_text(child)
-                    resolved = self._add_import_edge(module_name, node, ctx)
-                    if resolved:
+                    if resolved := self._add_import_edge(module_name, node, ctx):
                         ctx.imported_symbols[module_name] = (resolved, "__module__")
                         ctx.imported_symbols[module_name.split(".")[-1]] = (resolved, "__module__")
                 elif child.type == "aliased_import":
@@ -409,13 +402,11 @@ class PythonParser(LanguageParser):
                     if name_node:
                         module_name = self._get_text(name_node)
                         alias = self._get_text(alias_node) if alias_node else module_name
-                        resolved = self._add_import_edge(module_name, node, ctx)
-                        if resolved:
+                        if resolved := self._add_import_edge(module_name, node, ctx):
                             ctx.imported_symbols[alias] = (resolved, "__module__")
 
         elif node.type == "import_from_statement":
-            module_name_node = node.child_by_field_name("module_name")
-            if not module_name_node:
+            if not (module_name_node := node.child_by_field_name("module_name")):
                 return
             module_name = self._get_text(module_name_node)
             resolved_mod = self._add_import_edge(module_name, node, ctx)
@@ -432,8 +423,7 @@ class PythonParser(LanguageParser):
                 orig_name: str | None = None
                 local_name: str | None = None
                 if child.type == "dotted_name":
-                    orig_name = self._get_text(child)
-                    local_name = orig_name
+                    orig_name = local_name = self._get_text(child)
                 elif child.type == "aliased_import":
                     n_node = child.child_by_field_name("name")
                     a_node = child.child_by_field_name("alias")

@@ -458,3 +458,30 @@ def test_batch_save_file_index_edge_deduplication(tmp_path: Path) -> None:
             (node_a.id, node_b.id),
         ).fetchone()[0]
     assert edge_count == 1
+
+
+def test_python_with_statement_context_manager_binding():
+    """Verify that Python with-statement as-pattern binds context manager to local_types."""
+    code = b"""
+class DatabaseSession:
+    def execute_query(self):
+        pass
+
+def run_transaction():
+    with DatabaseSession() as session:
+        session.execute_query()
+"""
+    parser = PythonParser()
+    nodes, edges = parser.extract("app/db.py", code)
+
+    run_tx = next(n for n in nodes if n.name == "run_transaction")
+    exec_query = next(n for n in nodes if n.name == "execute_query")
+
+    call_edges = [
+        e
+        for e in edges
+        if e.relation_type == "calls"
+        and e.from_node_id == run_tx.id
+        and e.to_node_id == exec_query.id
+    ]
+    assert len(call_edges) == 1

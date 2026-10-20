@@ -2,7 +2,7 @@ import { Panel } from "@xyflow/react";
 import axios from "axios";
 import { ArrowRight, Bookmark, GitBranch, Trash2, X } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RawGraphNode, SavedTrace, TracePathResponse } from "../types";
 
 interface TracePathBarProps {
@@ -28,9 +28,14 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [saveName, setSaveName] = useState("");
 
-  const symbolOptions = Array.from(
-    new Set(nodes.map((n) => n.qualified_name || n.name).filter(Boolean))
-  ).slice(0, 300);
+  const symbolOptions = useMemo(
+    () =>
+      Array.from(new Set(nodes.map((n) => n.qualified_name || n.name).filter(Boolean))).slice(
+        0,
+        300
+      ),
+    [nodes]
+  );
 
   const fetchSavedTraces = useCallback(async () => {
     try {

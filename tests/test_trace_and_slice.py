@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from vibegraph.indexer.db import IndexerDB
+from vibegraph.indexer.db import Edge, IndexerDB, Node
 from vibegraph.indexer.main import reindex_all
 from vibegraph.services.graph_service import (
     get_code_slice,
@@ -254,3 +254,50 @@ def test_get_code_slice_relative_path_resolution(tmp_path: Path):
     assert slice_res.name == "charge_customer"
     assert "def charge_customer" in slice_res.source_code
     assert slice_res.file_path == "app/billing.py"
+
+
+def test_prefix_collision_trace_disambiguation(tmp_path: Path):
+    """Ensure prefix candidates do not cause false 0-hop paths when from != to."""
+    db = IndexerDB(str(tmp_path / "prefix_test.db"))
+    nodes = [
+        Node(
+            id="node_start",
+            name="order_flow",
+            qualified_name="order_flow",
+            kind="function",
+            file_path="app.py",
+            start_line=1,
+            end_line=2,
+        ),
+        Node(
+            id="node_target",
+            name="order_flow_processor",
+            qualified_name="order_flow_processor",
+            kind="function",
+            file_path="app.py",
+            start_line=3,
+            end_line=4,
+        ),
+    ]
+    edges = [
+        Edge(
+            from_node_id="node_start",
+            to_node_id="node_target",
+            relation_type="calls",
+            call_line=2,
+        ),
+    ]
+    db.batch_save_file_index("app.py", "hash_pfx", nodes, edges)
+
+    # When querying prefix where start overlaps with target
+    res = trace_execution_path(db, "order_flow", "order_flow_processor", max_depth=4)
+    assert res.found is True
+    assert len(res.hops) == 1
+    assert res.hops[0].from_node.name == "order_flow"
+    assert res.hops[0].to_node.name == "order_flow_processor"
+
+    # Distinct query where start prefix only resolves to target itself
+    res_phantom = trace_execution_path(db, "order_flow_proc", "order_flow_processor", max_depth=4)
+    # Since from_symbol != to_symbol and only node_target matches both, no false 0-hop
+    assert res_phantom.found is False
+    assert len(res_phantom.hops) == 0

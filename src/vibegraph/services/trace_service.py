@@ -110,6 +110,19 @@ def trace_execution_path(
     if not start_rows or not target_rows:
         return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
 
+    if from_symbol != to_symbol:
+        target_ids = {r["id"] for r in target_rows}
+        distinct_start = [r for r in start_rows if r["id"] not in target_ids]
+        if distinct_start:
+            start_rows = distinct_start
+        else:
+            start_ids = {r["id"] for r in start_rows}
+            distinct_target = [r for r in target_rows if r["id"] not in start_ids]
+            if distinct_target:
+                target_rows = distinct_target
+            else:
+                return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
+
     if engine == "cte":
         path_nodes = db.find_path_recursive_cte(
             start_rows[0]["id"], target_rows[0]["id"], max_depth=max_depth

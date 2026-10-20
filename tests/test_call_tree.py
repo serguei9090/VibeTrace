@@ -163,3 +163,18 @@ def test_call_tree_max_nodes_ceiling(tmp_path: Path) -> None:
     res = build_call_tree(db, "main_entry", max_depth=3, max_nodes=2)
     assert res.found is True
     assert res.total_nodes <= 2
+
+
+def test_call_tree_deterministic_node_ids_order(tmp_path: Path) -> None:
+    """build_call_tree must return node_ids in deterministic pre-order traversal sequence."""
+    db = _create_sample_tree_project(tmp_path)
+    res1 = build_call_tree(db, "main_entry", max_depth=3)
+    res2 = build_call_tree(db, "main_entry", max_depth=3)
+
+    assert res1.found is True
+    assert len(res1.node_ids) == 4
+    # Exact sequence match across repeated invocations
+    assert res1.node_ids == res2.node_ids
+    # Root must always be the first element
+    assert res1.tree is not None
+    assert res1.node_ids[0] == res1.tree.id

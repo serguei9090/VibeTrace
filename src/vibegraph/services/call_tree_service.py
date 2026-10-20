@@ -65,7 +65,8 @@ def build_call_tree(
     if not root_data:
         return CallTreeResult(root_symbol=root_symbol, found=False, max_depth=max_depth)
 
-    collected_node_ids: set[str] = {root_data["id"]}
+    collected_node_ids: list[str] = [root_data["id"]]
+    seen_node_ids: set[str] = {root_data["id"]}
     total_nodes_count = [1]
 
     def _traverse(
@@ -117,7 +118,9 @@ def build_call_tree(
                 continue
             seen_child_at_line.add(pair_key)
 
-            collected_node_ids.add(child_id)
+            if child_id not in seen_node_ids:
+                seen_node_ids.add(child_id)
+                collected_node_ids.append(child_id)
             total_nodes_count[0] += 1
 
             child_tree = _traverse(
@@ -145,7 +148,7 @@ def build_call_tree(
         max_depth=max_depth,
         tree=root_tree,
         total_nodes=total_nodes_count[0],
-        node_ids=list(collected_node_ids),
+        node_ids=collected_node_ids,
     )
 
 
