@@ -139,3 +139,76 @@ impl<T> Service<T> {
     service_node = node_map["Service"]
     defines_edges = [e for e in edges if e.relation_type == "defines"]
     assert any(e.from_node_id == service_node.id for e in defines_edges)
+
+
+def test_rust_local_variable_and_self_method_calls() -> None:
+    """Rust let_declaration and self calls must resolve to struct methods."""
+    parser = RustParser()
+    code = b"""
+pub struct Worker;
+
+impl Worker {
+    pub fn do_work(&self) {}
+    pub fn execute(&self) {
+        self.do_work();
+    }
+}
+
+pub fn run_job() {
+    let w = Worker::new();
+    w.execute();
+}
+"""
+    nodes, edges = parser.extract("worker.rs", code)
+    node_map = {n.name: n for n in nodes}
+
+    assert "Worker.do_work" in [n.qualified_name for n in nodes]
+    assert "Worker.execute" in [n.qualified_name for n in nodes]
+    assert "run_job" in node_map
+
+    do_work_id = next(n.id for n in nodes if n.qualified_name == "Worker.do_work")
+    execute_id = next(n.id for n in nodes if n.qualified_name == "Worker.execute")
+    run_job_id = node_map["run_job"].id
+
+    # execute() calls self.do_work() -> Worker.do_work
+    assert any(
+        e.from_node_id == execute_id and e.to_node_id == do_work_id and e.relation_type == "calls"
+        for e in edges
+    )
+
+    # run_job() calls w.execute() -> Worker.execute
+    assert any(
+        e.from_node_id == run_job_id and e.to_node_id == execute_id and e.relation_type == "calls"
+        for e in edges
+    )
+
+
+def test_go_package_qualified_constructor_call() -> None:
+    """Go package-qualified constructors (client.NewClient()) must resolve instance calls."""
+    parser = GoParser()
+    code = b"""package main
+
+type Client struct {}
+
+func (c *Client) FetchData() {}
+
+func main() {
+    cli := client.NewClient()
+    cli.FetchData()
+}
+"""
+    nodes, edges = parser.extract("client.go", code)
+    node_map = {n.name: n for n in nodes}
+
+    assert "Client" in node_map
+    assert "Client.FetchData" in [n.qualified_name for n in nodes]
+    assert "main" in node_map
+
+    fetch_id = next(n.id for n in nodes if n.qualified_name == "Client.FetchData")
+    main_id = node_map["main"].id
+
+    # main calls cli.FetchData -> Client.FetchData
+    assert any(
+        e.from_node_id == main_id and e.to_node_id == fetch_id and e.relation_type == "calls"
+        for e in edges
+    )

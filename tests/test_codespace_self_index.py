@@ -12,6 +12,7 @@ import pytest
 from vibegraph.indexer.db import IndexerDB
 from vibegraph.indexer.main import reindex_all
 from vibegraph.services.call_tree_service import build_call_tree, format_call_tree_md
+from vibegraph.services.graph_service import get_context_for_path
 from vibegraph.services.trace_service import trace_execution_path
 
 
@@ -132,3 +133,50 @@ def test_codespace_search_and_ranking(indexed_codespace_db):
     assert len(lex_results) >= 1
     found_symbols = [r["name"] for r in lex_results]
     assert any("find_path_recursive_cte" in s for s in found_symbols)
+
+
+def test_multilang_project_root_discovery(tmp_path: Path) -> None:
+    """Verify get_context_for_path discovers roots by package.json, Cargo.toml, or go.mod."""
+    # Test TypeScript / Node root
+    ts_root = tmp_path / "ts_project"
+    ts_root.mkdir()
+    (ts_root / "package.json").write_text('{"name": "test"}', encoding="utf-8")
+    sub_ts = ts_root / "src" / "deep"
+    sub_ts.mkdir(parents=True)
+
+    _db_ts, found_ts = get_context_for_path(str(sub_ts), auto_sync=False)
+    assert found_ts.resolve() == ts_root.resolve()
+
+    # Test Rust root
+    rs_root = tmp_path / "rs_project"
+    rs_root.mkdir()
+    (rs_root / "Cargo.toml").write_text('[package]\nname = "test"\n', encoding="utf-8")
+    sub_rs = rs_root / "src"
+    sub_rs.mkdir(parents=True)
+
+    _db_rs, found_rs = get_context_for_path(str(sub_rs), auto_sync=False)
+    assert found_rs.resolve() == rs_root.resolve()
+
+    # Test Go root
+    go_root = tmp_path / "go_project"
+    go_root.mkdir()
+    (go_root / "go.mod").write_text("module example.com/test\n", encoding="utf-8")
+    sub_go = go_root / "pkg"
+    sub_go.mkdir(parents=True)
+
+    _db_go, found_go = get_context_for_path(str(sub_go), auto_sync=False)
+    assert found_go.resolve() == go_root.resolve()
+
+
+def test_get_context_root_override(tmp_path: Path) -> None:
+    """Explicit root_override parameter must override path discovery."""
+    custom_root = tmp_path / "custom_root"
+    custom_root.mkdir()
+
+    arbitrary_hint = tmp_path / "some_other_folder"
+    arbitrary_hint.mkdir()
+
+    _db, root = get_context_for_path(
+        str(arbitrary_hint), auto_sync=False, root_override=custom_root
+    )
+    assert root.resolve() == custom_root.resolve()

@@ -144,3 +144,40 @@ def test_git_delta_subdirectory_scoping(tmp_path: Path) -> None:
     # func_b in pkg_b must NOT be reindexed because it was out of scope
     assert len(db.find_nodes_by_name("func_b_v2")) == 0
     assert len(db.find_nodes_by_name("func_b_v1")) == 1
+
+
+def test_git_delta_resolver_sync(tmp_path: Path) -> None:
+    """Incremental git delta reindexing must synchronize ModuleResolver."""
+    repo_dir = tmp_path / "sync_repo"
+    repo_dir.mkdir()
+
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
+
+    file_a = repo_dir / "mod_a.py"
+    file_b = repo_dir / "mod_b.py"
+    file_a.write_text("def a(): return 1\n")
+    file_b.write_text("def b(): return 2\n")
+
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_dir, check=True)
+
+    db = IndexerDB(str(tmp_path / "test_sync.db"))
+    reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
+
+    assert len(db.find_nodes_by_name("a")) == 1
+    assert len(db.find_nodes_by_name("b")) == 1
+
+    # Delete mod_b.py and add mod_c.py
+    file_b.unlink()
+    file_c = repo_dir / "mod_c.py"
+    file_c.write_text("def c(): return 3\n")
+
+    subprocess.run(["git", "add", "-A"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "second"], cwd=repo_dir, check=True)
+
+    reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
+
+    assert len(db.find_nodes_by_name("b")) == 0
+    assert len(db.find_nodes_by_name("c")) == 1

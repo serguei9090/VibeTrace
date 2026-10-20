@@ -255,16 +255,21 @@ export const getLayoutedElements = async (
 
 export const getGraphBounds = (nodes: Node[]): [[number, number], [number, number]] | undefined => {
   if (nodes.length === 0) return undefined;
+  // In hierarchical map mode, only top-level nodes define absolute canvas bounds.
+  // Child nodes inside parent containers have coordinates relative to their parent.
+  const rootNodes = nodes.filter((n) => !n.parentId);
+  const targetNodes = rootNodes.length > 0 ? rootNodes : nodes;
+
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
 
-  nodes.forEach((n) => {
+  targetNodes.forEach((n) => {
     minX = Math.min(minX, n.position.x);
     minY = Math.min(minY, n.position.y);
-    const w = n.style?.width ? (n.style.width as number) : NODE_WIDTH;
-    const h = n.style?.height ? (n.style.height as number) : NODE_HEIGHT;
+    const w = n.style?.width ? (n.style.width as number) : (n.width ?? NODE_WIDTH);
+    const h = n.style?.height ? (n.style.height as number) : (n.height ?? NODE_HEIGHT);
     maxX = Math.max(maxX, n.position.x + w);
     maxY = Math.max(maxY, n.position.y + h);
   });

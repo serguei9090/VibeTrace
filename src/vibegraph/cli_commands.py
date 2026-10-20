@@ -38,7 +38,9 @@ from vibegraph.services.saved_traces_service import (
 
 def cmd_index(args: argparse.Namespace) -> int:
     target = str(Path(args.path).resolve())
-    db, root = get_context_for_path(target, auto_sync=False)
+    db, root = get_context_for_path(
+        target, auto_sync=False, root_override=getattr(args, "root", None)
+    )
     reindex_all(
         db,
         target,
@@ -80,7 +82,7 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
+    db, _ = get_context_for_path(args.path, root_override=getattr(args, "root", None))
     results = hybrid_search(db, args.query, limit=args.limit)
     notify_ui_focus(
         "semantic_search",
@@ -95,7 +97,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 
 def cmd_trace(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
+    db, _ = get_context_for_path(args.path, root_override=getattr(args, "root", None))
 
     if getattr(args, "list_saved", False):
         traces = list_saved_traces(db)
@@ -164,7 +166,9 @@ def cmd_trace(args: argparse.Namespace) -> int:
 
 
 def cmd_slice(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file or args.path)
+    db, root = get_context_for_path(
+        args.file or args.path, root_override=getattr(args, "root", None)
+    )
     res = get_code_slice(
         db,
         root,
@@ -182,7 +186,7 @@ def cmd_slice(args: argparse.Namespace) -> int:
 
 
 def cmd_call_tree(args: argparse.Namespace) -> int:
-    db, _ = get_context_for_path(args.path)
+    db, _ = get_context_for_path(args.path, root_override=getattr(args, "root", None))
     res = build_call_tree(db, args.symbol, max_depth=args.depth, file_path=args.file)
     if res.found and res.node_ids:
         notify_ui_focus(
@@ -198,7 +202,7 @@ def cmd_call_tree(args: argparse.Namespace) -> int:
 
 
 def cmd_impact(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file_path)
+    db, root = get_context_for_path(args.file_path, root_override=getattr(args, "root", None))
     norm_path = normalize_path(args.file_path, root)
     total_impact, impacts_by_level = compute_impact_analysis(db, norm_path)
     file_nodes = db.get_nodes_in_file(norm_path)
@@ -235,7 +239,7 @@ def cmd_impact(args: argparse.Namespace) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    db, root = get_context_for_path(args.file_path)
+    db, root = get_context_for_path(args.file_path, root_override=getattr(args, "root", None))
     norm_path = normalize_path(args.file_path, root)
     total, rows = db.get_file_structure(norm_path, args.limit, args.offset)
     if args.json:

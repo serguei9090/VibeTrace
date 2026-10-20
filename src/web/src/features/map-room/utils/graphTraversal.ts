@@ -64,21 +64,42 @@ export const computeSelectionHighlights = (
     impactDepthMap.set(selectedElement.id, 0);
     traceStepMap.set(selectedElement.id, 1);
 
+    const outEdges = new Map<string, RawGraphEdge[]>();
+    const inEdges = new Map<string, RawGraphEdge[]>();
+    for (const e of filteredEdges) {
+      const outList = outEdges.get(e.from_node_id);
+      if (outList) {
+        outList.push(e);
+      } else {
+        outEdges.set(e.from_node_id, [e]);
+      }
+
+      const inList = inEdges.get(e.to_node_id);
+      if (inList) {
+        inList.push(e);
+      } else {
+        inEdges.set(e.to_node_id, [e]);
+      }
+    }
+
     if (impactMode) {
       let currentLevel = new Set([selectedElement.id]);
 
       for (let depth = 1; depth <= 3; depth++) {
         const nextLevel = new Set<string>();
-        filteredEdges.forEach((e) => {
-          if (currentLevel.has(e.to_node_id)) {
-            if (!highlightedNodes.has(e.from_node_id)) {
-              highlightedNodes.add(e.from_node_id);
-              impactDepthMap.set(e.from_node_id, depth);
-              nextLevel.add(e.from_node_id);
+        for (const targetId of currentLevel) {
+          const incoming = inEdges.get(targetId);
+          if (incoming) {
+            for (const e of incoming) {
+              if (!highlightedNodes.has(e.from_node_id)) {
+                highlightedNodes.add(e.from_node_id);
+                impactDepthMap.set(e.from_node_id, depth);
+                nextLevel.add(e.from_node_id);
+              }
+              highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
             }
-            highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
           }
-        });
+        }
         currentLevel = nextLevel;
         if (currentLevel.size === 0) break;
       }
@@ -86,35 +107,43 @@ export const computeSelectionHighlights = (
       let frontier = new Set([selectedElement.id]);
       for (let step = 2; step <= 5; step++) {
         const nextFrontier = new Set<string>();
-        filteredEdges.forEach((e) => {
-          if (e.relation_type === "defines") return;
-          if (frontier.has(e.from_node_id)) {
-            highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
-            if (!highlightedNodes.has(e.to_node_id)) {
-              highlightedNodes.add(e.to_node_id);
-              traceStepMap.set(e.to_node_id, step);
-              nextFrontier.add(e.to_node_id);
+        for (const sourceId of frontier) {
+          const outgoing = outEdges.get(sourceId);
+          if (outgoing) {
+            for (const e of outgoing) {
+              if (e.relation_type === "defines") continue;
+              highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
+              if (!highlightedNodes.has(e.to_node_id)) {
+                highlightedNodes.add(e.to_node_id);
+                traceStepMap.set(e.to_node_id, step);
+                nextFrontier.add(e.to_node_id);
+              }
             }
           }
-        });
+        }
         frontier = nextFrontier;
         if (frontier.size === 0) break;
       }
 
-      filteredEdges.forEach((e) => {
-        if (e.to_node_id === selectedElement.id) {
+      const directIncoming = inEdges.get(selectedElement.id);
+      if (directIncoming) {
+        for (const e of directIncoming) {
           highlightedNodes.add(e.from_node_id);
           highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
         }
-      });
+      }
     }
   } else if (selectedElement.type === "edge") {
-    const [from, to] = selectedElement.id.split("-");
     highlightedEdges.add(selectedElement.id);
-    highlightedNodes.add(from);
-    highlightedNodes.add(to);
-    traceStepMap.set(from, 1);
-    traceStepMap.set(to, 2);
+    const matchedEdge = filteredEdges.find(
+      (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}` === selectedElement.id
+    );
+    if (matchedEdge) {
+      highlightedNodes.add(matchedEdge.from_node_id);
+      highlightedNodes.add(matchedEdge.to_node_id);
+      traceStepMap.set(matchedEdge.from_node_id, 1);
+      traceStepMap.set(matchedEdge.to_node_id, 2);
+    }
   }
 
   return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap };

@@ -196,8 +196,9 @@ class GoParser(LanguageParser):
                             elif target_expr.type == "call_expression":
                                 if func := target_expr.child_by_field_name("function"):
                                     f_text = self._get_text(func).strip()
-                                    if f_text.startswith("New"):
-                                        ctx.local_types[vname] = f_text[3:]
+                                    base = f_text.split(".")[-1]
+                                    if base.startswith("New"):
+                                        ctx.local_types[vname] = base[3:]
 
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")
@@ -253,8 +254,10 @@ class RustParser(LanguageParser):
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
             pushed_scope = False
+            saved_local_types: dict[str, str] | None = None
 
             if node.type in ("function_item", "function_signature_item"):
+                saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
@@ -262,6 +265,15 @@ class RustParser(LanguageParser):
                     node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
                     signature = self._get_text(params_node) if params_node else None
+                    if params_node:
+                        for p in params_node.children:
+                            if p.type == "parameter":
+                                pn = p.child_by_field_name("pattern")
+                                pt = p.child_by_field_name("type")
+                                if pn and pt:
+                                    ctx.local_types[self._get_text(pn).strip()] = (
+                                        self._get_text(pt).lstrip("&* ").split("<")[0].strip()
+                                    )
 
                     nodes.append(
                         self._create_node(
@@ -279,39 +291,18 @@ class RustParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
-            elif node.type == "trait_item":
+            elif node.type in ("trait_item", "struct_item"):
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
+                    kind = "trait" if node.type == "trait_item" else "struct"
                     nodes.append(
                         self._create_node(
                             node_id,
                             name,
-                            "trait",
-                            file_path,
-                            node,
-                            qualified_name=qualified_name,
-                            parent_id=parent_id,
-                        )
-                    )
-                    if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
-                    ctx.scope_stack.append(name)
-                    pushed_scope = True
-
-            elif node.type == "struct_item":
-                name_node = node.child_by_field_name("name")
-                if name_node:
-                    name = self._get_text(name_node)
-                    qualified_name = self._scoped_name(name, ctx.scope_stack)
-                    node_id = self._get_id(file_path, qualified_name)
-                    nodes.append(
-                        self._create_node(
-                            node_id,
-                            name,
-                            "struct",
+                            kind,
                             file_path,
                             node,
                             qualified_name=qualified_name,
@@ -328,6 +319,7 @@ class RustParser(LanguageParser):
                 trait_node = node.child_by_field_name("trait")
                 if type_node:
                     struct_name = self._get_text(type_node).split("<")[0].strip()
+                    ctx.local_types["self"] = struct_name
                     resolved_struct = self._resolve_call_target(struct_name, ctx)
                     struct_id = (
                         resolved_struct if resolved_struct else self._get_id(file_path, struct_name)
@@ -343,6 +335,32 @@ class RustParser(LanguageParser):
                     pushed_scope = True
                     node_id = struct_id
 
+            elif node.type == "let_declaration":
+                p_node = node.child_by_field_name("pattern")
+                t_node = node.child_by_field_name("type")
+                v_node = node.child_by_field_name("value")
+                if p_node:
+                    vname = self._get_text(p_node).strip()
+                    if t_node:
+                        ctx.local_types[vname] = (
+                            self._get_text(t_node).lstrip("&* ").split("<")[0].strip()
+                        )
+                    elif v_node and v_node.type == "call_expression":
+                        if fn := v_node.child_by_field_name("function"):
+                            fn_text = self._get_text(fn).replace("::", ".").strip()
+                            parts = fn_text.split(".")
+                            if len(parts) >= 2 and parts[-1] in (
+                                "new",
+                                "default",
+                                "create",
+                                "build",
+                                "init",
+                            ):
+                                ctx.local_types[vname] = parts[-2]
+                    elif v_node and v_node.type == "struct_expression":
+                        if sn := v_node.child_by_field_name("name"):
+                            ctx.local_types[vname] = self._get_text(sn).split("<")[0].strip()
+
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")
                 if func_node:
@@ -357,6 +375,9 @@ class RustParser(LanguageParser):
 
             if pushed_scope:
                 ctx.scope_stack.pop()
+
+            if saved_local_types is not None:
+                ctx.local_types = saved_local_types
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges
@@ -419,16 +440,17 @@ class GenericParser(LanguageParser):
             node_id = None
             pushed_scope = False
 
-            if node.type in function_types:
-                name_node = node.child_by_field_name("name") or node.child_by_field_name(
-                    "declarator"
+            if node.type in function_types or node.type in class_types:
+                is_func = node.type in function_types
+                name_node = node.child_by_field_name("name") or (
+                    node.child_by_field_name("declarator") if is_func else None
                 )
                 if name_node:
-                    name_text = self._get_text(name_node)
+                    n_text = self._get_text(name_node)
                     name = (
-                        name_text.split("(")[0].strip().split()[-1]
-                        if "(" in name_text
-                        else name_text
+                        n_text.split("(")[0].strip().split()[-1]
+                        if ("(" in n_text and is_func)
+                        else n_text
                     )
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
@@ -436,40 +458,18 @@ class GenericParser(LanguageParser):
                         self._create_node(
                             node_id,
                             name,
-                            "function",
+                            "function" if is_func else "class",
                             file_path,
                             node,
                             qualified_name=qualified_name,
                             parent_id=parent_id,
                         )
                     )
-
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
-
-            elif node.type in class_types:
-                name_node = node.child_by_field_name("name")
-                if name_node:
-                    name = self._get_text(name_node)
-                    qualified_name = self._scoped_name(name, ctx.scope_stack)
-                    node_id = self._get_id(file_path, qualified_name)
-                    nodes.append(
-                        self._create_node(
-                            node_id,
-                            name,
-                            "class",
-                            file_path,
-                            node,
-                            qualified_name=qualified_name,
-                            parent_id=parent_id,
-                        )
-                    )
-
-                    if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
-
-                    ctx.scope_stack.append(name)
-                    pushed_scope = True
+                    if not is_func:
+                        ctx.scope_stack.append(name)
+                        pushed_scope = True
 
             elif parent_id and node.type in ("call_expression", "method_invocation"):
                 func_node = node.child_by_field_name("function") or node.child_by_field_name("name")

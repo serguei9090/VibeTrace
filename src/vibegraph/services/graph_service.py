@@ -97,24 +97,31 @@ def ensure_index_fresh(
 def get_context_for_path(
     path_hint: str | None = None,
     auto_sync: bool = True,
+    root_override: str | Path | None = None,
 ) -> tuple[IndexerDB, Path]:
     """Determine the project root and database connection for a given path."""
-    if not path_hint or path_hint == ".":
-        search_start = Path.cwd()
+    if root_override:
+        project_root = Path(root_override).resolve()
     else:
-        search_start = Path(path_hint).resolve()
+        if not path_hint or path_hint == ".":
+            search_start = Path.cwd()
+        else:
+            search_start = Path(path_hint).resolve()
 
-    search_dir = search_start if search_start.is_dir() else search_start.parent
-    project_root = search_dir
+        search_dir = search_start if search_start.is_dir() else search_start.parent
+        project_root = search_dir
 
-    for parent in [search_dir, *list(search_dir.parents)]:
-        if (
-            (parent / ".git").exists()
-            or (parent / "pyproject.toml").exists()
-            or (parent / "vibegraph_context").exists()
-        ):
-            project_root = parent
-            break
+        for parent in [search_dir, *list(search_dir.parents)]:
+            if (
+                (parent / ".git").exists()
+                or (parent / "pyproject.toml").exists()
+                or (parent / "package.json").exists()
+                or (parent / "Cargo.toml").exists()
+                or (parent / "go.mod").exists()
+                or (parent / "vibegraph_context").exists()
+            ):
+                project_root = parent
+                break
 
     context_dir = project_root / "vibegraph_context"
     context_dir.mkdir(exist_ok=True)

@@ -150,6 +150,8 @@ def reindex_all(
                 ):
                     continue
                 db.clear_file(d)
+                if resolver:
+                    resolver.remove_file(d)
                 indexed_any = True
             for c in changed:
                 if target_rel not in ("", ".") and not (
@@ -168,6 +170,8 @@ def reindex_all(
                     force=force,
                 ):
                     indexed_any = True
+                    if resolver:
+                        resolver.add_file(c)
             if indexed_any or len(deleted) > 0:
                 db.update_centrality_scores()
             if current_sha:
@@ -215,6 +219,8 @@ def reindex_all(
                     if verbose:
                         print(f"Purging deleted/stale file from index: {indexed_file}")
                     db.clear_file(indexed_file)
+                    if resolver:
+                        resolver.remove_file(indexed_file)
 
             db.update_centrality_scores()
             if current_sha:
