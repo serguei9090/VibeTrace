@@ -344,10 +344,11 @@ def get_code_slice(
     """Extract the exact source lines (start_line..end_line) and callee contracts for a symbol."""
     norm_file: str | None = None
     if file_path:
+        p = Path(file_path)
+        if not p.is_absolute():
+            p = root / p
         try:
-            norm_file = str(Path(file_path).resolve().relative_to(root.resolve())).replace(
-                "\\", "/"
-            )
+            norm_file = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
         except ValueError:
             norm_file = file_path.replace("\\", "/")
 

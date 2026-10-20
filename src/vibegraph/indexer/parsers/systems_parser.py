@@ -34,16 +34,13 @@ class GoParser(LanguageParser):
 
         # Pre-populate defined top-level symbol names to avoid false-positive builtin filtering
         for child in tree.root_node.children:
-            if child.type in ("function_declaration", "method_declaration", "type_declaration"):
-                name_node = child.child_by_field_name("name")
-                if name_node:
-                    ctx.defined_symbols.add(self._get_text(name_node))
-                elif child.type == "type_declaration":
-                    for spec in child.children:
-                        if spec.type == "type_spec":
-                            spec_name = spec.child_by_field_name("name")
-                            if spec_name:
-                                ctx.defined_symbols.add(self._get_text(spec_name))
+            if child.type in ("function_declaration", "method_declaration"):
+                if n_node := child.child_by_field_name("name"):
+                    ctx.defined_symbols.add(self._get_text(n_node))
+            elif child.type == "type_declaration":
+                for sp in child.children:
+                    if sp.type == "type_spec" and (sn := sp.child_by_field_name("name")):
+                        ctx.defined_symbols.add(self._get_text(sn))
 
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
@@ -55,14 +52,17 @@ class GoParser(LanguageParser):
                 if name_node:
                     name = self._get_text(name_node)
                     qualified_name = name
+                    recv_text = None
                     if node.type == "method_declaration":
                         recv_node = node.child_by_field_name("receiver")
                         if recv_node:
                             recv_raw = self._get_text(recv_node).strip("()")
                             recv_parts = recv_raw.split()
                             if len(recv_parts) >= 2:
-                                ctx.local_types[recv_parts[0]] = recv_parts[1].lstrip("*")
-                            recv_text = recv_raw.split()[-1].lstrip("*")
+                                ctx.local_types[recv_parts[0]] = (
+                                    recv_parts[1].lstrip("*").split("[")[0].strip()
+                                )
+                            recv_text = recv_raw.split()[-1].lstrip("*").split("[")[0].strip()
                             if recv_text:
                                 qualified_name = f"{recv_text}.{name}"
 
@@ -72,11 +72,11 @@ class GoParser(LanguageParser):
                     if params_node:
                         for p in params_node.children:
                             if p.type == "parameter_declaration":
-                                p_name = p.child_by_field_name("name")
-                                p_type = p.child_by_field_name("type")
-                                if p_name and p_type:
-                                    ctx.local_types[self._get_text(p_name)] = (
-                                        self._get_text(p_type).lstrip("*").strip()
+                                pn = p.child_by_field_name("name")
+                                pt = p.child_by_field_name("type")
+                                if pn and pt:
+                                    ctx.local_types[self._get_text(pn)] = (
+                                        self._get_text(pt).lstrip("*").strip()
                                     )
 
                     nodes.append(
@@ -94,6 +94,9 @@ class GoParser(LanguageParser):
 
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
+                    if recv_text:
+                        struct_id = self._get_id(file_path, recv_text)
+                        edges.append(self._create_edge(struct_id, node_id, "defines", node=node))
 
             elif node.type == "type_declaration":
                 for child in node.children:
@@ -127,50 +130,44 @@ class GoParser(LanguageParser):
                                 for struct_child in type_node.children:
                                     if struct_child.type == "field_declaration_list":
                                         for f in struct_child.children:
-                                            if f.type == "field_declaration":
-                                                has_field_id = any(
-                                                    fc.type == "field_identifier"
-                                                    for fc in f.children
-                                                )
-                                                if not has_field_id:
-                                                    emb_type = self._get_text(f).strip("* ")
-                                                    if emb_type:
-                                                        emb_id = self._resolve_call_target(
-                                                            emb_type, ctx
+                                            if f.type == "field_declaration" and not any(
+                                                fc.type == "field_identifier" for fc in f.children
+                                            ):
+                                                emb_type = self._get_text(f).strip("* ")
+                                                if emb_type and (
+                                                    emb_id := self._resolve_call_target(
+                                                        emb_type, ctx
+                                                    )
+                                                ):
+                                                    edges.append(
+                                                        self._create_edge(
+                                                            node_id, emb_id, "inherits", node=f
                                                         )
-                                                        if emb_id:
-                                                            edges.append(
-                                                                self._create_edge(
-                                                                    node_id,
-                                                                    emb_id,
-                                                                    "inherits",
-                                                                    node=f,
-                                                                )
-                                                            )
+                                                    )
                             elif type_node and type_node.type == "interface_type":
                                 for iface_child in type_node.children:
-                                    if iface_child.type == "method_spec":
-                                        m_name_node = iface_child.child_by_field_name("name")
-                                        if m_name_node:
-                                            m_name = self._get_text(m_name_node)
-                                            m_qual = f"{name}.{m_name}"
-                                            m_id = self._get_id(file_path, m_qual)
-                                            nodes.append(
-                                                self._create_node(
-                                                    m_id,
-                                                    m_name,
-                                                    "function",
-                                                    file_path,
-                                                    iface_child,
-                                                    qualified_name=m_qual,
-                                                    parent_id=node_id,
-                                                )
+                                    if iface_child.type == "method_spec" and (
+                                        m_node := iface_child.child_by_field_name("name")
+                                    ):
+                                        m_name = self._get_text(m_node)
+                                        m_qual = f"{name}.{m_name}"
+                                        m_id = self._get_id(file_path, m_qual)
+                                        nodes.append(
+                                            self._create_node(
+                                                m_id,
+                                                m_name,
+                                                "function",
+                                                file_path,
+                                                iface_child,
+                                                qualified_name=m_qual,
+                                                parent_id=node_id,
                                             )
-                                            edges.append(
-                                                self._create_edge(
-                                                    node_id, m_id, "defines", node=iface_child
-                                                )
+                                        )
+                                        edges.append(
+                                            self._create_edge(
+                                                node_id, m_id, "defines", node=iface_child
                                             )
+                                        )
 
             elif node.type == "short_var_declaration":
                 left_node = node.child_by_field_name("left")
@@ -192,14 +189,12 @@ class GoParser(LanguageParser):
                                         target_expr = uc
                                         break
                             if target_expr.type == "composite_literal":
-                                t_node = target_expr.child_by_field_name("type")
-                                if t_node:
+                                if t_node := target_expr.child_by_field_name("type"):
                                     ctx.local_types[vname] = (
-                                        self._get_text(t_node).lstrip("*").strip()
+                                        self._get_text(t_node).lstrip("*").split("[")[0].strip()
                                     )
                             elif target_expr.type == "call_expression":
-                                func = target_expr.child_by_field_name("function")
-                                if func:
+                                if func := target_expr.child_by_field_name("function"):
                                     f_text = self._get_text(func).strip()
                                     if f_text.startswith("New"):
                                         ctx.local_types[vname] = f_text[3:]
@@ -252,8 +247,7 @@ class RustParser(LanguageParser):
         # Pre-populate defined top-level symbol names to avoid false-positive builtin filtering
         for child in tree.root_node.children:
             if child.type in ("function_item", "struct_item", "trait_item", "enum_item"):
-                name_node = child.child_by_field_name("name")
-                if name_node:
+                if name_node := child.child_by_field_name("name"):
                     ctx.defined_symbols.add(self._get_text(name_node))
 
         def traverse(node: Node, parent_id: str | None = None) -> None:
@@ -333,13 +327,13 @@ class RustParser(LanguageParser):
                 type_node = node.child_by_field_name("type")
                 trait_node = node.child_by_field_name("trait")
                 if type_node:
-                    struct_name = self._get_text(type_node)
+                    struct_name = self._get_text(type_node).split("<")[0].strip()
                     resolved_struct = self._resolve_call_target(struct_name, ctx)
                     struct_id = (
                         resolved_struct if resolved_struct else self._get_id(file_path, struct_name)
                     )
                     if trait_node:
-                        trait_name = self._get_text(trait_node)
+                        trait_name = self._get_text(trait_node).split("<")[0].strip()
                         trait_id = self._resolve_call_target(trait_name, ctx)
                         if trait_id:
                             edges.append(
@@ -417,8 +411,9 @@ class GenericParser(LanguageParser):
                 )
                 if n_node:
                     n_text = self._get_text(n_node)
-                    sym = n_text.split("(")[0].strip().split()[-1] if "(" in n_text else n_text
-                    ctx.defined_symbols.add(sym)
+                    ctx.defined_symbols.add(
+                        n_text.split("(")[0].strip().split()[-1] if "(" in n_text else n_text
+                    )
 
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None

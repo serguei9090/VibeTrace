@@ -102,3 +102,45 @@ def test_git_delta_lifecycle(tmp_path: Path) -> None:
     # Verify module_b symbols were cleared
     res_deleted = [r for r in db.search_lexical("beta") if r["file_path"] == "module_b.py"]
     assert len(res_deleted) == 0
+
+
+def test_git_delta_subdirectory_scoping(tmp_path: Path) -> None:
+    """Incremental git delta reindexing of a subfolder must respect target scope."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
+
+    pkg_a = repo_dir / "pkg_a"
+    pkg_b = repo_dir / "pkg_b"
+    pkg_a.mkdir()
+    pkg_b.mkdir()
+
+    (pkg_a / "file_a.py").write_text("def func_a_v1():\n    return 1\n")
+    (pkg_b / "file_b.py").write_text("def func_b_v1():\n    return 2\n")
+
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_dir, check=True)
+
+    db = IndexerDB(str(tmp_path / "test_delta_sub.db"))
+    reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
+
+    assert len(db.find_nodes_by_name("func_a_v1")) == 1
+    assert len(db.find_nodes_by_name("func_b_v1")) == 1
+
+    # Edit both files in working tree
+    (pkg_a / "file_a.py").write_text("def func_a_v2():\n    return 10\n")
+    (pkg_b / "file_b.py").write_text("def func_b_v2():\n    return 20\n")
+
+    # Scoped reindex: only target pkg_a
+    reindex_all(db, str(pkg_a), verbose=False, project_root=repo_dir)
+
+    # func_a should be updated to v2
+    assert len(db.find_nodes_by_name("func_a_v2")) == 1
+    assert len(db.find_nodes_by_name("func_a_v1")) == 0
+
+    # func_b in pkg_b must NOT be reindexed because it was out of scope
+    assert len(db.find_nodes_by_name("func_b_v2")) == 0
+    assert len(db.find_nodes_by_name("func_b_v1")) == 1

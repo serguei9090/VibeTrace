@@ -127,6 +127,12 @@ def reindex_all(
         )
         db.update_centrality_scores()
     elif target_path.is_dir():
+        target_rel = ""
+        try:
+            target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
+        except ValueError:
+            pass
+
         current_sha = get_git_sha(eff_root)
         last_sha = db.get_meta("last_indexed_git_sha") if not force else None
         delta = get_git_delta(eff_root, last_sha) if (last_sha and not force) else None
@@ -139,9 +145,17 @@ def reindex_all(
                 )
             indexed_any = False
             for d in deleted:
+                if target_rel not in ("", ".") and not (
+                    d == target_rel or d.startswith(f"{target_rel}/")
+                ):
+                    continue
                 db.clear_file(d)
                 indexed_any = True
             for c in changed:
+                if target_rel not in ("", ".") and not (
+                    c == target_rel or c.startswith(f"{target_rel}/")
+                ):
+                    continue
                 full_path = eff_root / c
                 if spec and spec.match_file(c):
                     continue
@@ -192,12 +206,6 @@ def reindex_all(
 
             # Reconcile stale files: purge any file recorded in indexed_files
             # that no longer exists on disk
-            target_rel = ""
-            try:
-                target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
-            except ValueError:
-                pass
-
             for indexed_file in db.get_all_indexed_file_paths():
                 if target_rel not in ("", ".") and not (
                     indexed_file == target_rel or indexed_file.startswith(f"{target_rel}/")

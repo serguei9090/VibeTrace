@@ -92,3 +92,50 @@ impl Bot {
     assert any(
         e.from_node_id == bot_node.id and e.to_node_id == greeter_node.id for e in implements_edges
     )
+
+
+def test_go_generic_receiver_methods() -> None:
+    """Go 1.18+ generic type parameter receivers must link to canonical struct name."""
+    parser = GoParser()
+    code = b"""package main
+
+type Container[T any] struct {
+    val T
+}
+
+func (c *Container[T]) Get() T {
+    return c.val
+}
+"""
+    nodes, edges = parser.extract("generic.go", code)
+    node_map = {n.name: n for n in nodes}
+
+    assert "Container" in node_map
+    assert "Container.Get" in [n.qualified_name for n in nodes]
+
+    container_node = node_map["Container"]
+    defines_edges = [e for e in edges if e.relation_type == "defines"]
+    assert any(e.from_node_id == container_node.id for e in defines_edges)
+
+
+def test_rust_generic_impl_block() -> None:
+    """Rust generic impl<T> blocks must link methods to canonical struct name."""
+    parser = RustParser()
+    code = b"""
+pub struct Service<T> {
+    pub data: T,
+}
+
+impl<T> Service<T> {
+    pub fn process(&self) {}
+}
+"""
+    nodes, edges = parser.extract("service.rs", code)
+    node_map = {n.name: n for n in nodes}
+
+    assert "Service" in node_map
+    assert "Service.process" in [n.qualified_name for n in nodes]
+
+    service_node = node_map["Service"]
+    defines_edges = [e for e in edges if e.relation_type == "defines"]
+    assert any(e.from_node_id == service_node.id for e in defines_edges)

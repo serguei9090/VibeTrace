@@ -25,8 +25,8 @@ import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNod
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
+import { useVibeSync } from "./features/map-room/hooks/useVibeSync";
 import type {
-  AgentFocusEvent,
   GraphData,
   LayoutMode,
   SelectedElement,
@@ -78,11 +78,15 @@ export default function App() {
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
   const [followAgent, setFollowAgent] = useState(true);
-  const [lastAgentEvent, setLastAgentEvent] = useState<AgentFocusEvent | null>(null);
   const [activeTrace, setActiveTrace] = useState<TracePathResponse | null>(null);
 
+  const fetchGraphRef = useRef<() => void>(() => {});
+  const { lastAgentEvent } = useVibeSync({
+    wsUrl: WS_URL,
+    onRefresh: useCallback(() => fetchGraphRef.current(), []),
+  });
+
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
-  const ws = useRef<WebSocket | null>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const cachedLayout = useRef<{
     key: string;
@@ -241,48 +245,14 @@ export default function App() {
     }
   }, [applyLayoutAndFilters]);
 
+  fetchGraphRef.current = fetchGraph;
+
   useEffect(() => {
     applyLayoutAndFilters();
   }, [applyLayoutAndFilters]);
 
   useEffect(() => {
     fetchGraph();
-    let isCancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const connectWS = () => {
-      if (isCancelled) return;
-      ws.current = new WebSocket(WS_URL);
-      ws.current.onopen = () => console.log("Vibe-Sync Active");
-      ws.current.onmessage = (event) => {
-        if (event.data === "refresh") {
-          fetchGraph();
-          return;
-        }
-        try {
-          const parsed = JSON.parse(event.data);
-          if (parsed?.type === "agent_focus") {
-            setLastAgentEvent(parsed as AgentFocusEvent);
-          }
-        } catch {
-          // ignore non-json frames
-        }
-      };
-      ws.current.onclose = () => {
-        if (!isCancelled) {
-          reconnectTimer = setTimeout(connectWS, 3000);
-        }
-      };
-    };
-
-    connectWS();
-    return () => {
-      isCancelled = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      ws.current?.close();
-    };
   }, [fetchGraph]);
 
   const onConnect = useCallback(

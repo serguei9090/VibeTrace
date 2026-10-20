@@ -236,3 +236,21 @@ def test_graph_traverser_diamond_dag_no_false_cycle(tmp_path: Path):
 
     assert "circular dependency" not in full_output
     assert "common_util" in full_output
+
+
+def test_get_code_slice_relative_path_resolution(tmp_path: Path):
+    """get_code_slice must resolve relative file_path against project root safely."""
+    db = _create_sample_project(tmp_path)
+
+    # Pass relative path without leading slash
+    slice_res = get_code_slice(
+        db,
+        tmp_path,
+        "charge_customer",
+        file_path="app/billing.py",
+        include_callees=True,
+    )
+    assert slice_res.found is True
+    assert slice_res.name == "charge_customer"
+    assert "def charge_customer" in slice_res.source_code
+    assert slice_res.file_path == "app/billing.py"
