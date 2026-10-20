@@ -145,6 +145,8 @@ def test_search_semantic_zero_and_negative_limit(tmp_path: Path):
 
     assert engine.search_semantic(db, "query", limit=0) == []
     assert engine.search_semantic(db, "query", limit=-1) == []
+    assert hybrid_search(db, "jwt", limit=0) == []
+    assert hybrid_search(db, "jwt", limit=-1) == []
 
 
 def test_node_embeddings_index_query_plan(tmp_path: Path):

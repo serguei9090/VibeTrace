@@ -49,7 +49,7 @@ def hybrid_search(
     where rank_s(d) is the 1-based rank of symbol d in stream s.
     """
     clean_query = query.strip()
-    if not clean_query:
+    if not clean_query or limit <= 0:
         return []
 
     pool_limit = max(limit * 2, 30)

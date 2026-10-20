@@ -256,7 +256,9 @@ class LanguageParser(ABC):
                     return self._get_id(ctx.file_path, f"{class_type}.{member}")
 
             member = parts[1]
-            enclosing = ctx.scope_stack[0]
+            enclosing = (
+                ".".join(ctx.scope_stack[:-1]) if len(ctx.scope_stack) > 1 else ctx.scope_stack[0]
+            )
             return self._get_id(ctx.file_path, f"{enclosing}.{member}")
 
         # 2. Direct imported symbol call: e.g. `from b import helper` -> `helper()`

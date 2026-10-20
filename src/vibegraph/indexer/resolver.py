@@ -101,7 +101,14 @@ class ModuleResolver:
         if module_name.startswith("."):
             return self._resolve_relative(module_name, current_file)
 
-        return self.module_map.get(module_name)
+        res = self.module_map.get(module_name)
+        if res:
+            return res
+
+        if current_file:
+            return self._resolve_relative(f"./{module_name}", current_file)
+
+        return None
 
     def _resolve_relative(self, module_name: str, current_file: str | None) -> str | None:
         """Resolve Python dotted relative imports and JS/TS path imports."""
@@ -167,6 +174,18 @@ class ModuleResolver:
                 )
                 if candidate in self.known_files:
                     return candidate
+
+        pkg_base = target_prefix.split("/")[-1] if target_prefix else ""
+        if pkg_base:
+            for ext in ext_order:
+                candidate = f"{target_prefix}/{pkg_base}{ext}"
+                if candidate in self.known_files:
+                    return candidate
+            for kf in sorted(self.known_files):
+                if kf.startswith(f"{target_prefix}/") and any(
+                    kf.endswith(ext) for ext in ext_order
+                ):
+                    return kf
 
         return None
 

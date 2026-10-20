@@ -230,6 +230,7 @@ export default function App() {
         return;
       }
       rawData.current = res.data;
+      cachedLayout.current = null;
       setLastUpdate(new Date().toLocaleTimeString());
 
       if (res.data.nodes.length === 0) {

@@ -46,6 +46,33 @@ class GoParser(LanguageParser):
             node_id = None
             saved_local_types: dict[str, str] | None = None
 
+            if node.type == "import_declaration":
+                for child in node.children:
+                    specs = child.children if child.type == "import_spec_list" else [child]
+                    for spec in specs:
+                        if spec.type == "import_spec" and (
+                            p_node := spec.child_by_field_name("path")
+                        ):
+                            raw_p = self._get_text(p_node).strip('"')
+                            n_node = spec.child_by_field_name("name")
+                            alias = (
+                                self._get_text(n_node).strip() if n_node else raw_p.split("/")[-1]
+                            )
+                            res_path = (
+                                self.resolver.resolve(raw_p, file_path) if self.resolver else None
+                            )
+                            m_path = res_path or "external"
+                            ctx.imported_symbols[alias] = (m_path, "__module__")
+                            m_id = self._get_id(m_path, alias, kind="module")
+                            if not any(n.id == m_id for n in ctx.nodes):
+                                ctx.nodes.append(
+                                    self._create_node(m_id, alias, "module", m_path, spec)
+                                )
+                            ctx.edges.append(
+                                self._create_edge(file_module_id, m_id, "imports", node=spec)
+                            )
+                return
+
             if node.type in ("function_declaration", "method_declaration"):
                 saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
@@ -196,9 +223,14 @@ class GoParser(LanguageParser):
                             elif target_expr.type == "call_expression":
                                 if func := target_expr.child_by_field_name("function"):
                                     f_text = self._get_text(func).strip()
-                                    base = f_text.split(".")[-1]
+                                    parts = f_text.split(".")
+                                    base = parts[-1]
                                     if base.startswith("New"):
-                                        ctx.local_types[vname] = base[3:]
+                                        ctor = base[3:]
+                                        if len(parts) > 1 and parts[0] in ctx.imported_symbols:
+                                            ctx.local_types[vname] = f"{parts[0]}.{ctor}"
+                                        else:
+                                            ctx.local_types[vname] = ctor
 
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")
@@ -255,6 +287,32 @@ class RustParser(LanguageParser):
             node_id = None
             pushed_scope = False
             saved_local_types: dict[str, str] | None = None
+
+            if node.type == "use_declaration":
+                if arg := node.child_by_field_name("argument"):
+                    raw = self._get_text(arg).strip("; ")
+                    items: list[tuple[str, str, str]] = []
+                    if "::{" in raw:
+                        base, grp = raw.split("::{", 1)
+                        for it in grp.rstrip("}").split(","):
+                            if s := it.strip():
+                                sym = s.split(" as ")[-1].strip()
+                                orig = s.split(" as ")[0].strip()
+                                items.append((sym, orig, f"{base}::{orig}".replace("::", "/")))
+                    elif "::" in raw:
+                        parts = raw.split("::")
+                        items.append((parts[-1], parts[-1], "/".join(parts[:-1])))
+                    for sym, orig, mod in items:
+                        res = self.resolver.resolve(mod, file_path) if self.resolver else None
+                        m_path = res or "external"
+                        ctx.imported_symbols[sym] = (m_path, orig)
+                        m_id = self._get_id(m_path, sym, kind="module")
+                        if not any(x.id == m_id for x in ctx.nodes):
+                            ctx.nodes.append(self._create_node(m_id, sym, "module", m_path, node))
+                        ctx.edges.append(
+                            self._create_edge(file_module_id, m_id, "imports", node=node)
+                        )
+                return
 
             if node.type in ("function_item", "function_signature_item"):
                 saved_local_types = dict(ctx.local_types)

@@ -119,9 +119,15 @@ class PythonParser(LanguageParser):
         if not type_node:
             return None
         text = self._get_text(type_node).strip()
+        if text.startswith("typing."):
+            text = text[7:]
         if text.startswith("Optional[") and text.endswith("]"):
             text = text[9:-1].strip()
-        if " | " in text:
+        elif text.startswith("Union[") and text.endswith("]"):
+            parts = [p.strip() for p in text[6:-1].split(",") if p.strip() != "None"]
+            if parts:
+                text = parts[0]
+        if "|" in text:
             parts = [p.strip() for p in text.split("|") if p.strip() != "None"]
             if parts:
                 text = parts[0]

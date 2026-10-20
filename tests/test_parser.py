@@ -497,3 +497,47 @@ def test_resolver_root_relative_imports(tmp_path: Path) -> None:
     resolver = ModuleResolver(tmp_path)
     assert resolver.resolve("./", "client.ts") == "index.ts"
     assert resolver.resolve(".", "client.py") == "__init__.py"
+
+
+def test_nested_class_self_call_resolution():
+    """Verify that method calls on self in nested classes resolve to the inner class."""
+    code = b"""
+class Outer:
+    class Inner:
+        def run(self):
+            self.step()
+
+        def step(self):
+            pass
+"""
+    parser = PythonParser()
+    nodes, edges = parser.extract("mod.py", code)
+    run_node = next(n for n in nodes if n.name == "run")
+    step_node = next(n for n in nodes if n.name == "step")
+    assert step_node.qualified_name == "Outer.Inner.step"
+
+    call_edge = next(e for e in edges if e.relation_type == "calls")
+    assert call_edge.from_node_id == run_node.id
+    assert call_edge.to_node_id == step_node.id
+
+
+def test_python_union_type_annotation():
+    """Verify that Union[T, None] and compact T|None annotations resolve to target class."""
+    code = b"""
+class Worker:
+    def execute(self):
+        pass
+
+def process_union(w: Union[Worker, None]):
+    w.execute()
+
+def process_pipe(w: Worker|None):
+    w.execute()
+"""
+    parser = PythonParser()
+    nodes, edges = parser.extract("workers.py", code)
+    exec_node = next(n for n in nodes if n.name == "execute")
+
+    call_targets = [e.to_node_id for e in edges if e.relation_type == "calls"]
+    assert len(call_targets) == 2
+    assert all(tid == exec_node.id for tid in call_targets)

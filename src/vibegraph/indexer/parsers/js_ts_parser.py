@@ -27,6 +27,13 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
+    def _clean_ts_type(self, raw: str) -> str:
+        clean = raw.lstrip(": ").strip()
+        parts = [
+            p.strip() for p in clean.split("|") if p.strip() not in ("null", "undefined", "void")
+        ]
+        return parts[0] if parts else clean
+
     def _record_ts_val_type(self, target_name: str, val_node: Node, ctx: ParserContext) -> None:
         if val_node.type == "new_expression":
             if ctor := val_node.child_by_field_name("constructor"):
@@ -250,7 +257,7 @@ class JavaScriptParser(LanguageParser):
                                 None,
                             )
                             if p_name and p_type:
-                                ctx.local_types[p_name] = p_type
+                                ctx.local_types[p_name] = self._clean_ts_type(p_type)
 
                 nodes.append(
                     self._create_node(
@@ -279,7 +286,7 @@ class JavaScriptParser(LanguageParser):
                 f_val_node = node.child_by_field_name("value")
                 if f_name_node:
                     f_name = f"this.{self._get_text(f_name_node)}"
-                    if f_type_node and (f_type := self._get_text(f_type_node).lstrip(": ").strip()):
+                    if f_type_node and (f_type := self._clean_ts_type(self._get_text(f_type_node))):
                         ctx.local_types[f_name] = f_type
                     elif f_val_node:
                         self._record_ts_val_type(f_name, f_val_node, ctx)
@@ -317,7 +324,7 @@ class JavaScriptParser(LanguageParser):
                                 edges.append(
                                     self._create_edge(parent_id, v_id, "defines", node=node)
                                 )
-                    if type_node and (v_type := self._get_text(type_node).lstrip(": ").strip()):
+                    if type_node and (v_type := self._clean_ts_type(self._get_text(type_node))):
                         ctx.local_types[v_name] = v_type
                     elif val_node:
                         self._record_ts_val_type(v_name, val_node, ctx)

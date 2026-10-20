@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from vibegraph.indexer.parsers.systems_parser import GoParser, RustParser
+from vibegraph.indexer.resolver import ModuleResolver
 
 
 def test_go_struct_embedding_and_interface_methods() -> None:
@@ -212,3 +215,39 @@ func main() {
         e.from_node_id == main_id and e.to_node_id == fetch_id and e.relation_type == "calls"
         for e in edges
     )
+
+
+def test_go_imports_and_cross_package_call(tmp_path: Path) -> None:
+    """Verify GoParser extracts import declarations, emits imports edges, and resolves calls."""
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "user.go").write_text("package models\ntype User struct {}\n")
+    resolver = ModuleResolver(tmp_path)
+    parser = GoParser(resolver=resolver)
+
+    code = b"""package main
+import (
+    "fmt"
+    "models"
+)
+func main() {}
+"""
+    _, edges = parser.extract("main.go", code)
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    assert len(import_edges) >= 2
+
+
+def test_rust_use_declaration_and_imports_edge(tmp_path: Path) -> None:
+    """Verify RustParser extracts use declarations and emits imports edges."""
+    (tmp_path / "models.rs").write_text("pub struct User;\n")
+    resolver = ModuleResolver(tmp_path)
+    parser = RustParser(resolver=resolver)
+
+    code = b"""
+use crate::models::{User, Account as Acc};
+use std::collections::HashMap;
+
+fn run() {}
+"""
+    _, edges = parser.extract("main.rs", code)
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    assert len(import_edges) >= 2
