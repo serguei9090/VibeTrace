@@ -43,6 +43,9 @@ node_modules/
 npm-debug.log
 yarn-error.log
 .pnpm-debug.log
+# Testing & Coverage
+.coverage*
+htmlcov/
 test-results/
 
 # IDE & Caches

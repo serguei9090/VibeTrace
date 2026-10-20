@@ -182,6 +182,15 @@ class EmbeddingEngine:
         if not self.is_available() or not query.strip() or limit <= 0:
             return []
 
+        # Fast check: avoid expensive neural forward-pass if database has no vectors
+        with db._get_conn() as conn:
+            has_embeddings = conn.execute(
+                "SELECT 1 FROM node_embeddings WHERE model_id = ? LIMIT 1",
+                (self.config.model_id,),
+            ).fetchone()
+            if not has_embeddings:
+                return []
+
         query_vecs = self.embed_texts([query])
         if not query_vecs:
             return []

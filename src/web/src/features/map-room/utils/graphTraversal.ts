@@ -128,6 +128,7 @@ export const computeSelectionHighlights = (
       const directIncoming = inEdges.get(selectedElement.id);
       if (directIncoming) {
         for (const e of directIncoming) {
+          if (e.relation_type === "defines") continue;
           highlightedNodes.add(e.from_node_id);
           highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
         }

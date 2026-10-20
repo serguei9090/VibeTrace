@@ -182,8 +182,19 @@ def reindex_all(
             for root, dirs, files in os.walk(target_path):
                 current_root = Path(root)
 
-                # 1. Prune standard noisy directories first (optimization)
-                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
+                # 1. Prune standard noisy and gitignored directories (optimization)
+                def _is_dir_ignored(d: str, root_dir: Path = current_root) -> bool:
+                    if d in skip_dirs or d.startswith("."):
+                        return True
+                    if not spec:
+                        return False
+                    try:
+                        rel_d = str((root_dir / d).relative_to(eff_root)).replace("\\", "/")
+                        return spec.match_file(f"{rel_d}/") or spec.match_file(rel_d)
+                    except ValueError:
+                        return False
+
+                dirs[:] = [d for d in dirs if not _is_dir_ignored(d)]
 
                 # 2. Filter files using gitignore
                 for file in files:

@@ -179,15 +179,30 @@ class IndexerDB(DBQueriesMixin):
         )
 
         with self._get_conn() as conn:
-            # 1. Clear previous data for this file (inbound & outbound edges)
+            # Detect symbols deleted from this file to cleanly prune orphaned inbound edges
+            old_node_ids = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT id FROM nodes WHERE file_path = ?", (file_path,)
+                ).fetchall()
+            }
+            new_node_ids = {n[0] for n in node_tuples}
+            deleted_node_ids = old_node_ids - new_node_ids
+
+            # 1. Clear previous outbound edges defined by this file
             conn.execute(
-                """
-                DELETE FROM edges 
-                WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
-                   OR to_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
-                """,
-                (file_path, file_path),
+                "DELETE FROM edges "
+                "WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
             )
+            # Prune inbound edges only for symbols that were actually removed from this file
+            if deleted_node_ids:
+                placeholders = ",".join("?" for _ in deleted_node_ids)
+                conn.execute(
+                    f"DELETE FROM edges WHERE to_node_id IN ({placeholders})",
+                    list(deleted_node_ids),
+                )
+
             conn.execute(
                 "DELETE FROM nodes_fts WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
                 (file_path,),

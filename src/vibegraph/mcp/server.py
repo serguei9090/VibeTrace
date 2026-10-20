@@ -399,11 +399,18 @@ async def vibegraph_get_call_tree(params: CallTreeInput) -> str:
 async def vibegraph_reindex_project(params: ReindexInput) -> str:
     """Reindex a file or directory recursively."""
     try:
-        db, root = _get_context_for_path(params.path)
+        db, root = _get_context_for_path(params.path, auto_sync=False)
         target_path = Path(params.path).resolve()
 
         with redirect_stdout(sys.stderr):
-            reindex_all(db, str(target_path), verbose=True, project_root=root)
+            reindex_all(
+                db,
+                str(target_path),
+                verbose=True,
+                force=params.force,
+                project_root=root,
+                use_lsp=params.use_lsp,
+            )
         return safe_str(f"✅ Successfully reindexed: {target_path}")
     except Exception as e:
         return handle_error(e, f"reindexing {params.path}")

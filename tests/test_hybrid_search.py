@@ -168,3 +168,22 @@ def test_node_embeddings_index_query_plan(tmp_path: Path):
         plan_cursor = conn.execute(plan_sql, ("test-model",))
         plan_rows = [row[3] for row in plan_cursor.fetchall()]
         assert any("idx_node_embeddings" in line for line in plan_rows)
+
+
+def test_search_semantic_empty_db_fast_path(tmp_path: Path):
+    """search_semantic should immediately return [] without invoking encoder when table is empty."""
+    db = _populate_sample_db(tmp_path)
+    called = False
+
+    def spy_encoder(texts):
+        nonlocal called
+        called = True
+        return [[0.1] * 64 for _ in texts]
+
+    config = EmbeddingConfig(model_id="empty-model", dimensions=64)
+    engine = EmbeddingEngine(config=config, encoder=spy_encoder)
+
+    # Empty node_embeddings table
+    results = engine.search_semantic(db, "authenticate", limit=10)
+    assert results == []
+    assert called is False, "Encoder was invoked even though node_embeddings was empty!"

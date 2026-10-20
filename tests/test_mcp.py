@@ -281,6 +281,34 @@ async def test_mcp_code_slice_and_call_tree_scope_priority(monkeypatch, tmp_path
     assert captured_paths[-1] == "/custom/project/root"
 
 
+@pytest.mark.asyncio
+async def test_mcp_reindex_project_params(monkeypatch, tmp_path):
+    """Verify vibegraph_reindex_project forwards force and use_lsp to reindex_all."""
+    from vibegraph.mcp.schemas import ReindexInput
+    from vibegraph.mcp.server import vibegraph_reindex_project
+
+    calls = []
+
+    def mock_reindex(db, target, verbose=True, force=False, project_root=None, use_lsp=False):
+        calls.append({"target": target, "force": force, "use_lsp": use_lsp})
+
+    def mock_get_context(path=None, auto_sync=False):
+        db = IndexerDB(str(tmp_path / "test_reindex.db"))
+        return db, tmp_path
+
+    import vibegraph.mcp.server
+
+    monkeypatch.setattr(vibegraph.mcp.server, "_get_context_for_path", mock_get_context)
+    monkeypatch.setattr(vibegraph.mcp.server, "reindex_all", mock_reindex)
+
+    params = ReindexInput(path=str(tmp_path), force=True, use_lsp=True)
+    res = await vibegraph_reindex_project(params)
+    assert "Successfully reindexed" in res
+    assert len(calls) == 1
+    assert calls[0]["force"] is True
+    assert calls[0]["use_lsp"] is True
+
+
 # =============================================================================
 # Tests for Unified CLI (vibegraph.cli)
 # =============================================================================

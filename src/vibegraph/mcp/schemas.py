@@ -98,6 +98,14 @@ class ReindexInput(BaseModel):
             "(Relative paths may fail context resolution)"
         ),
     )
+    force: bool = Field(
+        default=False,
+        description="Force re-indexing all files by bypassing Git-SHA delta cache",
+    )
+    use_lsp: bool = Field(
+        default=False,
+        description="Enable dynamic LSP hybrid bridge for type inference and re-exports",
+    )
 
 
 class ReferencesInput(BaseModel):

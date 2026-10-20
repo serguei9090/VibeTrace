@@ -1,3 +1,4 @@
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -17,12 +18,16 @@ class CodeChangeHandler(FileSystemEventHandler):
         db: IndexerDB,
         on_change: Callable[[], None] | None = None,
         root_path: str = ".",
+        debounce_seconds: float = 0.3,
     ):
         self.db = db
         self.on_change = on_change
         self.root_path = Path(root_path).resolve()
         self.resolver = ModuleResolver(self.root_path)
         self.gitignore_spec = self._load_gitignore()
+        self.debounce_seconds = debounce_seconds
+        self._debounce_timer: threading.Timer | None = None
+        self._lock = threading.Lock()
 
     def _load_gitignore(self):
         gitignore_path = self.root_path / ".gitignore"
@@ -60,6 +65,11 @@ class CodeChangeHandler(FileSystemEventHandler):
         if any(p in path.parts for p in ignore_patterns):
             return True
 
+        # Ignore editor swap / temporary files
+        fname = path.name
+        if fname.startswith((".", "#")) or fname.endswith(("~", ".tmp", ".swp", ".bak")):
+            return True
+
         if self.gitignore_spec:
             try:
                 rel_path = path.relative_to(self.root_path)
@@ -77,21 +87,37 @@ class CodeChangeHandler(FileSystemEventHandler):
             except Exception as e:
                 print(f"Error in watcher callback: {e}")
 
+    def _schedule_post_sync(self) -> None:
+        """Debounce centrality recalculation and WebSocket broadcast across burst changes."""
+        with self._lock:
+            if self._debounce_timer is not None:
+                self._debounce_timer.cancel()
+
+            def _run():
+                try:
+                    self.db.update_centrality_scores()
+                except Exception as e:
+                    print(f"Error updating centrality scores: {e}")
+                self._notify()
+
+            self._debounce_timer = threading.Timer(self.debounce_seconds, _run)
+            self._debounce_timer.daemon = True
+            self._debounce_timer.start()
+
     def on_modified(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
         rel_path = self._to_rel_path(src_path)
         print(f"File modified: {rel_path}")
-        if index_file(
+        index_file(
             self.db,
             src_path,
             project_root=self.root_path,
             resolver=self.resolver,
             force=True,
-        ):
-            self.db.update_centrality_scores()
-        self._notify()
+        )
+        self._schedule_post_sync()
 
     def on_created(self, event):
         src_path = str(event.src_path)
@@ -100,15 +126,14 @@ class CodeChangeHandler(FileSystemEventHandler):
         rel_path = self._to_rel_path(src_path)
         print(f"File created: {rel_path}")
         self.resolver.add_file(rel_path)
-        if index_file(
+        index_file(
             self.db,
             src_path,
             project_root=self.root_path,
             resolver=self.resolver,
             force=True,
-        ):
-            self.db.update_centrality_scores()
-        self._notify()
+        )
+        self._schedule_post_sync()
 
     def on_deleted(self, event):
         src_path = str(event.src_path)
@@ -118,8 +143,7 @@ class CodeChangeHandler(FileSystemEventHandler):
         print(f"File deleted: {rel_path}")
         self.resolver.remove_file(rel_path)
         self.db.clear_file(rel_path)
-        self.db.update_centrality_scores()
-        self._notify()
+        self._schedule_post_sync()
 
     def on_moved(self, event):
         src_path = str(event.src_path)
@@ -133,17 +157,14 @@ class CodeChangeHandler(FileSystemEventHandler):
         self.db.clear_file(rel_src)
         if not self._should_ignore(dest_path):
             self.resolver.add_file(rel_dest)
-            if index_file(
+            index_file(
                 self.db,
                 dest_path,
                 project_root=self.root_path,
                 resolver=self.resolver,
                 force=True,
-            ):
-                self.db.update_centrality_scores()
-        else:
-            self.db.update_centrality_scores()
-        self._notify()
+            )
+        self._schedule_post_sync()
 
 
 def start_observer(path: str, db: IndexerDB, callback: Callable[[], None] | None = None) -> Any:
