@@ -19,7 +19,7 @@ jobs:
           cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync --all-groups
@@ -30,8 +30,11 @@ jobs:
       - name: Check formatting with ruff
         run: uv run ruff format --check .
 
-      - name: Type check with mypy
-        run: uv run mypy .
+      - name: Type check with pyright
+        run: uv run pyright
 
       - name: Run tests
         run: uv run pytest
+
+      - name: Verify package build
+        run: uv build

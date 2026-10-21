@@ -297,3 +297,61 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     uvicorn.run("vibegraph.server_api:app", host=args.host, port=args.port)
     return 0
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    from vibegraph.skill_installer import initialize_workspace
+
+    root = Path(getattr(args, "path", ".") or ".").resolve()
+    no_index = getattr(args, "no_index", False)
+    global_skill = getattr(args, "global_skill", False)
+
+    res = initialize_workspace(root, no_index=no_index, global_skill=global_skill)
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+        return 0
+
+    print("🎉 VibeGraph workspace initialized successfully!")
+    print(f"- **Project Root**: `{res['project_root']}`")
+    print(f"- **Local Database**: `{res['db_path']}` (isolated per-project)")
+    if res["gitignore_updated"]:
+        print(f"- **.gitignore Updated**: added `{', '.join(res['added_ignores'])}`")
+    else:
+        print("- **.gitignore**: already configured")
+    if res["installed_skills"]:
+        print(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
+    if res["indexed"]:
+        print(f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations")
+
+    print("\nNext steps:")
+    print('  vibegraph search "<query>"        # 4-stream hybrid AST + BM25 search')
+    print('  vibegraph trace "from" "to"       # Bidirectional execution trace')
+    print("  vibegraph serve                    # Launch Map Room visualizer (port 8000)")
+    return 0
+
+
+def cmd_skill(args: argparse.Namespace) -> int:
+    from vibegraph.skill_installer import install_skill
+
+    root = Path(getattr(args, "path", ".") or ".").resolve()
+    global_skill = getattr(args, "global_skill", False)
+    action = getattr(args, "action", "install")
+
+    if action == "install":
+        paths = install_skill(root, global_install=global_skill)
+        if getattr(args, "json", False):
+            print(json.dumps({"status": "ok", "installed_paths": [str(p) for p in paths]}))
+        else:
+            print(f"✅ VibeGraph Navigator skill installed to: {', '.join(str(p) for p in paths)}")
+        return 0
+    return 0
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    from vibegraph.mcp.server import main as mcp_main
+
+    root = str(Path(getattr(args, "path", ".") or ".").resolve())
+    sys.argv = ["vibegraph-mcp", "--path", root]
+    mcp_main()
+    return 0

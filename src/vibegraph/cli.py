@@ -10,8 +10,11 @@ from vibegraph.cli_commands import (
     cmd_hooks,
     cmd_impact,
     cmd_index,
+    cmd_init,
+    cmd_mcp,
     cmd_search,
     cmd_serve,
+    cmd_skill,
     cmd_slice,
     cmd_summary,
     cmd_trace,
@@ -27,6 +30,9 @@ _cmd_impact = cmd_impact
 _cmd_summary = cmd_summary
 _cmd_hooks = cmd_hooks
 _cmd_serve = cmd_serve
+_cmd_init = cmd_init
+_cmd_skill = cmd_skill
+_cmd_mcp = cmd_mcp
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -268,6 +274,69 @@ examples:
     p_hooks.add_argument("--path", default=".", help="Project root directory path")
     p_hooks.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_hooks.set_defaults(func=_cmd_hooks)
+
+    # init
+    p_init = sub.add_parser(
+        "init",
+        help="Initialize VibeGraph in workspace (.gitignore, skill, isolated db)",
+        description=(
+            "Set up a project workspace with local .gitignore rules, install the "
+            "vibegraph-navigator agent skill, and perform initial indexing."
+        ),
+    )
+    p_init.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Project workspace path to initialize (default: current directory)",
+    )
+    p_init.add_argument(
+        "--no-index", action="store_true", help="Skip running initial index immediately"
+    )
+    p_init.add_argument(
+        "--global",
+        dest="global_skill",
+        action="store_true",
+        help="Also install skill into user global agent skills directory",
+    )
+    p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_init.set_defaults(func=_cmd_init)
+
+    # skill
+    p_skill = sub.add_parser(
+        "skill",
+        help="Manage and install VibeGraph agent skills",
+        description="Install the vibegraph-navigator skill for AI agents in workspace or globally.",
+    )
+    p_skill.add_argument(
+        "action",
+        nargs="?",
+        choices=["install"],
+        default="install",
+        help="Skill action: 'install' (default: install)",
+    )
+    p_skill.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_skill.add_argument(
+        "--global",
+        dest="global_skill",
+        action="store_true",
+        help="Install into user global agent skills directory",
+    )
+    p_skill.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_skill.set_defaults(func=_cmd_skill)
+
+    # mcp
+    p_mcp = sub.add_parser(
+        "mcp",
+        help="Launch VibeGraph Model Context Protocol (MCP) stdio server",
+        description="Run the MCP stdio transport server for Claude, Cursor, and other agents.",
+    )
+    p_mcp.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_mcp.set_defaults(func=_cmd_mcp)
 
     return parser
 
