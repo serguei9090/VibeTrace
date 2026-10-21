@@ -6,8 +6,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.services.saved_traces_service import (
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.services.saved_traces_service import (
     SavedTraceCreate,
     create_saved_trace,
     delete_saved_trace,
@@ -71,7 +71,7 @@ def test_saved_traces_crud_service(tmp_path: Path) -> None:
 
 def test_saved_traces_api_endpoints() -> None:
     """Verify REST endpoints for saved traces in server_api."""
-    from vibegraph.server_api import app
+    from vibetrace.server_api import app
 
     client = TestClient(app)
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.git_utils import get_git_delta, get_git_sha
-from vibegraph.indexer.main import reindex_all
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.git_utils import get_git_delta, get_git_sha
+from vibetrace.indexer.main import reindex_all
 
 
 def test_get_git_sha_current_repo() -> None:

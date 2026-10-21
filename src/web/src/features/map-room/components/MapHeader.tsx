@@ -50,7 +50,7 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           gap: "8px",
         }}
       >
-        <span>VIBEGRAPH</span>
+        <span>VIBETRACE</span>
         <span
           style={{
             fontSize: "11px",

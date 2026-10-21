@@ -1,6 +1,6 @@
 """Real-world codespace self-indexing integration test suite.
 
-Indexes the active VibeGraph repository (I:\\01-Master_Code\\Apps\\VibeGraph\\src)
+Indexes the active VibeTrace repository (I:\\01-Master_Code\\Apps\\VibeTrace\\src)
 to verify indexing accuracy, cross-file barrel re-exports, route extraction,
 call hierarchy, recursive CTE pathfinding, and zero phantom builtins on real production code.
 """
@@ -9,17 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.call_tree_service import build_call_tree, format_call_tree_md
-from vibegraph.services.graph_service import get_context_for_path
-from vibegraph.services.trace_service import trace_execution_path
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.call_tree_service import build_call_tree, format_call_tree_md
+from vibetrace.services.graph_service import get_context_for_path
+from vibetrace.services.trace_service import trace_execution_path
 
 
 @pytest.fixture(scope="module")
 def indexed_codespace_db(tmp_path_factory):
-    """Index the actual VibeGraph codebase into an isolated temporary database."""
-    temp_dir = tmp_path_factory.mktemp("vibegraph_self_index")
+    """Index the actual VibeTrace codebase into an isolated temporary database."""
+    temp_dir = tmp_path_factory.mktemp("vibetrace_self_index")
     db_file = temp_dir / "codespace_self.db"
     db = IndexerDB(str(db_file))
 

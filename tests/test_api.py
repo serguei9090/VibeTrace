@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
-from vibegraph.server_api import app
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.server_api import app
 
 client = TestClient(app)
 
@@ -10,7 +10,7 @@ client = TestClient(app)
 @pytest.fixture
 def mock_db(monkeypatch, tmp_path):
     """Overrides the global db and project_root in server_api.py to use a temp file DB."""
-    db_file = tmp_path / "test_api_vibegraph.db"
+    db_file = tmp_path / "test_api_vibetrace.db"
     db = IndexerDB(str(db_file))
 
     (tmp_path / "a.py").write_text(
@@ -44,10 +44,10 @@ def mock_db(monkeypatch, tmp_path):
     db.upsert_edge(Edge(from_node_id="a", to_node_id="b", relation_type="calls", call_line=2))
 
     # Monkeypatch the 'db' and 'project_root' variables in server_api
-    import vibegraph.server_api
+    import vibetrace.server_api
 
-    monkeypatch.setattr(vibegraph.server_api, "db", db)
-    monkeypatch.setattr(vibegraph.server_api, "project_root", tmp_path)
+    monkeypatch.setattr(vibetrace.server_api, "db", db)
+    monkeypatch.setattr(vibetrace.server_api, "project_root", tmp_path)
     return db
 
 
@@ -147,9 +147,9 @@ def test_source_endpoint_empty_file(mock_db, tmp_path):
 def test_server_api_root_env_override(monkeypatch, tmp_path):
     import os
 
-    from vibegraph.services.graph_service import get_context_for_path
+    from vibetrace.services.graph_service import get_context_for_path
 
-    monkeypatch.setenv("VIBEGRAPH_PROJECT_ROOT", str(tmp_path))
-    root_override = os.environ.get("VIBEGRAPH_PROJECT_ROOT")
+    monkeypatch.setenv("VIBETRACE_PROJECT_ROOT", str(tmp_path))
+    root_override = os.environ.get("VIBETRACE_PROJECT_ROOT")
     _, proj_root = get_context_for_path(".", root_override=root_override, auto_sync=False)
     assert proj_root.resolve() == tmp_path.resolve()

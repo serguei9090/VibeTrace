@@ -2,15 +2,15 @@
 
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB, Node
-from vibegraph.indexer.embeddings import (
+from vibetrace.indexer.db import IndexerDB, Node
+from vibetrace.indexer.embeddings import (
     EmbeddingConfig,
     EmbeddingEngine,
     build_symbol_document,
     truncate_and_normalize,
     unpack_vector,
 )
-from vibegraph.services.hybrid_search import hybrid_search
+from vibetrace.services.hybrid_search import hybrid_search
 
 
 def _populate_sample_db(tmp_path: Path) -> IndexerDB:

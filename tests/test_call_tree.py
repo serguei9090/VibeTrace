@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from vibegraph.cli import main
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.call_tree_service import (
+from vibetrace.cli import main
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.call_tree_service import (
     CallTreeNode,
     build_call_tree,
     format_call_tree_md,
@@ -44,9 +44,9 @@ def _create_sample_tree_project(tmp_path: Path) -> IndexerDB:
         encoding="utf-8",
     )
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
     return db
 
@@ -66,9 +66,9 @@ def _create_cyclic_project(tmp_path: Path) -> IndexerDB:
         encoding="utf-8",
     )
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
     return db
 

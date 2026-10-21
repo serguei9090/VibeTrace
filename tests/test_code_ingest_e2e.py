@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.call_tree_service import build_call_tree
-from vibegraph.services.graph_service import (
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.call_tree_service import build_call_tree
+from vibetrace.services.graph_service import (
     compute_impact_analysis,
     get_code_slice,
     trace_execution_path,
 )
-from vibegraph.services.hybrid_search import hybrid_search
+from vibetrace.services.hybrid_search import hybrid_search
 
 
 def test_code_ingest_multilanguage_e2e(tmp_path: Path) -> None:
-    """Verify full VibeGraph capabilities across Python, TS, Go, Rust, C++, and Java."""
+    """Verify full VibeTrace capabilities across Python, TS, Go, Rust, C++, and Java."""
     root_dir = Path(__file__).resolve().parent.parent / "CodeIngestTest"
     assert root_dir.exists(), f"CodeIngestTest directory missing at {root_dir}"
 

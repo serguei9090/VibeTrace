@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vibegraph.indexer.parsers.js_ts_parser import TypeScriptParser
+from vibetrace.indexer.parsers.js_ts_parser import TypeScriptParser
 
 
 def test_clientside_fetch_and_axios_route_extraction() -> None:
@@ -42,9 +42,9 @@ export function UserProfile() {
 
 def test_end_to_end_cross_language_fullstack_trace(tmp_path) -> None:
     """Trace from frontend React/TSX function to backend Python handler through shared endpoint."""
-    from vibegraph.indexer.db import IndexerDB
-    from vibegraph.indexer.main import reindex_all
-    from vibegraph.services.graph_service import trace_execution_path
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.indexer.main import reindex_all
+    from vibetrace.services.graph_service import trace_execution_path
 
     # Create fullstack project layout
     web_dir = tmp_path / "src" / "web"
@@ -74,9 +74,9 @@ def test_end_to_end_cross_language_fullstack_trace(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
 
     # Verify both frontend and backend share the SAME canonical endpoint ID

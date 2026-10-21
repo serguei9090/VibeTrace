@@ -1,221 +1,159 @@
-# VibeGraph: The Nervous System MCP
-## This is a personal learning project created for educational purposes and to explore different code concepts with ai concepts. 
+# VibeTrace: The Code Intelligence & Execution Trace MCP
 
-* **Status:** Personal sandbox / Portfolio piece.
-* **License:** This project is open-source and available for public educational use under the MIT License.
-* **Purpose:** Academic research and technical skill development.
-* 
-![CI](https://github.com/serguei9090/VibeGraph/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/serguei9090/VibeTrace/actions/workflows/ci.yml/badge.svg)](https://github.com/serguei9090/VibeTrace/actions)
+[![PyPI](https://img.shields.io/pypi/v/vibetrace.svg)](https://pypi.org/project/vibetrace/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
 
 > **Philosophy**: Structural Truth > Statistical Guessing
 
-VibeGraph is a code intelligence system that treats your codebase as a **nervous system**. Instead of vector embeddings and similarity search, it uses Tree-sitter for AST parsing and SQLite for relational queries. The result? A structural graph that AI agents can query and you can visualize in real-time.
+**VibeTrace** is an intelligent code analysis and navigation engine that treats your codebase as a living execution nervous system. Instead of relying solely on probabilistic embedding models that miss call hierarchies or hallucinate links, VibeTrace builds a deterministic relational graph of your code using Tree-sitter AST extraction, SQLite FTS5 lexical ranking, and bidirectional BFS pathfinding with exact 1-indexed call-site line numbers.
 
-## Features
+Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Cursor, Cline) and developers working across massive codebases.
 
-- **🧠 Structural Indexing**: Tree-sitter AST parsing for high-fidelity extraction of classes, functions, and types.
-- **🛡️ Advanced Metadata**: Now indexes **Visibility** (public/private) and **Decorators** (e.g., `@mcp.tool`, `@property`).
-- **🔍 MCP Server**: AI-queryable tools for deep code reasoning.
-- **⚡ Transitive Impact Analysis**: Trace the "Blast Radius" of a change up to 3 levels deep.
-- **🗺️ Map Room**: React Flow visualizer with live updates and force-directed layouts.
-- **🧬 Breadcrumb Tracing**: Call stacks include full context paths (`A > B > C`), preventing confusion in deep recursion.
-- **📦 Dependency Intelligence**: Automatically categorizes imports into **Internal**, **Third-Party**, and **Standard Library**.
-- **🧪 Fully Tested**: Robust Pytest suite covering the parser, MCP tools, and API.
+---
 
-## Supported Languages
+## ⚡ Key Capabilities
 
-VibeGraph uses Tree-sitter for high-fidelity structural extraction. Support levels vary by language:
+- **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill, sets up an isolated project database, and performs initial indexing.
+- **🗺️ Bidirectional BFS Tracepaths (`vibetrace trace`)**: Finds the shortest and alternative call chains between any two functions, classes, or HTTP endpoints with exact `file.py:L<line>` coordinates.
+- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`).
+- **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
+- **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
+- **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
+- **🤖 Native Model Context Protocol (`vibetrace mcp`)**: 10 purpose-built MCP tools that empower AI coding agents to navigate, trace, and inspect code surgically.
+- **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web graph visualizer with live agent radar tracking.
 
-| Language | Extensions | Support Level | Extracted Features |
+---
+
+## 💻 Supported Languages
+
+VibeTrace provides first-class multi-language AST extraction:
+
+| Language | Extensions | Support Level | Features |
 | :--- | :--- | :--- | :--- |
-| **Python** | `.py` | 🔥 Full | Classes, Functions, Imports, Docstrings, **Decorators**, **Visibility** |
-| **JavaScript/TS** | `.js`, `.ts`, `.tsx` | 💎 High | Classes, Functions, Interfaces, Inherits/Implements, **Decorators** |
-| **Go** | `.go` | ✅ Solid | Structs, Interfaces, Functions, Methods |
-| **Rust** | `.rs` | ✅ Solid | Structs, Traits, Impls, Functions |
-| **Java** | `.java` | 🛠️ Generic | Classes, Methods, Inheritance (Base extraction) |
-| **C / C++** | `.c`, `.cpp`, `.h` | 🛠️ Generic | Functions, Classes/Structs |
-| **C# / Ruby / PHP**| `.cs`, `.rb`, `.php` | 🛠️ Generic | Basic Structural Nodes |
+| **Python** | `.py` | 🔥 Full | Classes, Functions, Imports, Wildcards, Decorators, Visibility, Type hints |
+| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | ES Imports, CommonJS `require()` destructuring, Dynamic `import()`, Interfaces, Classes, JSX elements |
+| **Go** | `.go` | ✅ Solid | Packages, Structs, Interfaces, Receivers, Constructor types, `var` specs |
+| **Rust** | `.rs` | ✅ Solid | Crates, `mod item;` submodules, `mod.rs` barrel resolution, Traits, Impls |
+| **Java** | `.java` | ✅ Solid | Packages, Classes, Interfaces, Method-local variable types, Call hierarchies |
+| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Solid | Functions, Classes, Structs, Preprocessor includes |
+| **C# / Ruby / PHP** | `.cs`, `.rb`, `.php` | 🛠️ Generic | Structural symbol extraction |
 
-## Quick Start
+---
 
-### Prerequisites
-- Python 3.11 or 3.12 (Python 3.13+ not yet supported due to `tree-sitter-languages` compatibility).
-- Node.js 18+ (for frontend).
-- [`uv`](https://github.com/astral-sh/uv) package manager.
+## 🚀 Quick Start
 
 ### Installation
 
+#### Global Tool via `uv` (Recommended)
 ```bash
-# Clone and navigate
-git clone https://github.com/serguei9090/VibeGraph.git
-cd VibeGraph
+uv tool install vibetrace
+```
 
-# Install Python dependencies (core AST + FTS5 BM25)
+#### Via `pip`
+```bash
+pip install vibetrace
+```
+
+#### Optional: Local Vector Embeddings (EmbeddingGemma 2 + sqlite-vec)
+```bash
+uv tool install "vibetrace[embeddings]"
+```
+
+---
+
+### Initializing Any Project
+
+Navigate to any codebase and run:
+
+```bash
+cd /path/to/my-project
+
+# 1-click onboarding: updates .gitignore, installs agent skill, indexes codebase
+vibetrace init
+```
+
+That's it! `vibetrace.db` is created locally inside that project and never shared across projects.
+
+---
+
+### Core CLI Usage
+
+```bash
+# 1. 4-Stream Hybrid Search
+vibetrace search "authentication flow"
+
+# 2. Bidirectional Execution Trace
+vibetrace trace "handleLogin" "verifyPassword"
+
+# Trace web route to backend service handler
+vibetrace trace "GET /api/users" "queryUsersFromDB"
+
+# Bookmark and re-run saved traces
+vibetrace trace "handleLogin" "verifyPassword" --save-as "AuthFlow"
+vibetrace trace --saved "AuthFlow"
+
+# 3. Surgical Code Slicing (token-efficient)
+vibetrace slice "AuthService.login"
+
+# 4. Top-Down Recursive Call Tree
+vibetrace call-tree "main" --depth 3
+
+# 5. Blast Radius Impact Analysis
+vibetrace impact src/auth/service.py
+
+# 6. Launch Map Room Web Visualizer (http://localhost:8000)
+vibetrace serve
+```
+
+---
+
+## 🤖 Configuring AI Agents (Claude Desktop, Cursor, Antigravity, Cline)
+
+Add VibeTrace to your agent's MCP configuration (`claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "vibetrace": {
+      "command": "vibetrace",
+      "args": ["mcp", "--path", "/path/to/your/project"]
+    }
+  }
+}
+```
+
+The agent will automatically gain access to:
+- `vibetrace_semantic_search`
+- `vibetrace_trace_path`
+- `vibetrace_get_code_slice`
+- `vibetrace_impact_analysis`
+- `vibetrace_find_references`
+- `vibetrace_get_call_tree`
+
+---
+
+## 🛠️ Development & Contributing
+
+```bash
+git clone https://github.com/serguei9090/VibeTrace.git
+cd VibeTrace
+
+# Install dependencies
 uv sync
 
-# Optional: Install local EmbeddingGemma 2 + sqlite-vec semantic search extras
-uv pip install -e ".[embeddings]"
+# Run the full test suite (164 tests)
+uv run pytest
 
-# Install frontend dependencies (Bun + Biome + React Flow v12)
-bun install --cwd src/web
+# Lint and format
+uv run ruff check .
+uv run ruff format .
+uv run pyright
 ```
 
-### Global CLI & MCP Installation via `uv tool`
+---
 
-You can install VibeGraph system-wide so that `vibegraph` and `vibegraph-mcp` are available globally from any directory:
+## 📜 License
 
-```bash
-# Global editable install (changes to local code reflect immediately without reinstalling)
-uv tool install --force --python 3.12 -e .
-
-# Or standard global installation
-uv tool install --python 3.12 .
-```
-
-Verify global commands from any directory:
-```bash
-vibegraph --help
-vibegraph-mcp --help
-```
-
-### Unified `vibegraph` CLI
-
-VibeGraph provides a unified CLI for both AI agents and developers:
-
-```bash
-# 1. Index your codebase (Git-SHA delta cache + AST + FTS5 BM25 + Centrality Boost)
-vibegraph index .
-
-# Optional: Index with local 256d Matryoshka EmbeddingGemma 2 vectors
-vibegraph index . --embed
-
-# Optional: Enable LSP hybrid bridge for dynamic types and re-exports
-vibegraph index . --lsp
-
-# 2. Hybrid 4-Stream RRF Search (AST Exact + FTS5 BM25 + Vectors + Centrality Boost)
-vibegraph search "upsert_node"
-
-# 3. Bidirectional BFS Execution Tracepath with exact call-site line numbers
-vibegraph trace vibegraph_get_structural_summary format_structural_summary_md
-
-# Trace web endpoints to backend handlers (Framework Route Mapping)
-vibegraph trace "GET /graph" get_graph
-
-# Save and bookmark architectural tracepaths
-vibegraph trace "GET /graph" get_graph --save-as "GraphEndpointFlow"
-vibegraph trace --list-saved
-vibegraph trace --saved "GraphEndpointFlow"
-
-# 4. Top-Down Recursive Call-Tree Hierarchy with line coordinates and cycle detection
-vibegraph call-tree hybrid_search --depth 3
-
-# 5. Surgical Source Code Slice (exact start_line..end_line + outgoing callee contracts)
-vibegraph slice IndexerDB.upsert_node
-
-# 6. Transitive 3-Level Blast Radius (Impact Analysis)
-vibegraph impact src/vibegraph/indexer/db.py
-
-# 7. Automated Hook Management (Post-Commit / Post-Merge Indexing)
-vibegraph hooks status
-vibegraph hooks install
-vibegraph hooks uninstall
-
-# 8. Start the FastAPI & WebSocket Map Room Server (http://localhost:8000)
-vibegraph serve
-```
-
-### Zero-Friction Indexing: Lazy JIT & Git Hooks
-
-VibeGraph guarantees your index is always fresh without repetitive manual commands:
-- **Lazy JIT Auto-Sync**: Queries (CLI and MCP) automatically check for uncommitted/dirty file edits using Git-SHA and file modification time deltas. Changes are incrementally re-indexed on the fly in $<20\text{ms}$ before queries execute (pass `--no-sync` to disable).
-- **Automated Post-Commit / Post-Merge Hooks**: Run `vibegraph hooks install` to automatically detect and append background indexing to Lefthook (`lefthook.yml`) or native Git hooks (`.git/hooks/`). This cleanly updates the local index without polluting commit history or causing merge conflicts.
-
-
-### Running the Web Map Room 2.0
-
-```bash
-bun run --cwd src/web dev
-# Visualizer runs on http://localhost:5173
-```
-
-### Starting the MCP Server (Claude Desktop / Cursor / Antigravity)
-
-VibeGraph includes a FastMCP server running over `stdio` or `sse`.
-
-**Connecting to Claude Desktop / Cursor / Antigravity:**
-Add VibeGraph to your `claude_desktop_config.json` or IDE MCP settings:
-```json
-{
-  "mcpServers": {
-    "vibegraph": {
-      "command": "vibegraph-mcp"
-    }
-  }
-}
-```
-
-Or without installing globally:
-```json
-{
-  "mcpServers": {
-    "vibegraph": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/VibeGraph", "vibegraph-mcp"]
-    }
-  }
-}
-```
-
-## MCP Tools (The Intelligence Layer)
-
-VibeGraph exposes 10 **Model Context Protocol (MCP)** tools in `src/vibegraph/mcp/server.py`:
-
-- **`vibegraph_get_call_tree(symbol_name, max_depth, file_path)`**: **Top-Down Recursive Call Hierarchy**. Explores direct and nested callees from an entry point down to leaf database or system primitives with cycle-safe ASCII connectors and exact call-site line numbers.
-- **`vibegraph_trace_execution_path(from_symbol, to_symbol, max_depth)`**: **Bidirectional BFS** execution tracepath finding shortest and divergent call chains between two symbols with exact `file_path:L<call_line>` hops.
-- **`vibegraph_get_code_slice(symbol_name, file_path, include_callees)`**: Reads only the exact `start_line..end_line` of a symbol from disk plus compact signatures of its direct outgoing callees in a single round-trip.
-- **`vibegraph_search(query, limit, scope_path)`**: 3-stream **Reciprocal Rank Fusion (RRF)** combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, and local `EmbeddingGemma 2` (256d Matryoshka) cosine similarity.
-- **`vibegraph_get_impact(file_path)`**: **Transitive Impact Analysis**. Returns Direct (L1), Secondary (L2), and Deep (L3) blast radius of changing a file with dependency risk scoring.
-- **`vibegraph_get_structure(file_path)`**: Returns all definitions in a file with visibility icons (`[f]`, `[c]`), scoped `qualified_name`, signatures, and decorators.
-- **`vibegraph_find_references(symbol_name, scope_path)`**: Finds all call-sites and references to a specific function or class across the project.
-- **`vibegraph_get_file_tree(scope_path)`**: Lists all indexed files organized by directory.
-- **`vibegraph_reindex_project(path)`**: Triggers an incremental refresh of the index for a directory or file.
-
-## Map Room 2.0 (`@xyflow/react` v12 + ELK.js)
-
-The Web Visualizer (`src/web/`) features 3 switchable ELK layout engines and live AI Agent telemetry:
-
-### Switchable Layout Modes
-- **Architecture Map (`rectpacking`)**: Hierarchical District $\rightarrow$ File $\rightarrow$ Symbol compound node packing.
-- **Tracepath LR (`layered` RIGHT)**: Left-to-right execution pipeline with `#1, #2, ...` hop badges and `:L<call_line>` edge labels.
-- **Blast Radius (`layered` DOWN)**: Tiered L0 $\rightarrow$ L1 $\rightarrow$ L2 $\rightarrow$ L3 upstream impact tree.
-
-### Interactive Drawers & Live Agent Radar
-- **Tracepath Bar (`TracePathBar.tsx`)**: Pick any two symbols with autocomplete to isolate and animate the shortest execution path between them.
-- **Code Inspector Drawer (`CodeInspectorDrawer.tsx`)**: Click any symbol node or call edge to view its exact source code slice (`start_line..end_line`), docstring, and highlighted `call_line`.
-- **Follow AI Agent (`AgentRadarBadge.tsx`)**: Live WebSocket sync (`/api/agent-focus`) that automatically highlights symbols and tracepaths as your AI agent queries the codebase via CLI or MCP.
-
-## Project Structure
-
-```text
-VibeGraph/
-├── .agents/skills/
-│   ├── mcp-builder/          # MCP server authoring skill
-│   └── vibegraph-navigator/  # Surgical code navigation & tracepath skill
-├── docs/
-│   ├── api/                  # CLI & MCP tool reference
-│   ├── architecture/         # System roadmap & architecture docs
-│   └── guides/               # Developer guides
-├── src/vibegraph/
-│   ├── cli.py                # Unified vibegraph CLI
-│   ├── indexer/              # Modular Tree-sitter parsers, FTS5, & EmbeddingGemma 2
-│   ├── mcp/                  # MCP Server tools, Pydantic V2 schemas, & formatters
-│   ├── services/             # Graph traversal, Hybrid RRF search, & Trace/Slice services
-│   └── server_api.py         # FastAPI + WebSocket backend (/graph, /trace, /source, /api/agent-focus)
-├── src/web/                  # React 19 + @xyflow/react v12 + ELK.js + Biome frontend
-└── tests/                    # Pytest suite (51 tests)
-```
-
-## License
-
-MIT
-
+MIT License. Copyright (c) 2026 Serguei.

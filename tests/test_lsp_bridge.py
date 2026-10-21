@@ -6,8 +6,8 @@ import threading
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
-from vibegraph.indexer.lsp_bridge import (
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.lsp_bridge import (
     LSPClient,
     get_default_lsp_command,
     resolve_unresolved_edges,

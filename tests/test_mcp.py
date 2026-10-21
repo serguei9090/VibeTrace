@@ -1,5 +1,5 @@
 """
-Tests for VibeGraph MCP Server.
+Tests for VibeTrace MCP Server.
 
 Tests the refactored MCP tools with Pydantic input models and async functions.
 """
@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from vibegraph.cli import main as cli_main
-from vibegraph.indexer.db import Edge, IndexerDB, Node
-from vibegraph.mcp.server import (
+from vibetrace.cli import main as cli_main
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.mcp.server import (
     CallStackInput,
     CallTreeInput,
     CodeSliceInput,
@@ -21,13 +21,13 @@ from vibegraph.mcp.server import (
     StructuralSummaryInput,
     TraceDirection,
     TracePathInput,
-    vibegraph_get_call_stack,
-    vibegraph_get_call_tree,
-    vibegraph_get_code_slice,
-    vibegraph_get_structural_summary,
-    vibegraph_impact_analysis,
-    vibegraph_semantic_search,
-    vibegraph_trace_path,
+    vibetrace_get_call_stack,
+    vibetrace_get_call_tree,
+    vibetrace_get_code_slice,
+    vibetrace_get_structural_summary,
+    vibetrace_impact_analysis,
+    vibetrace_semantic_search,
+    vibetrace_trace_path,
 )
 
 
@@ -47,7 +47,7 @@ def mock_db(monkeypatch, tmp_path):
     )
 
     # Create a temp DB file
-    db_file = tmp_path / "test_vibegraph.db"
+    db_file = tmp_path / "test_vibetrace.db"
     db = IndexerDB(str(db_file))
 
     # Use relative paths for consistency with the new normalization
@@ -89,17 +89,17 @@ def mock_db(monkeypatch, tmp_path):
     db.upsert_edge(Edge(from_node_id="b", to_node_id="a", relation_type="calls", call_line=3))
 
     # Monkeypatch - mocked root is tmp_path
-    import vibegraph.mcp.server
+    import vibetrace.mcp.server
 
     monkeypatch.setattr(
-        vibegraph.mcp.server, "_get_context_for_path", lambda path=None: (db, Path(tmp_path))
+        vibetrace.mcp.server, "_get_context_for_path", lambda path=None: (db, Path(tmp_path))
     )
 
     return db
 
 
 # =============================================================================
-# Tests for vibegraph_get_structural_summary
+# Tests for vibetrace_get_structural_summary
 # =============================================================================
 
 
@@ -107,7 +107,7 @@ def mock_db(monkeypatch, tmp_path):
 async def test_get_structural_summary(mock_db, tmp_path):
     """Test structural summary returns correct info."""
     params = StructuralSummaryInput(file_path=str(tmp_path / "a.py"))
-    summary = await vibegraph_get_structural_summary(params)
+    summary = await vibetrace_get_structural_summary(params)
 
     # After path normalization, output contains absolute path
     assert "- [f] **func_a** `(x)` (L1-3)" in summary
@@ -120,7 +120,7 @@ async def test_get_structural_summary_json(mock_db, tmp_path):
         file_path=str(tmp_path / "a.py"),
         response_format=ResponseFormat.JSON,
     )
-    summary = await vibegraph_get_structural_summary(params)
+    summary = await vibetrace_get_structural_summary(params)
 
     # Should be valid JSON with expected fields
     import json
@@ -135,13 +135,13 @@ async def test_get_structural_summary_json(mock_db, tmp_path):
 async def test_get_structural_summary_not_found(mock_db, tmp_path):
     """Test structural summary for non-indexed file."""
     params = StructuralSummaryInput(file_path=str(tmp_path / "nonexistent.py"))
-    summary = await vibegraph_get_structural_summary(params)
+    summary = await vibetrace_get_structural_summary(params)
 
     assert "not be indexed" in summary
 
 
 # =============================================================================
-# Tests for vibegraph_get_call_stack
+# Tests for vibetrace_get_call_stack
 # =============================================================================
 
 
@@ -151,7 +151,7 @@ async def test_get_call_stack_up(mock_db, tmp_path):
     params = CallStackInput(
         node_name="func_a", direction=TraceDirection.UP, file_path=str(tmp_path / "a.py")
     )
-    trace = await vibegraph_get_call_stack(params)
+    trace = await vibetrace_get_call_stack(params)
 
     assert "Trace for `func_a`" in trace
     assert "Callers (Incoming):" in trace
@@ -164,7 +164,7 @@ async def test_get_call_stack_down(mock_db, tmp_path):
     params = CallStackInput(
         node_name="func_b", direction=TraceDirection.DOWN, file_path=str(tmp_path / "b.py")
     )
-    trace = await vibegraph_get_call_stack(params)
+    trace = await vibetrace_get_call_stack(params)
 
     assert "Trace for `func_b`" in trace
     assert "Callees (Outgoing):" in trace
@@ -175,7 +175,7 @@ async def test_get_call_stack_down(mock_db, tmp_path):
 async def test_get_call_stack_not_found(mock_db):
     """Test call stack for non-existent node."""
     params = CallStackInput(node_name="nonexistent_func")
-    trace = await vibegraph_get_call_stack(params)
+    trace = await vibetrace_get_call_stack(params)
 
     assert "not found" in trace
 
@@ -186,14 +186,14 @@ async def test_get_call_stack_both(mock_db, tmp_path):
     params = CallStackInput(
         node_name="func_a", direction=TraceDirection.BOTH, file_path=str(tmp_path / "a.py")
     )
-    trace = await vibegraph_get_call_stack(params)
+    trace = await vibetrace_get_call_stack(params)
 
     assert "Callers (Incoming):" in trace
     assert "Callees (Outgoing):" in trace
 
 
 # =============================================================================
-# Tests for vibegraph_impact_analysis
+# Tests for vibetrace_impact_analysis
 # =============================================================================
 
 
@@ -201,7 +201,7 @@ async def test_get_call_stack_both(mock_db, tmp_path):
 async def test_impact_analysis(mock_db, tmp_path):
     """If we change a.py (func_a), b.py (func_b) should be affected."""
     params = ImpactAnalysisInput(file_path=str(tmp_path / "a.py"))
-    impact = await vibegraph_impact_analysis(params)
+    impact = await vibetrace_impact_analysis(params)
 
     assert "Impact Analysis" in impact
     assert "func_a" in impact
@@ -213,7 +213,7 @@ async def test_impact_analysis(mock_db, tmp_path):
 async def test_impact_analysis_no_impact(mock_db, tmp_path):
     """If we change b.py, nothing depends on it."""
     params = ImpactAnalysisInput(file_path=str(tmp_path / "b.py"))
-    impact = await vibegraph_impact_analysis(params)
+    impact = await vibetrace_impact_analysis(params)
 
     assert "Impact Analysis" in impact
     assert (
@@ -229,17 +229,17 @@ async def test_impact_analysis_no_impact(mock_db, tmp_path):
 
 @pytest.mark.asyncio
 async def test_mcp_semantic_search(mock_db):
-    """Test vibegraph_semantic_search via hybrid RRF."""
+    """Test vibetrace_semantic_search via hybrid RRF."""
     params = SemanticSearchInput(query="func_a", limit=5)
-    res = await vibegraph_semantic_search(params)
+    res = await vibetrace_semantic_search(params)
     assert "func_a" in res
 
 
 @pytest.mark.asyncio
 async def test_mcp_trace_path(mock_db):
-    """Test vibegraph_trace_path finds hop from func_b to func_a."""
+    """Test vibetrace_trace_path finds hop from func_b to func_a."""
     params = TracePathInput(from_symbol="func_b", to_symbol="func_a", max_depth=4)
-    res = await vibegraph_trace_path(params)
+    res = await vibetrace_trace_path(params)
     assert "func_b" in res
     assert "func_a" in res
     assert ":L3" in res
@@ -247,16 +247,16 @@ async def test_mcp_trace_path(mock_db):
 
 @pytest.mark.asyncio
 async def test_mcp_get_code_slice(mock_db):
-    """Test vibegraph_get_code_slice returns source code and call references."""
+    """Test vibetrace_get_code_slice returns source code and call references."""
     params = CodeSliceInput(symbol_name="func_b", include_callees=True)
-    res = await vibegraph_get_code_slice(params)
+    res = await vibetrace_get_code_slice(params)
     assert "def func_b():" in res
     assert "func_a" in res
 
 
 @pytest.mark.asyncio
 async def test_mcp_code_slice_and_call_tree_scope_priority(monkeypatch, tmp_path):
-    """Verify vibegraph_get_code_slice and vibegraph_get_call_tree prioritize scope_path."""
+    """Verify vibetrace_get_code_slice and vibetrace_get_call_tree prioritize scope_path."""
     captured_paths = []
 
     def mock_get_context(path=None):
@@ -264,28 +264,28 @@ async def test_mcp_code_slice_and_call_tree_scope_priority(monkeypatch, tmp_path
         db = IndexerDB(str(tmp_path / "test.db"))
         return db, tmp_path
 
-    import vibegraph.mcp.server
+    import vibetrace.mcp.server
 
-    monkeypatch.setattr(vibegraph.mcp.server, "_get_context_for_path", mock_get_context)
+    monkeypatch.setattr(vibetrace.mcp.server, "_get_context_for_path", mock_get_context)
 
     params_slice = CodeSliceInput(
         symbol_name="dummy", file_path="relative/file.py", scope_path="/custom/project/root"
     )
-    await vibegraph_get_code_slice(params_slice)
+    await vibetrace_get_code_slice(params_slice)
     assert captured_paths[-1] == "/custom/project/root"
 
     params_tree = CallTreeInput(
         symbol_name="dummy", file_path="relative/file.py", scope_path="/custom/project/root"
     )
-    await vibegraph_get_call_tree(params_tree)
+    await vibetrace_get_call_tree(params_tree)
     assert captured_paths[-1] == "/custom/project/root"
 
 
 @pytest.mark.asyncio
 async def test_mcp_reindex_project_params(monkeypatch, tmp_path):
-    """Verify vibegraph_reindex_project forwards force and use_lsp to reindex_all."""
-    from vibegraph.mcp.schemas import ReindexInput
-    from vibegraph.mcp.server import vibegraph_reindex_project
+    """Verify vibetrace_reindex_project forwards force and use_lsp to reindex_all."""
+    from vibetrace.mcp.schemas import ReindexInput
+    from vibetrace.mcp.server import vibetrace_reindex_project
 
     calls = []
 
@@ -296,13 +296,13 @@ async def test_mcp_reindex_project_params(monkeypatch, tmp_path):
         db = IndexerDB(str(tmp_path / "test_reindex.db"))
         return db, tmp_path
 
-    import vibegraph.mcp.server
+    import vibetrace.mcp.server
 
-    monkeypatch.setattr(vibegraph.mcp.server, "_get_context_for_path", mock_get_context)
-    monkeypatch.setattr(vibegraph.mcp.server, "reindex_all", mock_reindex)
+    monkeypatch.setattr(vibetrace.mcp.server, "_get_context_for_path", mock_get_context)
+    monkeypatch.setattr(vibetrace.mcp.server, "reindex_all", mock_reindex)
 
     params = ReindexInput(path=str(tmp_path), force=True, use_lsp=True)
-    res = await vibegraph_reindex_project(params)
+    res = await vibetrace_reindex_project(params)
     assert "Successfully reindexed" in res
     assert len(calls) == 1
     assert calls[0]["force"] is True
@@ -310,7 +310,7 @@ async def test_mcp_reindex_project_params(monkeypatch, tmp_path):
 
 
 # =============================================================================
-# Tests for Unified CLI (vibegraph.cli)
+# Tests for Unified CLI (vibetrace.cli)
 # =============================================================================
 
 
@@ -376,8 +376,8 @@ def test_call_stack_input_validation():
 
 def test_polyglot_code_slice_markdown_fences():
     """format_code_slice_md must output correct markdown fence according to language extension."""
-    from vibegraph.mcp.formatters import format_code_slice_md
-    from vibegraph.services.graph_service import CodeSliceResult
+    from vibetrace.mcp.formatters import format_code_slice_md
+    from vibetrace.services.graph_service import CodeSliceResult
 
     py_slice = CodeSliceResult(
         found=True,

@@ -1,11 +1,11 @@
-from vibegraph.indexer.parser import (
+from vibetrace.indexer.parser import (
     GenericParser,
     GoParser,
     JavaScriptParser,
     RustParser,
     TypeScriptParser,
 )
-from vibegraph.indexer.resolver import ModuleResolver
+from vibetrace.indexer.resolver import ModuleResolver
 
 
 class TestJavaScriptParser:
@@ -88,7 +88,7 @@ function processUser(user: User): void {
 
     def test_barrel_re_exports(self, tmp_path):
         """TypeScript parser handles re-exports from other modules in barrels"""
-        from vibegraph.indexer.resolver import ModuleResolver
+        from vibetrace.indexer.resolver import ModuleResolver
 
         (tmp_path / "components").mkdir()
         button_file = tmp_path / "components" / "Button.tsx"

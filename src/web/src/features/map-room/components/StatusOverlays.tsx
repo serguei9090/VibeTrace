@@ -29,7 +29,7 @@ export const StatusOverlays: React.FC<StatusOverlaysProps> = ({ loading, error, 
           }}
         >
           <RefreshCw size={48} className="spin" style={{ color: "#6366f1", marginBottom: 16 }} />
-          <div style={{ fontSize: "18px", fontWeight: 600 }}>Syncing VibeGraph...</div>
+          <div style={{ fontSize: "18px", fontWeight: 600 }}>Syncing VibeTrace...</div>
           <div style={{ fontSize: "14px", opacity: 0.6, marginTop: 4 }}>
             Parsing AST & building relationships
           </div>

@@ -1,1 +1,0 @@
-"""VibeGraph package resources."""

@@ -1,5 +1,5 @@
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import load_gitignore, reindex_all
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import load_gitignore, reindex_all
 
 
 def test_gitignore_loading(tmp_path):
@@ -43,7 +43,7 @@ def test_reindex_respects_gitignore(tmp_path, monkeypatch):
 def test_start_observer_missing_directory_raises(tmp_path):
     import pytest
 
-    from vibegraph.indexer.watcher import start_observer
+    from vibetrace.indexer.watcher import start_observer
 
     db = IndexerDB(str(tmp_path / "test.db"))
     non_existent = tmp_path / "non_existent_folder"
@@ -54,7 +54,7 @@ def test_start_observer_missing_directory_raises(tmp_path):
 def test_watcher_on_moved_event(tmp_path):
     from watchdog.events import FileCreatedEvent, FileMovedEvent
 
-    from vibegraph.indexer.watcher import CodeChangeHandler
+    from vibetrace.indexer.watcher import CodeChangeHandler
 
     db_path = tmp_path / "test.db"
     db = IndexerDB(str(db_path))
@@ -111,7 +111,7 @@ def test_reindex_prefix_collision_purge_safety(tmp_path):
 
 
 def test_sqlite_parameter_bound_safety(tmp_path):
-    from vibegraph.indexer.models import Edge, Node
+    from vibetrace.indexer.models import Edge, Node
 
     db_path = tmp_path / "test.db"
     db = IndexerDB(str(db_path))

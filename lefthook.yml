@@ -20,13 +20,13 @@ post-commit:
 post-merge:
   commands:
 
-# --- VibeGraph Automated Sync ---
+# --- VibeTrace Automated Sync ---
 post-commit:
   commands:
-    vibegraph-sync:
-      run: uv run vibegraph index
+    vibetrace-sync:
+      run: uv run vibetrace index
 
 post-merge:
   commands:
-    vibegraph-sync:
-      run: uv run vibegraph index
+    vibetrace-sync:
+      run: uv run vibetrace index

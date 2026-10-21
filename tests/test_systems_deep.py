@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibegraph.indexer.parsers.systems_parser import GoParser, RustParser
-from vibegraph.indexer.resolver import ModuleResolver
+from vibetrace.indexer.parsers.systems_parser import GoParser, RustParser
+from vibetrace.indexer.resolver import ModuleResolver
 
 
 def test_go_struct_embedding_and_interface_methods() -> None:
@@ -255,7 +255,7 @@ fn run() {}
 
 def test_java_parameter_type_tracking_and_cross_file_call(tmp_path: Path) -> None:
     """Verify GenericParser extracts Java imports and parameter types to resolve calls."""
-    from vibegraph.indexer.parsers.generic_parser import GenericParser
+    from vibetrace.indexer.parsers.generic_parser import GenericParser
 
     (tmp_path / "PaymentGateway.java").write_text(
         "public class PaymentGateway {\n    public void charge() {}\n}\n"
@@ -313,7 +313,7 @@ fn main() {
 
 def test_java_local_variable_declaration_call_resolution(tmp_path: Path) -> None:
     """Verify Java method-local variable declarations resolve instance method calls."""
-    from vibegraph.indexer.parsers.generic_parser import GenericParser
+    from vibetrace.indexer.parsers.generic_parser import GenericParser
 
     (tmp_path / "PaymentGateway.java").write_text(
         "public class PaymentGateway {\n    public void charge() {}\n}\n",

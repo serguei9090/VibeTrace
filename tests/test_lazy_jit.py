@@ -5,10 +5,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.git_utils import get_git_sha
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.graph_service import ensure_index_fresh
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.git_utils import get_git_sha
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.graph_service import ensure_index_fresh
 
 
 def test_lazy_jit_uncommitted_changes(tmp_path: Path) -> None:
@@ -27,9 +27,9 @@ def test_lazy_jit_uncommitted_changes(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
     subprocess.run(["git", "commit", "-m", "init calc"], cwd=repo_dir, check=True)
 
-    context_dir = repo_dir / "vibegraph_context"
+    context_dir = repo_dir / "vibetrace_context"
     context_dir.mkdir(exist_ok=True)
-    db = IndexerDB(str(context_dir / "vibegraph.db"))
+    db = IndexerDB(str(context_dir / "vibetrace.db"))
 
     # Initial index
     reindex_all(db, str(repo_dir), verbose=False, project_root=repo_dir)
@@ -55,7 +55,7 @@ def test_lazy_jit_uncommitted_changes(tmp_path: Path) -> None:
 
 def test_incremental_inbound_edge_preservation(tmp_path: Path) -> None:
     """Verify modifying a callee file preserves existing inbound calls from caller files."""
-    from vibegraph.indexer.db import Edge, Node
+    from vibetrace.indexer.db import Edge, Node
 
     db_path = str(tmp_path / "edge_preservation.db")
     db = IndexerDB(db_path)
@@ -113,7 +113,7 @@ def test_watcher_directory_events(tmp_path: Path) -> None:
     import shutil
     from unittest.mock import MagicMock
 
-    from vibegraph.indexer.watcher import CodeChangeHandler
+    from vibetrace.indexer.watcher import CodeChangeHandler
 
     proj_dir = tmp_path / "watcher_proj"
     proj_dir.mkdir()

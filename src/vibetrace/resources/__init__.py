@@ -1,0 +1,1 @@
+"""VibeTrace package resources."""

@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.graph_service import trace_execution_path
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.graph_service import trace_execution_path
 
 
 def _create_route_test_project(tmp_path: Path) -> IndexerDB:
@@ -32,9 +32,9 @@ def _create_route_test_project(tmp_path: Path) -> IndexerDB:
         encoding="utf-8",
     )
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
     return db
 
@@ -100,9 +100,9 @@ def test_fastapi_router_prefix_extraction(tmp_path: Path) -> None:
         "    return []\n",
         encoding="utf-8",
     )
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
 
     users_ep = db.find_nodes_by_name("GET /api/v1/users")
@@ -123,9 +123,9 @@ def test_fastapi_router_camelcase_prefix_extraction(tmp_path: Path) -> None:
         "    return {'status': 'ok'}\n",
         encoding="utf-8",
     )
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
 
     charge_ep = db.find_nodes_by_name("POST /api/v2/charge")

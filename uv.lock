@@ -1658,7 +1658,7 @@ wheels = [
 ]
 
 [[package]]
-name = "vibegraph"
+name = "vibetrace"
 version = "0.1.2"
 source = { editable = "." }
 dependencies = [

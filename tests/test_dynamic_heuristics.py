@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vibegraph.indexer.parsers.python_parser import PythonParser
+from vibetrace.indexer.parsers.python_parser import PythonParser
 
 
 def test_python_getattr_and_dispatch_map_resolution() -> None:

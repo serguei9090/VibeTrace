@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibegraph.cli import main
-from vibegraph.indexer.hooks import (
+from vibetrace.cli import main
+from vibetrace.indexer.hooks import (
     detect_hook_provider,
     get_hooks_status,
     install_git_hooks,
@@ -39,7 +39,7 @@ def test_install_lefthook_lifecycle(tmp_path: Path) -> None:
     content = lh_file.read_text()
     assert "post-commit:" in content
     assert "post-merge:" in content
-    assert "vibegraph-sync" in content
+    assert "vibetrace-sync" in content
     assert "pre-commit:" in content
 
     # Idempotent install
@@ -55,7 +55,7 @@ def test_install_lefthook_lifecycle(tmp_path: Path) -> None:
     ok_un, _msg_un = uninstall_hooks(tmp_path)
     assert ok_un is True
     content_after = lh_file.read_text()
-    assert "vibegraph" not in content_after
+    assert "vibetrace" not in content_after
     assert "pre-commit:" in content_after
 
 
@@ -73,8 +73,8 @@ def test_install_git_hooks_lifecycle(tmp_path: Path) -> None:
     pm = hooks_dir / "post-merge"
     assert pc.exists()
     assert pm.exists()
-    assert "vibegraph" in pc.read_text()
-    assert "vibegraph" in pm.read_text()
+    assert "vibetrace" in pc.read_text()
+    assert "vibetrace" in pm.read_text()
 
     # Idempotent install
     ok_second, _msg_second = install_git_hooks(tmp_path)
@@ -88,12 +88,12 @@ def test_install_git_hooks_lifecycle(tmp_path: Path) -> None:
     # Uninstall
     ok_un, _msg_un = uninstall_hooks(tmp_path)
     assert ok_un is True
-    assert "vibegraph" not in pc.read_text()
-    assert "vibegraph" not in pm.read_text()
+    assert "vibetrace" not in pc.read_text()
+    assert "vibetrace" not in pm.read_text()
 
 
 def test_cli_hooks_commands(tmp_path: Path) -> None:
-    """Test CLI commands: vibegraph hooks status, install, and uninstall."""
+    """Test CLI commands: vibetrace hooks status, install, and uninstall."""
     (tmp_path / ".git").mkdir()
 
     # CLI status

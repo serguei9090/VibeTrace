@@ -205,7 +205,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
         )}
 
         <input
-          list="vibegraph-symbols"
+          list="vibetrace-symbols"
           className="vibe-input"
           style={{ width: 155, paddingLeft: 10 }}
           placeholder="From symbol..."
@@ -214,7 +214,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
         />
         <ArrowRight size={14} style={{ opacity: 0.6 }} />
         <input
-          list="vibegraph-symbols"
+          list="vibetrace-symbols"
           className="vibe-input"
           style={{ width: 155, paddingLeft: 10 }}
           placeholder="To symbol..."
@@ -222,7 +222,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
           onChange={(e) => setToSymbol(e.target.value)}
         />
 
-        <datalist id="vibegraph-symbols">
+        <datalist id="vibetrace-symbols">
           {symbolOptions.map((sym) => (
             <option key={sym} value={sym} />
           ))}

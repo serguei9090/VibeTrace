@@ -3,9 +3,9 @@
 import time
 from pathlib import Path
 
-from vibegraph.indexer.db import IndexerDB
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.hybrid_search import hybrid_search
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.hybrid_search import hybrid_search
 
 
 def _create_centrality_test_project(tmp_path: Path) -> IndexerDB:
@@ -48,9 +48,9 @@ def _create_centrality_test_project(tmp_path: Path) -> IndexerDB:
         encoding="utf-8",
     )
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
     reindex_all(db, str(tmp_path), verbose=False)
     return db
 
@@ -111,11 +111,11 @@ def test_centrality_search_latency(tmp_path: Path) -> None:
 
 def test_search_ast_exact_or_prefix_wildcard_escaping(tmp_path: Path) -> None:
     """Symbols with underscores like _resolve should not match xresolve via SQL wildcard."""
-    from vibegraph.indexer.models import Node
+    from vibetrace.indexer.models import Node
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
 
     db.upsert_node(
         Node(id="n1", name="_resolve", qualified_name="_resolve", kind="function", file_path="a.py")
@@ -132,11 +132,11 @@ def test_search_ast_exact_or_prefix_wildcard_escaping(tmp_path: Path) -> None:
 
 def test_search_ast_centrality_tiebreak(tmp_path: Path) -> None:
     """Symbols in the same tier must be tie-broken by centrality DESC."""
-    from vibegraph.indexer.models import Node
+    from vibetrace.indexer.models import Node
 
-    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir = tmp_path / "vibetrace_context"
     ctx_dir.mkdir()
-    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+    db = IndexerDB(str(ctx_dir / "vibetrace.db"))
 
     # Two matching symbols for query 'helper'
     db.upsert_node(

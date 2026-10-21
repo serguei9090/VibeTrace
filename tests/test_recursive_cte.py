@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.db import Edge, IndexerDB, Node
 
 
 def _make_node(node_id: str, name: str) -> Node:

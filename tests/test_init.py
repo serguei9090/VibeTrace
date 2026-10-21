@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from vibegraph.cli import main
-from vibegraph.skill_installer import (
+from vibetrace.cli import main
+from vibetrace.skill_installer import (
     configure_gitignore,
     get_bundled_skill_content,
     initialize_workspace,
@@ -17,8 +17,8 @@ from vibegraph.skill_installer import (
 def test_get_bundled_skill_content() -> None:
     """Verify bundled SKILL.md can be read and contains core workflow instructions."""
     content = get_bundled_skill_content()
-    assert "# VibeGraph Navigator Skill" in content
-    assert "vibegraph-navigator" in content
+    assert "# VibeTrace Navigator Skill" in content
+    assert "vibetrace-navigator" in content
     assert "Step 1: Locate Symbols" in content
 
 
@@ -27,12 +27,12 @@ def test_configure_gitignore_idempotent(tmp_path: Path) -> None:
     # 1. Clean directory without .gitignore
     added = configure_gitignore(tmp_path)
     assert len(added) == 4
-    assert "vibegraph.db" in added
-    assert ".vibegraph/" in added
+    assert "vibetrace.db" in added
+    assert ".vibetrace/" in added
 
     content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
-    assert "vibegraph.db" in content
-    assert "vibegraph.db-wal" in content
+    assert "vibetrace.db" in content
+    assert "vibetrace.db-wal" in content
 
     # 2. Re-run: should be a no-op (no duplicates)
     added_second = configure_gitignore(tmp_path)
@@ -47,16 +47,16 @@ def test_configure_gitignore_idempotent(tmp_path: Path) -> None:
 
     content_third = (other_path / ".gitignore").read_text(encoding="utf-8")
     assert "node_modules/" in content_third
-    assert "vibegraph.db" in content_third
+    assert "vibetrace.db" in content_third
 
 
 def test_install_skill_workspace(tmp_path: Path) -> None:
-    """Verify install_skill writes SKILL.md into .agents/skills/vibegraph-navigator."""
+    """Verify install_skill writes SKILL.md into .agents/skills/vibetrace-navigator."""
     installed = install_skill(tmp_path)
     assert len(installed) >= 1
-    skill_file = tmp_path / ".agents" / "skills" / "vibegraph-navigator" / "SKILL.md"
+    skill_file = tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md"
     assert skill_file.is_file()
-    assert "# VibeGraph Navigator Skill" in skill_file.read_text(encoding="utf-8")
+    assert "# VibeTrace Navigator Skill" in skill_file.read_text(encoding="utf-8")
 
 
 def test_install_skill_mirrors_claude_when_present(tmp_path: Path) -> None:
@@ -64,7 +64,7 @@ def test_install_skill_mirrors_claude_when_present(tmp_path: Path) -> None:
     (tmp_path / ".claude").mkdir()
     installed = install_skill(tmp_path)
     assert len(installed) == 2
-    claude_skill = tmp_path / ".claude" / "skills" / "vibegraph-navigator" / "SKILL.md"
+    claude_skill = tmp_path / ".claude" / "skills" / "vibetrace-navigator" / "SKILL.md"
     assert claude_skill.is_file()
 
 
@@ -81,27 +81,27 @@ def test_initialize_workspace_e2e(tmp_path: Path) -> None:
     res = initialize_workspace(tmp_path)
     assert res["gitignore_updated"] is True
     assert (tmp_path / ".gitignore").is_file()
-    assert (tmp_path / ".agents" / "skills" / "vibegraph-navigator" / "SKILL.md").is_file()
+    assert (tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md").is_file()
 
     # Local database must reside in tmp_path, completely isolated
-    local_db = tmp_path / "vibegraph.db"
+    local_db = tmp_path / "vibetrace.db"
     assert local_db.is_file()
     assert res["node_count"] >= 1
 
 
 def test_cli_init_command(tmp_path: Path, capsys) -> None:
-    """Verify CLI `vibegraph init <path> --no-index --json` runs cleanly."""
+    """Verify CLI `vibetrace init <path> --no-index --json` runs cleanly."""
     exit_code = main(["init", str(tmp_path), "--no-index", "--json"])
     assert exit_code == 0
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["indexed"] is False
     assert (tmp_path / ".gitignore").is_file()
-    assert (tmp_path / ".agents" / "skills" / "vibegraph-navigator" / "SKILL.md").is_file()
+    assert (tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md").is_file()
 
 
 def test_cli_skill_install_command(tmp_path: Path, capsys) -> None:
-    """Verify CLI `vibegraph skill install --path <path> --json` runs cleanly."""
+    """Verify CLI `vibetrace skill install --path <path> --json` runs cleanly."""
     exit_code = main(["skill", "install", "--path", str(tmp_path), "--json"])
     assert exit_code == 0
     captured = capsys.readouterr()

@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
-from vibegraph.indexer.main import index_file
-from vibegraph.indexer.parser import PythonParser
-from vibegraph.indexer.resolver import ModuleResolver
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.main import index_file
+from vibetrace.indexer.parser import PythonParser
+from vibetrace.indexer.resolver import ModuleResolver
 
 
 def test_python_extraction():
@@ -369,7 +369,7 @@ def test_bidirectional_edge_cleanup(tmp_path: Path) -> None:
 
 def test_full_walk_stale_file_reconciliation(tmp_path: Path) -> None:
     """Full-walk indexer must reconcile and purge files that were deleted from disk."""
-    from vibegraph.indexer.main import reindex_all
+    from vibetrace.indexer.main import reindex_all
 
     pkg_dir = tmp_path / "src"
     pkg_dir.mkdir()
@@ -401,7 +401,7 @@ def test_full_walk_stale_file_reconciliation(tmp_path: Path) -> None:
 
 def test_watcher_relative_path_normalization(tmp_path: Path) -> None:
     """Watcher handler must normalize OS paths and instantiate ModuleResolver."""
-    from vibegraph.indexer.watcher import CodeChangeHandler
+    from vibetrace.indexer.watcher import CodeChangeHandler
 
     db = IndexerDB(str(tmp_path / "test.db"))
     handler = CodeChangeHandler(db, root_path=str(tmp_path))
@@ -606,7 +606,7 @@ def main():
 
 def test_js_ambient_globals_suppression() -> None:
     """Verify JS/TS parser suppresses phantom call edges for ambient globals."""
-    from vibegraph.indexer.parsers.js_ts_parser import JavaScriptParser
+    from vibetrace.indexer.parsers.js_ts_parser import JavaScriptParser
 
     parser = JavaScriptParser()
     code = b"""
@@ -628,8 +628,8 @@ function processData() {
 
 def test_js_dynamic_import_and_require_destructuring() -> None:
     """Verify dynamic import() and CommonJS require() with destructuring."""
-    from vibegraph.indexer.parsers.js_ts_parser import JavaScriptParser
-    from vibegraph.indexer.resolver import ModuleResolver
+    from vibetrace.indexer.parsers.js_ts_parser import JavaScriptParser
+    from vibetrace.indexer.resolver import ModuleResolver
 
     resolver = ModuleResolver(Path("."))
     resolver.known_files = {"src/utils.js", "src/service.js", "src/dynamic.js"}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 from pathlib import Path
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.db import Edge, IndexerDB, Node
 
 
 def test_concurrent_swarm_writes(tmp_path: Path) -> None:

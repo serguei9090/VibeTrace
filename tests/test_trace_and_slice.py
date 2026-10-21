@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from vibegraph.indexer.db import Edge, IndexerDB, Node
-from vibegraph.indexer.main import reindex_all
-from vibegraph.services.graph_service import (
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.main import reindex_all
+from vibetrace.services.graph_service import (
     get_code_slice,
     read_file_lines,
     trace_execution_path,
@@ -135,7 +135,7 @@ def test_trace_execution_path_pure_cycle_graceful_empty(tmp_path: Path):
 
     tracepath gracefully returns found=False instead of crashing.
     """
-    from vibegraph.indexer.models import Edge, Node
+    from vibetrace.indexer.models import Edge, Node
 
     db = IndexerDB(str(tmp_path / "cycle_test.db"))
     nodes = [
@@ -180,8 +180,8 @@ def test_trace_execution_path_pure_cycle_graceful_empty(tmp_path: Path):
 
 def test_graph_traverser_diamond_dag_no_false_cycle(tmp_path: Path):
     """Diamond DAG (A -> B -> D and A -> C -> D) must NOT flag D as circular dependency."""
-    from vibegraph.indexer.models import Edge, Node
-    from vibegraph.services.graph_service import GraphTraverser
+    from vibetrace.indexer.models import Edge, Node
+    from vibetrace.services.graph_service import GraphTraverser
 
     db = IndexerDB(str(tmp_path / "diamond_test.db"))
     nodes = [
