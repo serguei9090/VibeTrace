@@ -26,96 +26,19 @@ class ParserContext:
     defined_symbols: set[str] = field(default_factory=set)
 
 
-PYTHON_BUILTINS: set[str] = {
-    "abs",
-    "aiter",
-    "all",
-    "anext",
-    "any",
-    "ascii",
-    "bin",
-    "bool",
-    "breakpoint",
-    "bytearray",
-    "bytes",
-    "callable",
-    "chr",
-    "classmethod",
-    "compile",
-    "complex",
-    "delattr",
-    "dict",
-    "dir",
-    "divmod",
-    "enumerate",
-    "eval",
-    "exec",
-    "filter",
-    "float",
-    "format",
-    "frozenset",
-    "getattr",
-    "hasattr",
-    "hash",
-    "help",
-    "hex",
-    "id",
-    "input",
-    "int",
-    "isinstance",
-    "issubclass",
-    "iter",
-    "len",
-    "list",
-    "locals",
-    "map",
-    "max",
-    "memoryview",
-    "min",
-    "next",
-    "object",
-    "oct",
-    "open",
-    "ord",
-    "pow",
-    "print",
-    "property",
-    "range",
-    "repr",
-    "reversed",
-    "round",
-    "set",
-    "setattr",
-    "slice",
-    "sorted",
-    "staticmethod",
-    "str",
-    "sum",
-    "super",
-    "tuple",
-    "type",
-    "vars",
-    "zip",
-    "__import__",
-    "exit",
-    "quit",
-    "globals",
-    "AssertionError",
-    "NotImplementedError",
-    "BaseException",
-    "Exception",
-    "ValueError",
-    "TypeError",
-    "KeyError",
-    "IndexError",
-    "AttributeError",
-    "RuntimeError",
-    "StopIteration",
-    "FileNotFoundError",
-    "IOError",
-    "OSError",
-    "ImportError",
-}
+PYTHON_BUILTINS: set[str] = set(
+    (
+        "abs aiter all anext any ascii bin bool breakpoint bytearray bytes callable "
+        "chr classmethod compile complex delattr dict dir divmod enumerate eval exec "
+        "filter float format frozenset getattr hasattr hash help hex id input int "
+        "isinstance issubclass iter len list locals map max memoryview min next "
+        "object oct open ord pow print property range repr reversed round set setattr "
+        "slice sorted staticmethod str sum super tuple type vars zip __import__ exit quit "
+        "globals AssertionError NotImplementedError BaseException Exception ValueError "
+        "TypeError KeyError IndexError AttributeError RuntimeError StopIteration "
+        "FileNotFoundError IOError OSError ImportError"
+    ).split()
+)
 
 JS_BUILTINS: set[str] = {
     "Boolean",
@@ -402,9 +325,8 @@ class LanguageParser(ABC):
                     return None
                 if class_type in ctx.imported_symbols:
                     target_file, target_sym = ctx.imported_symbols[class_type]
-                    if target_sym == "__module__":
-                        return self._get_id(target_file, rest)
-                    return self._get_id(target_file, f"{target_sym}.{rest}")
+                    sym = rest if target_sym == "__module__" else f"{target_sym}.{rest}"
+                    return self._get_id(target_file, sym)
                 if "." in class_type:
                     c_prefix, c_cls = class_type.rsplit(".", 1)
                     if c_prefix in ctx.imported_symbols:
@@ -414,9 +336,8 @@ class LanguageParser(ABC):
 
             if prefix in ctx.imported_symbols:
                 target_file, target_sym = ctx.imported_symbols[prefix]
-                if target_sym == "__module__":
-                    return self._get_id(target_file, rest)
-                return self._get_id(target_file, f"{target_sym}.{rest}")
+                sym = rest if target_sym == "__module__" else f"{target_sym}.{rest}"
+                return self._get_id(target_file, sym)
 
         # 4. Builtin filtering: unresolvable bare call to standard language builtin
         if self._is_builtin(called_name, ctx):
@@ -473,6 +394,35 @@ class LanguageParser(ABC):
         """Create an edge between two nodes, optionally recording the 1-indexed call line."""
         line = call_line if call_line is not None else (node.start_point[0] + 1 if node else None)
         return Edge(from_node_id=from_id, to_node_id=to_id, relation_type=relation, call_line=line)
+
+    def _add_node(
+        self,
+        ctx: ParserContext,
+        node_id: str,
+        name: str,
+        kind: Any,
+        node: Node | None,
+        parent_id: str | None = None,
+        qualified_name: str | None = None,
+        visibility: str | None = None,
+        signature: str | None = None,
+    ) -> DBNode:
+        """Create DBNode, append to ctx.nodes, and emit defines edge if parent_id is present."""
+        db_node = self._create_node(
+            node_id,
+            name,
+            kind,
+            ctx.file_path,
+            node,
+            signature=signature,
+            visibility=visibility,
+            qualified_name=qualified_name,
+            parent_id=parent_id,
+        )
+        ctx.nodes.append(db_node)
+        if parent_id:
+            ctx.edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
+        return db_node
 
     @abstractmethod
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:

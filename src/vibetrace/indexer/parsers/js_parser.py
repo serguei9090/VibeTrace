@@ -124,20 +124,15 @@ class JavaScriptParser(LanguageParser):
         def _add_reexport(sym: str, orig: str, spec_node: Node, is_ns: bool = False) -> None:
             exp_id = self._get_id(ctx.file_path, sym)
             if not any(n.id == exp_id for n in ctx.nodes):
-                ctx.nodes.append(
-                    self._create_node(
-                        exp_id,
-                        sym,
-                        "variable",
-                        ctx.file_path,
-                        spec_node,
-                        visibility="exported",
-                        qualified_name=sym,
-                        parent_id=ctx.file_module_id,
-                    )
-                )
-                ctx.edges.append(
-                    self._create_edge(ctx.file_module_id, exp_id, "defines", node=spec_node)
+                self._add_node(
+                    ctx,
+                    exp_id,
+                    sym,
+                    "variable",
+                    spec_node,
+                    parent_id=ctx.file_module_id,
+                    qualified_name=sym,
+                    visibility="exported",
                 )
             if resolved_path:
                 t_id = (
@@ -265,14 +260,17 @@ class JavaScriptParser(LanguageParser):
                             if pn and pt:
                                 ctx.local_types[pn] = self._clean_ts_type(pt)
 
-                n_fn = self._create_node(
-                    node_id, name, kind, file_path, node, signature,
-                    visibility=visibility, qualified_name=qualified_name, parent_id=parent_id,
+                self._add_node(
+                    ctx,
+                    node_id,
+                    name,
+                    kind,
+                    node,
+                    parent_id=parent_id,
+                    qualified_name=qualified_name,
+                    visibility=visibility,
+                    signature=signature,
                 )
-                nodes.append(n_fn)
-
-                if parent_id:
-                    edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
                 if name != "<anonymous>":
                     ctx.scope_stack.append(name)
@@ -333,15 +331,16 @@ class JavaScriptParser(LanguageParser):
                         v_qid = self._scoped_name(v_name, ctx.scope_stack)
                         v_id = self._get_id(file_path, v_qid)
                         if not any(n.id == v_id for n in nodes):
-                            n_var = self._create_node(
-                                v_id, v_name, "variable", file_path, node,
-                                visibility="exported", qualified_name=v_qid, parent_id=parent_id,
+                            self._add_node(
+                                ctx,
+                                v_id,
+                                v_name,
+                                "variable",
+                                node,
+                                parent_id=parent_id,
+                                qualified_name=v_qid,
+                                visibility="exported",
                             )
-                            nodes.append(n_var)
-                            if parent_id:
-                                edges.append(
-                                    self._create_edge(parent_id, v_id, "defines", node=node)
-                                )
                     if (tn := node.child_by_field_name("type")) and (
                         v_type := self._clean_ts_type(self._get_text(tn))
                     ):
@@ -366,14 +365,16 @@ class JavaScriptParser(LanguageParser):
                         else ("enum" if node.type == "enum_declaration" else "class")
                     )
 
-                    n_cls = self._create_node(
-                        node_id, name, kind, file_path, node,
-                        visibility=visibility, qualified_name=qualified_name, parent_id=parent_id,
+                    self._add_node(
+                        ctx,
+                        node_id,
+                        name,
+                        kind,
+                        node,
+                        parent_id=parent_id,
+                        qualified_name=qualified_name,
+                        visibility=visibility,
                     )
-                    nodes.append(n_cls)
-
-                    if parent_id:
-                        edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
                     if class_heritage := node.child_by_field_name("class_heritage"):
                         for child in class_heritage.children:
