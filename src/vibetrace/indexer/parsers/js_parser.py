@@ -121,41 +121,45 @@ class JavaScriptParser(LanguageParser):
             ctx.imported_symbols["*"] = (resolved_path or module_path, "__module__")
             return
 
+        def _add_reexport(sym: str, orig: str, spec_node: Node, is_ns: bool = False) -> None:
+            exp_id = self._get_id(ctx.file_path, sym)
+            if not any(n.id == exp_id for n in ctx.nodes):
+                ctx.nodes.append(
+                    self._create_node(
+                        exp_id,
+                        sym,
+                        "variable",
+                        ctx.file_path,
+                        spec_node,
+                        visibility="exported",
+                        qualified_name=sym,
+                        parent_id=ctx.file_module_id,
+                    )
+                )
+                ctx.edges.append(
+                    self._create_edge(ctx.file_module_id, exp_id, "defines", node=spec_node)
+                )
+            if resolved_path:
+                t_id = (
+                    self._get_id(resolved_path, orig, kind="module")
+                    if is_ns
+                    else self._get_id(resolved_path, orig)
+                )
+                ctx.edges.append(self._create_edge(exp_id, t_id, "references", node=spec_node))
+                ctx.imported_symbols[sym] = (resolved_path, "__module__" if is_ns else orig)
+
         for child in node.children:
-            if child.type == "export_clause":
+            if child.type == "namespace_export":
+                if id_n := next((c for c in child.children if c.type == "identifier"), None):
+                    ns = self._get_text(id_n)
+                    _add_reexport(ns, ns, child, is_ns=True)
+            elif child.type == "export_clause":
                 for spec in child.children:
-                    if spec.type == "export_specifier":
-                        name_node = spec.child_by_field_name("name")
-                        alias_node = spec.child_by_field_name("alias")
-                        if name_node:
-                            orig = self._get_text(name_node)
-                            local_exported = self._get_text(alias_node) if alias_node else orig
-                            export_node_id = self._get_id(ctx.file_path, local_exported)
-                            if not any(n.id == export_node_id for n in ctx.nodes):
-                                exp_node = self._create_node(
-                                    export_node_id,
-                                    local_exported,
-                                    "variable",
-                                    ctx.file_path,
-                                    spec,
-                                    visibility="exported",
-                                    qualified_name=local_exported,
-                                    parent_id=ctx.file_module_id,
-                                )
-                                ctx.nodes.append(exp_node)
-                                ctx.edges.append(
-                                    self._create_edge(
-                                        ctx.file_module_id, export_node_id, "defines", node=spec
-                                    )
-                                )
-                            if resolved_path:
-                                target_id = self._get_id(resolved_path, orig)
-                                ctx.edges.append(
-                                    self._create_edge(
-                                        export_node_id, target_id, "references", node=spec
-                                    )
-                                )
-                                ctx.imported_symbols[local_exported] = (resolved_path, orig)
+                    if spec.type == "export_specifier" and (nn := spec.child_by_field_name("name")):
+                        orig = self._get_text(nn)
+                        an = spec.child_by_field_name("alias")
+                        local_exp = self._get_text(an) if an else orig
+                        _add_reexport(local_exp, orig, spec, is_ns=False)
 
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():

@@ -86,7 +86,10 @@ def hybrid_search(
 
     # Stream 3: Local EmbeddingGemma 2 semantic cosine search (optional / graceful fallback)
     engine = embedding_engine or EmbeddingEngine()
-    semantic_hits = engine.search_semantic(db, clean_query, limit=pool_limit)
+    try:
+        semantic_hits = engine.search_semantic(db, clean_query, limit=pool_limit)
+    except Exception:
+        semantic_hits = []
     if semantic_hits:
         missing_ids = [nid for nid, _ in semantic_hits if nid not in node_cache]
         if missing_ids:

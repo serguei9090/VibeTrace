@@ -75,14 +75,14 @@ def get_git_delta(
             status = parts[0]
             if status.startswith("D"):
                 if len(parts) > 1:
-                    deleted.add(parts[1].replace("\\", "/"))
+                    deleted.add(parts[1].strip("\"'").replace("\\", "/"))
             elif status.startswith("R"):
                 if len(parts) >= 3:
-                    deleted.add(parts[1].replace("\\", "/"))
-                    changed.add(parts[2].replace("\\", "/"))
+                    deleted.add(parts[1].strip("\"'").replace("\\", "/"))
+                    changed.add(parts[2].strip("\"'").replace("\\", "/"))
             else:
                 if len(parts) > 1:
-                    changed.add(parts[1].replace("\\", "/"))
+                    changed.add(parts[1].strip("\"'").replace("\\", "/"))
 
         for raw_line in status_res.stdout.splitlines():
             line = raw_line.rstrip("\r\n")

@@ -187,20 +187,28 @@ class GenericParser(LanguageParser):
                 if is_func:
                     saved_local_types = dict(ctx.local_types)
                     # Extract parameter types from Java formal_parameters or C++ parameter_list
-                    for ch in node.children:
-                        if ch.type in ("formal_parameters", "parameter_list"):
-                            for param in ch.children:
-                                if param.type in ("formal_parameter", "parameter_declaration"):
-                                    pt = param.child_by_field_name("type")
-                                    pn = param.child_by_field_name(
-                                        "name"
-                                    ) or param.child_by_field_name("declarator")
-                                    if pt and pn:
-                                        p_tname = self._get_text(pt).split("<")[0].strip("*& ")
-                                        p_raw = self._get_text(pn).split("=")[0].split("(")[0]
-                                        p_vname = p_raw.strip("*& ")
-                                        if p_tname and p_vname:
-                                            ctx.local_types[p_vname] = p_tname
+                    param_containers = [
+                        ch
+                        for ch in node.children
+                        if ch.type in ("formal_parameters", "parameter_list")
+                    ]
+                    if not param_containers and (decl := node.child_by_field_name("declarator")):
+                        param_containers = [
+                            ch for ch in decl.children if ch.type == "parameter_list"
+                        ]
+                    for ch in param_containers:
+                        for param in ch.children:
+                            if param.type in ("formal_parameter", "parameter_declaration"):
+                                pt = param.child_by_field_name("type")
+                                pn = param.child_by_field_name("name") or param.child_by_field_name(
+                                    "declarator"
+                                )
+                                if pt and pn:
+                                    p_tname = self._get_text(pt).split("<")[0].strip("*& ")
+                                    p_raw = self._get_text(pn).split("=")[0].split("(")[0]
+                                    p_vname = p_raw.strip("*& ")
+                                    if p_tname and p_vname:
+                                        ctx.local_types[p_vname] = p_tname
 
                 name_node = node.child_by_field_name("name") or (
                     node.child_by_field_name("declarator") if is_func else None
@@ -304,7 +312,9 @@ class GenericParser(LanguageParser):
                     )
                     obj_node = node.child_by_field_name("object")
                     if func_node:
-                        called_name = self._get_text(func_node).replace("::", ".")
+                        called_name = (
+                            self._get_text(func_node).replace("::", ".").replace("->", ".")
+                        )
                         if obj_node:
                             obj_text = self._get_text(obj_node).strip()
                             called_name = f"{obj_text}.{called_name}"

@@ -156,8 +156,9 @@ def get_context_for_path(
 def normalize_path(file_path: str, project_root: Path) -> str:
     """Normalize file path relative to the identified project root."""
     try:
-        abs_file = Path(file_path).resolve()
+        p = Path(file_path)
         abs_root = project_root.resolve()
+        abs_file = (abs_root / p).resolve() if not p.is_absolute() else p.resolve()
         return str(abs_file.relative_to(abs_root)).replace("\\", "/")
     except (ValueError, RuntimeError):
         return str(Path(file_path).resolve()).replace("\\", "/")

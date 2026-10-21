@@ -122,12 +122,16 @@ class GoParser(LanguageParser):
                     if params_node:
                         for p in params_node.children:
                             if p.type == "parameter_declaration":
-                                pn = p.child_by_field_name("name")
                                 pt = p.child_by_field_name("type")
-                                if pn and pt:
-                                    ctx.local_types[self._get_text(pn)] = (
-                                        self._get_text(pt).lstrip("*").strip()
+                                if pt:
+                                    clean_type = (
+                                        self._get_text(pt).lstrip("*").split("[")[0].strip()
                                     )
+                                    id_nodes = [c for c in p.children if c.type == "identifier"]
+                                    if not id_nodes and (pn := p.child_by_field_name("name")):
+                                        id_nodes = [pn]
+                                    for id_node in id_nodes:
+                                        ctx.local_types[self._get_text(id_node)] = clean_type
 
                     nodes.append(
                         self._create_node(
