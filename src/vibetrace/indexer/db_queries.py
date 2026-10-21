@@ -10,7 +10,7 @@ from typing import Any, Literal
 class DBQueriesMixin:
     """Mixin providing AST, FTS5 BM25 lexical search, and recursive CTE pathfinding."""
 
-    def _get_conn(self) -> sqlite3.Connection:
+    def _get_conn(self) -> Any:
         raise NotImplementedError
 
     def get_node(self, node_id: str) -> dict[str, Any] | None:

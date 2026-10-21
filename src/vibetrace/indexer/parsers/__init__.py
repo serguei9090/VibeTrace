@@ -1,7 +1,8 @@
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
-from vibetrace.indexer.parsers.js_ts_parser import JavaScriptParser, TypeScriptParser
+from vibetrace.indexer.parsers.js_parser import JavaScriptParser
 from vibetrace.indexer.parsers.python_parser import PythonParser
 from vibetrace.indexer.parsers.systems_parser import GenericParser, GoParser, RustParser
+from vibetrace.indexer.parsers.ts_parser import TypeScriptParser
 from vibetrace.indexer.resolver import ModuleResolver
 
 

@@ -61,14 +61,20 @@ class CodeChangeHandler(FileSystemEventHandler):
             ".ruff_cache",
             "dist",
             "build",
+            ".vibetrace",
+            ".vibegraph",
             "vibetrace_context",
+            "vibegraph_context",
         ]
         if any(p in path.parts for p in ignore_patterns):
             return True
 
-        # Ignore editor swap / temporary files
+        # Ignore SQLite DB/WAL files, editor swap / temporary files
         fname = path.name
-        if fname.startswith((".", "#")) or fname.endswith(("~", ".tmp", ".swp", ".bak")):
+        if (
+            fname.startswith((".", "#", "vibetrace.db", "vibegraph.db"))
+            or fname.endswith(("~", ".tmp", ".swp", ".bak", ".db-wal", ".db-shm"))
+        ):
             return True
 
         if self.gitignore_spec:
