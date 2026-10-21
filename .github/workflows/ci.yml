@@ -34,7 +34,7 @@ jobs:
         run: uv run pyright
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run python -m pytest
 
       - name: Verify package build
         run: uv build

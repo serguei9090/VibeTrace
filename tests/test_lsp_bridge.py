@@ -145,13 +145,12 @@ def test_lsp_async_reader_matching(tmp_path: Path) -> None:
 def test_lsp_definition_uri_formats(tmp_path: Path) -> None:
     """Verify get_definition handles both 2-slash and 3-slash file URIs."""
     client = LSPClient(["mock_lsp"], tmp_path)
+    target = tmp_path / "src" / "service.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.touch()
 
     # 1. Test 3-slash format
-    uri_3 = (
-        "file:///C:/project/src/service.py"
-        if Path.cwd().drive
-        else "file:///project/src/service.py"
-    )
+    uri_3 = target.resolve().as_uri()
     client.send_request = MagicMock(  # type: ignore
         return_value=[{"uri": uri_3, "range": {"start": {"line": 14, "character": 4}}}]
     )
@@ -159,12 +158,12 @@ def test_lsp_definition_uri_formats(tmp_path: Path) -> None:
     assert res is not None
     rel_path, line = res
     assert line == 15
-    assert rel_path.endswith("service.py")
+    assert rel_path == "src/service.py"
     assert not rel_path.startswith("/")
 
-    # 2. Test 2-slash format (e.g. file://C:/project/src/service.py)
+    # 2. Test 2-slash format (e.g. file://C:/project/src/service.py where drive becomes netloc)
     if Path.cwd().drive:
-        uri_2 = "file://C:/project/src/service.py"
+        uri_2 = f"file://{target.resolve().as_posix()}"
         client.send_request = MagicMock(  # type: ignore
             return_value=[{"uri": uri_2, "range": {"start": {"line": 29, "character": 0}}}]
         )
@@ -172,7 +171,7 @@ def test_lsp_definition_uri_formats(tmp_path: Path) -> None:
         assert res_2 is not None
         rel_path_2, line_2 = res_2
         assert line_2 == 30
-        assert "C:" in rel_path_2 or rel_path_2.endswith("service.py")
+        assert rel_path_2 == "src/service.py"
         assert not rel_path_2.startswith("/")
 
 
