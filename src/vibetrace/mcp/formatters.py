@@ -104,12 +104,13 @@ def format_trace_path_md(result: TracePathResult) -> str:
             lines.append(f"\n### Path {path_idx} ({len(path)} hops)")
         for hop in path:
             call_ln = f":L{hop.call_line}" if hop.call_line else ""
+            to_ln = f":L{hop.to_node.start_line}" if hop.to_node.start_line is not None else ""
             lines.append(
                 f"{hop.step_index}. **`{hop.from_node.qualified_name}`** "
                 f"(`{hop.from_node.file_path}{call_ln}`) "
                 f"{safe_str('→')} [{hop.relation_type}] "
                 f"**`{hop.to_node.qualified_name}`** "
-                f"(`{hop.to_node.file_path}:L{hop.to_node.start_line}`)"
+                f"(`{hop.to_node.file_path}{to_ln}`)"
             )
     return "\n".join(lines)
 
@@ -119,9 +120,15 @@ def format_code_slice_md(result: CodeSliceResult) -> str:
         return f"Symbol '{result.name}' not found in index."
 
     sig = f"`{result.signature}`" if result.signature else ""
+    if result.start_line is not None and result.end_line is not None:
+        loc = f":L{result.start_line}-{result.end_line}"
+    elif result.start_line is not None:
+        loc = f":L{result.start_line}"
+    else:
+        loc = ""
     lines = [
         f"## Code Slice: `{result.qualified_name}` ({result.kind}) {sig}",
-        f"**Location**: `{result.file_path}:L{result.start_line}-{result.end_line}`",
+        f"**Location**: `{result.file_path}{loc}`",
     ]
     if result.docstring:
         lines.append(f"**Docstring**: {result.docstring}")

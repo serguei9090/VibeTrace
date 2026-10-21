@@ -111,12 +111,7 @@ def _inject_lefthook_hook(content: str, hook_name: str) -> str:
             lines[hook_idx + 1 : hook_idx + 1] = injection
             return "\n".join(lines)
 
-    snippet = (
-        f"\n{hook_name}:\n"
-        "  commands:\n"
-        "    vibetrace-sync:\n"
-        "      run: uv run vibetrace index"
-    )
+    snippet = f"\n{hook_name}:\n  commands:\n    vibetrace-sync:\n      run: uv run vibetrace index"
     return content.rstrip() + snippet
 
 
@@ -124,9 +119,7 @@ def _clean_lefthook_content(content: str) -> str:
     """Safely strip VibeTrace commands and prune empty parent keys from lefthook.yml."""
     lines = content.splitlines()
     clean_lines = [
-        line
-        for line in lines
-        if "vibetrace" not in line and "VibeTrace Automated Sync" not in line
+        line for line in lines if "vibetrace" not in line and "VibeTrace Automated Sync" not in line
     ]
     result: list[str] = []
     i = 0

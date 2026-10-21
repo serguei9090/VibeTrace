@@ -416,7 +416,7 @@ class JavaScriptParser(LanguageParser):
                             method = next(
                                 (
                                     m.upper()
-                                    for m in ("post", "put", "delete", "patch")
+                                    for m in ("post", "put", "delete", "patch", "options", "head")
                                     if f".{m}" in lower_func
                                 ),
                                 "GET",

@@ -19,7 +19,7 @@ FLASK_ROUTE_RE = re.compile(
     r"@(?:\w+\.)?(app|bp|blueprint|\w+)\.route\s*\(\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
-FLASK_METHODS_RE = re.compile(r"methods\s*=\s*\[(.*?)\]", re.IGNORECASE)
+FLASK_METHODS_RE = re.compile(r"methods\s*=\s*[\[\(](.*?)[\]\)]", re.IGNORECASE | re.DOTALL)
 
 # Matches APIRouter(prefix="/...") and Blueprint(..., url_prefix="/...")
 API_ROUTER_RE = re.compile(

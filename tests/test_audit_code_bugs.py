@@ -65,10 +65,11 @@ def test_cmd_mcp_sets_project_root_env():
     test_path = Path("/mock/project/path")
     args = Namespace(path=str(test_path))
 
-    with patch("vibetrace.mcp.server.main") as mock_main:
-        cmd_mcp(args)
-        assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(test_path.resolve())
-        mock_main.assert_called_once()
+    with patch.dict(os.environ, {}, clear=False):
+        with patch("vibetrace.mcp.server.main") as mock_main:
+            cmd_mcp(args)
+            assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(test_path.resolve())
+            mock_main.assert_called_once()
 
 
 def test_get_context_finds_dot_vibetrace():

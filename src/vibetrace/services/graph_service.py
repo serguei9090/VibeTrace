@@ -103,26 +103,35 @@ def get_context_for_path(
     if root_override:
         project_root = Path(root_override).resolve()
     else:
-        if not path_hint or path_hint == ".":
-            search_start = Path.cwd()
+        env_root = os.environ.get("VIBETRACE_PROJECT_ROOT")
+        if (not path_hint or path_hint == ".") and env_root:
+            project_root = Path(env_root).resolve()
         else:
-            search_start = Path(path_hint).resolve()
+            if not path_hint or path_hint == ".":
+                search_start = Path.cwd()
+            else:
+                search_start = Path(path_hint).resolve()
 
-        search_dir = search_start if search_start.is_dir() else search_start.parent
-        project_root = search_dir
+            search_dir = search_start if search_start.is_dir() else search_start.parent
+            project_root = search_dir
 
-        for parent in [search_dir, *list(search_dir.parents)]:
-            if (
-                (parent / ".git").exists()
-                or (parent / "pyproject.toml").exists()
-                or (parent / "package.json").exists()
-                or (parent / "Cargo.toml").exists()
-                or (parent / "go.mod").exists()
-                or (parent / ".vibetrace").exists()
-                or (parent / "vibetrace_context").exists()
-            ):
-                project_root = parent
-                break
+            found = False
+            for parent in [search_dir, *list(search_dir.parents)]:
+                if (
+                    (parent / ".git").exists()
+                    or (parent / "pyproject.toml").exists()
+                    or (parent / "package.json").exists()
+                    or (parent / "Cargo.toml").exists()
+                    or (parent / "go.mod").exists()
+                    or (parent / ".vibetrace").exists()
+                    or (parent / "vibetrace_context").exists()
+                ):
+                    project_root = parent
+                    found = True
+                    break
+
+            if not found and env_root:
+                project_root = Path(env_root).resolve()
 
     if (project_root / ".vibetrace" / "vibetrace.db").exists():
         db_path = project_root / ".vibetrace" / "vibetrace.db"

@@ -353,9 +353,8 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
 
-    top_json = False
-    if argv is not None and "--json" in argv:
-        top_json = True
+    eff_argv = sys.argv[1:] if argv is None else argv
+    top_json = "--json" in eff_argv
     parser = build_parser()
     args = parser.parse_args(argv)
     if top_json:
