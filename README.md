@@ -50,6 +50,11 @@ VibeTrace provides first-class multi-language AST extraction:
 ```bash
 uv tool install vibetrace
 ```
+> [!NOTE]
+> `tree-sitter-languages` publishes precompiled wheels for Python 3.10 through 3.12. If your host system defaults to Python 3.13+ or 3.14, explicitly pass `--python 3.12`:
+> ```bash
+> uv tool install --python 3.12 vibetrace
+> ```
 
 #### Via `pip`
 ```bash

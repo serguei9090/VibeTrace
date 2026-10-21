@@ -13,7 +13,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "uv run python -m vibegraph.server_api",
+      command: "uv run python -m vibetrace.server_api",
       cwd: "../..",
       port: 8000,
       reuseExistingServer: true,
