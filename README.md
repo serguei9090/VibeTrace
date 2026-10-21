@@ -3,7 +3,7 @@
 [![CI](https://github.com/serguei9090/VibeTrace/actions/workflows/ci.yml/badge.svg)](https://github.com/serguei9090/VibeTrace/actions)
 [![PyPI](https://img.shields.io/pypi/v/vibetrace.svg)](https://pypi.org/project/vibetrace/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](pyproject.toml)
 
 > **Philosophy**: Structural Truth > Statistical Guessing
 
@@ -50,11 +50,6 @@ VibeTrace provides first-class multi-language AST extraction:
 ```bash
 uv tool install vibetrace
 ```
-> [!NOTE]
-> `tree-sitter-languages` publishes precompiled wheels for Python 3.10 through 3.12. If your host system defaults to Python 3.13+ or 3.14, explicitly pass `--python 3.12`:
-> ```bash
-> uv tool install --python 3.12 vibetrace
-> ```
 
 #### Via `pip`
 ```bash

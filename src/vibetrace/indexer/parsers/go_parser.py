@@ -177,7 +177,7 @@ class GoParser(LanguageParser):
                                                     )
                             elif type_node and type_node.type == "interface_type":
                                 for iface_child in type_node.children:
-                                    if iface_child.type == "method_spec" and (
+                                    if iface_child.type in ("method_spec", "method_elem") and (
                                         m_node := iface_child.child_by_field_name("name")
                                     ):
                                         m_name = self._get_text(m_node)

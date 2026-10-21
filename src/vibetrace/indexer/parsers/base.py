@@ -1,10 +1,10 @@
 import hashlib
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from tree_sitter import Language, Node, Parser, Tree
-from tree_sitter_languages import get_language, get_parser
 
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
@@ -200,6 +200,39 @@ GO_BUILTINS: set[str] = {
 }
 
 
+_LANGUAGE_FACTORIES: dict[str, Callable[[], Any]] = {
+    "python": lambda: __import__("tree_sitter_python").language(),
+    "javascript": lambda: __import__("tree_sitter_javascript").language(),
+    "typescript": lambda: __import__("tree_sitter_typescript").language_typescript(),
+    "tsx": lambda: __import__("tree_sitter_typescript").language_tsx(),
+    "go": lambda: __import__("tree_sitter_go").language(),
+    "rust": lambda: __import__("tree_sitter_rust").language(),
+    "java": lambda: __import__("tree_sitter_java").language(),
+    "c": lambda: __import__("tree_sitter_c").language(),
+    "cpp": lambda: __import__("tree_sitter_cpp").language(),
+    "c_sharp": lambda: __import__("tree_sitter_c_sharp").language(),
+    "ruby": lambda: __import__("tree_sitter_ruby").language(),
+    "php": lambda: __import__("tree_sitter_php").language_php(),
+}
+
+_LANGUAGES_CACHE: dict[str, Language] = {}
+
+
+def get_language(lang_name: str) -> Language:
+    """Retrieve or initialize a cached official tree-sitter Language instance."""
+    if lang_name not in _LANGUAGES_CACHE:
+        factory = _LANGUAGE_FACTORIES.get(lang_name)
+        if not factory:
+            raise ValueError(f"Unsupported tree-sitter language: {lang_name}")
+        _LANGUAGES_CACHE[lang_name] = Language(factory())
+    return _LANGUAGES_CACHE[lang_name]
+
+
+def get_parser(lang_name: str) -> Parser:
+    """Instantiate a tree-sitter Parser configured with the target language."""
+    return Parser(get_language(lang_name))
+
+
 class LanguageParser(ABC):
     def __init__(self, language_name: str, resolver: ModuleResolver | None = None):
         self.language_name = language_name
@@ -237,7 +270,7 @@ class LanguageParser(ABC):
 
     def _get_text(self, node: Node | None) -> str:
         """Extract text from a tree-sitter node."""
-        if node is None:
+        if node is None or node.text is None:
             return ""
         return node.text.decode("utf-8")
 

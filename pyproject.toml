@@ -1,15 +1,25 @@
 [project]
 name = "vibetrace"
-version = "0.1.3"
+version = "0.1.4"
 description = "VibeTrace: Code Intelligence & Execution Trace MCP"
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10"
 dependencies = [
     "mcp>=1.2.0,<2",
-    "tree-sitter==0.21.3",
+    "tree-sitter>=0.24.0",
+    "tree-sitter-python>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "tree-sitter-go>=0.23.0",
+    "tree-sitter-rust>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+    "tree-sitter-c>=0.23.0",
+    "tree-sitter-cpp>=0.23.0",
+    "tree-sitter-c-sharp>=0.23.0",
+    "tree-sitter-ruby>=0.23.0",
+    "tree-sitter-php>=0.23.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
-    "tree-sitter-languages>=1.10.0",
     "watchdog>=6.0.0",
     "pathspec>=0.12.0",
     "websockets>=14.0",
@@ -86,6 +96,3 @@ exclude = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-filterwarnings = [
-    "ignore:Language.*is deprecated:FutureWarning",
-]
