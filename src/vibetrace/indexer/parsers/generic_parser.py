@@ -276,17 +276,43 @@ class GenericParser(LanguageParser):
                     if d_text:
                         ctx.local_types[d_text] = t_name
 
-            elif parent_id and node.type in ("call_expression", "method_invocation"):
-                func_node = node.child_by_field_name("function") or node.child_by_field_name("name")
-                obj_node = node.child_by_field_name("object")
-                if func_node:
-                    called_name = self._get_text(func_node).replace("::", ".")
-                    if obj_node:
-                        obj_text = self._get_text(obj_node).strip()
-                        called_name = f"{obj_text}.{called_name}"
-                    target_id = self._resolve_call_target(called_name, ctx)
-                    if target_id:
-                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+            elif parent_id and node.type in (
+                "call_expression",
+                "method_invocation",
+                "object_creation_expression",
+                "new_expression",
+            ):
+                if node.type in ("object_creation_expression", "new_expression"):
+                    type_node = node.child_by_field_name("type")
+                    if not type_node:
+                        for c in node.children:
+                            if c.type in ("type_identifier", "scoped_type_identifier"):
+                                type_node = c
+                                break
+                    if type_node:
+                        called_name = (
+                            self._get_text(type_node).split("<")[0].replace("::", ".").strip()
+                        )
+                        target_id = self._resolve_call_target(called_name, ctx)
+                        if target_id:
+                            edges.append(
+                                self._create_edge(parent_id, target_id, "calls", node=node)
+                            )
+                else:
+                    func_node = node.child_by_field_name("function") or node.child_by_field_name(
+                        "name"
+                    )
+                    obj_node = node.child_by_field_name("object")
+                    if func_node:
+                        called_name = self._get_text(func_node).replace("::", ".")
+                        if obj_node:
+                            obj_text = self._get_text(obj_node).strip()
+                            called_name = f"{obj_text}.{called_name}"
+                        target_id = self._resolve_call_target(called_name, ctx)
+                        if target_id:
+                            edges.append(
+                                self._create_edge(parent_id, target_id, "calls", node=node)
+                            )
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:

@@ -126,9 +126,9 @@ class ModuleResolver:
             sub_path = module_name[6:]
             curr_str = str(current_dir).replace("\\", "/")
             candidates = [
-                f"{curr_str}/{sub_path}" if curr_str != "." else sub_path,
-                f"{curr_str}/src/{sub_path}" if curr_str != "." else f"src/{sub_path}",
+                f"src/{sub_path}",
                 sub_path,
+                f"{curr_str}/{sub_path}" if curr_str != "." else sub_path,
             ]
             for prefix in candidates:
                 norm_p = os.path.normpath(prefix).replace("\\", "/")
@@ -136,7 +136,12 @@ class ModuleResolver:
                 if res:
                     return res
             for kf in sorted(self.known_files):
-                if kf.endswith(f"/{sub_path}.rs") or kf == f"{sub_path}.rs":
+                if (
+                    kf.endswith(f"/{sub_path}.rs")
+                    or kf == f"{sub_path}.rs"
+                    or kf.endswith(f"/{sub_path}/mod.rs")
+                    or kf == f"{sub_path}/mod.rs"
+                ):
                     return kf
 
         if module_name.startswith("super/"):

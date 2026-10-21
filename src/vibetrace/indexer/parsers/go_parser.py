@@ -16,6 +16,21 @@ class GoParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None) -> None:
         super().__init__("go", resolver)
 
+    def _extract_ctor_type(self, func_node: Node, ctx: ParserContext) -> str | None:
+        f_text = self._get_text(func_node).strip()
+        parts = f_text.split(".")
+        base = parts[-1]
+        if not base.startswith("New"):
+            return None
+        if len(base) > 3:
+            ctor = base[3:]
+            if len(parts) > 1 and parts[0] in ctx.imported_symbols:
+                return f"{parts[0]}.{ctor}"
+            return ctor
+        if len(parts) > 1:
+            return parts[0]
+        return "New"
+
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():
             return [], []
@@ -87,15 +102,19 @@ class GoParser(LanguageParser):
                     if node.type == "method_declaration":
                         recv_node = node.child_by_field_name("receiver")
                         if recv_node:
-                            recv_raw = self._get_text(recv_node).strip("()")
-                            recv_parts = recv_raw.split()
-                            if len(recv_parts) >= 2:
-                                ctx.local_types[recv_parts[0]] = (
-                                    recv_parts[1].lstrip("*").split("[")[0].strip()
-                                )
-                            recv_text = recv_raw.split()[-1].lstrip("*").split("[")[0].strip()
-                            if recv_text:
-                                qualified_name = f"{recv_text}.{name}"
+                            for child in recv_node.children:
+                                if child.type == "parameter_declaration":
+                                    type_node = child.child_by_field_name("type")
+                                    name_node_r = child.child_by_field_name("name")
+                                    if type_node:
+                                        t_raw = self._get_text(type_node)
+                                        type_base = t_raw.lstrip("*").split("[")[0].strip()
+                                        recv_text = type_base
+                                        if name_node_r:
+                                            ctx.local_types[self._get_text(name_node_r)] = type_base
+                                        if recv_text:
+                                            qualified_name = f"{recv_text}.{name}"
+                                        break
 
                     node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
@@ -214,15 +233,8 @@ class GoParser(LanguageParser):
                                 )
                             elif val_node and val_node.type == "call_expression":
                                 if func := val_node.child_by_field_name("function"):
-                                    f_text = self._get_text(func).strip()
-                                    parts = f_text.split(".")
-                                    base = parts[-1]
-                                    if base.startswith("New"):
-                                        ctor = base[3:]
-                                        if len(parts) > 1 and parts[0] in ctx.imported_symbols:
-                                            ctx.local_types[vname] = f"{parts[0]}.{ctor}"
-                                        else:
-                                            ctx.local_types[vname] = ctor
+                                    if ctor := self._extract_ctor_type(func, ctx):
+                                        ctx.local_types[vname] = ctor
 
             elif node.type == "short_var_declaration":
                 left_node = node.child_by_field_name("left")
@@ -250,15 +262,8 @@ class GoParser(LanguageParser):
                                     )
                             elif target_expr.type == "call_expression":
                                 if func := target_expr.child_by_field_name("function"):
-                                    f_text = self._get_text(func).strip()
-                                    parts = f_text.split(".")
-                                    base = parts[-1]
-                                    if base.startswith("New"):
-                                        ctor = base[3:]
-                                        if len(parts) > 1 and parts[0] in ctx.imported_symbols:
-                                            ctx.local_types[vname] = f"{parts[0]}.{ctor}"
-                                        else:
-                                            ctx.local_types[vname] = ctor
+                                    if ctor := self._extract_ctor_type(func, ctx):
+                                        ctx.local_types[vname] = ctor
 
             elif parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")

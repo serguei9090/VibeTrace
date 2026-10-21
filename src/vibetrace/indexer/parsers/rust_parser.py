@@ -195,6 +195,7 @@ class RustParser(LanguageParser):
                     struct_name = self._get_text(type_node).split("<")[0].strip()
                     saved_local_types = dict(ctx.local_types)
                     ctx.local_types["self"] = struct_name
+                    ctx.local_types["Self"] = struct_name
                     # Hydrate struct fields into local type environment for self.field calls
                     if struct_name in struct_fields:
                         for fname, ftype in struct_fields[struct_name].items():

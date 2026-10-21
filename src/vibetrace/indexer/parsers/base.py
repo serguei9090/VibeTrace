@@ -302,8 +302,8 @@ class LanguageParser(ABC):
 
     def _resolve_call_target(self, called_name: str, ctx: ParserContext) -> str | None:
         """Resolve a called symbol name to its target node ID (intra-file or cross-file)."""
-        # 1. Method calls on self / this inside an enclosing class scope
-        if called_name.startswith(("self.", "this.")) and ctx.scope_stack:
+        # 1. Method calls on self / this / Self inside an enclosing class scope
+        if called_name.startswith(("self.", "this.", "Self.")) and ctx.scope_stack:
             parts = called_name.split(".")
             if len(parts) > 2:
                 field_prefix = ".".join(parts[:2])

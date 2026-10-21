@@ -195,6 +195,8 @@ class JavaScriptParser(LanguageParser):
                                 sn := spec.child_by_field_name("name")
                             ):
                                 ctx.defined_symbols.add(self._get_text(sn))
+                    if c.type == "identifier":
+                        ctx.defined_symbols.add(self._get_text(c))
             if target.type in _SYM_TYPES and (name_node := target.child_by_field_name("name")):
                 ctx.defined_symbols.add(self._get_text(name_node))
 
@@ -205,7 +207,14 @@ class JavaScriptParser(LanguageParser):
                     self._handle_es_export(node, ctx)
                     return
                 for child in node.children:
-                    traverse(child, parent_id, is_exported=True)
+                    if child.type == "identifier":
+                        exp_name = self._get_text(child)
+                        ctx.defined_symbols.add(exp_name)
+                        for n in ctx.nodes:
+                            if n.name == exp_name and n.file_path == file_path:
+                                n.visibility = "exported"
+                    else:
+                        traverse(child, parent_id, is_exported=True)
                 return
 
             if node.type == "import_statement":
