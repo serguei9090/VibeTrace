@@ -267,8 +267,11 @@ def main() -> None:
         print("Usage: python -m vibetrace.indexer.main <directory_or_file>")
         sys.exit(1)
 
-    db = IndexerDB()
-    reindex_all(db, sys.argv[1])
+    from vibetrace.services.graph_service import get_context_for_path
+
+    target = sys.argv[1]
+    db, root = get_context_for_path(target, auto_sync=False)
+    reindex_all(db, target, project_root=root)
 
 
 if __name__ == "__main__":

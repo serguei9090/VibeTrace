@@ -171,7 +171,7 @@ class PythonParser(LanguageParser):
 
     def _handle_assignment(self, node: Node, ctx: ParserContext) -> None:
         """Record local variable types from explicit annotations, constructors, or assignments."""
-        left_node = node.child_by_field_name("left")
+        left_node = node.child_by_field_name("left") or node.child_by_field_name("name")
         if not left_node:
             return
         var_name = self._get_text(left_node).strip()
@@ -183,7 +183,7 @@ class PythonParser(LanguageParser):
                 ctx.local_types[var_name] = type_name
                 return
 
-        right_node = node.child_by_field_name("right")
+        right_node = node.child_by_field_name("right") or node.child_by_field_name("value")
         if right_node:
             self._record_var_type(var_name, right_node, ctx)
 
@@ -238,8 +238,8 @@ class PythonParser(LanguageParser):
         elif parent_id and node.type == "dictionary":
             self._handle_dictionary(node, parent_id, ctx)
 
-        # 5. Assignments (constructor instantiation & type annotations)
-        elif node.type == "assignment":
+        # 5. Assignments (constructor instantiation, walrus := & type annotations)
+        elif node.type in ("assignment", "named_expression"):
             self._handle_assignment(node, ctx)
 
         # 6. Context managers
@@ -473,10 +473,7 @@ class PythonParser(LanguageParser):
     def _add_import_edge(
         self, module_name: str, import_node: Node, ctx: ParserContext
     ) -> str | None:
-        resolved_path = None
-        if self.resolver:
-            resolved_path = self.resolver.resolve(module_name, ctx.file_path)
-
+        resolved_path = self.resolver.resolve(module_name, ctx.file_path) if self.resolver else None
         if resolved_path == ctx.file_path:
             return resolved_path
 
@@ -488,12 +485,10 @@ class PythonParser(LanguageParser):
                 canonical_mod = canonical
 
         module_id = self._get_id(module_path, canonical_mod, kind="module")
-
         if not any(n.id == module_id for n in ctx.nodes):
             ctx.nodes.append(
                 self._create_node(module_id, canonical_mod, "module", module_path, import_node)
             )
-
         ctx.edges.append(
             self._create_edge(ctx.file_module_id, module_id, "imports", node=import_node)
         )

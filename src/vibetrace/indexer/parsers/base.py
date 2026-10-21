@@ -258,13 +258,43 @@ class LanguageParser(ABC):
         return parts[0] if parts else clean
 
     def _record_ts_val_type(self, target_name: str, val_node: Node, ctx: ParserContext) -> None:
-        if val_node.type == "new_expression" and (
-            ctor := val_node.child_by_field_name("constructor")
-        ):
-            ctx.local_types[target_name] = self._get_text(ctor).strip()
+        curr: Node | None = val_node
+        while curr:
+            if curr.type in ("parenthesized_expression", "non_null_expression"):
+                curr = curr.child_by_field_name("expression") or (
+                    curr.children[0] if curr.children else None
+                )
+            elif curr.type == "as_expression":
+                t_node = (
+                    curr.children[2] if len(curr.children) > 2 else curr.child_by_field_name("type")
+                )
+                if t_node:
+                    clean = self._clean_ts_type(self._get_text(t_node))
+                    if clean and clean not in ("any", "unknown"):
+                        ctx.local_types[target_name] = clean
+                        return
+                curr = curr.children[0] if curr.children else None
+            elif curr.type == "type_assertion":
+                t_node = (
+                    curr.children[1] if len(curr.children) > 1 else curr.child_by_field_name("type")
+                )
+                if t_node:
+                    clean = self._clean_ts_type(self._get_text(t_node))
+                    if clean and clean not in ("any", "unknown"):
+                        ctx.local_types[target_name] = clean
+                        return
+                curr = curr.children[-1] if curr.children else None
+            else:
+                break
+
+        if not curr:
+            return
+
+        if curr.type == "new_expression" and (ctor := curr.child_by_field_name("constructor")):
+            ctx.local_types[target_name] = self._get_text(ctor).split("<")[0].strip()
         elif (
-            val_node.type == "identifier"
-            and (r_name := self._get_text(val_node).strip()) in ctx.local_types
+            curr.type == "identifier"
+            and (r_name := self._get_text(curr).strip()) in ctx.local_types
         ):
             ctx.local_types[target_name] = ctx.local_types[r_name]
 

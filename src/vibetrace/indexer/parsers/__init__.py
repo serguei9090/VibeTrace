@@ -30,9 +30,9 @@ class ParserFactory:
         elif file_path.endswith(".cs"):
             return GenericParser("c_sharp", resolver)
         elif file_path.endswith(".rb"):
-            return GenericParser("ruby")
+            return GenericParser("ruby", resolver)
         elif file_path.endswith(".php"):
-            return GenericParser("php")
+            return GenericParser("php", resolver)
         return None
 
 

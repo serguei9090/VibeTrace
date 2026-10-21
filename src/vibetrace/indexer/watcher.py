@@ -241,8 +241,10 @@ def start_observer(path: str, db: IndexerDB, callback: Callable[[], None] | None
 
 def start_watcher_blocking(path: str):
     """Blocking version for CLI usage."""
-    db = IndexerDB()
-    observer = start_observer(path, db)
+    from vibetrace.services.graph_service import get_context_for_path
+
+    db, root = get_context_for_path(path, auto_sync=False)
+    observer = start_observer(str(root), db)
     try:
         while True:
             time.sleep(1)

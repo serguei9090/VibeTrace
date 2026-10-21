@@ -101,6 +101,14 @@ class ModuleResolver:
         if not module_name:
             return None
 
+        # Universal TypeScript/Next.js/React path aliases (@/*, ~/*)
+        if module_name.startswith(("@/", "~/")):
+            sub = module_name[2:]
+            for cand in (sub, f"src/{sub}"):
+                matched = self._match_known_file(cand, current_file)
+                if matched:
+                    return matched
+
         if module_name.startswith((".", "crate/", "super/")):
             return self._resolve_relative(module_name, current_file)
 
