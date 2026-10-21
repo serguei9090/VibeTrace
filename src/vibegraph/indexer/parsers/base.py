@@ -157,6 +157,25 @@ JS_BUILTINS: set[str] = {
     "alert",
     "prompt",
     "confirm",
+    "require",
+}
+
+JS_GLOBALS: set[str] = {
+    "console",
+    "JSON",
+    "Math",
+    "Date",
+    "Reflect",
+    "Proxy",
+    "Intl",
+    "performance",
+    "window",
+    "document",
+    "process",
+    "globalThis",
+    "navigator",
+    "localStorage",
+    "sessionStorage",
 }
 
 GO_BUILTINS: set[str] = {
@@ -238,7 +257,7 @@ class LanguageParser(ABC):
             if len(parts) > 2:
                 field_prefix = ".".join(parts[:2])
                 bare_field = parts[1]
-                member = parts[2]
+                member = ".".join(parts[2:])
                 class_type = ctx.local_types.get(field_prefix) or ctx.local_types.get(bare_field)
                 if class_type:
                     if class_type in self.builtins and class_type not in ctx.imported_symbols:
@@ -255,7 +274,7 @@ class LanguageParser(ABC):
                             return self._get_id(target_file, f"{c_cls}.{member}")
                     return self._get_id(ctx.file_path, f"{class_type}.{member}")
 
-            member = parts[1]
+            member = ".".join(parts[1:])
             enclosing = (
                 ".".join(ctx.scope_stack[:-1]) if len(ctx.scope_stack) > 1 else ctx.scope_stack[0]
             )
@@ -269,7 +288,15 @@ class LanguageParser(ABC):
         # 3. Qualified call on instance variable, imported module or class: e.g. `db.upsert_node()`
         if "." in called_name:
             prefix, rest = called_name.split(".", 1)
-            member = rest.split(".")[0]
+
+            # Check if prefix is an ambient global in JS/TS: e.g. console.log(), JSON.stringify()
+            if self.language_name in ("javascript", "typescript", "tsx"):
+                if (
+                    prefix in JS_GLOBALS
+                    and prefix not in ctx.imported_symbols
+                    and prefix not in ctx.local_types
+                ):
+                    return None
 
             # Check if prefix is an instance variable tracked in local_types
             if prefix in ctx.local_types:
@@ -279,26 +306,31 @@ class LanguageParser(ABC):
                 if class_type in ctx.imported_symbols:
                     target_file, target_sym = ctx.imported_symbols[class_type]
                     if target_sym == "__module__":
-                        return self._get_id(target_file, member)
-                    return self._get_id(target_file, f"{target_sym}.{member}")
+                        return self._get_id(target_file, rest)
+                    return self._get_id(target_file, f"{target_sym}.{rest}")
                 if "." in class_type:
                     c_prefix, c_cls = class_type.rsplit(".", 1)
                     if c_prefix in ctx.imported_symbols:
                         target_file, _ = ctx.imported_symbols[c_prefix]
-                        return self._get_id(target_file, f"{c_cls}.{member}")
-                return self._get_id(ctx.file_path, f"{class_type}.{member}")
+                        return self._get_id(target_file, f"{c_cls}.{rest}")
+                return self._get_id(ctx.file_path, f"{class_type}.{rest}")
 
             if prefix in ctx.imported_symbols:
                 target_file, target_sym = ctx.imported_symbols[prefix]
                 if target_sym == "__module__":
-                    return self._get_id(target_file, member)
-                return self._get_id(target_file, f"{target_sym}.{member}")
+                    return self._get_id(target_file, rest)
+                return self._get_id(target_file, f"{target_sym}.{rest}")
 
         # 4. Builtin filtering: unresolvable bare call to standard language builtin
         if self._is_builtin(called_name, ctx):
             return None
 
-        # 5. Default: symbol in the current file
+        # 5. Wildcard import resolution: e.g. from utils import * -> helper()
+        if "*" in ctx.imported_symbols and called_name not in ctx.defined_symbols:
+            target_file, _ = ctx.imported_symbols["*"]
+            return self._get_id(target_file, called_name)
+
+        # 6. Default: symbol in the current file
         return self._get_id(ctx.file_path, called_name)
 
     def _create_node(

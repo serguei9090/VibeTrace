@@ -311,3 +311,28 @@ def test_read_file_lines_empty_file(tmp_path: Path):
     assert content == ""
     assert s_line == 0
     assert e_line == 0
+
+
+def test_tracepath_primary_node_sequence(tmp_path: Path) -> None:
+    """TracePathResult.node_ids must start with primary path node sequence in exact order."""
+    db = IndexerDB(str(tmp_path / "diamond_test.db"))
+    nodes = [
+        Node(id="A", name="entry", qualified_name="entry", kind="function", file_path="app.py"),
+        Node(id="B", name="path1", qualified_name="path1", kind="function", file_path="app.py"),
+        Node(id="C", name="path2", qualified_name="path2", kind="function", file_path="app.py"),
+        Node(id="D", name="target", qualified_name="target", kind="function", file_path="app.py"),
+    ]
+    edges = [
+        Edge(from_node_id="A", to_node_id="B", relation_type="calls", call_line=2),
+        Edge(from_node_id="B", to_node_id="D", relation_type="calls", call_line=4),
+        Edge(from_node_id="A", to_node_id="C", relation_type="calls", call_line=6),
+        Edge(from_node_id="C", to_node_id="D", relation_type="calls", call_line=8),
+    ]
+    db.batch_save_file_index("app.py", "hash_diamond", nodes, edges)
+
+    res = trace_execution_path(db, "entry", "target", max_depth=4)
+    assert res.found is True
+    assert len(res.hops) == 2
+    primary_seq = [res.hops[0].from_node.id, *(h.to_node.id for h in res.hops)]
+    # First nodes in node_ids must strictly match the primary sequence [A, B, D] or [A, C, D]
+    assert res.node_ids[: len(primary_seq)] == primary_seq

@@ -541,3 +541,86 @@ def process_pipe(w: Worker|None):
     call_targets = [e.to_node_id for e in edges if e.relation_type == "calls"]
     assert len(call_targets) == 2
     assert all(tid == exec_node.id for tid in call_targets)
+
+
+def test_chained_qualified_member_calls(tmp_path: Path) -> None:
+    """Verify chained attribute calls (e.g. module.Class.method()) resolve to full target."""
+    (tmp_path / "service.py").write_text("class Client:\n    def execute(self):\n        pass\n")
+    resolver = ModuleResolver(tmp_path)
+    parser = PythonParser(resolver=resolver)
+
+    code = b"""
+import service
+
+def caller():
+    service.Client.execute()
+"""
+    nodes, edges = parser.extract("main.py", code)
+    caller_node = next(n for n in nodes if n.name == "caller")
+    call_edges = [
+        e for e in edges if e.from_node_id == caller_node.id and e.relation_type == "calls"
+    ]
+    assert len(call_edges) >= 1
+    expected_target = parser._get_id("service.py", "Client.execute")
+    assert call_edges[0].to_node_id == expected_target
+
+
+def test_python_bare_dot_relative_import(tmp_path: Path) -> None:
+    """Verify 'from . import utils' resolves only utils and does not link phantom dot module."""
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "db.py").write_text("def connect(): pass\n")
+    (tmp_path / "pkg" / "utils.py").write_text("def helper(): pass\n")
+    (tmp_path / "pkg" / "__init__.py").write_text("from . import utils\n")
+
+    resolver = ModuleResolver(tmp_path)
+    parser = PythonParser(resolver=resolver)
+
+    code = b"from . import utils\n"
+    _, edges = parser.extract("pkg/__init__.py", code)
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    assert len(import_edges) == 1
+    # Verify the import points to utils.py, not db.py
+    target_node_id = import_edges[0].to_node_id
+    assert target_node_id == parser._get_id("pkg/utils.py", "pkg.utils", kind="module")
+
+
+def test_wildcard_import_resolution(tmp_path: Path) -> None:
+    """Verify calls to symbols imported via wildcard 'from mod import *' resolve to mod."""
+    (tmp_path / "helpers.py").write_text("def compute(): pass\n")
+    resolver = ModuleResolver(tmp_path)
+    parser = PythonParser(resolver=resolver)
+
+    code = b"""
+from helpers import *
+
+def main():
+    compute()
+"""
+    nodes, edges = parser.extract("app.py", code)
+    main_node = next(n for n in nodes if n.name == "main")
+    call_edges = [e for e in edges if e.from_node_id == main_node.id and e.relation_type == "calls"]
+    assert len(call_edges) == 1
+    expected_target = parser._get_id("helpers.py", "compute")
+    assert call_edges[0].to_node_id == expected_target
+
+
+def test_js_ambient_globals_suppression() -> None:
+    """Verify JS/TS parser suppresses phantom call edges for ambient globals."""
+    from vibegraph.indexer.parsers.js_ts_parser import JavaScriptParser
+
+    parser = JavaScriptParser()
+    code = b"""
+function processData() {
+    console.log("Processing");
+    console.error("Error occurred");
+    const json = JSON.stringify({ a: 1 });
+    const x = Math.floor(4.5);
+    const now = Date.now();
+    return x;
+}
+"""
+    nodes, edges = parser.extract("service.js", code)
+    proc_node = next(n for n in nodes if n.name == "processData")
+    calls = [e for e in edges if e.from_node_id == proc_node.id and e.relation_type == "calls"]
+    # All console, JSON, Math, Date calls should be filtered, 0 phantom edges emitted!
+    assert len(calls) == 0

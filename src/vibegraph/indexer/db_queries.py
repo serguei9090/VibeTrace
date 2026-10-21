@@ -85,7 +85,7 @@ class DBQueriesMixin:
                 WHERE LOWER(name) LIKE LOWER(?) ESCAPE '\\'
                    OR LOWER(qualified_name) LIKE LOWER(?) ESCAPE '\\'
                    OR LOWER(signature) LIKE LOWER(?) ESCAPE '\\'
-                ORDER BY match_tier ASC, LENGTH(qualified_name) ASC
+                ORDER BY match_tier ASC, centrality DESC, LENGTH(qualified_name) ASC
                 LIMIT ?
             """
             escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

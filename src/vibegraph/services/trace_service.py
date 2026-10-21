@@ -303,8 +303,8 @@ def trace_execution_path(
         )
     )
     primary = paths[0]
-    unique_node_ids: list[str] = []
-    for path in paths:
+    unique_node_ids: list[str] = [primary[0].from_node.id, *(h.to_node.id for h in primary)]
+    for path in paths[1:]:
         for h in path:
             if h.from_node.id not in unique_node_ids:
                 unique_node_ids.append(h.from_node.id)

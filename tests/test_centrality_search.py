@@ -128,3 +128,38 @@ def test_search_ast_exact_or_prefix_wildcard_escaping(tmp_path: Path) -> None:
     matched_names = [r["name"] for r in results]
     assert "_resolve" in matched_names
     assert "xresolve" not in matched_names
+
+
+def test_search_ast_centrality_tiebreak(tmp_path: Path) -> None:
+    """Symbols in the same tier must be tie-broken by centrality DESC."""
+    from vibegraph.indexer.models import Node
+
+    ctx_dir = tmp_path / "vibegraph_context"
+    ctx_dir.mkdir()
+    db = IndexerDB(str(ctx_dir / "vibegraph.db"))
+
+    # Two matching symbols for query 'helper'
+    db.upsert_node(
+        Node(
+            id="n_low",
+            name="helper_util",
+            qualified_name="helper_util",
+            kind="function",
+            file_path="util.py",
+            centrality=0.0,
+        )
+    )
+    db.upsert_node(
+        Node(
+            id="n_high",
+            name="helper_core",
+            qualified_name="helper_core",
+            kind="function",
+            file_path="core.py",
+            centrality=5.2,
+        )
+    )
+
+    results = db.search_ast_exact_or_prefix("helper", limit=10)
+    names = [r["name"] for r in results]
+    assert names.index("helper_core") < names.index("helper_util")

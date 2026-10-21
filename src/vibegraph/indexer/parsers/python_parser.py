@@ -415,7 +415,9 @@ class PythonParser(LanguageParser):
             if not (module_name_node := node.child_by_field_name("module_name")):
                 return
             module_name = self._get_text(module_name_node)
-            resolved_mod = self._add_import_edge(module_name, node, ctx)
+            resolved_mod = (
+                self._add_import_edge(module_name, node, ctx) if module_name.strip(".") else None
+            )
 
             # Collect imported symbol names after the 'import' keyword
             seen_import_kw = False
@@ -424,6 +426,11 @@ class PythonParser(LanguageParser):
                     seen_import_kw = True
                     continue
                 if not seen_import_kw:
+                    continue
+
+                if child.type in ("wildcard_import", "*") or self._get_text(child) == "*":
+                    if resolved_mod:
+                        ctx.imported_symbols["*"] = (resolved_mod, "__module__")
                     continue
 
                 orig_name: str | None = None

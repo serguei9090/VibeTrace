@@ -9,6 +9,11 @@ export interface UseVibeSyncOptions {
 export function useVibeSync({ wsUrl, onRefresh }: UseVibeSyncOptions) {
   const [lastAgentEvent, setLastAgentEvent] = useState<AgentFocusEvent | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const onRefreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  });
 
   useEffect(() => {
     let isCancelled = false;
@@ -20,7 +25,7 @@ export function useVibeSync({ wsUrl, onRefresh }: UseVibeSyncOptions) {
       wsRef.current.onopen = () => console.log("Vibe-Sync Active");
       wsRef.current.onmessage = (event) => {
         if (event.data === "refresh") {
-          onRefresh();
+          onRefreshRef.current();
           return;
         }
         try {
@@ -47,7 +52,7 @@ export function useVibeSync({ wsUrl, onRefresh }: UseVibeSyncOptions) {
       }
       wsRef.current?.close();
     };
-  }, [wsUrl, onRefresh]);
+  }, [wsUrl]);
 
   return { lastAgentEvent, setLastAgentEvent, wsRef };
 }
