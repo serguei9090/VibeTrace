@@ -236,8 +236,8 @@ class GenericParser(LanguageParser):
                         ctx.scope_stack.append(name)
                         pushed_scope = True
 
-            elif node.type == "field_declaration":
-                # Java & C++ field declaration tracking
+            elif node.type in ("field_declaration", "local_variable_declaration"):
+                # Java & C++ field and local variable declaration tracking
                 t_node = node.child_by_field_name("type")
                 if t_node:
                     t_name = self._get_text(t_node).split("<")[0].strip("*& ")
@@ -246,7 +246,8 @@ class GenericParser(LanguageParser):
                             if vn := child.child_by_field_name("name"):
                                 vname = self._get_text(vn).strip()
                                 ctx.local_types[vname] = t_name
-                                ctx.local_types[f"this.{vname}"] = t_name
+                                if node.type == "field_declaration":
+                                    ctx.local_types[f"this.{vname}"] = t_name
                         elif child.type == "field_identifier":
                             vname = self._get_text(child).strip()
                             ctx.local_types[vname] = t_name

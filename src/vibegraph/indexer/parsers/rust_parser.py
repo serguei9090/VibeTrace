@@ -65,6 +65,25 @@ class RustParser(LanguageParser):
             pushed_scope = False
             saved_local_types: dict[str, str] | None = None
 
+            if node.type == "mod_item":
+                if n_node := node.child_by_field_name("name"):
+                    mod_name = self._get_text(n_node).strip()
+                    if not node.child_by_field_name("body"):
+                        res = self.resolver.resolve(mod_name, file_path) if self.resolver else None
+                        m_path = res or "external"
+                        ctx.imported_symbols[mod_name] = (m_path, "__module__")
+                        m_id = self._get_id(m_path, mod_name, kind="module")
+                        if not any(x.id == m_id for x in ctx.nodes):
+                            ctx.nodes.append(
+                                self._create_node(m_id, mod_name, "module", m_path, node)
+                            )
+                        ctx.edges.append(
+                            self._create_edge(file_module_id, m_id, "imports", node=node)
+                        )
+                        return
+                    ctx.scope_stack.append(mod_name)
+                    pushed_scope = True
+
             if node.type == "use_declaration":
                 if arg := node.child_by_field_name("argument"):
                     raw = self._get_text(arg).strip("; ")

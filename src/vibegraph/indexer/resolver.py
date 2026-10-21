@@ -59,11 +59,14 @@ class ModuleResolver:
                     self._add_to_map(name_parts[1:], base_name, rel_path_str)
 
     def _add_to_map(self, parts: list[str], base_name: str, path: str) -> None:
-        if base_name == "__init__":
-            module_name = ".".join(parts)
-        else:
-            module_name = ".".join([*parts, base_name])
+        is_index = base_name in ("__init__", "index") or (
+            base_name == "mod" and path.endswith(".rs")
+        )
+        if is_index and parts:
+            folder_mod = ".".join(parts)
+            self.module_map[folder_mod] = path
 
+        module_name = ".".join(parts) if base_name == "__init__" else ".".join([*parts, base_name])
         if module_name:
             self.module_map[module_name] = path
 
@@ -183,10 +186,16 @@ class ModuleResolver:
             if candidate in self.known_files:
                 return candidate
 
+        is_rust = current_file and current_file.endswith(".rs")
         is_js_ts = current_file and any(
             current_file.endswith(ext) for ext in (".js", ".jsx", ".ts", ".tsx")
         )
-        index_bases = ("index", "__init__") if is_js_ts else ("__init__", "index")
+        if is_rust:
+            index_bases = ("mod",)
+        elif is_js_ts:
+            index_bases = ("index", "__init__")
+        else:
+            index_bases = ("__init__", "index")
 
         for index_base in index_bases:
             for ext in ext_order:

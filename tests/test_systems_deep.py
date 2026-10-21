@@ -281,3 +281,82 @@ public class OrderService {
     target_id = call_edges[0].to_node_id
     expected_id = parser._get_id("PaymentGateway.java", "PaymentGateway.charge")
     assert target_id == expected_id
+
+
+def test_rust_mod_item_submodule_and_mod_rs_resolution(tmp_path: Path) -> None:
+    """Verify RustParser links `mod worker;` to worker.rs and `mod service;` to service/mod.rs."""
+    (tmp_path / "worker.rs").write_text("pub fn do_work() {}\n", encoding="utf-8")
+    service_dir = tmp_path / "service"
+    service_dir.mkdir()
+    (service_dir / "mod.rs").write_text("pub fn serve() {}\n", encoding="utf-8")
+
+    resolver = ModuleResolver(tmp_path)
+    parser = RustParser(resolver=resolver)
+
+    code = b"""
+pub mod worker;
+mod service;
+
+fn main() {
+    worker::do_work();
+}
+"""
+    _, edges = parser.extract("main.rs", code)
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    imported_targets = {e.to_node_id for e in import_edges}
+
+    expected_worker_id = parser._get_id("worker.rs", "worker", kind="module")
+    expected_service_id = parser._get_id("service/mod.rs", "service", kind="module")
+    assert expected_worker_id in imported_targets
+    assert expected_service_id in imported_targets
+
+
+def test_java_local_variable_declaration_call_resolution(tmp_path: Path) -> None:
+    """Verify Java method-local variable declarations resolve instance method calls."""
+    from vibegraph.indexer.parsers.generic_parser import GenericParser
+
+    (tmp_path / "PaymentGateway.java").write_text(
+        "public class PaymentGateway {\n    public void charge() {}\n}\n",
+        encoding="utf-8",
+    )
+    resolver = ModuleResolver(tmp_path)
+    parser = GenericParser("java", resolver=resolver)
+
+    code = b"""
+import com.example.PaymentGateway;
+
+public class CheckoutService {
+    public void checkout() {
+        PaymentGateway gw = new PaymentGateway();
+        gw.charge();
+    }
+}
+"""
+    _, edges = parser.extract("CheckoutService.java", code)
+    call_edges = [e for e in edges if e.relation_type == "calls"]
+    assert len(call_edges) >= 1
+
+    expected_id = parser._get_id("PaymentGateway.java", "PaymentGateway.charge")
+    assert any(e.to_node_id == expected_id for e in call_edges)
+
+
+def test_go_var_declaration_and_spec_call() -> None:
+    """Verify Go var declarations (var svc *Service) resolve instance method calls."""
+    parser = GoParser()
+    code = b"""package main
+
+type Service struct {}
+
+func (s *Service) Execute() {}
+
+func main() {
+    var svc *Service
+    svc.Execute()
+}
+"""
+    nodes, edges = parser.extract("main.go", code)
+    main_node = next(n for n in nodes if n.name == "main")
+    exec_id = next(n.id for n in nodes if n.qualified_name == "Service.Execute")
+
+    call_edges = [e for e in edges if e.from_node_id == main_node.id and e.relation_type == "calls"]
+    assert any(e.to_node_id == exec_id for e in call_edges)

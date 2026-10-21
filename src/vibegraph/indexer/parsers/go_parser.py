@@ -200,6 +200,30 @@ class GoParser(LanguageParser):
                                             )
                                         )
 
+            elif node.type == "var_declaration":
+                for child in node.children:
+                    if child.type == "var_spec":
+                        name_node = child.child_by_field_name("name")
+                        type_node = child.child_by_field_name("type")
+                        val_node = child.child_by_field_name("value")
+                        if name_node:
+                            vname = self._get_text(name_node).strip()
+                            if type_node:
+                                ctx.local_types[vname] = (
+                                    self._get_text(type_node).lstrip("*").split("[")[0].strip()
+                                )
+                            elif val_node and val_node.type == "call_expression":
+                                if func := val_node.child_by_field_name("function"):
+                                    f_text = self._get_text(func).strip()
+                                    parts = f_text.split(".")
+                                    base = parts[-1]
+                                    if base.startswith("New"):
+                                        ctor = base[3:]
+                                        if len(parts) > 1 and parts[0] in ctx.imported_symbols:
+                                            ctx.local_types[vname] = f"{parts[0]}.{ctor}"
+                                        else:
+                                            ctx.local_types[vname] = ctor
+
             elif node.type == "short_var_declaration":
                 left_node = node.child_by_field_name("left")
                 right_node = node.child_by_field_name("right")

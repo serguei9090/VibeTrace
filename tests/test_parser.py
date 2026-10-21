@@ -624,3 +624,45 @@ function processData() {
     calls = [e for e in edges if e.from_node_id == proc_node.id and e.relation_type == "calls"]
     # All console, JSON, Math, Date calls should be filtered, 0 phantom edges emitted!
     assert len(calls) == 0
+
+
+def test_js_dynamic_import_and_require_destructuring() -> None:
+    """Verify dynamic import() and CommonJS require() with destructuring."""
+    from vibegraph.indexer.parsers.js_ts_parser import JavaScriptParser
+    from vibegraph.indexer.resolver import ModuleResolver
+
+    resolver = ModuleResolver(Path("."))
+    resolver.known_files = {"src/utils.js", "src/service.js", "src/dynamic.js"}
+    resolver.module_map = {"utils": "src/utils.js", "dynamic": "src/dynamic.js"}
+
+    parser = JavaScriptParser(resolver=resolver)
+    code = b"""
+const { helper, calc: myCalc } = require("./utils");
+const utils = require("./utils");
+
+async function loadDynamic() {
+    const mod = await import("./dynamic");
+    helper();
+    myCalc();
+}
+"""
+    nodes, edges = parser.extract("src/app.js", code)
+
+    # Verify import edges
+    import_edges = [e for e in edges if e.relation_type == "imports"]
+    imported_targets = {e.to_node_id for e in import_edges}
+
+    utils_mod_id = parser._get_id("src/utils.js", "utils", kind="module")
+    dynamic_mod_id = parser._get_id("src/dynamic.js", "dynamic", kind="module")
+    assert utils_mod_id in imported_targets
+    assert dynamic_mod_id in imported_targets
+
+    # Verify calls to destructured require helpers resolve to src/utils.js
+    load_func = next(n for n in nodes if n.name == "loadDynamic")
+    calls = [e for e in edges if e.from_node_id == load_func.id and e.relation_type == "calls"]
+    called_targets = {e.to_node_id for e in calls}
+
+    expected_helper_id = parser._get_id("src/utils.js", "helper")
+    expected_calc_id = parser._get_id("src/utils.js", "calc")
+    assert expected_helper_id in called_targets
+    assert expected_calc_id in called_targets

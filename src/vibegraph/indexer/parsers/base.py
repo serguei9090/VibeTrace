@@ -217,6 +217,24 @@ class LanguageParser(ABC):
     def parse(self, source_code: bytes) -> Tree:
         return self.parser.parse(source_code)
 
+    def _clean_ts_type(self, raw: str) -> str:
+        clean = raw.lstrip(": ").strip()
+        parts = [
+            p.strip() for p in clean.split("|") if p.strip() not in ("null", "undefined", "void")
+        ]
+        return parts[0] if parts else clean
+
+    def _record_ts_val_type(self, target_name: str, val_node: Node, ctx: ParserContext) -> None:
+        if val_node.type == "new_expression" and (
+            ctor := val_node.child_by_field_name("constructor")
+        ):
+            ctx.local_types[target_name] = self._get_text(ctor).strip()
+        elif (
+            val_node.type == "identifier"
+            and (r_name := self._get_text(val_node).strip()) in ctx.local_types
+        ):
+            ctx.local_types[target_name] = ctx.local_types[r_name]
+
     def _get_text(self, node: Node | None) -> str:
         """Extract text from a tree-sitter node."""
         if node is None:

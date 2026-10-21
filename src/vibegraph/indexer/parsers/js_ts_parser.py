@@ -27,41 +27,50 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
-    def _clean_ts_type(self, raw: str) -> str:
-        clean = raw.lstrip(": ").strip()
-        parts = [
-            p.strip() for p in clean.split("|") if p.strip() not in ("null", "undefined", "void")
-        ]
-        return parts[0] if parts else clean
+    def _register_imported_module(
+        self, mod_spec: str, ctx: ParserContext, node: Node
+    ) -> str | None:
+        res = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
+        m_path = res or "external"
+        c_mod = (self.resolver.get_module_name(res) if res and self.resolver else None) or mod_spec
+        m_id = self._get_id(m_path, c_mod, kind="module")
+        if not any(n.id == m_id for n in ctx.nodes):
+            ctx.nodes.append(self._create_node(m_id, c_mod, "module", m_path, node))
+        ctx.edges.append(self._create_edge(ctx.file_module_id, m_id, "imports", node=node))
+        return res
 
-    def _record_ts_val_type(self, target_name: str, val_node: Node, ctx: ParserContext) -> None:
-        if val_node.type == "new_expression":
-            if ctor := val_node.child_by_field_name("constructor"):
-                ctx.local_types[target_name] = self._get_text(ctor).strip()
-        elif val_node.type == "identifier":
-            r_name = self._get_text(val_node).strip()
-            if r_name in ctx.local_types:
-                ctx.local_types[target_name] = ctx.local_types[r_name]
+    def _handle_require(self, node: Node, args: list[Node], ctx: ParserContext) -> None:
+        if not args or args[0].type not in ("string", "template_string"):
+            return
+        res_p = self._register_imported_module(self._get_text(args[0]).strip("'\"`"), ctx, node)
+        if not (
+            res_p
+            and node.parent
+            and node.parent.type == "variable_declarator"
+            and (vn := node.parent.child_by_field_name("name"))
+        ):
+            return
+        if vn.type == "identifier":
+            v_name = self._get_text(vn)
+            ctx.imported_symbols[v_name] = (res_p, "*")
+            ctx.defined_symbols.add(v_name)
+        elif vn.type == "object_pattern":
+            for c in vn.children:
+                if c.type == "shorthand_property_identifier_pattern":
+                    p = self._get_text(c)
+                    ctx.imported_symbols[p] = (res_p, p)
+                    ctx.defined_symbols.add(p)
+                elif c.type == "pair_pattern":
+                    k, v = c.child_by_field_name("key"), c.child_by_field_name("value")
+                    if k and v:
+                        ctx.imported_symbols[self._get_text(v)] = (res_p, self._get_text(k))
+                        ctx.defined_symbols.add(self._get_text(v))
 
     def _handle_es_import(self, node: Node, ctx: ParserContext) -> None:
         if not (source_node := node.child_by_field_name("source")):
             return
         mod_spec = self._get_text(source_node).strip("\"'`")
-        resolved_path = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
-        module_path = resolved_path if resolved_path else "external"
-        canonical_mod = mod_spec
-        if resolved_path and self.resolver:
-            canonical = self.resolver.get_module_name(resolved_path)
-            if canonical:
-                canonical_mod = canonical
-
-        module_id = self._get_id(module_path, canonical_mod, kind="module")
-        if not any(n.id == module_id for n in ctx.nodes):
-            ctx.nodes.append(
-                self._create_node(module_id, canonical_mod, "module", module_path, node)
-            )
-        ctx.edges.append(self._create_edge(ctx.file_module_id, module_id, "imports", node=node))
-
+        resolved_path = self._register_imported_module(mod_spec, ctx, node)
         if not resolved_path:
             return
 
@@ -95,27 +104,15 @@ class JavaScriptParser(LanguageParser):
             for child in node.children:
                 if child.type == "export_clause":
                     for spec in child.children:
-                        if spec.type == "export_specifier":
-                            name_node = spec.child_by_field_name("name")
-                            if name_node:
-                                ctx.defined_symbols.add(self._get_text(name_node))
+                        if spec.type == "export_specifier" and (
+                            sn := spec.child_by_field_name("name")
+                        ):
+                            ctx.defined_symbols.add(self._get_text(sn))
             return
 
         mod_spec = self._get_text(source_node).strip("\"'`")
-        resolved_path = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
+        resolved_path = self._register_imported_module(mod_spec, ctx, node)
         module_path = resolved_path if resolved_path else "external"
-        canonical_mod = mod_spec
-        if resolved_path and self.resolver:
-            canonical = self.resolver.get_module_name(resolved_path)
-            if canonical:
-                canonical_mod = canonical
-
-        module_id = self._get_id(module_path, canonical_mod, kind="module")
-        if not any(n.id == module_id for n in ctx.nodes):
-            ctx.nodes.append(
-                self._create_node(module_id, canonical_mod, "module", module_path, node)
-            )
-        ctx.edges.append(self._create_edge(ctx.file_module_id, module_id, "imports", node=node))
 
         # Check wildcard: export * from './mod'
         is_wildcard = any(
@@ -239,9 +236,9 @@ class JavaScriptParser(LanguageParser):
                 qualified_name = self._scoped_name(name, ctx.scope_stack)
                 node_id = self._get_id(file_path, qualified_name)
                 kind = "function"
-                params_node = node.child_by_field_name("parameters")
-                signature = self._get_text(params_node) if params_node else None
-                if params_node:
+                signature = None
+                if params_node := node.child_by_field_name("parameters"):
+                    signature = self._get_text(params_node)
                     for p in params_node.children:
                         if p.type in ("required_parameter", "optional_parameter"):
                             p_name = next(
@@ -292,14 +289,13 @@ class JavaScriptParser(LanguageParser):
                         self._record_ts_val_type(f_name, f_val_node, ctx)
 
             elif node.type == "assignment_expression":
-                left_node = node.child_by_field_name("left")
-                right_node = node.child_by_field_name("right")
-                if left_node and right_node:
-                    self._record_ts_val_type(self._get_text(left_node).strip(), right_node, ctx)
+                if (ln := node.child_by_field_name("left")) and (
+                    rn := node.child_by_field_name("right")
+                ):
+                    self._record_ts_val_type(self._get_text(ln).strip(), rn, ctx)
 
             elif node.type == "variable_declarator":
                 v_name_node = node.child_by_field_name("name")
-                type_node = node.child_by_field_name("type")
                 val_node = node.child_by_field_name("value")
                 if v_name_node:
                     v_name = self._get_text(v_name_node)
@@ -324,7 +320,9 @@ class JavaScriptParser(LanguageParser):
                                 edges.append(
                                     self._create_edge(parent_id, v_id, "defines", node=node)
                                 )
-                    if type_node and (v_type := self._clean_ts_type(self._get_text(type_node))):
+                    if (tn := node.child_by_field_name("type")) and (
+                        v_type := self._clean_ts_type(self._get_text(tn))
+                    ):
                         ctx.local_types[v_name] = v_type
                     elif val_node:
                         self._record_ts_val_type(v_name, val_node, ctx)
@@ -343,9 +341,7 @@ class JavaScriptParser(LanguageParser):
                     kind = (
                         "interface"
                         if node.type in ("interface_declaration", "type_alias_declaration")
-                        else "enum"
-                        if node.type == "enum_declaration"
-                        else "class"
+                        else ("enum" if node.type == "enum_declaration" else "class")
                     )
 
                     nodes.append(
@@ -364,100 +360,109 @@ class JavaScriptParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
-                    class_heritage = node.child_by_field_name("class_heritage")
-                    if class_heritage:
+                    if class_heritage := node.child_by_field_name("class_heritage"):
                         for child in class_heritage.children:
                             if child.type in ("extends_clause", "implements_clause"):
                                 rel = "inherits" if child.type == "extends_clause" else "implements"
                                 for type_node in child.children:
                                     if type_node.type in ("identifier", "type_identifier"):
                                         t_name = self._get_text(type_node)
-                                        t_id = self._resolve_call_target(t_name, ctx)
-                                        if t_id:
-                                            edge = self._create_edge(
-                                                node_id, t_id, rel, node=type_node
+                                        if t_id := self._resolve_call_target(t_name, ctx):
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, t_id, rel, node=type_node
+                                                )
                                             )
-                                            edges.append(edge)
 
                     ctx.scope_stack.append(name)
                     pushed_scope = True
 
             if parent_id and node.type == "call_expression":
                 func_node = node.child_by_field_name("function")
-                if func_node:
+                args_node = node.child_by_field_name("arguments")
+                args = (
+                    [c for c in args_node.children if c.type not in ("(", ")", ",")]
+                    if args_node
+                    else []
+                )
+
+                # Dynamic import: import("./module")
+                is_dyn_import = any(c.type == "import" for c in node.children) or (
+                    func_node and self._get_text(func_node) == "import"
+                )
+                if is_dyn_import and args and args[0].type in ("string", "template_string"):
+                    self._register_imported_module(self._get_text(args[0]).strip("'\"`"), ctx, node)
+
+                # CommonJS require: const { x } = require("./module")
+                elif func_node and self._get_text(func_node) == "require":
+                    self._handle_require(node, args, ctx)
+
+                elif func_node:
                     called_name = self._get_text(func_node)
                     if target_id := self._resolve_call_target(called_name, ctx):
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
                     # Check for clientside or backend API requests/routes
-                    if args_node := node.child_by_field_name("arguments"):
-                        args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
-                        if args and args[0].type in ("string", "template_string"):
-                            raw_url = self._get_text(args[0]).strip("'\"`")
-                            if raw_url.startswith("/") or "/api/" in raw_url:
-                                method = "GET"
-                                lower_func = called_name.lower()
-                                for m in ("post", "put", "delete", "patch"):
-                                    if f".{m}" in lower_func:
-                                        method = m.upper()
-                                        break
-
-                                endpoint_name = f"{method} {raw_url}"
-                                endpoint_id = self._get_id(
-                                    "__endpoint__", endpoint_name, kind="endpoint"
-                                )
-                                if not any(n.id == endpoint_id for n in nodes):
-                                    nodes.append(
-                                        self._create_node(
-                                            endpoint_id,
-                                            endpoint_name,
-                                            "endpoint",
-                                            file_path,
-                                            node,
-                                            qualified_name=endpoint_name,
-                                            parent_id=file_module_id,
-                                        )
+                    if args and args[0].type in ("string", "template_string"):
+                        raw_url = self._get_text(args[0]).strip("'\"`")
+                        if raw_url.startswith("/") or "/api/" in raw_url:
+                            lower_func = called_name.lower()
+                            method = next(
+                                (
+                                    m.upper()
+                                    for m in ("post", "put", "delete", "patch")
+                                    if f".{m}" in lower_func
+                                ),
+                                "GET",
+                            )
+                            endpoint_name = f"{method} {raw_url}"
+                            endpoint_id = self._get_id(
+                                "__endpoint__", endpoint_name, kind="endpoint"
+                            )
+                            if not any(n.id == endpoint_id for n in nodes):
+                                nodes.append(
+                                    self._create_node(
+                                        endpoint_id,
+                                        endpoint_name,
+                                        "endpoint",
+                                        file_path,
+                                        node,
+                                        qualified_name=endpoint_name,
+                                        parent_id=file_module_id,
                                     )
-                                # Check backend route definition: app.get("/users", handler)
-                                is_backend_route = (
-                                    any(
-                                        called_name.startswith(pfx)
-                                        for pfx in ("app.", "router.", "server.", "api.")
-                                    )
-                                    and len(args) >= 2
                                 )
-                                if is_backend_route:
-                                    handler_arg = args[-1]
-                                    if handler_arg.type == "identifier":
-                                        h_name = self._get_text(handler_arg)
-                                        h_target_id = self._resolve_call_target(h_name, ctx)
-                                        if h_target_id:
-                                            edges.append(
-                                                self._create_edge(
-                                                    endpoint_id,
-                                                    h_target_id,
-                                                    "routes",
-                                                    node=handler_arg,
-                                                )
+                            # Check backend route definition: app.get("/users", handler)
+                            is_backend_route = (
+                                any(
+                                    called_name.startswith(pfx)
+                                    for pfx in ("app.", "router.", "server.", "api.")
+                                )
+                                and len(args) >= 2
+                            )
+                            if is_backend_route:
+                                handler_arg = args[-1]
+                                if handler_arg.type == "identifier":
+                                    h_name = self._get_text(handler_arg)
+                                    h_target_id = self._resolve_call_target(h_name, ctx)
+                                    if h_target_id:
+                                        edges.append(
+                                            self._create_edge(
+                                                endpoint_id,
+                                                h_target_id,
+                                                "routes",
+                                                node=handler_arg,
                                             )
-                                else:
-                                    # Clientside call: caller -> endpoint
-                                    edges.append(
-                                        self._create_edge(
-                                            parent_id, endpoint_id, "routes", node=node
                                         )
-                                    )
+                            else:
+                                # Clientside call: caller -> endpoint
+                                edges.append(
+                                    self._create_edge(parent_id, endpoint_id, "routes", node=node)
+                                )
 
             elif parent_id and node.type in ("jsx_self_closing_element", "jsx_opening_element"):
-                name_node = node.child_by_field_name("name")
-                if name_node:
-                    tag_name = self._get_text(name_node)
-                    if tag_name and tag_name[0].isupper():
-                        target_id = self._resolve_call_target(tag_name, ctx)
-                        if target_id:
-                            edges.append(
-                                self._create_edge(parent_id, target_id, "calls", node=node)
-                            )
+                if (nn := node.child_by_field_name("name")) and (tag := self._get_text(nn)):
+                    if tag[0].isupper() and (target_id := self._resolve_call_target(tag, ctx)):
+                        edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
