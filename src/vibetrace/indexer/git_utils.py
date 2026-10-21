@@ -16,6 +16,7 @@ def get_git_sha(repo_root: Path) -> str | None:
             ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=5,
             check=False,
         )
@@ -44,9 +45,21 @@ def get_git_delta(
     try:
         # 1. Compare base_sha against current HEAD and staged/unstaged changes
         diff_res = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-status", "-M", base_sha],
+            [
+                "git",
+                "-c",
+                "core.quotepath=false",
+                "-C",
+                str(repo_root),
+                "diff",
+                "--name-status",
+                "-M",
+                base_sha,
+            ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -55,9 +68,20 @@ def get_git_delta(
 
         # 2. Check for untracked files
         status_res = subprocess.run(
-            ["git", "-C", str(repo_root), "status", "--porcelain", "-uall"],
+            [
+                "git",
+                "-c",
+                "core.quotepath=false",
+                "-C",
+                str(repo_root),
+                "status",
+                "--porcelain",
+                "-uall",
+            ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )

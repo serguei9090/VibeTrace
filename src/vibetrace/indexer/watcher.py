@@ -78,8 +78,10 @@ class CodeChangeHandler(FileSystemEventHandler):
 
         if self.gitignore_spec:
             try:
-                rel_path = path.relative_to(self.root_path)
-                if self.gitignore_spec.match_file(str(rel_path)):
+                rel_path_str = str(path.relative_to(self.root_path)).replace("\\", "/")
+                if self.gitignore_spec.match_file(rel_path_str) or self.gitignore_spec.match_file(
+                    f"{rel_path_str}/"
+                ):
                     return True
             except ValueError:
                 pass  # Not relative to root

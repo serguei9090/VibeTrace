@@ -204,7 +204,14 @@ def trace_execution_path(
             node_ids=[first_id],
         )
 
-    rel_priority = {"calls": 0, "references": 1, "inherits": 2, "implements": 3, "defines": 4}
+    rel_priority = {
+        "calls": 0,
+        "routes": 1,
+        "references": 2,
+        "inherits": 3,
+        "implements": 4,
+        "defines": 5,
+    }
     bridges: list[tuple[str, str, dict[str, Any]]] = []
 
     while fwd_queue and bwd_queue:
@@ -402,7 +409,7 @@ def get_code_slice(
     if include_callees:
         seen_callees: set[tuple[str, int | None]] = set()
         for row in db.get_neighbors(nid, "down"):
-            if row["relation_type"] != "calls":
+            if row["relation_type"] not in ("calls", "routes"):
                 continue
             key = (row["neighbor_id"], row.get("call_line"))
             if key in seen_callees:

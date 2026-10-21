@@ -174,7 +174,7 @@ def reindex_all(
                         resolver.add_file(c)
             if indexed_any or len(deleted) > 0:
                 db.update_centrality_scores()
-            if current_sha:
+            if current_sha and target_rel in ("", "."):
                 db.set_meta("last_indexed_git_sha", current_sha)
         else:
             # Full walk fallback (initial index, --force, or non-git repo)
@@ -234,7 +234,7 @@ def reindex_all(
                         resolver.remove_file(indexed_file)
 
             db.update_centrality_scores()
-            if current_sha:
+            if current_sha and target_rel in ("", "."):
                 db.set_meta("last_indexed_git_sha", current_sha)
 
     if use_lsp and eff_root.is_dir():
