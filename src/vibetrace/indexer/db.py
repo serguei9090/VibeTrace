@@ -146,6 +146,7 @@ class IndexerDB(DBQueriesMixin):
         indexed_time: int | None = None,
     ) -> None:
         """Atomically clear old file data and persist new nodes, edges, FTS5, and hash."""
+        file_path = file_path.replace("\\", "/")
         idx_time = indexed_time if indexed_time is not None else int(time.time())
         node_tuples = [
             (
@@ -154,7 +155,7 @@ class IndexerDB(DBQueriesMixin):
                 n.qualified_name or n.name,
                 n.parent_id,
                 n.kind,
-                n.file_path,
+                n.file_path.replace("\\", "/"),
                 n.start_line,
                 n.end_line,
                 n.signature,
@@ -172,7 +173,7 @@ class IndexerDB(DBQueriesMixin):
                 n.qualified_name or n.name,
                 n.signature or "",
                 n.docstring or "",
-                n.file_path,
+                n.file_path.replace("\\", "/"),
             )
             for n in nodes
         ]
@@ -272,6 +273,7 @@ class IndexerDB(DBQueriesMixin):
     @with_write_retry()
     def clear_file(self, file_path: str) -> None:
         """Remove all nodes, edges (inbound & outbound), FTS5, and file metadata."""
+        file_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             conn.execute(
                 """
@@ -302,6 +304,7 @@ class IndexerDB(DBQueriesMixin):
 
     def get_file_hash(self, file_path: str) -> str | None:
         """Retrieve stored content hash for a file."""
+        file_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             cursor = conn.execute(
                 "SELECT content_hash FROM indexed_files WHERE file_path = ?", (file_path,)
@@ -312,6 +315,7 @@ class IndexerDB(DBQueriesMixin):
     @with_write_retry()
     def update_file_hash(self, file_path: str, content_hash: str, updated_at: int) -> None:
         """Update or insert content hash for a file."""
+        file_path = file_path.replace("\\", "/")
         sql = (
             "INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at) "
             "VALUES (?, ?, ?)"
@@ -345,6 +349,8 @@ class IndexerDB(DBQueriesMixin):
 
     def get_graph_data(self, file_path: str | None = None) -> dict[str, list[dict[str, Any]]]:
         """Return nodes and connected edges for visualization, optionally filtered by file."""
+        if file_path:
+            file_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             if file_path:
                 nodes_cursor = conn.execute("SELECT * FROM nodes WHERE file_path = ?", (file_path,))

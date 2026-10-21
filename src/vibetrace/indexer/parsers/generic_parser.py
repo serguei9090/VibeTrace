@@ -105,6 +105,8 @@ class GenericParser(LanguageParser):
             "constructor_declaration",
             "function_item",
             "method_definition",
+            "method",
+            "singleton_method",
         }
         class_types = {
             "class_definition",
@@ -114,6 +116,8 @@ class GenericParser(LanguageParser):
             "struct_specifier",
             "interface_declaration",
             "trait_item",
+            "class",
+            "module",
         }
 
         def collect_defined_symbols(node: Node) -> None:
@@ -151,6 +155,38 @@ class GenericParser(LanguageParser):
                     if not any(x.id == m_id for x in ctx.nodes):
                         ctx.nodes.append(self._create_node(m_id, sym_name, "module", m_path, node))
                     ctx.edges.append(self._create_edge(file_module_id, m_id, "imports", node=node))
+                return
+
+            # PHP use extraction: use App\Services\PaymentService;
+            if node.type == "namespace_use_declaration":
+                for clause in node.children:
+                    if clause.type == "namespace_use_clause":
+                        q_name, alias = None, None
+                        for ch in clause.children:
+                            if ch.type in ("qualified_name", "name"):
+                                if q_name is None:
+                                    q_name = self._get_text(ch)
+                                else:
+                                    alias = self._get_text(ch)
+                        if q_name:
+                            sym_name = alias or q_name.split("\\")[-1]
+                            res_path = (
+                                self.resolver.resolve(q_name.replace("\\", "/"), file_path)
+                                if self.resolver
+                                else None
+                            )
+                            if not res_path and self.resolver:
+                                res_path = self.resolver.resolve(sym_name, file_path)
+                            m_path = res_path or "external"
+                            ctx.imported_symbols[sym_name] = (m_path, sym_name)
+                            m_id = self._get_id(m_path, sym_name, kind="module")
+                            if not any(x.id == m_id for x in ctx.nodes):
+                                ctx.nodes.append(
+                                    self._create_node(m_id, sym_name, "module", m_path, node)
+                                )
+                            ctx.edges.append(
+                                self._create_edge(file_module_id, m_id, "imports", node=node)
+                            )
                 return
 
             # C/C++ #include extraction
@@ -243,6 +279,25 @@ class GenericParser(LanguageParser):
                     if not is_func:
                         ctx.scope_stack.append(name)
                         pushed_scope = True
+                        for ch in node.children:
+                            if ch.type in ("superclass", "base_clause"):
+                                t_name = (
+                                    self._get_text(ch).replace("extends", "").lstrip("< ").strip()
+                                )
+                                if target_id := self._resolve_call_target(t_name, ctx):
+                                    edges.append(
+                                        self._create_edge(node_id, target_id, "inherits", node=ch)
+                                    )
+                            elif ch.type in ("interfaces", "class_interface_clause"):
+                                for t_node in ch.children:
+                                    if t_node.type in ("type_identifier", "name"):
+                                        t_name = self._get_text(t_node)
+                                        if target_id := self._resolve_call_target(t_name, ctx):
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, target_id, "implements", node=t_node
+                                                )
+                                            )
 
             elif node.type in ("field_declaration", "local_variable_declaration"):
                 # Java & C++ field and local variable declaration tracking
@@ -283,6 +338,46 @@ class GenericParser(LanguageParser):
                     d_text = self._get_text(d_node).split("=")[0].split("(")[0].strip("*& ")
                     if d_text:
                         ctx.local_types[d_text] = t_name
+
+            elif node.type == "call":
+                method_node = node.child_by_field_name("method")
+                receiver_node = node.child_by_field_name("receiver")
+                if method_node:
+                    m_name = self._get_text(method_node)
+                    if m_name in ("require", "require_relative"):
+                        args_node = node.child_by_field_name("arguments")
+                        if args_node:
+                            for ch in args_node.children:
+                                if ch.type in ("string", "simple_symbol"):
+                                    raw_p = self._get_text(ch).strip("\"': ")
+                                    res_p = (
+                                        self.resolver.resolve(raw_p, file_path)
+                                        if self.resolver
+                                        else None
+                                    )
+                                    m_path = res_p or "external"
+                                    mod_sym = Path(raw_p).stem
+                                    ctx.imported_symbols[mod_sym] = (m_path, mod_sym)
+                                    m_id = self._get_id(m_path, mod_sym, kind="module")
+                                    if not any(x.id == m_id for x in ctx.nodes):
+                                        ctx.nodes.append(
+                                            self._create_node(m_id, mod_sym, "module", m_path, node)
+                                        )
+                                    ctx.edges.append(
+                                        self._create_edge(
+                                            file_module_id, m_id, "imports", node=node
+                                        )
+                                    )
+                        return
+                    elif parent_id:
+                        called_name = (
+                            f"{self._get_text(receiver_node)}.{m_name}" if receiver_node else m_name
+                        )
+                        target_id = self._resolve_call_target(called_name, ctx)
+                        if target_id:
+                            edges.append(
+                                self._create_edge(parent_id, target_id, "calls", node=node)
+                            )
 
             elif parent_id and node.type in (
                 "call_expression",

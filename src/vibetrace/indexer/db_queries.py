@@ -153,9 +153,10 @@ class DBQueriesMixin:
         self, file_path: str, limit: int = 100, offset: int = 0
     ) -> tuple[int, list[dict[str, Any]]]:
         """Return total count and paginated list of symbols in a file."""
+        norm_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             count_cursor = conn.execute(
-                "SELECT COUNT(*) FROM nodes WHERE file_path = ?", (file_path,)
+                "SELECT COUNT(*) FROM nodes WHERE file_path = ?", (norm_path,)
             )
             total = count_cursor.fetchone()[0]
 
@@ -166,7 +167,7 @@ class DBQueriesMixin:
                    WHERE file_path = ? 
                    ORDER BY start_line
                    LIMIT ? OFFSET ?""",
-                (file_path, limit, offset),
+                (norm_path, limit, offset),
             )
             rows = [dict(r) for r in cursor.fetchall()]
         return total, rows
@@ -182,7 +183,7 @@ class DBQueriesMixin:
             params: list[Any] = [name, name]
             if file_path:
                 query += " AND file_path = ?"
-                params.append(file_path)
+                params.append(file_path.replace("\\", "/"))
             cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
@@ -212,9 +213,10 @@ class DBQueriesMixin:
 
     def get_nodes_in_file(self, file_path: str) -> list[dict[str, Any]]:
         """Get all node IDs and names in a file."""
+        norm_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT id, name, qualified_name FROM nodes WHERE file_path = ?", (file_path,)
+                "SELECT id, name, qualified_name FROM nodes WHERE file_path = ?", (norm_path,)
             )
             return [dict(r) for r in cursor.fetchall()]
 
@@ -245,6 +247,7 @@ class DBQueriesMixin:
 
     def get_file_imports(self, file_path: str) -> list[dict[str, Any]]:
         """Find all imported modules and symbols from a file."""
+        norm_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             query = """
                 SELECT DISTINCT n_to.name, n_to.file_path, n_to.kind
@@ -253,5 +256,5 @@ class DBQueriesMixin:
                 JOIN nodes n_to ON e.to_node_id = n_to.id
                 WHERE n_from.file_path = ? AND e.relation_type = 'imports'
             """
-            cursor = conn.execute(query, (file_path,))
+            cursor = conn.execute(query, (norm_path,))
             return [dict(r) for r in cursor.fetchall()]

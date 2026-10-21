@@ -7,8 +7,8 @@ from vibetrace.indexer.resolver import ModuleResolver
 
 _FUNC_TYPES = {
     "function_declaration",
+    "function_expression",
     "arrow_function",
-    "function",
     "method_definition",
     "method_signature",
 }
@@ -186,11 +186,7 @@ class JavaScriptParser(LanguageParser):
             target = child
             if child.type == "export_statement":
                 for c in child.children:
-                    if c.type in (
-                        "function_declaration",
-                        "class_declaration",
-                        "interface_declaration",
-                    ):
+                    if c.type in _SYM_TYPES:
                         target = c
                         break
                     if c.type == "export_clause":
@@ -199,7 +195,7 @@ class JavaScriptParser(LanguageParser):
                                 sn := spec.child_by_field_name("name")
                             ):
                                 ctx.defined_symbols.add(self._get_text(sn))
-                    if c.type == "identifier":
+                    elif c.type == "identifier":
                         ctx.defined_symbols.add(self._get_text(c))
             if target.type in _SYM_TYPES and (name_node := target.child_by_field_name("name")):
                 ctx.defined_symbols.add(self._get_text(name_node))
@@ -234,15 +230,17 @@ class JavaScriptParser(LanguageParser):
                 saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
                 name = self._get_text(name_node) if name_node else "<anonymous>"
-                # Support `const divide = (a, b) => a / b` variable declarator names
-                if (
-                    name == "<anonymous>"
-                    and node.parent
-                    and node.parent.type == "variable_declarator"
-                ):
-                    decl_name = node.parent.child_by_field_name("name")
-                    if decl_name:
-                        name = self._get_text(decl_name)
+                # Support `const divide = (a, b) => a / b` variable declarators or CommonJS exports
+                if name == "<anonymous>" and node.parent:
+                    if node.parent.type == "variable_declarator":
+                        if decl_name := node.parent.child_by_field_name("name"):
+                            name = self._get_text(decl_name)
+                    elif node.parent.type == "assignment_expression":
+                        if ln := node.parent.child_by_field_name("left"):
+                            ln_t = self._get_text(ln).strip()
+                            if ln_t.startswith(("exports.", "module.exports.")):
+                                name = ln_t.split(".")[-1]
+                                visibility = "exported"
 
                 qualified_name = self._scoped_name(name, ctx.scope_stack)
                 node_id = self._get_id(file_path, qualified_name)
@@ -252,11 +250,11 @@ class JavaScriptParser(LanguageParser):
                     signature = self._get_text(params_node)
                     for p in params_node.children:
                         if p.type in ("required_parameter", "optional_parameter"):
-                            p_name = next(
+                            pn = next(
                                 (self._get_text(c) for c in p.children if c.type == "identifier"),
                                 None,
                             )
-                            p_type = next(
+                            pt = next(
                                 (
                                     self._get_text(c).lstrip(": ").strip()
                                     for c in p.children
@@ -264,22 +262,14 @@ class JavaScriptParser(LanguageParser):
                                 ),
                                 None,
                             )
-                            if p_name and p_type:
-                                ctx.local_types[p_name] = self._clean_ts_type(p_type)
+                            if pn and pt:
+                                ctx.local_types[pn] = self._clean_ts_type(pt)
 
-                nodes.append(
-                    self._create_node(
-                        node_id,
-                        name,
-                        kind,
-                        file_path,
-                        node,
-                        signature,
-                        visibility=visibility,
-                        qualified_name=qualified_name,
-                        parent_id=parent_id,
-                    )
+                n_fn = self._create_node(
+                    node_id, name, kind, file_path, node, signature,
+                    visibility=visibility, qualified_name=qualified_name, parent_id=parent_id,
                 )
+                nodes.append(n_fn)
 
                 if parent_id:
                     edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
@@ -303,7 +293,36 @@ class JavaScriptParser(LanguageParser):
                 if (ln := node.child_by_field_name("left")) and (
                     rn := node.child_by_field_name("right")
                 ):
-                    self._record_ts_val_type(self._get_text(ln).strip(), rn, ctx)
+                    ln_t = self._get_text(ln).strip()
+                    self._record_ts_val_type(ln_t, rn, ctx)
+                    if ln_t in ("module.exports", "exports") and rn.type == "object":
+                        for c in rn.children:
+                            sym = (
+                                self._get_text(c)
+                                if c.type
+                                in (
+                                    "shorthand_property_identifier",
+                                    "shorthand_property_identifier_pattern",
+                                )
+                                else (
+                                    self._get_text(v)
+                                    if c.type == "pair"
+                                    and (v := c.child_by_field_name("value"))
+                                    and v.type == "identifier"
+                                    else None
+                                )
+                            )
+                            if sym:
+                                for ex_n in nodes:
+                                    if ex_n.name == sym:
+                                        ex_n.visibility = "exported"
+                    elif (
+                        ln_t.startswith(("exports.", "module.exports.")) and rn.type == "identifier"
+                    ):
+                        rn_sym = self._get_text(rn).strip()
+                        for ex_n in nodes:
+                            if ex_n.name == rn_sym:
+                                ex_n.visibility = "exported"
 
             elif node.type == "variable_declarator":
                 v_name_node = node.child_by_field_name("name")
@@ -314,18 +333,11 @@ class JavaScriptParser(LanguageParser):
                         v_qid = self._scoped_name(v_name, ctx.scope_stack)
                         v_id = self._get_id(file_path, v_qid)
                         if not any(n.id == v_id for n in nodes):
-                            nodes.append(
-                                self._create_node(
-                                    v_id,
-                                    v_name,
-                                    "variable",
-                                    file_path,
-                                    node,
-                                    visibility="exported",
-                                    qualified_name=v_qid,
-                                    parent_id=parent_id,
-                                )
+                            n_var = self._create_node(
+                                v_id, v_name, "variable", file_path, node,
+                                visibility="exported", qualified_name=v_qid, parent_id=parent_id,
                             )
+                            nodes.append(n_var)
                             if parent_id:
                                 edges.append(
                                     self._create_edge(parent_id, v_id, "defines", node=node)
@@ -354,18 +366,11 @@ class JavaScriptParser(LanguageParser):
                         else ("enum" if node.type == "enum_declaration" else "class")
                     )
 
-                    nodes.append(
-                        self._create_node(
-                            node_id,
-                            name,
-                            kind,
-                            file_path,
-                            node,
-                            visibility=visibility,
-                            qualified_name=qualified_name,
-                            parent_id=parent_id,
-                        )
+                    n_cls = self._create_node(
+                        node_id, name, kind, file_path, node,
+                        visibility=visibility, qualified_name=qualified_name, parent_id=parent_id,
                     )
+                    nodes.append(n_cls)
 
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
@@ -441,28 +446,22 @@ class JavaScriptParser(LanguageParser):
                                         parent_id=file_module_id,
                                     )
                                 )
-                            # Check backend route definition: app.get("/users", handler)
-                            is_backend_route = (
+                            is_b_route = (
                                 any(
-                                    called_name.startswith(pfx)
-                                    for pfx in ("app.", "router.", "server.", "api.")
+                                    called_name.startswith(p)
+                                    for p in ("app.", "router.", "server.", "api.")
                                 )
                                 and len(args) >= 2
                             )
-                            if is_backend_route:
-                                handler_arg = args[-1]
-                                if handler_arg.type == "identifier":
-                                    h_name = self._get_text(handler_arg)
-                                    h_target_id = self._resolve_call_target(h_name, ctx)
-                                    if h_target_id:
-                                        edges.append(
-                                            self._create_edge(
-                                                endpoint_id,
-                                                h_target_id,
-                                                "routes",
-                                                node=handler_arg,
-                                            )
-                                        )
+                            h_arg = args[-1] if is_b_route else None
+                            if (
+                                h_arg
+                                and h_arg.type == "identifier"
+                                and (h_id := self._resolve_call_target(self._get_text(h_arg), ctx))
+                            ):
+                                edges.append(
+                                    self._create_edge(endpoint_id, h_id, "routes", node=h_arg)
+                                )
                             else:
                                 edges.append(
                                     self._create_edge(parent_id, endpoint_id, "routes", node=node)
