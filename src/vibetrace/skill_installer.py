@@ -133,7 +133,7 @@ def initialize_workspace(
     # 4. Run initial indexing if requested
     indexed_nodes = 0
     indexed_edges = 0
-    db_path = root / "vibetrace.db"
+    db_path = vibetrace_dir / "vibetrace.db"
 
     if not no_index:
         db = IndexerDB(str(db_path))

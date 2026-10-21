@@ -83,9 +83,10 @@ def test_initialize_workspace_e2e(tmp_path: Path) -> None:
     assert (tmp_path / ".gitignore").is_file()
     assert (tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md").is_file()
 
-    # Local database must reside in tmp_path, completely isolated
-    local_db = tmp_path / "vibetrace.db"
+    # Local database must reside in .vibetrace/, completely isolated
+    local_db = Path(res["db_path"])
     assert local_db.is_file()
+    assert local_db == tmp_path / ".vibetrace" / "vibetrace.db"
     assert res["node_count"] >= 1
 
 

@@ -75,6 +75,106 @@ def get_hooks_status(project_root: Path) -> dict[str, Any]:
     }
 
 
+def _inject_lefthook_hook(content: str, hook_name: str) -> str:
+    """Inject vibetrace-sync into an existing or new hook section without duplicate YAML keys."""
+    if f"{hook_name}:" in content:
+        lines = content.splitlines()
+        hook_idx = -1
+        for idx, line in enumerate(lines):
+            if line.strip() == f"{hook_name}:":
+                hook_idx = idx
+                break
+        if hook_idx != -1:
+            cmd_idx = -1
+            for j in range(hook_idx + 1, len(lines)):
+                line_j = lines[j]
+                if line_j and not line_j.startswith((" ", "\t")):
+                    break
+                if line_j.strip() == "commands:":
+                    cmd_idx = j
+                    break
+            if cmd_idx != -1:
+                cmd_indent = " " * (len(lines[cmd_idx]) - len(lines[cmd_idx].lstrip()))
+                sub_indent = cmd_indent + "  "
+                run_indent = sub_indent + "  "
+                injection = [
+                    f"{sub_indent}vibetrace-sync:",
+                    f"{run_indent}run: uv run vibetrace index",
+                ]
+                lines[cmd_idx + 1 : cmd_idx + 1] = injection
+                return "\n".join(lines)
+            injection = [
+                "  commands:",
+                "    vibetrace-sync:",
+                "      run: uv run vibetrace index",
+            ]
+            lines[hook_idx + 1 : hook_idx + 1] = injection
+            return "\n".join(lines)
+
+    snippet = (
+        f"\n{hook_name}:\n"
+        "  commands:\n"
+        "    vibetrace-sync:\n"
+        "      run: uv run vibetrace index"
+    )
+    return content.rstrip() + snippet
+
+
+def _clean_lefthook_content(content: str) -> str:
+    """Safely strip VibeTrace commands and prune empty parent keys from lefthook.yml."""
+    lines = content.splitlines()
+    clean_lines = [
+        line
+        for line in lines
+        if "vibetrace" not in line and "VibeTrace Automated Sync" not in line
+    ]
+    result: list[str] = []
+    i = 0
+    while i < len(clean_lines):
+        line = clean_lines[i]
+        stripped = line.strip()
+        if stripped == "commands:":
+            has_children = False
+            for j in range(i + 1, len(clean_lines)):
+                next_l = clean_lines[j]
+                if not next_l.strip():
+                    continue
+                indent = len(next_l) - len(next_l.lstrip())
+                if indent > len(line) - len(line.lstrip()):
+                    has_children = True
+                break
+            if not has_children:
+                i += 1
+                continue
+        elif stripped in ("post-commit:", "post-merge:"):
+            has_children = False
+            for j in range(i + 1, len(clean_lines)):
+                next_l = clean_lines[j]
+                if not next_l.strip():
+                    continue
+                if next_l.startswith((" ", "\t")):
+                    if next_l.strip() != "commands:":
+                        has_children = True
+                    else:
+                        for k in range(j + 1, len(clean_lines)):
+                            cmd_l = clean_lines[k]
+                            if not cmd_l.strip():
+                                continue
+                            cmd_indent_len = len(cmd_l) - len(cmd_l.lstrip())
+                            next_indent_len = len(next_l) - len(next_l.lstrip())
+                            if cmd_indent_len > next_indent_len:
+                                has_children = True
+                            break
+                break
+            if not has_children:
+                i += 1
+                continue
+        result.append(line)
+        i += 1
+    res = "\n".join(result).strip()
+    return res + "\n" if res else ""
+
+
 def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
     """Append or merge post-commit and post-merge hooks into lefthook.yml."""
     root = project_root.resolve()
@@ -92,22 +192,12 @@ def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
     if "vibetrace" in existing_content:
         return True, f"VibeTrace hook is already configured in {lh_file.name}."
 
-    snippet = (
-        "\n# --- VibeTrace Automated Sync ---\n"
-        "post-commit:\n"
-        "  commands:\n"
-        "    vibetrace-sync:\n"
-        "      run: uv run vibetrace index\n"
-        "\n"
-        "post-merge:\n"
-        "  commands:\n"
-        "    vibetrace-sync:\n"
-        "      run: uv run vibetrace index\n"
-    )
+    content = existing_content
+    content = _inject_lefthook_hook(content, "post-commit")
+    content = _inject_lefthook_hook(content, "post-merge")
 
-    new_content = existing_content.rstrip() + "\n" + snippet
     try:
-        lh_file.write_text(new_content, encoding="utf-8")
+        lh_file.write_text(content.strip() + "\n", encoding="utf-8")
     except OSError as e:
         return False, f"Failed to write to {lh_file.name}: {e}"
 
@@ -188,13 +278,8 @@ def uninstall_hooks(project_root: Path) -> tuple[bool, str]:
             try:
                 content = lh_file.read_text(encoding="utf-8")
                 if "vibetrace" in content:
-                    lines = content.splitlines()
-                    clean_lines = [
-                        line
-                        for line in lines
-                        if "vibetrace" not in line and "VibeTrace Automated Sync" not in line
-                    ]
-                    lh_file.write_text("\n".join(clean_lines) + "\n", encoding="utf-8")
+                    cleaned = _clean_lefthook_content(content)
+                    lh_file.write_text(cleaned, encoding="utf-8")
                     removed_items.append(f"removed from {lh_name}")
             except OSError:
                 pass

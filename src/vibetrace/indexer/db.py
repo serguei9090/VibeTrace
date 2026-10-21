@@ -207,11 +207,15 @@ class IndexerDB(DBQueriesMixin):
             )
             # Prune inbound edges only for symbols that were actually removed from this file
             if deleted_node_ids:
-                placeholders = ",".join("?" for _ in deleted_node_ids)
-                conn.execute(
-                    f"DELETE FROM edges WHERE to_node_id IN ({placeholders})",
-                    list(deleted_node_ids),
-                )
+                deleted_list = list(deleted_node_ids)
+                chunk_size = 500
+                for i in range(0, len(deleted_list), chunk_size):
+                    chunk = deleted_list[i : i + chunk_size]
+                    placeholders = ",".join("?" for _ in chunk)
+                    conn.execute(
+                        f"DELETE FROM edges WHERE to_node_id IN ({placeholders})",
+                        chunk,
+                    )
 
             conn.execute(
                 "DELETE FROM nodes_fts WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",

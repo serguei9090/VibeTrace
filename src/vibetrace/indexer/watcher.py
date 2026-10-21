@@ -170,18 +170,25 @@ class CodeChangeHandler(FileSystemEventHandler):
     def on_moved(self, event):
         src_path = str(event.src_path)
         dest_path = str(event.dest_path)
+
+        src_ignored = self._should_ignore(src_path)
+        dest_ignored = self._should_ignore(dest_path)
+        if src_ignored and dest_ignored:
+            return
+
         rel_src = self._to_rel_path(src_path)
         rel_dest = self._to_rel_path(dest_path)
 
         if event.is_directory:
-            prefix = f"{rel_src}/" if rel_src not in ("", ".") else ""
-            all_files = self.db.get_all_indexed_file_paths()
-            for f in all_files:
-                if f.startswith(prefix) or f == rel_src:
-                    self.db.clear_file(f)
-                    self.resolver.remove_file(f)
+            if not src_ignored:
+                prefix = f"{rel_src}/" if rel_src not in ("", ".") else ""
+                all_files = self.db.get_all_indexed_file_paths()
+                for f in all_files:
+                    if f.startswith(prefix) or f == rel_src:
+                        self.db.clear_file(f)
+                        self.resolver.remove_file(f)
 
-            if not self._should_ignore(dest_path):
+            if not dest_ignored:
                 dest_dir = Path(dest_path)
                 if dest_dir.exists():
                     for root, dirs, files in os.walk(dest_dir):
@@ -203,9 +210,10 @@ class CodeChangeHandler(FileSystemEventHandler):
             return
 
         print(f"File moved: {rel_src} -> {rel_dest}")
-        self.resolver.remove_file(rel_src)
-        self.db.clear_file(rel_src)
-        if not self._should_ignore(dest_path):
+        if not src_ignored:
+            self.resolver.remove_file(rel_src)
+            self.db.clear_file(rel_src)
+        if not dest_ignored:
             self.resolver.add_file(rel_dest)
             index_file(
                 self.db,
