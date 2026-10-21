@@ -236,13 +236,25 @@ class ModuleResolver:
         """Find the canonical module name for a file path."""
         src_dirs = {"src", "lib", "python"}
         norm_path = file_path.replace("\\", "/")
+        if norm_path.startswith("./"):
+            norm_path = norm_path[2:]
         candidates = [name for name, path in self.module_map.items() if path == norm_path]
 
-        if not candidates:
-            return None
+        if candidates:
+            for c in candidates:
+                if not any(c.startswith(sd + ".") for sd in src_dirs) and c not in src_dirs:
+                    return c
+            return candidates[0]
 
-        for c in candidates:
-            if not any(c.startswith(sd + ".") for sd in src_dirs) and c not in src_dirs:
-                return c
-
-        return candidates[0]
+        # Fallback: compute canonical module name from path segments
+        path_obj = Path(norm_path)
+        raw_parts = [p for p in path_obj.parent.parts if p not in (".", "")]
+        parts = [
+            p
+            for i, p in enumerate(raw_parts)
+            if not (p in src_dirs and (i == 0 or (i == 1 and raw_parts[0] not in src_dirs)))
+        ]
+        base = path_obj.stem
+        if base in ("__init__", "index") or (base == "mod" and norm_path.endswith(".rs")):
+            return ".".join(parts) if parts else None
+        return ".".join([*parts, base]) if (parts or base) else None

@@ -226,19 +226,44 @@ class GoParser(LanguageParser):
             elif node.type == "var_declaration":
                 for child in node.children:
                     if child.type == "var_spec":
-                        name_node = child.child_by_field_name("name")
                         type_node = child.child_by_field_name("type")
                         val_node = child.child_by_field_name("value")
-                        if name_node:
-                            vname = self._get_text(name_node).strip()
-                            if type_node:
-                                ctx.local_types[vname] = (
-                                    self._get_text(type_node).lstrip("*").split("[")[0].strip()
-                                )
-                            elif val_node and val_node.type == "call_expression":
-                                if func := val_node.child_by_field_name("function"):
-                                    if ctor := self._extract_ctor_type(func, ctx):
-                                        ctx.local_types[vname] = ctor
+                        var_names = [
+                            self._get_text(c).strip()
+                            for c in child.children
+                            if c.type == "identifier"
+                        ]
+                        if type_node:
+                            t_str = self._get_text(type_node).lstrip("*").split("[")[0].strip()
+                            for vname in var_names:
+                                ctx.local_types[vname] = t_str
+                        elif val_node:
+                            exprs = (
+                                [c for c in val_node.children if c.type not in (",",)]
+                                if val_node.type == "expression_list"
+                                else [val_node]
+                            )
+                            for i, vname in enumerate(var_names):
+                                if i < len(exprs):
+                                    expr = exprs[i]
+                                    target_expr = expr
+                                    if target_expr.type == "unary_expression":
+                                        for uc in target_expr.children:
+                                            if uc.type == "composite_literal":
+                                                target_expr = uc
+                                                break
+                                    if target_expr.type == "composite_literal":
+                                        if t_node := target_expr.child_by_field_name("type"):
+                                            ctx.local_types[vname] = (
+                                                self._get_text(t_node)
+                                                .lstrip("*")
+                                                .split("[")[0]
+                                                .strip()
+                                            )
+                                    elif target_expr.type == "call_expression":
+                                        if func := target_expr.child_by_field_name("function"):
+                                            if ctor := self._extract_ctor_type(func, ctx):
+                                                ctx.local_types[vname] = ctor
 
             elif node.type == "short_var_declaration":
                 left_node = node.child_by_field_name("left")

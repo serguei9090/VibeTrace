@@ -20,6 +20,7 @@ from vibetrace.services.saved_traces_service import (
     SavedTraceCreate,
     create_saved_trace,
     delete_saved_trace,
+    get_saved_trace_by_id,
     get_saved_trace_by_name,
     list_saved_traces,
 )
@@ -183,6 +184,15 @@ def search_nodes_endpoint(
 def get_saved_traces_endpoint():
     """List all saved architectural trace queries."""
     return [t.model_dump() for t in list_saved_traces(db)]
+
+
+@app.get("/api/saved-traces/{trace_id}")
+def get_saved_trace_endpoint(trace_id: int):
+    """Get a single saved architectural trace query by ID."""
+    saved = get_saved_trace_by_id(db, trace_id)
+    if not saved:
+        raise HTTPException(status_code=404, detail=f"Saved trace with ID {trace_id} not found")
+    return saved.model_dump()
 
 
 @app.post("/api/saved-traces")

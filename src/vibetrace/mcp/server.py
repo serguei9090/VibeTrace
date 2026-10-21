@@ -126,7 +126,8 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
     try:
         db, root = _get_context_for_path(params.file_path)
         norm_file = _normalize_path(params.file_path, root) if params.file_path else None
-        start_nodes = db.find_nodes_by_name(params.node_name, norm_file)
+        clean_node = params.node_name.strip().removesuffix("()")
+        start_nodes = db.find_nodes_by_name(clean_node, norm_file)
 
         if not start_nodes:
             return f"Node '{params.node_name}' not found. Is the file indexed?"
@@ -209,7 +210,8 @@ async def vibetrace_find_references(params: ReferencesInput) -> str:
     """Find where a specific function or class is called/used."""
     try:
         db, _ = _get_context_for_path(params.scope_path)
-        targets = db.find_nodes_by_name(params.symbol_name)
+        clean_symbol = params.symbol_name.strip().removesuffix("()")
+        targets = db.find_nodes_by_name(clean_symbol)
 
         if not targets:
             return f"Symbol '{params.symbol_name}' not found in index."

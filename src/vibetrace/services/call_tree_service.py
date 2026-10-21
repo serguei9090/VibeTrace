@@ -43,10 +43,11 @@ def _resolve_root_node(
     db: IndexerDB, root_symbol: str, file_path: str | None = None
 ) -> dict[str, Any] | None:
     """Find the best-matching root node for the given symbol name."""
-    exact = db.find_nodes_by_name(root_symbol, file_path=file_path)
+    clean = root_symbol.strip().removesuffix("()")
+    exact = db.find_nodes_by_name(clean, file_path=file_path)
     if exact:
         return exact[0]
-    prefix = db.search_ast_exact_or_prefix(root_symbol, limit=1)
+    prefix = db.search_ast_exact_or_prefix(clean, limit=1)
     if prefix:
         return prefix[0]
     return None

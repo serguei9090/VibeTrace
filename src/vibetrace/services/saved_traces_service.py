@@ -73,6 +73,28 @@ def get_saved_trace_by_name(db: IndexerDB, name: str) -> SavedTrace | None:
         )
 
 
+def get_saved_trace_by_id(db: IndexerDB, trace_id: int) -> SavedTrace | None:
+    """Retrieve a saved trace query by ID."""
+    with db._get_conn() as conn:
+        cursor = conn.execute(
+            "SELECT id, name, description, from_symbol, to_symbol, max_depth, created_at "
+            "FROM saved_traces WHERE id = ?",
+            (trace_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return SavedTrace(
+            id=row["id"],
+            name=row["name"],
+            description=row["description"] or "",
+            from_symbol=row["from_symbol"],
+            to_symbol=row["to_symbol"],
+            max_depth=row["max_depth"],
+            created_at=str(row["created_at"]) if row["created_at"] else None,
+        )
+
+
 @with_write_retry()
 def create_saved_trace(
     db: IndexerDB,

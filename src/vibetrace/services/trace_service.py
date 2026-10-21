@@ -90,10 +90,11 @@ def _row_to_trace_node(row: dict[str, Any], node_id: str | None = None) -> Trace
 
 
 def _resolve_symbol_candidates(db: IndexerDB, symbol: str) -> list[dict[str, Any]]:
-    exact = db.find_nodes_by_name(symbol)
+    clean = symbol.strip().removesuffix("()")
+    exact = db.find_nodes_by_name(clean)
     if exact:
         return exact
-    return db.search_ast_exact_or_prefix(symbol, limit=5)
+    return db.search_ast_exact_or_prefix(clean, limit=5)
 
 
 def trace_execution_path(
@@ -376,9 +377,10 @@ def get_code_slice(
         except ValueError:
             norm_file = file_path.replace("\\", "/")
 
-    matches = db.find_nodes_by_name(symbol_name, file_path=norm_file)
+    clean_name = symbol_name.strip().removesuffix("()")
+    matches = db.find_nodes_by_name(clean_name, file_path=norm_file)
     if not matches and not norm_file:
-        matches = db.search_ast_exact_or_prefix(symbol_name, limit=5)
+        matches = db.search_ast_exact_or_prefix(clean_name, limit=5)
 
     if not matches:
         return CodeSliceResult(found=False, name=symbol_name, qualified_name=symbol_name)
