@@ -352,6 +352,6 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     from vibetrace.mcp.server import main as mcp_main
 
     root = str(Path(getattr(args, "path", ".") or ".").resolve())
-    sys.argv = ["vibetrace-mcp", "--path", root]
+    os.environ["VIBETRACE_PROJECT_ROOT"] = root
     mcp_main()
     return 0

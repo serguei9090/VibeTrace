@@ -17,7 +17,10 @@ class IndexerDB(DBQueriesMixin):
     def __init__(self, db_path: str | None = None):
         if db_path is None:
             pkg_root = Path(__file__).resolve().parent.parent.parent.parent
-            context_dir = pkg_root / "vibetrace_context"
+            if (pkg_root / ".vibetrace").exists():
+                context_dir = pkg_root / ".vibetrace"
+            else:
+                context_dir = pkg_root / "vibetrace_context"
             context_dir.mkdir(exist_ok=True)
             self.db_path = str(context_dir / "vibetrace.db")
         else:

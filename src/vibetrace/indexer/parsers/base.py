@@ -326,10 +326,26 @@ class LanguageParser(ABC):
                     return self._get_id(ctx.file_path, f"{class_type}.{member}")
 
             member = ".".join(parts[1:])
-            enclosing = (
-                ".".join(ctx.scope_stack[:-1]) if len(ctx.scope_stack) > 1 else ctx.scope_stack[0]
-            )
-            return self._get_id(ctx.file_path, f"{enclosing}.{member}")
+            class_enclosing = None
+            for i in range(len(ctx.scope_stack) - 1, -1, -1):
+                candidate_scope = ".".join(ctx.scope_stack[: i + 1])
+                for n in ctx.nodes:
+                    if n.file_path == ctx.file_path and n.kind in (
+                        "class",
+                        "struct",
+                        "interface",
+                        "trait",
+                    ):
+                        if n.qualified_name == candidate_scope or n.name == candidate_scope:
+                            class_enclosing = candidate_scope
+                            break
+                if class_enclosing:
+                    break
+
+            if not class_enclosing:
+                class_enclosing = ctx.scope_stack[0]
+
+            return self._get_id(ctx.file_path, f"{class_enclosing}.{member}")
 
         # 2. Direct imported symbol call: e.g. `from b import helper` -> `helper()`
         if called_name in ctx.imported_symbols:

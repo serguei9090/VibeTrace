@@ -124,9 +124,17 @@ def trace_execution_path(
                 return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
 
     if engine == "cte":
-        path_nodes = db.find_path_recursive_cte(
-            start_rows[0]["id"], target_rows[0]["id"], max_depth=max_depth
-        )
+        path_nodes: list[dict[str, Any]] | None = None
+        for s_row in start_rows:
+            for t_row in target_rows:
+                path_nodes = db.find_path_recursive_cte(
+                    s_row["id"], t_row["id"], max_depth=max_depth
+                )
+                if path_nodes:
+                    break
+            if path_nodes:
+                break
+
         if not path_nodes:
             return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
         node_ids = [n["id"] for n in path_nodes]
@@ -329,7 +337,8 @@ def read_file_lines(
 ) -> tuple[str, int, int]:
     """Safely read a 1-indexed line slice from a file within the project root."""
     resolved_root = root.resolve()
-    target_file = (resolved_root / rel_file_path).resolve()
+    clean_rel = rel_file_path.replace("\\", "/").lstrip("/")
+    target_file = (resolved_root / clean_rel).resolve()
     if not target_file.is_relative_to(resolved_root):
         raise ValueError(f"Path traversal blocked: '{rel_file_path}' is outside project root")
     if not target_file.is_file():

@@ -118,14 +118,24 @@ def get_context_for_path(
                 or (parent / "package.json").exists()
                 or (parent / "Cargo.toml").exists()
                 or (parent / "go.mod").exists()
+                or (parent / ".vibetrace").exists()
                 or (parent / "vibetrace_context").exists()
             ):
                 project_root = parent
                 break
 
-    context_dir = project_root / "vibetrace_context"
-    context_dir.mkdir(exist_ok=True)
-    db_path = context_dir / "vibetrace.db"
+    if (project_root / ".vibetrace" / "vibetrace.db").exists():
+        db_path = project_root / ".vibetrace" / "vibetrace.db"
+    elif (project_root / ".vibetrace").exists() and not (
+        project_root / "vibetrace_context"
+    ).exists():
+        context_dir = project_root / ".vibetrace"
+        context_dir.mkdir(exist_ok=True)
+        db_path = context_dir / "vibetrace.db"
+    else:
+        context_dir = project_root / "vibetrace_context"
+        context_dir.mkdir(exist_ok=True)
+        db_path = context_dir / "vibetrace.db"
 
     db = IndexerDB(db_path=str(db_path))
     if auto_sync:

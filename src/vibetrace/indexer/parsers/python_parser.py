@@ -415,9 +415,12 @@ class PythonParser(LanguageParser):
             if not (module_name_node := node.child_by_field_name("module_name")):
                 return
             module_name = self._get_text(module_name_node)
-            resolved_mod = (
-                self._add_import_edge(module_name, node, ctx) if module_name.strip(".") else None
-            )
+            is_bare_dots = not module_name.strip(".")
+            resolved_mod = None
+            if not is_bare_dots:
+                resolved_mod = self._add_import_edge(module_name, node, ctx)
+            elif self.resolver:
+                resolved_mod = self.resolver.resolve(module_name, ctx.file_path)
 
             # Collect imported symbol names after the 'import' keyword
             seen_import_kw = False
@@ -429,8 +432,8 @@ class PythonParser(LanguageParser):
                     continue
 
                 if child.type in ("wildcard_import", "*") or self._get_text(child) == "*":
-                    if resolved_mod:
-                        ctx.imported_symbols["*"] = (resolved_mod, "__module__")
+                    target_module = resolved_mod or "external"
+                    ctx.imported_symbols["*"] = (target_module, "__module__")
                     continue
 
                 orig_name: str | None = None
@@ -457,8 +460,15 @@ class PythonParser(LanguageParser):
                     if sub_resolved:
                         self._add_import_edge(sub_query, node, ctx)
                         ctx.imported_symbols[local_name] = (sub_resolved, "__module__")
-                    elif resolved_mod:
-                        ctx.imported_symbols[local_name] = (resolved_mod, orig_name)
+                    else:
+                        target_mod = resolved_mod or "external"
+                        ctx.imported_symbols[local_name] = (target_mod, orig_name)
+                        if (
+                            is_bare_dots
+                            and target_mod != "external"
+                            and target_mod != ctx.file_path
+                        ):
+                            self._add_import_edge(module_name, node, ctx)
 
     def _add_import_edge(
         self, module_name: str, import_node: Node, ctx: ParserContext
@@ -466,6 +476,9 @@ class PythonParser(LanguageParser):
         resolved_path = None
         if self.resolver:
             resolved_path = self.resolver.resolve(module_name, ctx.file_path)
+
+        if resolved_path == ctx.file_path:
+            return resolved_path
 
         module_path = resolved_path if resolved_path else "external"
         canonical_mod = module_name
