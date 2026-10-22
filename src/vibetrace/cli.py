@@ -338,6 +338,13 @@ examples:
     )
     p_mcp.set_defaults(func=_cmd_mcp)
 
+    # Accept global flags after the subcommand too; SUPPRESS keeps root-level values intact.
+    for sp in sub.choices.values():
+        sp.add_argument("--root", default=argparse.SUPPRESS, help="Project root path override")
+        sp.add_argument("--no-sync", action="store_true", default=argparse.SUPPRESS)
+        if not any("--json" in a.option_strings for a in sp._actions):
+            sp.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+
     return parser
 
 

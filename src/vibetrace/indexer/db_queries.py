@@ -67,7 +67,7 @@ class DBQueriesMixin:
 
     def search_ast_exact_or_prefix(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Search AST symbols ordered by exact match, prefix match, and substring match."""
-        q = query.strip()
+        q = query.strip().removesuffix("()").strip()
         if not q:
             return []
         with self._get_conn() as conn:

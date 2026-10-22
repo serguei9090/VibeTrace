@@ -81,6 +81,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **`compute_impact_analysis` Windows Path Normalization (`graph_service.py`)**: Normalized Windows backslashes `\` and leading `./` in `compute_impact_analysis` to prevent same-file function calls from being counted as external blast-radius impacts.
 * **SQLite-Vec Extension Exception Safety (`embeddings.py`)**: Guaranteed `conn.enable_load_extension(False)` always runs in a `finally` block when loading sqlite-vec to prevent leaving extension loading permanently enabled.
 
+### Round 11: CLI Global Flags, Search Parens, `cls.` Resolution & WebSocket Cleanup
+* **Global Flags After Subcommand (`cli.py`)**: `--root`, `--no-sync`, `--json` now accepted after any subcommand; subparser copies use `argparse.SUPPRESS` defaults so root-level placement is never clobbered.
+* **Trailing `()` in Search (`hybrid_search.py`, `db_queries.py`)**: Queries like `calculate()` are normalized so the AST exact-match stream (tier 0) still hits.
+* **Python `cls.method()` Resolution (`parsers/base.py`)**: Added `cls.` to class-scope receiver prefixes so classmethod calls resolve to `Class.method` instead of phantom IDs.
+* **Idempotent WebSocket Disconnect (`server_api.py`)**: `ConnectionManager.active_connections` is now a `set` with `discard()`, eliminating `ValueError` on double disconnect.
+
 ---
 
 ## Non-Regression Policy & Guidelines

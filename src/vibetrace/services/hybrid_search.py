@@ -48,7 +48,7 @@ def hybrid_search(
         RRF_Score(d) = sum_{s in Streams} (w_s / (rrf_k + rank_s(d)))
     where rank_s(d) is the 1-based rank of symbol d in stream s.
     """
-    clean_query = query.strip()
+    clean_query = query.strip().removesuffix("()").strip()
     if not clean_query or limit <= 0:
         return []
 
