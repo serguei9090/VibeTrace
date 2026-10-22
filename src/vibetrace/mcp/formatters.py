@@ -83,8 +83,11 @@ def format_semantic_search_md(query: str, results: list[SearchResult]) -> str:
             f"{idx}. **`{hit.qualified_name}`** ({hit.kind}){sig} — "
             f"`{hit.file_path}{span}` `[RRF={hit.rrf_score:.4f} | {streams}{cent_str}]`"
         )
-        if hit.docstring:
-            first_line = hit.docstring.strip().splitlines()[0]
+        # Whitespace-only docstrings are truthy but have no lines to show.
+        first_line = next(
+            (ln.strip() for ln in (hit.docstring or "").splitlines() if ln.strip()), ""
+        )
+        if first_line:
             lines.append(f"   - {first_line[:120]}")
     return "\n".join(lines)
 

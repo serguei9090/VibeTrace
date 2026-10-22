@@ -146,15 +146,16 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
             )
 
             if params.direction in (TraceDirection.UP, TraceDirection.BOTH):
+                traverser.visited.clear()
                 traverser.output.append("\n**Callers (Incoming):**")
                 traverser.traverse(
                     start_node["id"], 1, params.depth, "up", 0, path_stack=[start_node["name"]]
                 )
                 if not any(safe_str("←") in line for line in traverser.output[-5:]):
                     traverser.output.append("  (no callers found)")
-                traverser.visited.clear()
 
             if params.direction in (TraceDirection.DOWN, TraceDirection.BOTH):
+                traverser.visited.clear()
                 traverser.output.append("\n**Callees (Outgoing):**")
                 traverser.traverse(
                     start_node["id"], 1, params.depth, "down", 0, path_stack=[start_node["name"]]
@@ -402,7 +403,8 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
     """Reindex a file or directory recursively."""
     try:
         db, root = _get_context_for_path(params.path, auto_sync=False)
-        target_path = Path(params.path).resolve()
+        # "." means the resolved project root, not the server process cwd.
+        target_path = root if params.path in ("", ".") else Path(params.path).resolve()
 
         with redirect_stdout(sys.stderr):
             reindex_all(

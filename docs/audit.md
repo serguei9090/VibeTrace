@@ -93,6 +93,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Failed Writes Advancing Git SHA (`main.py`)**: `index_file(failed=...)` records errors; `reindex_all` only advances `last_indexed_git_sha` when every file persisted, so failures retry next run.
 * **Divergent Ignore Rules (`main.py`, `watcher.py`)**: Single `is_ignored_path()` on root-relative paths shared by full walk, git delta, and watcher; delta no longer indexes `dist/`/dot-dirs and the watcher no longer ignores everything when an ancestor folder is named `build`/`dist`.
 
+### Round 13: MCP Reindex Root, Formatter Safety, Call-Stack Visited Reset & Path Prefix
+* **Whitespace-Only Docstring Crash (`mcp/formatters.py`)**: Extracted the first non-empty line in `format_semantic_search_md` so whitespace-only docstrings (`""" """`) do not raise `IndexError`.
+* **MCP Reindex CWD Pollution (`mcp/server.py`)**: Resolved `params.path` values of `""` or `"."` to the context-resolved `root` in `vibetrace_reindex_project` instead of `Path(".").resolve()` (the MCP server process CWD).
+* **`GraphTraverser` Visited-Set Leak (`mcp/server.py`)**: Cleared `traverser.visited` before each `up` and `down` traversal pass per start node so multi-symbol call stacks render full subtrees.
+* **Dot-Directory Path Corruption (`services/graph_service.py`)**: Replaced `lstrip("./")` with `removeprefix("./")` in `compute_impact_analysis` so dot-prefixed paths (e.g. `.github/workflows/ci.py`) are not stripped of their leading dot.
+
 ---
 
 ## Non-Regression Policy & Guidelines

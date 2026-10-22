@@ -269,7 +269,7 @@ def compute_impact_analysis(
     db: IndexerDB, normalized_path: str
 ) -> tuple[int, dict[int, list[str]]]:
     """Compute 3-level transitive impact for changes to a file."""
-    norm_p = normalized_path.replace("\\", "/").lstrip("./")
+    norm_p = normalized_path.replace("\\", "/").removeprefix("./")
     file_nodes = db.get_nodes_in_file(norm_p)
     if not file_nodes:
         return 0, {}
