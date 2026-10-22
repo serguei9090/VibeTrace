@@ -10,6 +10,32 @@ from vibetrace.indexer.git_utils import get_git_delta, get_git_sha
 from vibetrace.indexer.parser import ParserFactory
 from vibetrace.indexer.resolver import ModuleResolver
 
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".ruff_cache",
+        "dist",
+        "build",
+        "vibetrace_context",
+        "vibegraph_context",
+    }
+)
+
+
+def is_ignored_path(rel_path: str, spec: pathspec.PathSpec | None, is_dir: bool = False) -> bool:
+    """Single ignore rule shared by full walk, git delta, and watcher (project-relative path)."""
+    rel = rel_path.replace("\\", "/").strip("/")
+    parts = rel.split("/") if rel else []
+    dir_parts = parts if is_dir else parts[:-1]
+    if any(p in SKIP_DIRS or p.startswith(".") for p in dir_parts):
+        return True
+    if spec is None or not rel:
+        return False
+    return spec.match_file(rel) or (is_dir and spec.match_file(f"{rel}/"))
+
 
 def index_file(
     db: IndexerDB,
@@ -18,8 +44,12 @@ def index_file(
     resolver: ModuleResolver | None = None,
     verbose: bool = True,
     force: bool = False,
+    failed: list[str] | None = None,
 ) -> bool:
-    """Index a single file. Returns True if indexed, False if skipped."""
+    """Index a single file. Returns True if indexed, False if skipped or failed.
+
+    Errors are appended to `failed` (when given) so callers can avoid committing sync state.
+    """
     try:
         abs_path = Path(file_path).resolve()
 
@@ -63,6 +93,8 @@ def index_file(
         return True
 
     except Exception as e:
+        if failed is not None:
+            failed.append(file_path)
         if verbose:
             print(f"Error indexing {file_path}: {e}")
         return False
@@ -96,18 +128,7 @@ def reindex_all(
         else (target_path if target_path.is_dir() else target_path.parent)
     )
 
-    # default skips
-    skip_dirs = {
-        ".git",
-        ".venv",
-        "node_modules",
-        "__pycache__",
-        ".ruff_cache",
-        "dist",
-        "build",
-        "vibetrace_context",
-    }
-
+    failed: list[str] = []
     spec = load_gitignore(eff_root)
     resolver = ModuleResolver(eff_root) if eff_root.is_dir() else None
 
@@ -159,7 +180,7 @@ def reindex_all(
                 ):
                     continue
                 full_path = eff_root / c
-                if spec and spec.match_file(c):
+                if is_ignored_path(c, spec):
                     continue
                 if index_file(
                     db,
@@ -168,13 +189,15 @@ def reindex_all(
                     resolver=resolver,
                     verbose=verbose,
                     force=force,
+                    failed=failed,
                 ):
                     indexed_any = True
                     if resolver:
                         resolver.add_file(c)
             if indexed_any or len(deleted) > 0:
                 db.update_centrality_scores()
-            if current_sha and target_rel in ("", "."):
+            # Only advance the sync cursor when every file persisted; otherwise retry next run.
+            if current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", current_sha)
         else:
             # Full walk fallback (initial index, --force, or non-git repo)
@@ -182,31 +205,22 @@ def reindex_all(
             for root, dirs, files in os.walk(target_path):
                 current_root = Path(root)
 
-                # 1. Prune standard noisy and gitignored directories (optimization)
-                def _is_dir_ignored(d: str, root_dir: Path = current_root) -> bool:
-                    if d in skip_dirs or d.startswith("."):
-                        return True
-                    if not spec:
-                        return False
+                def _rel(p: Path) -> str:
                     try:
-                        rel_d = str((root_dir / d).relative_to(eff_root)).replace("\\", "/")
-                        return spec.match_file(f"{rel_d}/") or spec.match_file(rel_d)
+                        return str(p.relative_to(eff_root)).replace("\\", "/")
                     except ValueError:
-                        return False
+                        return str(p).replace("\\", "/")
 
-                dirs[:] = [d for d in dirs if not _is_dir_ignored(d)]
+                # 1. Prune standard noisy and gitignored directories (optimization)
+                dirs[:] = [
+                    d for d in dirs if not is_ignored_path(_rel(current_root / d), spec, True)
+                ]
 
-                # 2. Filter files using gitignore
+                # 2. Filter files using the shared ignore rule
                 for file in files:
                     full_path = current_root / file
-
-                    try:
-                        rel_path = str(full_path.relative_to(eff_root)).replace("\\", "/")
-                    except ValueError:
-                        rel_path = str(full_path).replace("\\", "/")
-
-                    # Check gitignore if available
-                    if spec and spec.match_file(rel_path):
+                    rel_path = _rel(full_path)
+                    if is_ignored_path(rel_path, spec):
                         continue
 
                     seen_rel_paths.add(rel_path)
@@ -217,6 +231,7 @@ def reindex_all(
                         resolver=resolver,
                         verbose=verbose,
                         force=force,
+                        failed=failed,
                     )
 
             # Reconcile stale files: purge any file recorded in indexed_files
@@ -234,7 +249,7 @@ def reindex_all(
                         resolver.remove_file(indexed_file)
 
             db.update_centrality_scores()
-            if current_sha and target_rel in ("", "."):
+            if current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", current_sha)
 
     if use_lsp and eff_root.is_dir():

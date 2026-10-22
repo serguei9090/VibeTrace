@@ -86,8 +86,8 @@ app = FastAPI(title="VibeTrace API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    # Loopback only: a wildcard would let any website read project source via the API.
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -131,7 +131,10 @@ def get_source(
     start_line: int | None = Query(default=None, ge=1),
     end_line: int | None = Query(default=None, ge=1),
 ):
-    """Safely return a 1-indexed source code slice from a project file."""
+    """Safely return a 1-indexed source code slice from an indexed project file."""
+    # Serve only indexed source files so secrets (.env, keys) are never exposed.
+    if db.get_file_hash(file_path.replace("\\", "/").removeprefix("./")) is None:
+        raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
     try:
         snippet, s_line, e_line = read_file_lines(
             Path(project_root), file_path, start_line, end_line

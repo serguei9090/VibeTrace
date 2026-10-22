@@ -9,7 +9,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.indexer.main import index_file
+from vibetrace.indexer.main import index_file, is_ignored_path, load_gitignore
 from vibetrace.indexer.resolver import ModuleResolver
 
 
@@ -25,22 +25,10 @@ class CodeChangeHandler(FileSystemEventHandler):
         self.on_change = on_change
         self.root_path = Path(root_path).resolve()
         self.resolver = ModuleResolver(self.root_path)
-        self.gitignore_spec = self._load_gitignore()
+        self.gitignore_spec = load_gitignore(self.root_path)
         self.debounce_seconds = debounce_seconds
         self._debounce_timer: threading.Timer | None = None
         self._lock = threading.Lock()
-
-    def _load_gitignore(self):
-        gitignore_path = self.root_path / ".gitignore"
-        if gitignore_path.exists():
-            try:
-                import pathspec
-
-                with open(gitignore_path, encoding="utf-8") as f:
-                    return pathspec.PathSpec.from_lines("gitignore", f)
-            except Exception as e:
-                print(f"Warning: Failed to load .gitignore: {e}")
-        return None
 
     def _to_rel_path(self, src_path: str) -> str:
         try:
@@ -49,25 +37,12 @@ class CodeChangeHandler(FileSystemEventHandler):
             return str(Path(src_path).resolve()).replace("\\", "/")
 
     def _should_ignore(self, file_path: str) -> bool:
-        """Check if file should be ignored based on gitignore and common patterns."""
+        """Check if file should be ignored using the indexer's shared, root-relative rule."""
         path = Path(file_path).resolve()
-
-        # Standard strict ignores
-        ignore_patterns = [
-            ".git",
-            ".venv",
-            "node_modules",
-            "__pycache__",
-            ".ruff_cache",
-            "dist",
-            "build",
-            ".vibetrace",
-            ".vibegraph",
-            "vibetrace_context",
-            "vibegraph_context",
-        ]
-        if any(p in path.parts for p in ignore_patterns):
-            return True
+        try:
+            rel_path = str(path.relative_to(self.root_path)).replace("\\", "/")
+        except ValueError:
+            return True  # Outside the watched project root
 
         # Ignore SQLite DB/WAL files, editor swap / temporary files
         fname = path.name
@@ -76,17 +51,8 @@ class CodeChangeHandler(FileSystemEventHandler):
         ):
             return True
 
-        if self.gitignore_spec:
-            try:
-                rel_path_str = str(path.relative_to(self.root_path)).replace("\\", "/")
-                if self.gitignore_spec.match_file(rel_path_str) or self.gitignore_spec.match_file(
-                    f"{rel_path_str}/"
-                ):
-                    return True
-            except ValueError:
-                pass  # Not relative to root
-
-        return False
+        # Relative parts only: an ancestor of the root named `build`/`dist` must not matter.
+        return is_ignored_path(rel_path, self.gitignore_spec, is_dir=path.is_dir())
 
     def _notify(self):
         if self.on_change:

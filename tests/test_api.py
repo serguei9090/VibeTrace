@@ -42,6 +42,9 @@ def mock_db(monkeypatch, tmp_path):
         )
     )
     db.upsert_edge(Edge(from_node_id="a", to_node_id="b", relation_type="calls", call_line=2))
+    # /source only serves indexed files
+    db.update_file_hash("a.py", "h", 0)
+    db.update_file_hash("empty_mod.py", "h", 0)
 
     # Monkeypatch the 'db' and 'project_root' variables in server_api
     import vibetrace.server_api
@@ -86,9 +89,9 @@ def test_get_source_and_security(mock_db):
     data = response.json()
     assert "1: class NodeA:" in data["source_code"]
 
-    # Path traversal blocked
+    # Path traversal blocked (never indexed -> 404 before any disk read)
     bad = client.get("/source?file_path=../../etc/passwd")
-    assert bad.status_code == 400
+    assert bad.status_code in (400, 404)
 
     # Missing file
     missing = client.get("/source?file_path=nonexistent.py")

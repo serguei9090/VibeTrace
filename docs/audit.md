@@ -87,6 +87,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Python `cls.method()` Resolution (`parsers/base.py`)**: Added `cls.` to class-scope receiver prefixes so classmethod calls resolve to `Class.method` instead of phantom IDs.
 * **Idempotent WebSocket Disconnect (`server_api.py`)**: `ConnectionManager.active_connections` is now a `set` with `discard()`, eliminating `ValueError` on double disconnect.
 
+### Round 12: API Security Boundary, Git Delta Integrity & Unified Ignore Rules
+* **Cross-Origin Source Exfiltration (`server_api.py`)**: CORS restricted to loopback origins (no wildcard, no credentials); `/source` serves only files present in `indexed_files`, so `.env`/keys are never readable.
+* **Re-Created Files Purged by Delta (`git_utils.py`)**: Disk is now the source of truth — paths deleted in history but present on disk are re-indexed instead of cleared.
+* **Failed Writes Advancing Git SHA (`main.py`)**: `index_file(failed=...)` records errors; `reindex_all` only advances `last_indexed_git_sha` when every file persisted, so failures retry next run.
+* **Divergent Ignore Rules (`main.py`, `watcher.py`)**: Single `is_ignored_path()` on root-relative paths shared by full walk, git delta, and watcher; delta no longer indexes `dist/`/dot-dirs and the watcher no longer ignores everything when an ancestor folder is named `build`/`dist`.
+
 ---
 
 ## Non-Regression Policy & Guidelines

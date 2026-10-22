@@ -129,18 +129,11 @@ def get_git_delta(
                 else:
                     changed.add(clean_p)
 
-        # Reconcile deleted vs changed
-        changed -= deleted
-
-        # Verify disk existence for added/changed files
-        verified_changed: set[str] = set()
-        for p in changed:
-            if (repo_root / p).exists():
-                verified_changed.add(p)
-            else:
-                deleted.add(p)
-
-        return verified_changed, deleted
+        # Disk is the source of truth: a path deleted in history but present now
+        # (re-created, `git rm --cached`, reverted delete) must be re-indexed, not purged.
+        all_paths = changed | deleted
+        verified_changed = {p for p in all_paths if (repo_root / p).is_file()}
+        return verified_changed, all_paths - verified_changed
 
     except (subprocess.SubprocessError, OSError):
         return None
