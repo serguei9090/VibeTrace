@@ -173,11 +173,12 @@ class LSPClient:
         if not target_uri or not target_range:
             return None
 
-        u = urlparse(target_uri)
+        raw_uri = unquote(target_uri)
+        u = urlparse(raw_uri)
         if os.name == "nt" and u.netloc and len(u.netloc) == 2 and u.netloc[1] == ":":
-            parsed_path = unquote(f"{u.netloc}{u.path}")
+            parsed_path = f"{u.netloc}{u.path}"
         else:
-            parsed_path = unquote(u.path)
+            parsed_path = u.path
 
         if os.name == "nt" and parsed_path.startswith("/"):
             parsed_path = parsed_path[1:]

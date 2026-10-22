@@ -79,9 +79,11 @@ def try_load_sqlite_vec(conn: sqlite3.Connection) -> bool:
     try:
         sqlite_vec = importlib.import_module("sqlite_vec")
         conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
-        conn.enable_load_extension(False)
-        return True
+        try:
+            sqlite_vec.load(conn)
+            return True
+        finally:
+            conn.enable_load_extension(False)
     except Exception:
         return False
 

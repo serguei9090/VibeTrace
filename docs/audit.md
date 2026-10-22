@@ -17,6 +17,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **7** | Systems & Limits | PHP namespace use & heritage, reusable `_add_node` helper, $<500$ LOC ceilings | `tests/test_audit_code_bugs_round7.py` | ✅ Verified |
 | **8** | Query & REST API | Trailing `()` query drops, Go `var_spec` unwrapping, ModuleResolver fallback, Saved trace API | `tests/test_audit_code_bugs_round8.py` | ✅ Verified |
 | **9** | Git & Watchdog | Subtree Git SHA poisoning, Watcher gitignore backslashes, Fullstack route priority, UTF-8 Git | `tests/test_audit_code_bugs_round9.py` | ✅ Verified |
+| **10** | LSP, Sync & Sec | LSP Windows encoded URI drive letters, `ensure_index_fresh` pruned SHA recovery, impact backslash, sqlite-vec | `tests/test_audit_code_bugs_round10.py` | ✅ Verified |
 
 ---
 
@@ -73,6 +74,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Watcher Gitignore Windows Backslash Mismatch (`watcher.py`)**: Replaced `\` with `/` on relative filepaths before evaluating against `pathspec.PathSpec`.
 * **Fullstack Route Priority & Code Slices (`trace_service.py`)**: Included `"routes": 1` in BFS pathfinding priority and allowed `"routes"` edges in `get_code_slice` callee contracts.
 * **Git Delta UTF-8 Quotepath (`git_utils.py`)**: Passed `-c core.quotepath=false` and `encoding="utf-8"` to Git subprocesses to prevent non-ASCII UTF-8 filenames from being deleted.
+
+### Round 10: LSP Bridge, Freshness Sync, Blast Radius & Vector Security
+* **LSP Bridge Windows Encoded URI Drive Letters (`lsp_bridge.py`)**: Decoded percent-encoded drive letters (`file://c%3A/...`) before URI parsing to prevent losing the drive letter and corrupting definitions on Windows.
+* **`ensure_index_fresh` Pruned SHA Recovery (`graph_service.py`)**: Handled rebased, squashed, or pruned Git commits where `get_git_delta` returns `None` by triggering full reconciliation reindexing.
+* **`compute_impact_analysis` Windows Path Normalization (`graph_service.py`)**: Normalized Windows backslashes `\` and leading `./` in `compute_impact_analysis` to prevent same-file function calls from being counted as external blast-radius impacts.
+* **SQLite-Vec Extension Exception Safety (`embeddings.py`)**: Guaranteed `conn.enable_load_extension(False)` always runs in a `finally` block when loading sqlite-vec to prevent leaving extension loading permanently enabled.
 
 ---
 

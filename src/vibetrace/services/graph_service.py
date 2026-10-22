@@ -84,10 +84,14 @@ def ensure_index_fresh(
 
     # If in git repo, check for delta
     if current_sha:
-        delta = get_git_delta(project_root, last_sha)
-        if delta is not None:
-            changed, deleted = delta
-            if changed or deleted:
+        if current_sha != last_sha:
+            delta = get_git_delta(project_root, last_sha)
+            if delta is None or delta[0] or delta[1]:
+                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+                return True
+        else:
+            delta = get_git_delta(project_root, current_sha)
+            if delta is not None and (delta[0] or delta[1]):
                 reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
                 return True
 
@@ -265,7 +269,8 @@ def compute_impact_analysis(
     db: IndexerDB, normalized_path: str
 ) -> tuple[int, dict[int, list[str]]]:
     """Compute 3-level transitive impact for changes to a file."""
-    file_nodes = db.get_nodes_in_file(normalized_path)
+    norm_p = normalized_path.replace("\\", "/").lstrip("./")
+    file_nodes = db.get_nodes_in_file(norm_p)
     if not file_nodes:
         return 0, {}
 
@@ -287,7 +292,7 @@ def compute_impact_analysis(
                 continue
 
             next_depth = depth + 1
-            if dep["file_path"] != normalized_path:
+            if dep["file_path"] != norm_p:
                 if next_depth <= 3:
                     entry = (
                         f"- **`{dep['name']}`** (`{dep['file_path']}`) "
