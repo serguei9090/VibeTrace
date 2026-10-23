@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -85,7 +86,17 @@ def hybrid_search(
         _accumulate(nid, idx, weight_fts5, "fts5")
 
     # Stream 3: Local EmbeddingGemma 2 semantic cosine search (optional / graceful fallback)
-    engine = embedding_engine or EmbeddingEngine()
+    if embedding_engine is not None:
+        engine = embedding_engine
+    else:
+        candidate_root = None
+        if hasattr(db, "db_path") and db.db_path:
+            p = Path(db.db_path).resolve()
+            if p.parent.name in (".vibetrace", "vibetrace_context"):
+                candidate_root = p.parent.parent
+            else:
+                candidate_root = p.parent
+        engine = EmbeddingEngine(project_root=candidate_root)
     try:
         semantic_hits = engine.search_semantic(db, clean_query, limit=pool_limit)
     except Exception:

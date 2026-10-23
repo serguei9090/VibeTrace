@@ -102,22 +102,44 @@ class EmbeddingEngine:
     ):
         self.config = config or EmbeddingConfig()
         self._encoder = encoder
-        if vector_store is None:
-            try:
-                from vibetrace.config import load_config
-                from vibetrace.indexer.vector_store import get_vector_store
-
-                cfg = load_config(project_root)
-                self.vector_store = get_vector_store(
-                    project_root or Path.cwd(),
-                    cfg.vectors,
-                    project_name=cfg.project.name,
-                )
-            except Exception:
-                self.vector_store = None
-        else:
-            self.vector_store = vector_store
+        self.vector_store = vector_store
+        self.project_root = project_root
+        if self.vector_store is None and project_root is not None:
+            self._init_vector_store(project_root)
         self._st_model: Any = None
+
+    def _init_vector_store(self, root: Path) -> None:
+        """Initialize LanceDB vector store scoped to specified project root."""
+        try:
+            from vibetrace.config import load_config
+            from vibetrace.indexer.vector_store import get_vector_store
+
+            cfg = load_config(root)
+            vec_cfg = cfg.vectors.model_copy(
+                update={
+                    "dimensions": self.config.dimensions,
+                    "model_id": self.config.model_id,
+                }
+            )
+            self.vector_store = get_vector_store(
+                root,
+                vec_cfg,
+                project_name=cfg.project.name,
+            )
+        except Exception:
+            self.vector_store = None
+
+    def _resolve_vector_store(self, db: IndexerDB) -> None:
+        """Ensure vector store is initialized, inferring workspace root from DB path if needed."""
+        if self.vector_store is not None:
+            return
+        root = self.project_root
+        if root is None and hasattr(db, "db_path") and db.db_path:
+            p = Path(db.db_path).resolve()
+            is_sub = p.parent.name in (".vibetrace", "vibetrace_context")
+            root = p.parent.parent if is_sub else p.parent
+        if root is not None:
+            self._init_vector_store(root)
 
     def is_available(self) -> bool:
         """Check whether an encoder callable or sentence-transformers is available."""
@@ -171,6 +193,7 @@ class EmbeddingEngine:
         if not self.is_available():
             return 0
 
+        self._resolve_vector_store(db)
         missing_nodes = db.get_nodes_missing_embeddings(self.config.model_id)
         if not missing_nodes:
             return 0
@@ -196,6 +219,8 @@ class EmbeddingEngine:
                 lance_records = [
                     {
                         "node_id": node["id"],
+                        "name": node.get("name", ""),
+                        "kind": node.get("kind", ""),
                         "vector": vec,
                         "dimensions": self.config.dimensions,
                         "model_id": self.config.model_id,
@@ -208,12 +233,19 @@ class EmbeddingEngine:
 
         return total_indexed
 
+    def delete_file_embeddings(self, file_path: str) -> None:
+        """Purge vectors belonging to a file path from the underlying vector store."""
+        if self.vector_store and self.vector_store.is_available():
+            self.vector_store.delete_file_embeddings(file_path)
+
     def search_semantic(
         self, db: IndexerDB, query: str, limit: int = 20
     ) -> list[tuple[str, float]]:
         """Return (node_id, cosine_similarity) pairs ranked descending."""
         if not self.is_available() or not query.strip() or limit <= 0:
             return []
+
+        self._resolve_vector_store(db)
 
         # Fast path 1: High-scale disk-backed LanceDB vector store if populated
         if (

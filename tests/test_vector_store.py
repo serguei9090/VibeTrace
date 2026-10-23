@@ -120,3 +120,47 @@ def test_embedding_engine_with_lancedb_integration(tmp_path: Path):
     assert hits
     assert hits[0][0] == "node_auth"
     assert hits[0][1] > 0.99
+
+    # Purge file embeddings via engine
+    engine.delete_file_embeddings("auth.py")
+    assert store.count("mock-model") == 1
+
+
+def test_lancedb_robustness_and_sql_quote_escapes(tmp_path: Path):
+    """Verify LanceDBVectorStore handles extraneous fields and single-quote SQL escapes safely."""
+    dim = 256
+    store = LanceDBVectorStore(
+        uri=tmp_path / "vectors_escapes.lance",
+        dimensions=dim,
+        project_name="escape-test",
+    )
+    vec = [0.7] + [0.0] * (dim - 1)
+
+    # Records with extraneous fields and quotes in identifiers
+    records = [
+        {
+            "node_id": "user's_func_1",
+            "name": "func_1",
+            "kind": "function",
+            "vector": vec,
+            "dimensions": dim,
+            "model_id": "quote's_model",
+            "file_path": "src/user's_file.py",
+            "extraneous_key_1": "should_be_ignored",
+            "extraneous_key_2": 12345,
+        }
+    ]
+
+    added = store.upsert_embeddings(records)
+    assert added == 1
+    assert store.has_embeddings("quote's_model") is True
+    assert store.count("quote's_model") == 1
+
+    # Search with quoted model_id
+    results = store.search_semantic(vec, limit=5, model_id="quote's_model")
+    assert len(results) == 1
+    assert results[0][0] == "user's_func_1"
+
+    # Purge with single quote in path
+    store.delete_file_embeddings("src/user's_file.py")
+    assert store.count("quote's_model") == 0

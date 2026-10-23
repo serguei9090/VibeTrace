@@ -66,6 +66,14 @@ test-results/
 
 # Scratch & Automation Scratchpad
 /scratch/
+
+# VibeTrace local storage & vectors
+.vibetrace/
+vibetrace_context/
+*.lance/
+*.lance
+.vibetrace.toml
+
 .codanna/
 .codannaignore
 .fastembed_cache

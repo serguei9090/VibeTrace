@@ -81,6 +81,8 @@ class LanceDBVectorStore:
         schema = pa.schema(
             [
                 pa.field("node_id", pa.string()),
+                pa.field("name", pa.string()),
+                pa.field("kind", pa.string()),
                 pa.field("vector", pa.list_(pa.float32(), self.dimensions)),
                 pa.field("dimensions", pa.int32()),
                 pa.field("model_id", pa.string()),
@@ -106,7 +108,7 @@ class LanceDBVectorStore:
                 return False
             if not model_id:
                 return True
-            safe_model = model_id.replace("'", "\\'")
+            safe_model = model_id.replace("'", "''")
             filtered = table.search().where(f"model_id = '{safe_model}'").limit(1).to_list()
             return len(filtered) > 0
         except Exception:
@@ -120,7 +122,7 @@ class LanceDBVectorStore:
         try:
             if not model_id:
                 return int(table.count_rows())
-            safe_model = model_id.replace("'", "\\'")
+            safe_model = model_id.replace("'", "''")
             return int(table.count_rows(f"model_id = '{safe_model}'"))
         except Exception:
             return 0
@@ -140,25 +142,44 @@ class LanceDBVectorStore:
                 # Batch delete in chunks of 500 to keep SQL filter string safe
                 for i in range(0, len(node_ids), 500):
                     chunk = node_ids[i : i + 500]
-                    escaped_ids = ", ".join("'" + nid.replace("'", "") + "'" for nid in chunk)
+                    escaped_ids = ", ".join("'" + nid.replace("'", "''") + "'" for nid in chunk)
                     table.delete(f"node_id IN ({escaped_ids})")
             except Exception:
                 pass
 
-        # Populate missing project_name and dimensions if needed
+        # Filter fields against existing table schema to prevent invalid field exceptions
+        schema_cols = set(table.schema.names)
+        sanitized: list[dict[str, Any]] = []
         for r in records:
-            r.setdefault("project_name", self.project_name)
-            r.setdefault("dimensions", self.dimensions)
+            item = {k: v for k, v in r.items() if k in schema_cols}
+            if "project_name" in schema_cols:
+                item.setdefault("project_name", self.project_name)
+            if "dimensions" in schema_cols:
+                item.setdefault("dimensions", self.dimensions)
+            sanitized.append(item)
 
-        table.add(records)
-        return len(records)
+        # Ensure vectors match table fixed dimension to prevent Arrow cast errors
+        if "vector" in schema_cols:
+            vec_field = table.schema.field("vector")
+            expected_dim = getattr(vec_field.type, "list_size", self.dimensions)
+            valid_records = [
+                r for r in sanitized if "vector" in r and len(r["vector"]) == expected_dim
+            ]
+        else:
+            valid_records = sanitized
+
+        if not valid_records:
+            return 0
+
+        table.add(valid_records)
+        return len(valid_records)
 
     def delete_file_embeddings(self, file_path: str) -> None:
         """Purge all symbol vectors belonging to a file path."""
         table = self._get_table()
         if table is None:
             return
-        clean_path = file_path.replace("\\", "/").replace("'", "\\'")
+        clean_path = file_path.replace("\\", "/").replace("'", "''")
         try:
             table.delete(f"file_path = '{clean_path}'")
         except Exception:
@@ -177,10 +198,16 @@ class LanceDBVectorStore:
         if table is None:
             return []
 
+        # Guard against query vector dimension mismatch
+        if "vector" in table.schema.names:
+            expected_dim = getattr(table.schema.field("vector").type, "list_size", self.dimensions)
+            if len(query_vec) != expected_dim:
+                return []
+
         try:
             query = table.search(query_vec).metric("cosine").limit(limit)
             if model_id:
-                safe_model = model_id.replace("'", "\\'")
+                safe_model = model_id.replace("'", "''")
                 query = query.where(f"model_id = '{safe_model}'")
 
             rows = query.to_list()

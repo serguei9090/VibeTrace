@@ -12,6 +12,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
@@ -291,8 +292,9 @@ async def vibetrace_search_by_signature(params: SearchInput) -> str:
 async def vibetrace_semantic_search(params: SemanticSearchInput) -> str:
     """Hybrid RRF search across AST symbols, SQLite FTS5 BM25, and EmbeddingGemma 2 vectors."""
     try:
-        db, _ = _get_context_for_path(params.scope_path)
-        results = hybrid_search(db, params.query, limit=params.limit)
+        db, root = _get_context_for_path(params.scope_path)
+        engine = EmbeddingEngine(project_root=root)
+        results = hybrid_search(db, params.query, limit=params.limit, embedding_engine=engine)
 
         notify_ui_focus(
             "semantic_search",

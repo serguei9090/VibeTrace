@@ -14,6 +14,7 @@ SKIP_DIRS = frozenset(
     {
         ".git",
         ".venv",
+        ".vibetrace",
         "node_modules",
         "__pycache__",
         ".ruff_cache",

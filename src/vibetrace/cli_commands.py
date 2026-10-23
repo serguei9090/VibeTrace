@@ -53,7 +53,7 @@ def cmd_index(args: argparse.Namespace) -> int:
 
     embedded_count = 0
     if args.embed:
-        engine = EmbeddingEngine()
+        engine = EmbeddingEngine(project_root=root)
         if not engine.is_available():
             msg = (
                 "Optional [embeddings] extra not installed. "
@@ -84,10 +84,11 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 def cmd_search(args: argparse.Namespace) -> int:
     auto_sync = not getattr(args, "no_sync", False)
-    db, _ = get_context_for_path(
+    db, root = get_context_for_path(
         args.path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
     )
-    results = hybrid_search(db, args.query, limit=args.limit)
+    engine = EmbeddingEngine(project_root=root)
+    results = hybrid_search(db, args.query, limit=args.limit, embedding_engine=engine)
     notify_ui_focus(
         "semantic_search",
         [r.node_id for r in results[:5]],
