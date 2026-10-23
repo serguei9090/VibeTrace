@@ -134,6 +134,80 @@ The agent will automatically gain access to:
 
 ---
 
+## ⚙️ Project Configuration (`.vibetrace.toml`)
+
+VibeTrace projects are configured via an optional `.vibetrace.toml` at the project root (automatically generated when running `vibetrace init`):
+
+```toml
+# VibeTrace Configuration Contract
+
+[project]
+# Project identifier (used as partition discriminator key in central DBs)
+name = "my-service"
+
+[database]
+# Storage backend: "sqlite" (default). Future enterprise: "postgres"
+backend = "sqlite"
+# Local path for SQLite (stored safely inside .vibetrace/)
+path = ".vibetrace/vibetrace.db"
+# Connection busy timeout in seconds
+busy_timeout_seconds = 30.0
+
+[vectors]
+# Vector engine: "lancedb" (recommended), "sqlite-vec", or "none"
+engine = "lancedb"
+# Local directory or remote cloud URI (e.g. "s3://company-vectors/my-service")
+uri = ".vibetrace/vectors.lance"
+# Embedding model and Matryoshka dimension
+model_id = "google/embeddinggemma-2"
+dimensions = 256
+batch_size = 32
+
+[indexer]
+# Working-tree Git-SHA delta debounce window (<20ms check)
+debounce_seconds = 2.0
+# Auto-sync working tree changes during queries
+auto_sync = true
+```
+
+---
+
+## 🗺️ Architectural Roadmap: Pluggable Storage & Enterprise Scale
+
+VibeTrace uses a **Storage Adapter Interface** decoupling application logic, AST parsers, and FastMCP tools from the physical database engines:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  Presentation & Logic (CLI, MCP Tools, AST Parsers, Graph Traverser)  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (Calls IndexerDB & VectorStore)
+                                    ▼
+       ┌─────────────────────────────────────────────────────────┐
+       │             Storage Adapter Interface (DB)              │
+       └──────────────┬───────────────────────────┬──────────────┘
+                      │                           │
+            [ Scenario 1: Hybrid ]       [ Scenario 2: Unified ]
+                      │                           │
+          ┌───────────┴──────────┐                │
+          ▼                      ▼                ▼
+     PostgreSQL               LanceDB         PostgreSQL
+  (Relational Graph)      (Vector Embeddings) (Graph + pgvector)
+  • Scalable SQL          • Serverless on S3  • Everything in 1
+  • Centralized Pool      • Sub-ms ANN        • Single Cloud DB
+```
+
+### 1. Current Phase: Serverless In-Process (SQLite + LanceDB)
+- **Zero background services**: In-process SQLite for the AST call graph and FTS5 BM25 search.
+- **Embedded LanceDB**: Disk-backed 256d Matryoshka vector ANN search with $<50$MB RAM overhead and sub-millisecond cosine retrieval.
+
+### 2. Enterprise Roadmap: PostgreSQL Storage Adapters
+For centralized team servers, monorepos, and cloud multi-tenancy:
+- **Hybrid PostgreSQL + LanceDB**: Swap SQLite with a PostgreSQL adapter (`backend = "postgres"` in `.vibetrace.toml`) while keeping LanceDB streaming from S3/GCS.
+- **Unified PostgreSQL (`pgvector`)**: Store relational graph, AST entities, and vector embeddings in a single centralized PostgreSQL cluster with HNSW indices.
+- **Zero Code Modification**: Because AST extraction and MCP tools interface through abstract storage contracts, transitioning to PostgreSQL requires updating only the connection config in `.vibetrace.toml`.
+
+---
+
 ## 🛠️ Development & Contributing
 
 ```bash

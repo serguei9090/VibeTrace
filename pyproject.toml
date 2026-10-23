@@ -29,6 +29,7 @@ dependencies = [
 embeddings = [
     "sentence-transformers>=3.4.0",
     "sqlite-vec>=0.1.6",
+    "lancedb>=0.17.0",
 ]
 
 [project.scripts]

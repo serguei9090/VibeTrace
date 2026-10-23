@@ -131,6 +131,8 @@ def get_context_for_path(
                     or (parent / "package.json").exists()
                     or (parent / "Cargo.toml").exists()
                     or (parent / "go.mod").exists()
+                    or (parent / ".vibetrace.toml").exists()
+                    or (parent / "vibetrace.toml").exists()
                     or (parent / ".vibetrace").exists()
                     or (parent / "vibetrace_context").exists()
                 ):
@@ -141,8 +143,16 @@ def get_context_for_path(
             if not found and env_root:
                 project_root = Path(env_root).resolve()
 
+    from vibetrace.config import load_config
+
+    cfg = load_config(project_root)
+    cfg_db = (project_root / cfg.database.path).resolve()
+
     if (project_root / ".vibetrace" / "vibetrace.db").exists():
         db_path = project_root / ".vibetrace" / "vibetrace.db"
+    elif (project_root / ".vibetrace.toml").exists() or cfg_db.exists():
+        db_path = cfg_db
+        db_path.parent.mkdir(parents=True, exist_ok=True)
     elif (project_root / ".vibetrace").exists() and not (
         project_root / "vibetrace_context"
     ).exists():
@@ -155,8 +165,8 @@ def get_context_for_path(
         db_path = context_dir / "vibetrace.db"
 
     db = IndexerDB(db_path=str(db_path))
-    if auto_sync:
-        ensure_index_fresh(db, project_root)
+    if auto_sync and cfg.indexer.auto_sync:
+        ensure_index_fresh(db, project_root, debounce_seconds=cfg.indexer.debounce_seconds)
 
     return db, project_root
 

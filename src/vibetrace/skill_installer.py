@@ -126,11 +126,16 @@ def initialize_workspace(
     # 2. Install navigator skill
     installed_skills = install_skill(root, global_install=global_skill)
 
-    # 3. Create .vibetrace local directory if needed
+    # 3. Create root .vibetrace.toml configuration file
+    from vibetrace.config import save_default_config
+
+    config_path = save_default_config(root, project_name=root.name)
+
+    # 4. Create .vibetrace local directory if needed
     vibetrace_dir = root / ".vibetrace"
     vibetrace_dir.mkdir(exist_ok=True)
 
-    # 4. Run initial indexing if requested
+    # 5. Run initial indexing if requested
     indexed_nodes = 0
     indexed_edges = 0
     db_path = vibetrace_dir / "vibetrace.db"
@@ -146,6 +151,7 @@ def initialize_workspace(
     return {
         "project_root": str(root),
         "db_path": str(db_path),
+        "config_path": str(config_path),
         "gitignore_updated": bool(added_ignores),
         "added_ignores": added_ignores,
         "installed_skills": [str(p) for p in installed_skills],

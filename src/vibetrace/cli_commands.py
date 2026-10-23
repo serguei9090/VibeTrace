@@ -334,6 +334,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     print("🎉 VibeTrace workspace initialized successfully!")
     print(f"- **Project Root**: `{res['project_root']}`")
+    print(f"- **Configuration**: `{res.get('config_path', 'default')}`")
     print(f"- **Local Database**: `{res['db_path']}` (isolated per-project)")
     if res["gitignore_updated"]:
         print(f"- **.gitignore Updated**: added `{', '.join(res['added_ignores'])}`")

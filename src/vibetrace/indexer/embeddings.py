@@ -8,11 +8,13 @@ import math
 import sqlite3
 import struct
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.vector_store import VectorStore
 
 
 class EmbeddingConfig(BaseModel):
@@ -95,9 +97,26 @@ class EmbeddingEngine:
         self,
         config: EmbeddingConfig | None = None,
         encoder: Callable[[list[str]], Sequence[Sequence[float]]] | None = None,
+        vector_store: VectorStore | None = None,
+        project_root: Path | None = None,
     ):
         self.config = config or EmbeddingConfig()
         self._encoder = encoder
+        if vector_store is None:
+            try:
+                from vibetrace.config import load_config
+                from vibetrace.indexer.vector_store import get_vector_store
+
+                cfg = load_config(project_root)
+                self.vector_store = get_vector_store(
+                    project_root or Path.cwd(),
+                    cfg.vectors,
+                    project_name=cfg.project.name,
+                )
+            except Exception:
+                self.vector_store = None
+        else:
+            self.vector_store = vector_store
         self._st_model: Any = None
 
     def is_available(self) -> bool:
@@ -173,6 +192,18 @@ class EmbeddingEngine:
                 for node, vec in zip(batch, vectors, strict=True)
             ]
             db.upsert_embeddings(rows)
+            if self.vector_store and self.vector_store.is_available():
+                lance_records = [
+                    {
+                        "node_id": node["id"],
+                        "vector": vec,
+                        "dimensions": self.config.dimensions,
+                        "model_id": self.config.model_id,
+                        "file_path": node.get("file_path", ""),
+                    }
+                    for node, vec in zip(batch, vectors, strict=True)
+                ]
+                self.vector_store.upsert_embeddings(lance_records)
             total_indexed += len(rows)
 
         return total_indexed
@@ -183,6 +214,18 @@ class EmbeddingEngine:
         """Return (node_id, cosine_similarity) pairs ranked descending."""
         if not self.is_available() or not query.strip() or limit <= 0:
             return []
+
+        # Fast path 1: High-scale disk-backed LanceDB vector store if populated
+        if (
+            self.vector_store
+            and self.vector_store.is_available()
+            and self.vector_store.has_embeddings(self.config.model_id)
+        ):
+            query_vecs = self.embed_texts([query])
+            if query_vecs:
+                return self.vector_store.search_semantic(
+                    query_vecs[0], limit=limit, model_id=self.config.model_id
+                )
 
         # Fast check: avoid expensive neural forward-pass if database has no vectors
         with db._get_conn() as conn:
