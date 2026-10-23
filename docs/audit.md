@@ -99,6 +99,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **`GraphTraverser` Visited-Set Leak (`mcp/server.py`)**: Cleared `traverser.visited` before each `up` and `down` traversal pass per start node so multi-symbol call stacks render full subtrees.
 * **Dot-Directory Path Corruption (`services/graph_service.py`)**: Replaced `lstrip("./")` with `removeprefix("./")` in `compute_impact_analysis` so dot-prefixed paths (e.g. `.github/workflows/ci.py`) are not stripped of their leading dot.
 
+### Round 14: CLI `--no-sync` Wiring, Subdirectory Path Normalization, Non-Git Freshness Guard & Python `super()` Call Resolution
+* **CLI `--no-sync` Flag Reachability (`cli_commands.py`)**: Propagated `auto_sync = not getattr(args, "no_sync", False)` to `get_context_for_path()` in `cmd_search`, `cmd_trace`, `cmd_slice`, `cmd_call_tree`, `cmd_impact`, and `cmd_summary`, enabling agents to bypass JIT reindexing for fast read-only queries.
+* **Subdirectory `normalize_path` Resolution (`services/graph_service.py`)**: Checked `p.exists()` before falling back to `abs_root / p` so running CLI commands from workspace subdirectories accurately resolves relative file paths to their indexed root-relative locations.
+* **Non-Git Workspace Reindexing Storm (`indexer/main.py`, `services/graph_service.py`)**: Persisted `last_indexed_git_sha = "non-git"` in `meta` on successful initial indexing and short-circuited subsequent `ensure_index_fresh()` calls in non-git directories, preventing infinite full-tree disk walks.
+* **Python `super().method()` AST Call Resolution (`parsers/python_parser.py`, `parsers/base.py`)**: Registered superclass in `ctx.local_types["super()"]` during class definition extraction and resolved `super().method()` / `super(Class, self).method()` to `Base.method` across intra-file and cross-module inheritance trees instead of emitting phantom node edges.
+
 ---
 
 ## Non-Regression Policy & Guidelines

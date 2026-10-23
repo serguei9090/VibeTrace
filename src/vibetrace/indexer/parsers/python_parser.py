@@ -301,9 +301,7 @@ class PythonParser(LanguageParser):
         signature = self._get_text(params_node) if params_node else None
         docstring = self._extract_docstring(node)
 
-        visibility = "public"
-        if name.startswith("_") and not name.startswith("__"):
-            visibility = "private"
+        visibility = "private" if name.startswith("_") and not name.startswith("__") else "public"
 
         new_node = self._create_node(
             node_id,
@@ -339,12 +337,13 @@ class PythonParser(LanguageParser):
 
         # Extract base classes on class_definition
         if node.type == "class_definition":
-            sc = node.child_by_field_name("superclasses")
-            if sc:
+            if sc := node.child_by_field_name("superclasses"):
                 for arg in sc.children:
                     if arg.type in ("identifier", "attribute"):
-                        base_id = self._resolve_call_target(self._get_text(arg), ctx)
-                        if base_id:
+                        base_name = self._get_text(arg)
+                        if base_name != "object" and "super()" not in ctx.local_types:
+                            ctx.local_types["super()"] = base_name
+                        if base_id := self._resolve_call_target(base_name, ctx):
                             ctx.edges.append(
                                 self._create_edge(node_id, base_id, "inherits", node=arg)
                             )

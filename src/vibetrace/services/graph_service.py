@@ -82,6 +82,10 @@ def ensure_index_fresh(
         reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
         return True
 
+    # If in non-git workspace, initial indexing was already completed
+    if last_sha == "non-git" and not current_sha:
+        return False
+
     # If in git repo, check for delta
     if current_sha:
         if current_sha != last_sha:
@@ -162,7 +166,12 @@ def normalize_path(file_path: str, project_root: Path) -> str:
     try:
         p = Path(file_path)
         abs_root = project_root.resolve()
-        abs_file = (abs_root / p).resolve() if not p.is_absolute() else p.resolve()
+        if p.is_absolute():
+            abs_file = p.resolve()
+        elif p.exists():
+            abs_file = p.resolve()
+        else:
+            abs_file = (abs_root / p).resolve()
         return str(abs_file.relative_to(abs_root)).replace("\\", "/")
     except (ValueError, RuntimeError):
         return str(Path(file_path).resolve()).replace("\\", "/")

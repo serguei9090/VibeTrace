@@ -251,6 +251,8 @@ def reindex_all(
             db.update_centrality_scores()
             if current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", current_sha)
+            elif not current_sha and target_rel in ("", ".") and not failed:
+                db.set_meta("last_indexed_git_sha", "non-git")
 
     if use_lsp and eff_root.is_dir():
         from vibetrace.indexer.lsp_bridge import (

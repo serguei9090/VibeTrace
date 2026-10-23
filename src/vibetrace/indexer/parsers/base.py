@@ -308,6 +308,9 @@ class LanguageParser(ABC):
         # 3. Qualified call on instance variable, imported module or class: e.g. `db.upsert_node()`
         if "." in called_name:
             prefix, rest = called_name.split(".", 1)
+            lookup_prefix = (
+                "super()" if prefix.startswith("super(") and prefix.endswith(")") else prefix
+            )
 
             # Check if prefix is an ambient global in JS/TS: e.g. console.log(), JSON.stringify()
             if self.language_name in ("javascript", "typescript", "tsx"):
@@ -319,8 +322,8 @@ class LanguageParser(ABC):
                     return None
 
             # Check if prefix is an instance variable tracked in local_types
-            if prefix in ctx.local_types:
-                class_type = ctx.local_types[prefix]
+            if lookup_prefix in ctx.local_types:
+                class_type = ctx.local_types[lookup_prefix]
                 if class_type in self.builtins and class_type not in ctx.imported_symbols:
                     return None
                 if class_type in ctx.imported_symbols:
