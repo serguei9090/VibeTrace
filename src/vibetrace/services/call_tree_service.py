@@ -102,7 +102,12 @@ def build_call_tree(
 
         # Group and order outgoing calls by line
         filtered_callees = [c for c in callees if c.get("relation_type") in relations]
-        filtered_callees.sort(key=lambda x: (x.get("call_line") or 999999, x.get("name") or ""))
+        filtered_callees.sort(
+            key=lambda x: (
+                x.get("call_line") if x.get("call_line") is not None else 999999,
+                x.get("name") or "",
+            )
+        )
 
         # Deduplicate same child called at different lines if preferred, or keep unique call targets
         seen_child_at_line: set[tuple[str, int | None]] = set()

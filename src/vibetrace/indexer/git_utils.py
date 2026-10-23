@@ -104,6 +104,11 @@ def get_git_delta(
                 if len(parts) >= 3:
                     deleted.add(parts[1].strip("\"'").replace("\\", "/"))
                     changed.add(parts[2].strip("\"'").replace("\\", "/"))
+            elif status.startswith("C"):
+                if len(parts) >= 3:
+                    changed.add(parts[2].strip("\"'").replace("\\", "/"))
+                elif len(parts) > 1:
+                    changed.add(parts[1].strip("\"'").replace("\\", "/"))
             else:
                 if len(parts) > 1:
                     changed.add(parts[1].strip("\"'").replace("\\", "/"))
@@ -117,11 +122,15 @@ def get_git_delta(
             if not raw_path:
                 continue
 
-            # Handle staged or working-tree file renames: 'R  old_file -> new_file'
+            # Handle staged or working-tree file renames or copies:
+            # 'R  old -> new' or 'C  orig -> copy'
             if " -> " in raw_path:
                 old_p, new_p = raw_path.split(" -> ", 1)
-                deleted.add(old_p.strip("\"'").replace("\\", "/"))
-                changed.add(new_p.strip("\"'").replace("\\", "/"))
+                clean_old = old_p.strip("\"'").replace("\\", "/")
+                clean_new = new_p.strip("\"'").replace("\\", "/")
+                if "R" in status:
+                    deleted.add(clean_old)
+                changed.add(clean_new)
             else:
                 clean_p = raw_path.strip("\"'").replace("\\", "/")
                 if "D" in status:

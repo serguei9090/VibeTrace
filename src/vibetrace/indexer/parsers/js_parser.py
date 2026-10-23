@@ -224,6 +224,13 @@ class JavaScriptParser(LanguageParser):
                             if ln_t.startswith(("exports.", "module.exports.")):
                                 name = ln_t.split(".")[-1]
                                 visibility = "exported"
+                    elif node.parent.type == "export_statement":
+                        stem = file_path.rsplit(".", 1)[0].split("/")[-1]
+                        if stem in ("index", "mod") and "/" in file_path:
+                            parts = file_path.split("/")
+                            stem = parts[-2] if len(parts) >= 2 else stem
+                        name = stem or "<anonymous>"
+                        visibility = "exported"
 
                 qualified_name = self._scoped_name(name, ctx.scope_stack)
                 node_id = self._get_id(file_path, qualified_name)
@@ -337,14 +344,25 @@ class JavaScriptParser(LanguageParser):
                         self._record_ts_val_type(v_name, val_node, ctx)
 
             elif node.type in (
+                "class",
                 "class_declaration",
                 "interface_declaration",
                 "enum_declaration",
                 "type_alias_declaration",
             ):
                 name_node = node.child_by_field_name("name")
-                if name_node:
-                    name = self._get_text(name_node)
+                name = self._get_text(name_node) if name_node else None
+                if not name and node.parent:
+                    if node.parent.type == "variable_declarator":
+                        if decl_name := node.parent.child_by_field_name("name"):
+                            name = self._get_text(decl_name)
+                    elif node.parent.type == "export_statement":
+                        stem = file_path.rsplit(".", 1)[0].split("/")[-1]
+                        if stem in ("index", "mod") and "/" in file_path:
+                            parts = file_path.split("/")
+                            stem = parts[-2] if len(parts) >= 2 else stem
+                        name = stem
+                if name:
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
                     kind = (
@@ -455,6 +473,9 @@ class JavaScriptParser(LanguageParser):
                             ):
                                 edges.append(
                                     self._create_edge(endpoint_id, h_id, "routes", node=h_arg)
+                                )
+                                edges.append(
+                                    self._create_edge(parent_id, endpoint_id, "defines", node=node)
                                 )
                             else:
                                 edges.append(
