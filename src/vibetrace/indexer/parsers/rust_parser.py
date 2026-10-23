@@ -69,17 +69,9 @@ class RustParser(LanguageParser):
                 if n_node := node.child_by_field_name("name"):
                     mod_name = self._get_text(n_node).strip()
                     if not node.child_by_field_name("body"):
-                        res = self.resolver.resolve(mod_name, file_path) if self.resolver else None
+                        res = self._register_imported_module(mod_name, ctx, node)
                         m_path = res or "external"
                         ctx.imported_symbols[mod_name] = (m_path, "__module__")
-                        m_id = self._get_id(m_path, mod_name, kind="module")
-                        if not any(x.id == m_id for x in ctx.nodes):
-                            ctx.nodes.append(
-                                self._create_node(m_id, mod_name, "module", m_path, node)
-                            )
-                        ctx.edges.append(
-                            self._create_edge(file_module_id, m_id, "imports", node=node)
-                        )
                         return
                     ctx.scope_stack.append(mod_name)
                     pushed_scope = True
@@ -99,15 +91,9 @@ class RustParser(LanguageParser):
                         parts = raw.split("::")
                         items.append((parts[-1], parts[-1], "/".join(parts[:-1])))
                     for sym, orig, mod in items:
-                        res = self.resolver.resolve(mod, file_path) if self.resolver else None
+                        res = self._register_imported_module(mod, ctx, node)
                         m_path = res or "external"
                         ctx.imported_symbols[sym] = (m_path, orig)
-                        m_id = self._get_id(m_path, sym, kind="module")
-                        if not any(x.id == m_id for x in ctx.nodes):
-                            ctx.nodes.append(self._create_node(m_id, sym, "module", m_path, node))
-                        ctx.edges.append(
-                            self._create_edge(file_module_id, m_id, "imports", node=node)
-                        )
                 return
 
             if node.type in ("function_item", "function_signature_item"):

@@ -11,6 +11,7 @@ from vibetrace.services.call_tree_service import (
     build_call_tree,
     format_call_tree_md,
 )
+from vibetrace.services.stdlib_registry import get_python_stdlib_names, is_stdlib_import
 from vibetrace.services.trace_service import (
     CalleeContract,
     CodeSliceResult,
@@ -326,149 +327,12 @@ def compute_impact_analysis(
     return total_impact, impacts_by_level
 
 
-_NODE_STDLIB: set[str] = {
-    "assert",
-    "async_hooks",
-    "buffer",
-    "child_process",
-    "cluster",
-    "console",
-    "crypto",
-    "dgram",
-    "dns",
-    "events",
-    "fs",
-    "http",
-    "http2",
-    "https",
-    "module",
-    "net",
-    "os",
-    "path",
-    "perf_hooks",
-    "process",
-    "readline",
-    "stream",
-    "timers",
-    "tls",
-    "url",
-    "util",
-    "v8",
-    "vm",
-    "worker_threads",
-    "zlib",
-}
-_GO_STDLIB: set[str] = {
-    "archive",
-    "bufio",
-    "bytes",
-    "compress",
-    "container",
-    "context",
-    "crypto",
-    "database",
-    "embed",
-    "encoding",
-    "errors",
-    "flag",
-    "fmt",
-    "go",
-    "hash",
-    "html",
-    "image",
-    "io",
-    "log",
-    "math",
-    "mime",
-    "net",
-    "os",
-    "path",
-    "reflect",
-    "regexp",
-    "runtime",
-    "sort",
-    "strconv",
-    "strings",
-    "sync",
-    "syscall",
-    "testing",
-    "text",
-    "time",
-    "unicode",
-    "unsafe",
-}
-_RUST_STDLIB: set[str] = {"std", "core", "alloc"}
-_RUBY_STDLIB: set[str] = {
-    "json",
-    "csv",
-    "yaml",
-    "uri",
-    "net",
-    "fileutils",
-    "pathname",
-    "logger",
-    "optparse",
-    "stringio",
-    "tempfile",
-    "digest",
-    "base64",
-    "securerandom",
-    "set",
-    "time",
-    "date",
-}
-
-
-def _is_stdlib_import(name: str, file_path: str, py_stdlib: set[str] | frozenset[str]) -> bool:
-    if name.startswith("node:"):
-        return True
-    ext = Path(file_path).suffix.lower()
-    if ext == ".py":
-        return name.split(".")[0] in py_stdlib
-    if ext == ".go":
-        return name.split("/")[0] in _GO_STDLIB
-    if ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
-        return name.split("/")[0] in _NODE_STDLIB
-    if ext == ".rs":
-        return name.split("::")[0] in _RUST_STDLIB
-    if ext == ".java":
-        return any(name.startswith(pfx) for pfx in ("java.", "javax.", "sun.", "jdk."))
-    if ext == ".rb":
-        return name.split("/")[0] in _RUBY_STDLIB
-    root_slash = name.split("/")[0]
-    return (
-        name.split(".")[0] in py_stdlib
-        or root_slash in _GO_STDLIB
-        or root_slash in _NODE_STDLIB
-        or name.split("::")[0] in _RUST_STDLIB
-        or root_slash in _RUBY_STDLIB
-        or any(name.startswith(pfx) for pfx in ("java.", "javax."))
-    )
-
-
 def categorize_file_dependencies(
     db: IndexerDB, normalized_path: str
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Categorize dependencies into internal, third-party, and standard library."""
     deps = db.get_file_imports(normalized_path)
-
-    try:
-        stdlib_names = sys.stdlib_module_names
-    except Exception:
-        stdlib_names = {
-            "os",
-            "sys",
-            "pathlib",
-            "json",
-            "typing",
-            "subprocess",
-            "hashlib",
-            "re",
-            "math",
-            "datetime",
-            "sqlite3",
-            "abc",
-        }
+    stdlib_names = get_python_stdlib_names()
 
     internal: list[dict[str, Any]] = []
     stdlib: list[dict[str, Any]] = []
@@ -481,7 +345,7 @@ def categorize_file_dependencies(
         if path != "external":
             internal.append(dep)
         else:
-            if _is_stdlib_import(name, normalized_path, stdlib_names):
+            if is_stdlib_import(name, normalized_path, stdlib_names):
                 stdlib.append(dep)
             else:
                 third_party.append(dep)
