@@ -14,8 +14,18 @@ import { getLayoutedElements } from "../utils/elkLayout";
 import { buildFlowElements, computeSelectionHighlights } from "../utils/graphTraversal";
 import { useVibeSync } from "./useVibeSync";
 
-export const API_URL = "http://localhost:8000";
-export const WS_URL = "ws://localhost:8000/ws";
+const isBrowser = typeof window !== "undefined";
+const isViteDev = isBrowser && (window.location.port === "5173" || window.location.port === "3000");
+
+export const API_URL =
+  isViteDev || !isBrowser
+    ? "http://localhost:8000"
+    : `${window.location.protocol}//${window.location.host}`;
+
+export const WS_URL =
+  isViteDev || !isBrowser
+    ? "ws://localhost:8000/ws"
+    : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
 
 const initialNodes: Node[] = [];
 const initialEdges: Edge[] = [];

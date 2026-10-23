@@ -47,7 +47,7 @@ class CodeChangeHandler(FileSystemEventHandler):
         # Ignore SQLite DB/WAL files, editor swap / temporary files
         fname = path.name
         if fname.startswith((".", "#", "vibetrace.db", "vibegraph.db")) or fname.endswith(
-            ("~", ".tmp", ".swp", ".bak", ".db-wal", ".db-shm")
+            ("~", ".tmp", ".swp", ".bak", ".db-wal", ".db-shm", ".lance", ".manifest")
         ):
             return True
 

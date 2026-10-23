@@ -27,18 +27,6 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
-    def _register_imported_module(
-        self, mod_spec: str, ctx: ParserContext, node: Node
-    ) -> str | None:
-        res = self.resolver.resolve(mod_spec, ctx.file_path) if self.resolver else None
-        m_path = res or "external"
-        c_mod = (self.resolver.get_module_name(res) if res and self.resolver else None) or mod_spec
-        m_id = self._get_id(m_path, c_mod, kind="module")
-        if not any(n.id == m_id for n in ctx.nodes):
-            ctx.nodes.append(self._create_node(m_id, c_mod, "module", m_path, node))
-        ctx.edges.append(self._create_edge(ctx.file_module_id, m_id, "imports", node=node))
-        return res
-
     def _handle_require(self, node: Node, args: list[Node], ctx: ParserContext) -> None:
         if not args or args[0].type not in ("string", "template_string"):
             return

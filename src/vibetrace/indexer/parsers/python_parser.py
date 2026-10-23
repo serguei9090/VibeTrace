@@ -398,7 +398,7 @@ class PythonParser(LanguageParser):
             for child in node.children:
                 if child.type == "dotted_name":
                     module_name = self._get_text(child)
-                    if resolved := self._add_import_edge(module_name, node, ctx):
+                    if resolved := self._register_imported_module(module_name, ctx, node):
                         ctx.imported_symbols[module_name] = (resolved, "__module__")
                         ctx.imported_symbols[module_name.split(".")[-1]] = (resolved, "__module__")
                 elif child.type == "aliased_import":
@@ -407,7 +407,7 @@ class PythonParser(LanguageParser):
                     if name_node:
                         module_name = self._get_text(name_node)
                         alias = self._get_text(alias_node) if alias_node else module_name
-                        if resolved := self._add_import_edge(module_name, node, ctx):
+                        if resolved := self._register_imported_module(module_name, ctx, node):
                             ctx.imported_symbols[alias] = (resolved, "__module__")
 
         elif node.type == "import_from_statement":
@@ -417,7 +417,7 @@ class PythonParser(LanguageParser):
             is_bare_dots = not module_name.strip(".")
             resolved_mod = None
             if not is_bare_dots:
-                resolved_mod = self._add_import_edge(module_name, node, ctx)
+                resolved_mod = self._register_imported_module(module_name, ctx, node)
             elif self.resolver:
                 resolved_mod = self.resolver.resolve(module_name, ctx.file_path)
 
@@ -457,7 +457,7 @@ class PythonParser(LanguageParser):
                         self.resolver.resolve(sub_query, ctx.file_path) if self.resolver else None
                     )
                     if sub_resolved:
-                        self._add_import_edge(sub_query, node, ctx)
+                        self._register_imported_module(sub_query, ctx, node)
                         ctx.imported_symbols[local_name] = (sub_resolved, "__module__")
                     else:
                         target_mod = resolved_mod or "external"
@@ -467,28 +467,4 @@ class PythonParser(LanguageParser):
                             and target_mod != "external"
                             and target_mod != ctx.file_path
                         ):
-                            self._add_import_edge(module_name, node, ctx)
-
-    def _add_import_edge(
-        self, module_name: str, import_node: Node, ctx: ParserContext
-    ) -> str | None:
-        resolved_path = self.resolver.resolve(module_name, ctx.file_path) if self.resolver else None
-        if resolved_path == ctx.file_path:
-            return resolved_path
-
-        module_path = resolved_path if resolved_path else "external"
-        canonical_mod = module_name
-        if resolved_path and self.resolver:
-            canonical = self.resolver.get_module_name(resolved_path)
-            if canonical:
-                canonical_mod = canonical
-
-        module_id = self._get_id(module_path, canonical_mod, kind="module")
-        if not any(n.id == module_id for n in ctx.nodes):
-            ctx.nodes.append(
-                self._create_node(module_id, canonical_mod, "module", module_path, import_node)
-            )
-        ctx.edges.append(
-            self._create_edge(ctx.file_module_id, module_id, "imports", node=import_node)
-        )
-        return resolved_path
+                            self._register_imported_module(module_name, ctx, node)

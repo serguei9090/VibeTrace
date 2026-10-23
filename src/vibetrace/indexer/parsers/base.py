@@ -427,6 +427,24 @@ class LanguageParser(ABC):
             ctx.edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
         return db_node
 
+    def _register_imported_module(
+        self, module_spec: str, ctx: ParserContext, node: Node
+    ) -> str | None:
+        """Register an imported module node and import edge, returning resolved file path."""
+        res = self.resolver.resolve(module_spec, ctx.file_path) if self.resolver else None
+        if res == ctx.file_path:
+            return res
+
+        m_path = res or "external"
+        c_mod = (
+            self.resolver.get_module_name(res) if res and self.resolver else None
+        ) or module_spec
+        m_id = self._get_id(m_path, c_mod, kind="module")
+        if not any(n.id == m_id for n in ctx.nodes):
+            ctx.nodes.append(self._create_node(m_id, c_mod, "module", m_path, node))
+        ctx.edges.append(self._create_edge(ctx.file_module_id, m_id, "imports", node=node))
+        return res
+
     @abstractmethod
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         """Extract nodes and edges from source code."""
