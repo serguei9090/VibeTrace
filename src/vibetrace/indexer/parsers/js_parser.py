@@ -376,18 +376,23 @@ class JavaScriptParser(LanguageParser):
                         visibility=visibility,
                     )
 
-                    if class_heritage := node.child_by_field_name("class_heritage"):
-                        for child in class_heritage.children:
-                            if child.type in ("extends_clause", "implements_clause"):
-                                rel = "inherits" if child.type == "extends_clause" else "implements"
-                                for type_node in child.children:
-                                    if type_node.type in ("identifier", "type_identifier"):
-                                        t_name = self._get_text(type_node)
+                    h_types = ("class_heritage", "extends_type_clause")
+                    for hn in [c for c in node.children if c.type in h_types]:
+                        for cl in hn.children if hn.type == "class_heritage" else [hn]:
+                            if cl.type in (
+                                "extends_clause",
+                                "implements_clause",
+                                "extends_type_clause",
+                            ):
+                                rel = "implements" if cl.type == "implements_clause" else "inherits"
+                                for tn in cl.children:
+                                    if tn.type in ("identifier", "type_identifier"):
+                                        t_name = self._get_text(tn)
+                                        if rel == "inherits" and t_name not in ("Object", "any"):
+                                            ctx.local_types["super"] = t_name
                                         if t_id := self._resolve_call_target(t_name, ctx):
                                             edges.append(
-                                                self._create_edge(
-                                                    node_id, t_id, rel, node=type_node
-                                                )
+                                                self._create_edge(node_id, t_id, rel, node=tn)
                                             )
 
                     ctx.scope_stack.append(name)

@@ -271,8 +271,10 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def cmd_hooks(args: argparse.Namespace) -> int:
-    target = str(Path(args.path).resolve())
-    _, root = get_context_for_path(target, auto_sync=False)
+    target = str(Path(getattr(args, "root", None) or args.path).resolve())
+    _, root = get_context_for_path(
+        target, auto_sync=False, root_override=getattr(args, "root", None)
+    )
 
     action = args.action or "status"
     if action == "install":
@@ -352,7 +354,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_skill(args: argparse.Namespace) -> int:
     from vibetrace.skill_installer import install_skill
 
-    root = Path(getattr(args, "path", ".") or ".").resolve()
+    root = Path(getattr(args, "root", None) or getattr(args, "path", ".") or ".").resolve()
     global_skill = getattr(args, "global_skill", False)
     action = getattr(args, "action", "install")
 
@@ -369,7 +371,7 @@ def cmd_skill(args: argparse.Namespace) -> int:
 def cmd_mcp(args: argparse.Namespace) -> int:
     from vibetrace.mcp.server import main as mcp_main
 
-    root = str(Path(getattr(args, "path", ".") or ".").resolve())
+    root = str(Path(getattr(args, "root", None) or getattr(args, "path", ".") or ".").resolve())
     os.environ["VIBETRACE_PROJECT_ROOT"] = root
     mcp_main()
     return 0

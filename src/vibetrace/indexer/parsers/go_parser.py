@@ -222,6 +222,20 @@ class GoParser(LanguageParser):
                                                 node_id, m_id, "defines", node=iface_child
                                             )
                                         )
+                                    elif iface_child.type in (
+                                        "type_elem",
+                                        "type_identifier",
+                                        "qualified_type",
+                                    ):
+                                        emb_type = self._get_text(iface_child).strip("* ")
+                                        if emb_type and (
+                                            emb_id := self._resolve_call_target(emb_type, ctx)
+                                        ):
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, emb_id, "inherits", node=iface_child
+                                                )
+                                            )
 
             elif node.type == "var_declaration":
                 for child in node.children:

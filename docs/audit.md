@@ -105,6 +105,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Non-Git Workspace Reindexing Storm (`indexer/main.py`, `services/graph_service.py`)**: Persisted `last_indexed_git_sha = "non-git"` in `meta` on successful initial indexing and short-circuited subsequent `ensure_index_fresh()` calls in non-git directories, preventing infinite full-tree disk walks.
 * **Python `super().method()` AST Call Resolution (`parsers/python_parser.py`, `parsers/base.py`)**: Registered superclass in `ctx.local_types["super()"]` during class definition extraction and resolved `super().method()` / `super(Class, self).method()` to `Base.method` across intra-file and cross-module inheritance trees instead of emitting phantom node edges.
 
+### Round 15: JS/TS Class & Interface Heritage, Go Interface Embedding, Reference Discovery & CLI `--root` Override
+* **JS/TS Class & Interface Heritage Extraction (`parsers/js_parser.py`)**: Inspected anonymous AST child nodes `class_heritage` and `extends_type_clause` instead of querying non-existent named field `class_heritage`, emitting `inherits` and `implements` edges for TS/JS classes and interfaces and resolving `super.method()` calls to base methods.
+* **Go Interface Embedding Composition (`parsers/go_parser.py`)**: Extracted embedded interface nodes (`type_elem`, `type_identifier`, `qualified_type`) inside `interface_type` declarations and emitted `inherits` edges between composite Go interfaces.
+* **Symbol References Inheritance Visibility (`indexer/db_queries.py`)**: Expanded `get_symbol_references` SQL filter to include `inherits` and `implements` alongside `calls` and `references`, ensuring usages of classes, structs, traits, and interfaces are fully visible in reference lookups.
+* **CLI Subcommand `--root` Flag Propagation (`cli_commands.py`)**: Wired `--root` override into `cmd_hooks` via `root_override` and into `cmd_mcp` and `cmd_skill` via path resolution, ensuring custom project roots are respected across all subcommands.
+
 ---
 
 ## Non-Regression Policy & Guidelines
