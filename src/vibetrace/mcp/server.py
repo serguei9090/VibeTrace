@@ -279,9 +279,9 @@ async def vibetrace_search_by_signature(params: SearchInput) -> str:
             output.append("No matches found.")
         else:
             for row in rows:
+                loc = f":L{row['start_line']}" if row.get("start_line") is not None else ""
                 output.append(
-                    f"- **`{row['name']}`**: `{row['signature']}`\n"
-                    f"  - In `{row['file_path']}`:L{row['start_line']}"
+                    f"- **`{row['name']}`**: `{row['signature']}`\n  - In `{row['file_path']}`{loc}"
                 )
         return "\n".join(output)
     except Exception as e:

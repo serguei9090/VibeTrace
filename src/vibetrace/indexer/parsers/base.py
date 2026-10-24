@@ -8,7 +8,36 @@ from tree_sitter import Language, Node, Parser, Tree
 
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
+from vibetrace.indexer.parsers.builtins import (
+    CPP_BUILTINS,
+    CSHARP_BUILTINS,
+    GO_BUILTINS,
+    JAVA_BUILTINS,
+    JS_BUILTINS,
+    JS_GLOBALS,
+    PHP_BUILTINS,
+    PYTHON_BUILTINS,
+    RUBY_BUILTINS,
+    RUST_BUILTINS,
+)
 from vibetrace.indexer.resolver import ModuleResolver
+
+__all__ = [
+    "CPP_BUILTINS",
+    "CSHARP_BUILTINS",
+    "GO_BUILTINS",
+    "JAVA_BUILTINS",
+    "JS_BUILTINS",
+    "JS_GLOBALS",
+    "PHP_BUILTINS",
+    "PYTHON_BUILTINS",
+    "RUBY_BUILTINS",
+    "RUST_BUILTINS",
+    "LanguageParser",
+    "ParserContext",
+    "get_language",
+    "get_parser",
+]
 
 
 @dataclass
@@ -24,103 +53,6 @@ class ParserContext:
     local_types: dict[str, str] = field(default_factory=dict)
     # Set of symbol names defined in this file (top-level functions, classes, etc.)
     defined_symbols: set[str] = field(default_factory=set)
-
-
-PYTHON_BUILTINS: set[str] = set(
-    (
-        "abs aiter all anext any ascii bin bool breakpoint bytearray bytes callable "
-        "chr classmethod compile complex delattr dict dir divmod enumerate eval exec "
-        "filter float format frozenset getattr hasattr hash help hex id input int "
-        "isinstance issubclass iter len list locals map max memoryview min next "
-        "object oct open ord pow print property range repr reversed round set setattr "
-        "slice sorted staticmethod str sum super tuple type vars zip __import__ exit quit "
-        "globals AssertionError NotImplementedError BaseException Exception ValueError "
-        "TypeError KeyError IndexError AttributeError RuntimeError StopIteration "
-        "FileNotFoundError IOError OSError ImportError"
-    ).split()
-)
-
-JS_BUILTINS: set[str] = {
-    "Boolean",
-    "Number",
-    "String",
-    "Array",
-    "Object",
-    "Function",
-    "Symbol",
-    "BigInt",
-    "Promise",
-    "RegExp",
-    "Map",
-    "Set",
-    "WeakMap",
-    "WeakSet",
-    "Error",
-    "TypeError",
-    "RangeError",
-    "SyntaxError",
-    "ReferenceError",
-    "parseInt",
-    "parseFloat",
-    "isNaN",
-    "isFinite",
-    "encodeURI",
-    "decodeURI",
-    "encodeURIComponent",
-    "decodeURIComponent",
-    "fetch",
-    "setTimeout",
-    "clearTimeout",
-    "setInterval",
-    "clearInterval",
-    "queueMicrotask",
-    "structuredClone",
-    "atob",
-    "btoa",
-    "alert",
-    "prompt",
-    "confirm",
-    "require",
-}
-
-JS_GLOBALS: set[str] = {
-    "console",
-    "JSON",
-    "Math",
-    "Date",
-    "Reflect",
-    "Proxy",
-    "Intl",
-    "performance",
-    "window",
-    "document",
-    "process",
-    "globalThis",
-    "navigator",
-    "localStorage",
-    "sessionStorage",
-}
-
-GO_BUILTINS: set[str] = {
-    "append",
-    "cap",
-    "clear",
-    "close",
-    "complex",
-    "copy",
-    "delete",
-    "imag",
-    "len",
-    "make",
-    "max",
-    "min",
-    "new",
-    "panic",
-    "print",
-    "println",
-    "real",
-    "recover",
-}
 
 
 _LANGUAGE_FACTORIES: dict[str, Callable[[], Any]] = {
@@ -312,14 +244,21 @@ class LanguageParser(ABC):
                 "super()" if prefix.startswith("super(") and prefix.endswith(")") else prefix
             )
 
-            # Check if prefix is an ambient global in JS/TS: e.g. console.log(), JSON.stringify()
-            if self.language_name in ("javascript", "typescript", "tsx"):
-                if (
-                    prefix in JS_GLOBALS
-                    and prefix not in ctx.imported_symbols
-                    and prefix not in ctx.local_types
-                ):
-                    return None
+            # Check if prefix is an ambient global or language builtin class:
+            # e.g. console.log(), Promise.resolve(), System.out.println(), std.cout
+            if (
+                (
+                    prefix in self.builtins
+                    or (
+                        self.language_name in ("javascript", "typescript", "tsx")
+                        and prefix in JS_GLOBALS
+                    )
+                )
+                and prefix not in ctx.imported_symbols
+                and prefix not in ctx.local_types
+                and prefix not in ctx.defined_symbols
+            ):
+                return None
 
             # Check if prefix is an instance variable tracked in local_types
             if lookup_prefix in ctx.local_types:

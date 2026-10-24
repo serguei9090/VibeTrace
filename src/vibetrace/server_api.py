@@ -77,10 +77,21 @@ async def lifespan(app: FastAPI):
     def on_change() -> None:
         asyncio.run_coroutine_threadsafe(manager.broadcast("refresh"), loop)
 
-    observer = start_observer(str(project_root), db, on_change)
+    observer = None
+    try:
+        if Path(project_root).is_dir():
+            observer = start_observer(str(project_root), db, on_change)
+    except Exception as exc:
+        print(f"Warning: Failed to start filesystem observer on {project_root}: {exc}")
+
     yield
-    observer.stop()
-    observer.join()
+
+    if observer is not None:
+        try:
+            observer.stop()
+            observer.join()
+        except Exception:
+            pass
 
 
 app = FastAPI(title="VibeTrace API", lifespan=lifespan)

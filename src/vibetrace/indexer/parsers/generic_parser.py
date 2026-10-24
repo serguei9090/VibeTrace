@@ -9,54 +9,14 @@ from tree_sitter import Node
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
+from vibetrace.indexer.parsers.builtins import (
+    CPP_BUILTINS,
+    CSHARP_BUILTINS,
+    JAVA_BUILTINS,
+    PHP_BUILTINS,
+    RUBY_BUILTINS,
+)
 from vibetrace.indexer.resolver import ModuleResolver
-
-JAVA_BUILTINS: set[str] = {
-    "System",
-    "String",
-    "Integer",
-    "Double",
-    "Float",
-    "Long",
-    "Short",
-    "Byte",
-    "Character",
-    "Boolean",
-    "Math",
-    "Object",
-    "Class",
-    "Thread",
-    "Runnable",
-    "Exception",
-    "RuntimeException",
-    "Throwable",
-    "Error",
-    "StringBuilder",
-    "StringBuffer",
-    "Override",
-    "Deprecated",
-    "SuppressWarnings",
-}
-
-CPP_BUILTINS: set[str] = {
-    "printf",
-    "scanf",
-    "malloc",
-    "free",
-    "calloc",
-    "realloc",
-    "sizeof",
-    "memcpy",
-    "memset",
-    "std",
-    "cout",
-    "cin",
-    "cerr",
-    "endl",
-    "exit",
-    "abort",
-    "assert",
-}
 
 
 class GenericParser(LanguageParser):
@@ -69,6 +29,12 @@ class GenericParser(LanguageParser):
             self.builtins = JAVA_BUILTINS
         elif language in ("cpp", "c"):
             self.builtins = CPP_BUILTINS
+        elif language == "c_sharp":
+            self.builtins = CSHARP_BUILTINS
+        elif language == "ruby":
+            self.builtins = RUBY_BUILTINS
+        elif language == "php":
+            self.builtins = PHP_BUILTINS
 
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():

@@ -7,6 +7,7 @@ from tree_sitter import Node
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
+from vibetrace.indexer.parsers.builtins import RUST_BUILTINS
 from vibetrace.indexer.resolver import ModuleResolver
 
 
@@ -15,21 +16,7 @@ class RustParser(LanguageParser):
 
     def __init__(self, resolver: ModuleResolver | None = None) -> None:
         super().__init__("rust", resolver)
-        self.builtins = {
-            "Some",
-            "None",
-            "Ok",
-            "Err",
-            "drop",
-            "assert",
-            "assert_eq",
-            "assert_ne",
-            "panic",
-            "vec",
-            "format",
-            "println",
-            "eprintln",
-        }
+        self.builtins = RUST_BUILTINS
 
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():

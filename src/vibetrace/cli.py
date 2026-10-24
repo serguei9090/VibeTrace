@@ -241,6 +241,9 @@ examples:
     )
     p_serve.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     p_serve.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
+    p_serve.add_argument(
+        "--path", default=".", help="Project workspace path (default: current directory)"
+    )
     p_serve.set_defaults(func=_cmd_serve)
 
     # hooks

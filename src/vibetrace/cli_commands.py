@@ -313,8 +313,9 @@ def cmd_hooks(args: argparse.Namespace) -> int:
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
-    if getattr(args, "root", None):
-        os.environ["VIBETRACE_PROJECT_ROOT"] = str(Path(args.root).resolve())
+    proj_root = getattr(args, "root", None) or getattr(args, "path", None)
+    if proj_root:
+        os.environ["VIBETRACE_PROJECT_ROOT"] = str(Path(proj_root).resolve())
 
     uvicorn.run("vibetrace.server_api:app", host=args.host, port=args.port)
     return 0
