@@ -90,11 +90,11 @@ class GenericParser(LanguageParser):
         )
         ctx = ParserContext(file_path, nodes, edges, file_module_id)
 
-        # Pre-resolve sibling package files in the same directory (standard for Java packages)
+        # Pre-resolve sibling package files in the same directory (standard for Java/C++ packages)
         if self.resolver:
-            curr_dir = str(Path(file_path).parent).replace("\\", "/")
+            curr_parent = str(Path(file_path).parent).replace("\\", "/")
             for kf in self.resolver.known_files:
-                if kf != file_path and kf.startswith(f"{curr_dir}/"):
+                if kf != file_path and str(Path(kf).parent).replace("\\", "/") == curr_parent:
                     sibling_base = Path(kf).stem
                     ctx.imported_symbols[sibling_base] = (kf, sibling_base)
 
@@ -284,14 +284,59 @@ class GenericParser(LanguageParser):
                                 t_name = (
                                     self._get_text(ch).replace("extends", "").lstrip("< ").strip()
                                 )
+                                t_name = t_name.split("<")[0].strip()
                                 if target_id := self._resolve_call_target(t_name, ctx):
                                     edges.append(
                                         self._create_edge(node_id, target_id, "inherits", node=ch)
                                     )
-                            elif ch.type in ("interfaces", "class_interface_clause"):
+                            elif ch.type == "base_class_clause":
                                 for t_node in ch.children:
-                                    if t_node.type in ("type_identifier", "name"):
-                                        t_name = self._get_text(t_node)
+                                    if t_node.type in ("type_identifier", "scoped_type_identifier"):
+                                        t_name = (
+                                            self._get_text(t_node)
+                                            .replace("::", ".")
+                                            .split("<")[0]
+                                            .strip()
+                                        )
+                                        if target_id := self._resolve_call_target(t_name, ctx):
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, target_id, "inherits", node=t_node
+                                                )
+                                            )
+                            elif ch.type == "base_list":
+                                for t_node in ch.children:
+                                    if t_node.type in ("identifier", "type_identifier"):
+                                        t_name = self._get_text(t_node).split("<")[0].strip()
+                                        if target_id := self._resolve_call_target(t_name, ctx):
+                                            rel = (
+                                                "implements"
+                                                if (
+                                                    t_name.startswith("I")
+                                                    and len(t_name) > 1
+                                                    and t_name[1].isupper()
+                                                )
+                                                else "inherits"
+                                            )
+                                            edges.append(
+                                                self._create_edge(
+                                                    node_id, target_id, rel, node=t_node
+                                                )
+                                            )
+                            elif ch.type in (
+                                "interfaces",
+                                "super_interfaces",
+                                "class_interface_clause",
+                            ):
+                                interface_nodes: list[Node] = []
+                                for sub in ch.children:
+                                    if sub.type == "type_list":
+                                        interface_nodes.extend(sub.children)
+                                    else:
+                                        interface_nodes.append(sub)
+                                for t_node in interface_nodes:
+                                    if t_node.type in ("type_identifier", "name", "identifier"):
+                                        t_name = self._get_text(t_node).split("<")[0].strip()
                                         if target_id := self._resolve_call_target(t_name, ctx):
                                             edges.append(
                                                 self._create_edge(
