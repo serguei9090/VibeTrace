@@ -417,7 +417,14 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
                 project_root=root,
                 use_lsp=params.use_lsp,
             )
-        return safe_str(f"✅ Successfully reindexed: {target_path}")
+        msg = f"✅ Successfully reindexed: {target_path}"
+        if params.embed:
+            from vibetrace.indexer.embeddings import EmbeddingEngine
+
+            engine = EmbeddingEngine(project_root=root)
+            indexed_count = engine.index_missing_embeddings(db)
+            msg += f" (generated {indexed_count} vector embeddings)"
+        return safe_str(msg)
     except Exception as e:
         return handle_error(e, f"reindexing {params.path}")
 

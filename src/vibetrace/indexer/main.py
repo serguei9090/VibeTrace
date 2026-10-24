@@ -139,14 +139,21 @@ def reindex_all(
         return
 
     if target_path.is_file():
-        index_file(
+        success = index_file(
             db,
             str(target_path),
             project_root=eff_root,
             resolver=resolver,
             verbose=verbose,
             force=force,
+            failed=failed,
         )
+        if success and resolver:
+            try:
+                rel_p = str(target_path.relative_to(eff_root)).replace("\\", "/")
+            except ValueError:
+                rel_p = str(target_path).replace("\\", "/")
+            resolver.add_file(rel_p)
         db.update_centrality_scores()
     elif target_path.is_dir():
         target_rel = ""

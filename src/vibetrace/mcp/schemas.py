@@ -106,6 +106,10 @@ class ReindexInput(BaseModel):
         default=False,
         description="Enable dynamic LSP hybrid bridge for type inference and re-exports",
     )
+    embed: bool = Field(
+        default=False,
+        description="Compute and store 256d Matryoshka vector embeddings after indexing",
+    )
 
 
 class ReferencesInput(BaseModel):

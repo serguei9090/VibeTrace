@@ -17,6 +17,16 @@ _EXT_LANG_MAP: dict[str, str] = {
     ".jsx": "jsx",
     ".go": "go",
     ".rs": "rust",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".php": "php",
     ".html": "html",
     ".css": "css",
     ".json": "json",
@@ -130,7 +140,7 @@ def format_code_slice_md(result: CodeSliceResult) -> str:
     else:
         loc = ""
     lines = [
-        f"## Code Slice: `{result.qualified_name}` ({result.kind}) {sig}",
+        f"## Code Slice: `{result.qualified_name}` ({result.kind or 'symbol'}) {sig}",
         f"**Location**: `{result.file_path}{loc}`",
     ]
     if result.docstring:
