@@ -18,6 +18,19 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **8** | Query & REST API | Trailing `()` query drops, Go `var_spec` unwrapping, ModuleResolver fallback, Saved trace API | `tests/test_audit_code_bugs_round8.py` | ✅ Verified |
 | **9** | Git & Watchdog | Subtree Git SHA poisoning, Watcher gitignore backslashes, Fullstack route priority, UTF-8 Git | `tests/test_audit_code_bugs_round9.py` | ✅ Verified |
 | **10** | LSP, Sync & Sec | LSP Windows encoded URI drive letters, `ensure_index_fresh` pruned SHA recovery, impact backslash, sqlite-vec | `tests/test_audit_code_bugs_round10.py` | ✅ Verified |
+| **11** | CLI & Formatter | CLI global flags after subcommand, search trailing parens, `cls.` resolution, WebSocket set cleanup | `tests/test_audit_code_bugs_round11.py` | ✅ Verified |
+| **12** | API Sec & Git Delta | Loopback CORS origin regex, `/source` indexed file guard, Git delta disk truth, unified ignore rules | `tests/test_audit_code_bugs_round12.py` | ✅ Verified |
+| **13** | MCP & Call Trees | Whitespace docstring safety, MCP reindex resolved root, GraphTraverser visited reset, dotfile prefix | `tests/test_audit_code_bugs_round13.py` | ✅ Verified |
+| **14** | CLI Flags & Super Calls | CLI `--no-sync` wiring, subdirectory `normalize_path`, non-git freshness cursor, Python `super()` calls | `tests/test_audit_code_bugs_round14.py` | ✅ Verified |
+| **15** | Heritage & References | JS/TS class & interface heritage, Go interface embedding, reference inheritance filter, `--root` override | `tests/test_audit_code_bugs_round15.py` | ✅ Verified |
+| **16** | Concurrency & Vectors | Dynamic JIT concurrency lock, DuckDB cursor isolation, LanceDB vector dimensions config, UTF-8 decoding | `tests/test_concurrency.py` | ✅ Verified |
+| **17** | AST Error Recovery | Multi-language tree-sitter error recovery, C++ namespace resolution, Go method receiver normalization | `tests/test_multiparser.py` | ✅ Verified |
+| **18** | DB Retries & Atomicity | SQLite busy timeout retry with exponential backoff (`db_retry.py`), transaction atomicity in batch indexing | `tests/test_audit_code_bugs_round18.py` | ✅ Verified |
+| **19** | Git Delta & Call Trees | Git delta copy/rename status parsing (`C100`, `R100`), call-tree line-0 guard, JS default export resolution | `tests/test_audit_code_bugs_round19.py` | ✅ Verified |
+| **20** | C++/Java/C# Heritage | C++/Java/C# inheritance clauses (`base_clause`, `base_list`), generic type stripping (`<T>`), sibling scoping | `tests/test_audit_code_bugs_round20.py` | ✅ Verified |
+| **21** | Vector Store Purge | Auto-purge vector store on `clear_file` / reindex, FastAPI transport path normalization (`normalize_path`) | `tests/test_audit_code_bugs_round21.py` | ✅ Verified |
+| **22** | MCP Reindex & Slices | Multi-language code slice markdown fences, `ReindexInput.embed` flag wiring, single-file resolver registration | `tests/test_audit_code_bugs_round22.py` | ✅ Verified |
+| **23** | Builtin Filtering & CLI | Multi-language builtin filtering (`builtins.py`), phantom edge elimination, CLI `serve --path`, API lifespan | `tests/test_audit_code_bugs_round23.py` | ✅ Verified |
 
 ---
 
@@ -110,6 +123,46 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Go Interface Embedding Composition (`parsers/go_parser.py`)**: Extracted embedded interface nodes (`type_elem`, `type_identifier`, `qualified_type`) inside `interface_type` declarations and emitted `inherits` edges between composite Go interfaces.
 * **Symbol References Inheritance Visibility (`indexer/db_queries.py`)**: Expanded `get_symbol_references` SQL filter to include `inherits` and `implements` alongside `calls` and `references`, ensuring usages of classes, structs, traits, and interfaces are fully visible in reference lookups.
 * **CLI Subcommand `--root` Flag Propagation (`cli_commands.py`)**: Wired `--root` override into `cmd_hooks` via `root_override` and into `cmd_mcp` and `cmd_skill` via path resolution, ensuring custom project roots are respected across all subcommands.
+
+### Round 16: Concurrency Safety, Cursor Lifecycle & Vector Store Configuration
+* **Dynamic JIT Concurrency Lock (`services/graph_service.py`)**: Synchronized concurrent `ensure_index_fresh` requests using per-root threading locks to prevent concurrent index corruption during parallel agent tool queries.
+* **DuckDB Cursor Lifecycle Discipline (`indexer/vector_store.py`)**: Enforced explicit cursor cleanup and connection lifecycle management in analytics and similarity queries.
+* **LanceDB Dynamic Dimension Configuration (`config.py`, `indexer/embeddings.py`)**: Propagated embedding dimension overrides from `vibetrace.toml` (`vectors.dimensions = 256`) through to LanceDB table schemas.
+* **Safe UTF-8 File Slicing (`services/graph_service.py`)**: Handled mixed-encoding or non-UTF-8 characters gracefully during surgical source code slicing without raising unhandled decode exceptions.
+
+### Round 17: Multi-Language Error Recovery & Scoping
+* **Tree-Sitter Syntax Error Recovery (`parsers/base.py`)**: Implemented tolerant AST node iteration skipping broken or unparseable syntax nodes so partially typed or edited files index valid symbols.
+* **C++ Nested Namespace Resolution (`parsers/generic_parser.py`)**: Normalized multi-part C++ scoped names (`foo::bar::baz`) into canonical dot notation (`foo.bar.baz`).
+* **Go Method Receiver Value vs. Pointer Normalization (`parsers/go_parser.py`)**: Unified pointer and value receivers (`(s *Service)` vs `(s Service)`) into consistent type scopes.
+
+### Round 18: SQLite Busy Timeout Retries & Transaction Atomicity
+* **SQLite Busy Timeout Backoff (`indexer/db_retry.py`)**: Wrapped database operations in exponential backoff retry loops on `sqlite3.OperationalError: database is locked`.
+* **Atomic Batch Transaction Boundaries (`indexer/db.py`)**: Wrapped symbol and edge indexing in explicit transactional savepoints, rolling back partial states if a batch write fails.
+
+### Round 19: Git Delta Copy/Rename Statuses & Call Tree Edge Cases
+* **Git Delta Copy and Rename Parsing (`indexer/git_utils.py`)**: Handled complex status codes (`C100`, `R100`, `R095`) from `git diff --name-status` so copied or renamed files are tracked correctly as added/modified.
+* **Call Tree Line-0 Normalization (`services/call_tree_service.py`)**: Guarded 1-indexed call-site line formatting against `line == 0` or missing line numbers.
+* **JavaScript Default Export Resolution (`parsers/js_parser.py`)**: Resolved `export default function` and `export default class` references cleanly across CommonJS and ES module boundaries.
+
+### Round 20: C++/Java/C# Heritage, Generic Type Stripping & Sibling Scoping
+* **Heritage AST Extraction (`parsers/generic_parser.py`)**: Extracted inheritance from C++ `base_class_clause`, Java `super_interfaces`, and C# `base_list`, capturing `inherits` and `implements` relationships.
+* **Generic Type Stripping (`parsers/generic_parser.py`)**: Stripped generic type parameters (`List<String>` -> `List`, `Repository<User>` -> `Repository`) before call target resolution to avoid phantom symbols.
+* **Sibling Package Scoping (`parsers/generic_parser.py`)**: Automatically resolved same-directory sibling package classes for Java and C# without explicit import declarations.
+
+### Round 21: Vector Store Auto-Purge & Transport Path Normalization
+* **Vector Store Auto-Purge on Reindex (`indexer/db.py`)**: Wired `delete_file_embeddings` into `clear_file` and `batch_save_file_index` to prevent stale embeddings from persisting in LanceDB as ghost symbols.
+* **FastAPI Transport Path Normalization (`server_api.py`)**: Applied `normalize_path` to `/source` and `/graph` query parameters so absolute paths (`I:/...`) and `./` resolve to relative database paths.
+
+### Round 22: Multi-Language Code Slices, Reindex Embed Flag & Single-File Resilience
+* **Multi-Language Markdown Code Slices (`mcp/formatters.py`)**: Expanded `_EXT_LANG_MAP` to include `.java`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.cs`, `.rb`, and `.php` syntax fences; guarded `(result.kind or "symbol")`.
+* **MCP Reindex Vector Embeddings Option (`mcp/schemas.py`, `mcp/server.py`)**: Added `embed: bool = False` to `ReindexInput` and wired `vibetrace_reindex_project` to compute vector embeddings when requested.
+* **Single-File Reindexing Resilience (`indexer/main.py`)**: Passed `failed=failed` error tracking to single-file indexing and registered newly indexed files into `ModuleResolver.add_file`.
+
+### Round 23: Multi-Language Builtin Filtering & Map Room Lifespan Hardening
+* **Multi-Language Standard Library Builtin Filtering (`parsers/builtins.py`, `parsers/base.py`)**: Centralized builtins for 10 languages and updated `_resolve_call_target` to filter dotted builtin calls (`System.out.println`, `Promise.resolve`, `Console.WriteLine`, `std.cout`), eliminating phantom call edges.
+* **CLI `serve --path` Option Parity (`cli.py`, `cli_commands.py`)**: Added `--path` to `vibetrace serve` and set `VIBETRACE_PROJECT_ROOT`.
+* **API Lifespan Watcher Hardening (`server_api.py`)**: Wrapped `start_observer` in `try-except` within `lifespan` so file-watcher failures on headless environments do not crash FastAPI.
+* **MCP Signature Search Location Formatting (`mcp/server.py`)**: Guarded `start_line` formatting against `None` to prevent `:LNone` outputs.
 
 ---
 
