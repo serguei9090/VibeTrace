@@ -14,7 +14,7 @@ __all__ = ["Edge", "IndexerDB", "Node", "with_write_retry"]
 
 
 class IndexerDB(DBQueriesMixin):
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: str | None = None, vector_store: Any | None = None):
         if db_path is None:
             pkg_root = Path(__file__).resolve().parent.parent.parent.parent
             if (pkg_root / ".vibetrace").exists():
@@ -26,7 +26,26 @@ class IndexerDB(DBQueriesMixin):
         else:
             self.db_path = db_path
 
+        self.vector_store = vector_store
         self._init_db()
+
+    def _resolve_vector_store(self) -> None:
+        if getattr(self, "vector_store", None) is not None:
+            return
+        try:
+            if hasattr(self, "db_path") and self.db_path:
+                p = Path(self.db_path).resolve()
+                is_sub = p.parent.name in (".vibetrace", "vibetrace_context")
+                root = p.parent.parent if is_sub else p.parent
+                from vibetrace.config import load_config
+                from vibetrace.indexer.vector_store import get_vector_store
+
+                cfg = load_config(root)
+                self.vector_store = get_vector_store(
+                    root, cfg.vectors, project_name=cfg.project.name
+                )
+        except Exception:
+            self.vector_store = None
 
     @contextmanager
     def _get_conn(self) -> Generator[sqlite3.Connection, None, None]:
@@ -229,6 +248,13 @@ class IndexerDB(DBQueriesMixin):
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
+            self._resolve_vector_store()
+            if self.vector_store and self.vector_store.is_available():
+                try:
+                    self.vector_store.delete_file_embeddings(file_path)
+                except Exception:
+                    pass
+
             # 2. Batch insert nodes and maintain FTS5
             if node_tuples:
                 conn.executemany(
@@ -293,6 +319,13 @@ class IndexerDB(DBQueriesMixin):
                 (file_path,),
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
+
+            self._resolve_vector_store()
+            if self.vector_store and self.vector_store.is_available():
+                try:
+                    self.vector_store.delete_file_embeddings(file_path)
+                except Exception:
+                    pass
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
 

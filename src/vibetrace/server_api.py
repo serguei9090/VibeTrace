@@ -13,6 +13,7 @@ from vibetrace.indexer.watcher import start_observer
 from vibetrace.services.graph_service import (
     build_call_tree,
     get_context_for_path,
+    normalize_path,
     read_file_lines,
     trace_execution_path,
 )
@@ -99,7 +100,10 @@ def get_graph(file_path: str | None = None):
     Return nodes and edges.
     If file_path is provided, filter nodes by that file (plus connected edges).
     """
-    return db.get_graph_data(file_path)
+    if file_path:
+        norm_file = normalize_path(file_path, Path(project_root))
+        return db.get_graph_data(norm_file)
+    return db.get_graph_data(None)
 
 
 @app.get("/trace")
@@ -133,14 +137,15 @@ def get_source(
 ):
     """Safely return a 1-indexed source code slice from an indexed project file."""
     # Serve only indexed source files so secrets (.env, keys) are never exposed.
-    if db.get_file_hash(file_path.replace("\\", "/").removeprefix("./")) is None:
+    norm_path = normalize_path(file_path, Path(project_root))
+    if db.get_file_hash(norm_path) is None:
         raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
     try:
         snippet, s_line, e_line = read_file_lines(
-            Path(project_root), file_path, start_line, end_line
+            Path(project_root), norm_path, start_line, end_line
         )
         return {
-            "file_path": file_path,
+            "file_path": norm_path,
             "start_line": s_line,
             "end_line": e_line,
             "source_code": snippet,
