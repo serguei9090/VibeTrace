@@ -31,6 +31,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **21** | Vector Store Purge | Auto-purge vector store on `clear_file` / reindex, FastAPI transport path normalization (`normalize_path`) | `tests/test_audit_code_bugs_round21.py` | ✅ Verified |
 | **22** | MCP Reindex & Slices | Multi-language code slice markdown fences, `ReindexInput.embed` flag wiring, single-file resolver registration | `tests/test_audit_code_bugs_round22.py` | ✅ Verified |
 | **23** | Builtin Filtering & CLI | Multi-language builtin filtering (`builtins.py`), phantom edge elimination, CLI `serve --path`, API lifespan | `tests/test_audit_code_bugs_round23.py` | ✅ Verified |
+| **24** | Go Modules & Git SHA | Go `go.mod` & Cargo `Cargo.toml` self-package resolution, Git SHA-256 (64-char) hash support | `tests/test_audit_code_bugs_round24.py` | ✅ Verified |
 
 ---
 
@@ -163,6 +164,11 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **CLI `serve --path` Option Parity (`cli.py`, `cli_commands.py`)**: Added `--path` to `vibetrace serve` and set `VIBETRACE_PROJECT_ROOT`.
 * **API Lifespan Watcher Hardening (`server_api.py`)**: Wrapped `start_observer` in `try-except` within `lifespan` so file-watcher failures on headless environments do not crash FastAPI.
 * **MCP Signature Search Location Formatting (`mcp/server.py`)**: Guarded `start_line` formatting against `None` to prevent `:LNone` outputs.
+
+### Round 24: Go Module & Cargo Crate Resolution & Git SHA-256 Support
+* **Go Module Self-Package Resolution (`indexer/resolver.py`)**: Implemented `_detect_go_module()` to parse `go.mod` in workspace root and stripped module prefixes so fully qualified internal package imports (`github.com/org/app/pkg/auth`) resolve to local project files.
+* **Cargo Crate Import Resolution (`indexer/resolver.py`)**: Implemented `_detect_cargo_package()` to parse crate names from `Cargo.toml` and resolve `crate_name::module` imports across libraries and tests.
+* **Git SHA-256 (64-char) Repository Hash Support (`indexer/git_utils.py`)**: Extended `get_git_sha` validation to accept 64-character hexadecimal commit hashes from modern repositories initialized with `--object-format=sha256`.
 
 ---
 

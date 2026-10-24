@@ -29,7 +29,46 @@ class ModuleResolver:
         self.project_root = project_root.resolve()
         self.module_map: dict[str, str] = {}
         self.known_files: set[str] = set()
+        self.go_module: str | None = self._detect_go_module()
+        self.cargo_package: str | None = self._detect_cargo_package()
         self._build_map()
+
+    def _detect_go_module(self) -> str | None:
+        """Parse module name from go.mod if present in workspace root."""
+        go_mod = self.project_root / "go.mod"
+        if not go_mod.is_file():
+            return None
+        try:
+            content = go_mod.read_text(encoding="utf-8", errors="replace")
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("module "):
+                    parts = stripped.split()
+                    if len(parts) >= 2:
+                        return parts[1].strip("\"'")
+        except Exception:
+            return None
+        return None
+
+    def _detect_cargo_package(self) -> str | None:
+        """Parse package name from Cargo.toml if present in workspace root."""
+        cargo_toml = self.project_root / "Cargo.toml"
+        if not cargo_toml.is_file():
+            return None
+        try:
+            content = cargo_toml.read_text(encoding="utf-8", errors="replace")
+            in_package = False
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    in_package = stripped == "[package]"
+                elif in_package and stripped.startswith("name"):
+                    parts = stripped.split("=", 1)
+                    if len(parts) == 2:
+                        return parts[1].strip(" \"'")
+        except Exception:
+            return None
+        return None
 
     def _build_map(self) -> None:
         """Builds a map of module names to relative file paths."""
@@ -108,6 +147,34 @@ class ModuleResolver:
                 matched = self._match_known_file(cand, current_file)
                 if matched:
                     return matched
+
+        # Go self-module path resolution (e.g. 'github.com/owner/repo/pkg/auth' -> 'pkg/auth')
+        if self.go_module and (
+            module_name == self.go_module or module_name.startswith(f"{self.go_module}/")
+        ):
+            sub = module_name[len(self.go_module) + 1 :] if module_name != self.go_module else ""
+            if sub:
+                matched = self._match_known_file(sub, current_file)
+                if matched:
+                    return matched
+                for kf in sorted(self.known_files):
+                    if kf.startswith(f"{sub}/") and kf.endswith(".go"):
+                        return kf
+
+        # Rust crate package name resolution (e.g. 'my_crate::models' -> 'src/models.rs')
+        if self.cargo_package:
+            norm_mod = module_name.replace("::", "/").replace(".", "/")
+            if norm_mod == self.cargo_package or norm_mod.startswith(f"{self.cargo_package}/"):
+                sub = (
+                    norm_mod[len(self.cargo_package) + 1 :]
+                    if norm_mod != self.cargo_package
+                    else ""
+                )
+                if sub:
+                    for cand in (f"src/{sub}", sub):
+                        matched = self._match_known_file(cand, current_file)
+                        if matched:
+                            return matched
 
         if module_name.startswith((".", "crate/", "super/")):
             return self._resolve_relative(module_name, current_file)

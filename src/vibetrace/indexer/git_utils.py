@@ -22,7 +22,11 @@ def get_git_sha(repo_root: Path) -> str | None:
         )
         if res.returncode == 0:
             sha = res.stdout.strip()
-            return sha if len(sha) == 40 else None
+            return (
+                sha
+                if len(sha) in (40, 64) and all(c in "0123456789abcdefABCDEF" for c in sha)
+                else None
+            )
     except (subprocess.SubprocessError, OSError):
         pass
     return None
