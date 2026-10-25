@@ -2,6 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,9 @@ from pydantic import BaseModel, Field
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.services.graph_service import (
     build_call_tree,
+    categorize_file_dependencies,
+    compute_impact_analysis,
+    get_code_slice,
     get_context_for_path,
     normalize_path,
     read_file_lines,
@@ -243,6 +247,113 @@ async def post_agent_focus(payload: AgentFocusPayload):
     """Broadcast live AI agent activity to connected Map Room WebSocket clients."""
     await manager.broadcast(payload.model_dump_json())
     return {"status": "broadcast", "clients": len(manager.active_connections)}
+
+
+@app.get("/api/impact")
+def get_impact_endpoint(file_path: str = Query(..., min_length=1)):
+    """Compute 3-level blast radius impact analysis for a file."""
+    norm_path = normalize_path(file_path, Path(project_root))
+    if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
+        raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
+    total_impact, impacts_by_level = compute_impact_analysis(db, norm_path)
+    return {
+        "file_path": norm_path,
+        "total_impact": total_impact,
+        "levels": impacts_by_level,
+    }
+
+
+@app.get("/api/slice")
+def get_slice_endpoint(
+    symbol: str = Query(..., min_length=1),
+    file_path: str | None = Query(default=None),
+    no_callees: bool = Query(default=False),
+):
+    """Retrieve surgical source code slice and callee contracts for a symbol."""
+    norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
+    res = get_code_slice(
+        db, Path(project_root), symbol, file_path=norm_file, include_callees=not no_callees
+    )
+    if not res.found:
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
+    return res.model_dump()
+
+
+@app.get("/api/references")
+def get_references_endpoint(
+    symbol: str = Query(..., min_length=1),
+    file_path: str | None = Query(default=None),
+    kind: str | None = Query(default=None),
+):
+    """Find all incoming calls, references, inheritance, or implementations to a symbol."""
+    norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
+    clean_symbol = symbol.strip().removesuffix("()")
+    targets = db.find_nodes_by_name(clean_symbol, file_path=norm_file)
+    if not targets:
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in index")
+
+    target_summaries: list[dict[str, Any]] = []
+    total_refs = 0
+    for t in targets:
+        refs = db.get_symbol_references(t["id"])
+        if kind:
+            refs = [r for r in refs if r.get("relation_type") == kind]
+        total_refs += len(refs)
+        target_summaries.append(
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "qualified_name": t.get("qualified_name"),
+                "file_path": t["file_path"],
+                "start_line": t["start_line"],
+                "references": refs,
+            }
+        )
+    return {
+        "symbol": clean_symbol,
+        "target_count": len(targets),
+        "total_references": total_refs,
+        "targets": target_summaries,
+    }
+
+
+@app.get("/api/dependencies")
+def get_dependencies_endpoint(file_path: str = Query(..., min_length=1)):
+    """Categorize file dependencies into internal, third-party, and standard library."""
+    norm_path = normalize_path(file_path, Path(project_root))
+    if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
+        raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
+    internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+    return {
+        "file_path": norm_path,
+        "counts": {
+            "internal": len(internal),
+            "third_party": len(third_party),
+            "stdlib": len(stdlib),
+            "total": len(internal) + len(third_party) + len(stdlib),
+        },
+        "internal": internal,
+        "third_party": third_party,
+        "stdlib": stdlib,
+    }
+
+
+@app.get("/api/summary")
+def get_summary_endpoint(
+    file_path: str = Query(..., min_length=1),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """Get structural outline (functions, classes, methods) of an indexed file."""
+    norm_path = normalize_path(file_path, Path(project_root))
+    if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
+        raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
+    total, rows = db.get_file_structure(norm_path, limit, offset)
+    return {
+        "file_path": norm_path,
+        "total": total,
+        "nodes": rows,
+    }
 
 
 @app.websocket("/ws")

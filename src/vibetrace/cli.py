@@ -7,11 +7,13 @@ import sys
 
 from vibetrace.cli_commands import (
     cmd_call_tree,
+    cmd_dependencies,
     cmd_hooks,
     cmd_impact,
     cmd_index,
     cmd_init,
     cmd_mcp,
+    cmd_references,
     cmd_search,
     cmd_serve,
     cmd_skill,
@@ -28,6 +30,8 @@ _cmd_slice = cmd_slice
 _cmd_call_tree = cmd_call_tree
 _cmd_impact = cmd_impact
 _cmd_summary = cmd_summary
+_cmd_references = cmd_references
+_cmd_dependencies = cmd_dependencies
 _cmd_hooks = cmd_hooks
 _cmd_serve = cmd_serve
 _cmd_init = cmd_init
@@ -48,6 +52,8 @@ examples:
   vibetrace slice IndexerDB.upsert_node # Surgical source slice + callee contracts
   vibetrace call-tree hybrid_search     # Top-down recursive call tree hierarchy
   vibetrace impact src/vibetrace/db.py  # 3-level blast radius impact analysis
+  vibetrace references upsert_node     # Find incoming callers and references
+  vibetrace dependencies src/db.py     # Categorize file imports (internal/stdlib/third-party)
   vibetrace hooks status                # Inspect git hook background sync status
   vibetrace hooks install               # Auto-configure Lefthook or native git hooks
   vibetrace serve                       # Start Map Room API and WebSocket daemon
@@ -229,6 +235,40 @@ examples:
     p_sum.add_argument("--offset", type=int, default=0, help="Pagination offset (default: 0)")
     p_sum.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_sum.set_defaults(func=_cmd_summary)
+
+    # references
+    p_refs = sub.add_parser(
+        "references",
+        help="Find incoming callers and references to a symbol",
+        description=(
+            "Search call sites, inheritance, and usages pointing to a function, method, or class."
+        ),
+    )
+    p_refs.add_argument("symbol", help="Target symbol name to find references for")
+    p_refs.add_argument("--file", default=None, help="Optional file path to disambiguate symbol")
+    p_refs.add_argument(
+        "--kind",
+        default=None,
+        choices=["calls", "references", "inherits", "implements"],
+        help="Filter by relation type",
+    )
+    p_refs.add_argument("--path", default=".", help="Project root directory path")
+    p_refs.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_refs.set_defaults(func=_cmd_references)
+
+    # dependencies
+    p_deps = sub.add_parser(
+        "dependencies",
+        help="Categorize imported modules in a file",
+        description=(
+            "Inspect internal project modules, third-party packages, "
+            "and standard library dependencies."
+        ),
+    )
+    p_deps.add_argument("file_path", help="Relative or absolute file path to analyze")
+    p_deps.add_argument("--path", default=".", help="Project root directory path")
+    p_deps.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_deps.set_defaults(func=_cmd_dependencies)
 
     # serve
     p_serve = sub.add_parser(

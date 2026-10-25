@@ -198,6 +198,17 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Configuration File-Path Defense (`config.py`)**: Added `if root.is_file(): root = root.parent` guards to `load_config` and `save_default_config`.
 * **Lefthook Duplicate Key Cleanup (`lefthook.yml`)**: Deduplicated empty `post-commit` and `post-merge` keys from `lefthook.yml`.
 
+### Round 29: CLI & REST API Parity, Markdown Formatters & Canonical Path Sanitization
+* **CLI `references` & `dependencies` Subcommands (`cli.py`, `cli_commands.py`)**: Added `vibetrace references <symbol> [--file] [--kind] [--json]` and `vibetrace dependencies <file_path> [--json]` to achieve feature parity with MCP tools `vibetrace_find_references` and `vibetrace_get_dependencies`.
+* **REST API Parity Endpoints (`server_api.py`)**: Added missing endpoints:
+  - `GET /api/impact`: 3-level blast radius analysis.
+  - `GET /api/slice`: Surgical source code slice with callee contracts.
+  - `GET /api/references`: Incoming usages, callers, and references.
+  - `GET /api/dependencies`: Categorized imports (internal, third-party, stdlib).
+  - `GET /api/summary`: AST structural outline with pagination.
+* **Markdown Formatting Separation & Anti-Monolith Compliance (`mcp/formatters.py`, `cli_commands.py`)**: Extracted `format_references_md` and `format_dependencies_md` into `vibetrace.mcp.formatters`, keeping `cli_commands.py` (484 LOC), `formatters.py` (207 LOC), and `server_api.py` (404 LOC) strictly under the 500-line ceiling (Rules 10 & 12).
+* **Canonical Path Sanitization (`services/graph_service.py`)**: Replaced `.removeprefix("./")` with canonical `_clean_path()` in `compute_impact_analysis` and `categorize_file_dependencies` to ensure redundant `././` prefixes or Windows path variations match indexed database records.
+
 ---
 
 ## Non-Regression Policy & Guidelines

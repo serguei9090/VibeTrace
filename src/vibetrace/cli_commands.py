@@ -7,18 +7,22 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
 from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
+    format_dependencies_md,
+    format_references_md,
     format_semantic_search_md,
     format_structural_summary_md,
     format_trace_path_md,
 )
 from vibetrace.services.graph_service import (
     build_call_tree,
+    categorize_file_dependencies,
     compute_impact_analysis,
     format_call_tree_md,
     get_code_slice,
@@ -338,23 +342,33 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(json.dumps(res, indent=2))
         return 0
 
-    print("🎉 VibeTrace workspace initialized successfully!")
-    print(f"- **Project Root**: `{res['project_root']}`")
-    print(f"- **Configuration**: `{res.get('config_path', 'default')}`")
-    print(f"- **Local Database**: `{res['db_path']}` (isolated per-project)")
-    if res["gitignore_updated"]:
-        print(f"- **.gitignore Updated**: added `{', '.join(res['added_ignores'])}`")
-    else:
-        print("- **.gitignore**: already configured")
+    gi_msg = (
+        f"added `{', '.join(res['added_ignores'])}`"
+        if res["gitignore_updated"]
+        else "already configured"
+    )
+    lines = [
+        "🎉 VibeTrace workspace initialized successfully!",
+        f"- **Project Root**: `{res['project_root']}`",
+        f"- **Configuration**: `{res.get('config_path', 'default')}`",
+        f"- **Local Database**: `{res['db_path']}` (isolated per-project)",
+        f"- **.gitignore**: {gi_msg}",
+    ]
     if res["installed_skills"]:
-        print(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
+        lines.append(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
     if res["indexed"]:
-        print(f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations")
-
-    print("\nNext steps:")
-    print('  vibetrace search "<query>"        # 4-stream hybrid AST + BM25 search')
-    print('  vibetrace trace "from" "to"       # Bidirectional execution trace')
-    print("  vibetrace serve                    # Launch Map Room visualizer (port 8000)")
+        lines.append(
+            f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"
+        )
+    lines.extend(
+        [
+            "\nNext steps:",
+            '  vibetrace search "<query>"',
+            '  vibetrace trace "from" "to"',
+            "  vibetrace serve",
+        ]
+    )
+    print("\n".join(lines))
     return 0
 
 
@@ -381,4 +395,90 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     root = str(Path(getattr(args, "root", None) or getattr(args, "path", ".") or ".").resolve())
     os.environ["VIBETRACE_PROJECT_ROOT"] = root
     mcp_main()
+    return 0
+
+
+def cmd_references(args: argparse.Namespace) -> int:
+    auto_sync = not getattr(args, "no_sync", False)
+    db, root = get_context_for_path(
+        args.file or getattr(args, "path", "."),
+        auto_sync=auto_sync,
+        root_override=getattr(args, "root", None),
+    )
+    clean_sym = args.symbol.strip().removesuffix("()")
+    norm_file = normalize_path(args.file, root) if getattr(args, "file", None) else None
+    targets = db.find_nodes_by_name(clean_sym, file_path=norm_file)
+    if not targets:
+        if args.json:
+            print(
+                json.dumps(
+                    {"symbol": clean_sym, "found": False, "targets": [], "total_references": 0},
+                    indent=2,
+                )
+            )
+        else:
+            print(f"Symbol '{args.symbol}' not found in index.")
+        return 1
+
+    all_refs: list[dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
+    for t in targets:
+        refs = db.get_symbol_references(t["id"])
+        if getattr(args, "kind", None):
+            refs = [r for r in refs if r.get("relation_type") == args.kind]
+        summaries.append(
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "file_path": t["file_path"],
+                "start_line": t["start_line"],
+                "references": refs,
+            }
+        )
+        all_refs.extend(refs)
+
+    notify_ui_focus("references", [t["id"] for t in targets], summary=f"CLI references {clean_sym}")
+
+    if args.json:
+        payload = {
+            "symbol": clean_sym,
+            "found": True,
+            "target_count": len(targets),
+            "total_references": len(all_refs),
+            "targets": summaries,
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(safe_str(format_references_md(args.symbol, summaries)))
+    return 0
+
+
+def cmd_dependencies(args: argparse.Namespace) -> int:
+    auto_sync = not getattr(args, "no_sync", False)
+    db, root = get_context_for_path(
+        args.file_path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
+    )
+    norm_path = normalize_path(args.file_path, root)
+    internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+    file_nodes = db.get_nodes_in_file(norm_path)
+    notify_ui_focus(
+        "dependencies", [n["id"] for n in file_nodes], summary=f"CLI dependencies {norm_path}"
+    )
+
+    if args.json:
+        payload = {
+            "file_path": norm_path,
+            "counts": {
+                "internal": len(internal),
+                "third_party": len(third_party),
+                "stdlib": len(stdlib),
+                "total": len(internal) + len(third_party) + len(stdlib),
+            },
+            "internal": internal,
+            "third_party": third_party,
+            "stdlib": stdlib,
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(safe_str(format_dependencies_md(norm_path, internal, third_party, stdlib)))
     return 0

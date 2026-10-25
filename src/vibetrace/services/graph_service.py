@@ -4,7 +4,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Literal
 
-from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.db import IndexerDB, _clean_path
 from vibetrace.services.call_tree_service import (
     CallTreeNode,
     CallTreeResult,
@@ -289,7 +289,7 @@ def compute_impact_analysis(
     db: IndexerDB, normalized_path: str
 ) -> tuple[int, dict[int, list[str]]]:
     """Compute 3-level transitive impact for changes to a file."""
-    norm_p = normalized_path.replace("\\", "/").removeprefix("./")
+    norm_p = _clean_path(normalized_path)
     file_nodes = db.get_nodes_in_file(norm_p)
     if not file_nodes:
         return 0, {}
@@ -331,7 +331,8 @@ def categorize_file_dependencies(
     db: IndexerDB, normalized_path: str
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Categorize dependencies into internal, third-party, and standard library."""
-    deps = db.get_file_imports(normalized_path)
+    norm_p = _clean_path(normalized_path)
+    deps = db.get_file_imports(norm_p)
     stdlib_names = get_python_stdlib_names()
 
     internal: list[dict[str, Any]] = []
@@ -345,7 +346,7 @@ def categorize_file_dependencies(
         if path != "external":
             internal.append(dep)
         else:
-            if is_stdlib_import(name, normalized_path, stdlib_names):
+            if is_stdlib_import(name, norm_p, stdlib_names):
                 stdlib.append(dep)
             else:
                 third_party.append(dep)

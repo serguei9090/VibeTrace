@@ -162,3 +162,46 @@ def format_code_slice_md(result: CodeSliceResult) -> str:
                 f"- **`{c.qualified_name}`**{c_sig} in `{c.file_path}:L{c.start_line}`{call_at}"
             )
     return "\n".join(lines)
+
+
+def format_references_md(symbol: str, summaries: list[dict[str, Any]]) -> str:
+    lines = [f"## References to `{symbol}`"]
+    for t in summaries:
+        target_desc = f"`{t['name']}` from `{t['file_path']}`:L{t['start_line']}"
+        refs = t["references"]
+        if refs:
+            lines.append(f"\n### Usages of {target_desc} ({len(refs)} references)")
+            for ref in refs:
+                call_ln = ref.get("call_line") or ref.get("start_line", "?")
+                rel = ref.get("relation_type", "reference")
+                lines.append(
+                    f"- Used by `{ref['name']}` in `{ref['file_path']}` (L{call_ln}) [{rel}]"
+                )
+        else:
+            lines.append(f"\n### Usages of {target_desc}\n- No direct callers found.")
+    return "\n".join(lines)
+
+
+def format_dependencies_md(
+    norm_path: str,
+    internal: list[dict[str, Any]],
+    third_party: list[dict[str, Any]],
+    stdlib: list[dict[str, Any]],
+) -> str:
+    lines = [f"## Dependencies for `{norm_path}`"]
+    if not (internal or third_party or stdlib):
+        lines.append("No imports detected or file not indexed.")
+        return "\n".join(lines)
+    for group, title in (
+        (internal, "Internal Project Modules"),
+        (third_party, "Third-Party Dependencies"),
+        (stdlib, "Standard Library"),
+    ):
+        if group:
+            lines.append(f"\n### {title} ({len(group)})")
+            lines.extend(
+                f"- `{dep['name']}`"
+                + (f" ({dep['file_path']})" if title.startswith("Internal") else "")
+                for dep in group
+            )
+    return "\n".join(lines)
