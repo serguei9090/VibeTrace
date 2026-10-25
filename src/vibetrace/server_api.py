@@ -2,7 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.services.graph_service import (
+    build_call_stack,
     build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
@@ -29,6 +30,14 @@ from vibetrace.services.saved_traces_service import (
     get_saved_trace_by_name,
     list_saved_traces,
 )
+
+
+class ReindexPayload(BaseModel):
+    """Payload to trigger project or file reindexing via REST API."""
+
+    file_path: str | None = None
+    force: bool = False
+    embed: bool = False
 
 
 class AgentFocusPayload(BaseModel):
@@ -92,6 +101,10 @@ async def lifespan(app: FastAPI):
 
     if observer is not None:
         stop_observer(observer)
+    try:
+        db.close()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="VibeTrace API", lifespan=lifespan)
@@ -139,6 +152,35 @@ def get_call_tree(
     norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
     res = build_call_tree(db, symbol, max_depth=depth, file_path=norm_file)
     return res.model_dump()
+
+
+@app.get("/call-stack")
+@app.get("/api/call-stack")
+def get_call_stack_endpoint(
+    symbol: str = Query(..., min_length=1),
+    direction: Literal["up", "down", "both"] = Query(default="both"),
+    depth: int = Query(default=3, ge=1, le=10),
+    file_path: str | None = Query(default=None),
+):
+    """Explore bidirectional execution call stack (callers up, callees down, or both)."""
+    norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
+    found, output, start_nodes = build_call_stack(
+        db,
+        symbol,
+        direction=direction,
+        max_depth=depth,
+        file_path=norm_file,
+    )
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in index")
+    return {
+        "found": True,
+        "symbol": symbol,
+        "direction": direction,
+        "depth": depth,
+        "call_stack": output,
+        "nodes": [n["id"] for n in start_nodes],
+    }
 
 
 @app.get("/source")
@@ -197,6 +239,15 @@ def search_nodes_endpoint(
                 break
 
     return combined[:limit]
+
+
+@app.get("/api/search/signature")
+def search_signature_endpoint(
+    pattern: str = Query(..., min_length=1),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """Search function signatures matching a SQL LIKE pattern or substring."""
+    return db.search_by_signature_pattern(pattern, limit=limit)
 
 
 @app.get("/api/saved-traces")
@@ -354,6 +405,46 @@ def get_summary_endpoint(
         "total": total,
         "nodes": rows,
     }
+
+
+@app.post("/api/reindex")
+def post_reindex_endpoint(payload: ReindexPayload | None = None):
+    """Reindex the workspace or a single file on demand."""
+    from vibetrace.indexer.main import index_file, reindex_all
+
+    eff_payload = payload or ReindexPayload()
+    if eff_payload.file_path:
+        norm_path = normalize_path(eff_payload.file_path, Path(project_root))
+        abs_target = (Path(project_root) / norm_path).resolve()
+        if not abs_target.exists():
+            raise HTTPException(
+                status_code=404, detail=f"File not found: '{eff_payload.file_path}'"
+            )
+        indexed = index_file(
+            db, str(abs_target), project_root=Path(project_root), force=eff_payload.force
+        )
+        return {
+            "status": "ok",
+            "mode": "single_file",
+            "file_path": norm_path,
+            "indexed": indexed,
+        }
+
+    reindex_all(
+        db,
+        str(project_root),
+        verbose=False,
+        force=eff_payload.force,
+        project_root=Path(project_root),
+    )
+    embedded_count = 0
+    if eff_payload.embed:
+        from vibetrace.indexer.embeddings import EmbeddingEngine
+
+        engine = EmbeddingEngine(project_root=Path(project_root))
+        if engine.is_available():
+            embedded_count = engine.index_missing_embeddings(db)
+    return {"status": "ok", "mode": "workspace", "embedded_count": embedded_count}
 
 
 @app.websocket("/ws")

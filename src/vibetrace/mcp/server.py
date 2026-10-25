@@ -32,11 +32,13 @@ from vibetrace.mcp.schemas import (
     SearchInput,
     SemanticSearchInput,
     StructuralSummaryInput,
-    TraceDirection,
     TracePathInput,
 )
+from vibetrace.mcp.schemas import (
+    TraceDirection as TraceDirection,
+)
 from vibetrace.services.graph_service import (
-    GraphTraverser,
+    build_call_stack,
     build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
@@ -127,10 +129,14 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
     try:
         db, root = _get_context_for_path(params.file_path)
         norm_file = _normalize_path(params.file_path, root) if params.file_path else None
-        clean_node = params.node_name.strip().removesuffix("()")
-        start_nodes = db.find_nodes_by_name(clean_node, norm_file)
-
-        if not start_nodes:
+        found, output, start_nodes = build_call_stack(
+            db,
+            params.node_name,
+            direction=params.direction.value,
+            max_depth=params.depth,
+            file_path=norm_file,
+        )
+        if not found:
             return f"Node '{params.node_name}' not found. Is the file indexed?"
 
         notify_ui_focus(
@@ -138,33 +144,7 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
             [n["id"] for n in start_nodes],
             summary=f"Tracing call stack for {params.node_name}",
         )
-
-        traverser = GraphTraverser(db)
-        for start_node in start_nodes:
-            traverser.output.append(
-                f"### Trace for `{start_node['name']}` ({start_node['kind']}) "
-                f"in `{start_node['file_path']}`"
-            )
-
-            if params.direction in (TraceDirection.UP, TraceDirection.BOTH):
-                traverser.visited.clear()
-                traverser.output.append("\n**Callers (Incoming):**")
-                traverser.traverse(
-                    start_node["id"], 1, params.depth, "up", 0, path_stack=[start_node["name"]]
-                )
-                if not any(safe_str("←") in line for line in traverser.output[-5:]):
-                    traverser.output.append("  (no callers found)")
-
-            if params.direction in (TraceDirection.DOWN, TraceDirection.BOTH):
-                traverser.visited.clear()
-                traverser.output.append("\n**Callees (Outgoing):**")
-                traverser.traverse(
-                    start_node["id"], 1, params.depth, "down", 0, path_stack=[start_node["name"]]
-                )
-                if not any(safe_str("→") in line for line in traverser.output[-5:]):
-                    traverser.output.append("  (no callees found)")
-
-        return "\n".join(traverser.output)
+        return "\n".join(output)
     except Exception as e:
         return handle_error(e, f"tracing {params.node_name}")
 

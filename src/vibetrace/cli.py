@@ -115,6 +115,14 @@ examples:
     p_search.add_argument(
         "--limit", type=int, default=15, help="Maximum number of results to return (default: 15)"
     )
+    p_search.add_argument(
+        "--sig",
+        "--signature",
+        dest="signature",
+        action="store_true",
+        default=False,
+        help="Search function signatures by SQL pattern or substring",
+    )
     p_search.add_argument("--path", default=".", help="Project root directory path")
     p_search.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_search.set_defaults(func=_cmd_search)

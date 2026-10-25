@@ -209,6 +209,16 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Markdown Formatting Separation & Anti-Monolith Compliance (`mcp/formatters.py`, `cli_commands.py`)**: Extracted `format_references_md` and `format_dependencies_md` into `vibetrace.mcp.formatters`, keeping `cli_commands.py` (484 LOC), `formatters.py` (207 LOC), and `server_api.py` (404 LOC) strictly under the 500-line ceiling (Rules 10 & 12).
 * **Canonical Path Sanitization (`services/graph_service.py`)**: Replaced `.removeprefix("./")` with canonical `_clean_path()` in `compute_impact_analysis` and `categorize_file_dependencies` to ensure redundant `././` prefixes or Windows path variations match indexed database records.
 
+### Round 30: Signature Wildcard Fix, Call Stack Traversal, REST Reindex & Lifespan Clean Shutdown
+* **Signature Pattern Automatic Wildcarding (`indexer/db_queries.py`)**: Wrapped bare search terms in `f"%{pattern}%"` when explicit SQL wildcards (`%` or `_`) are absent, enabling natural substring signature queries like `"string"` or `"-> bool"` without returning false empty sets.
+* **CLI Signature Search Parity (`cli.py`, `cli_commands.py`)**: Added `--sig` / `--signature` flag to `vibetrace search` to search function signatures directly with Markdown and `--json` outputs.
+* **REST API Parity Endpoints (`server_api.py`)**:
+  - `POST /api/reindex`: On-demand project or single-file reindexing via REST.
+  - `GET /api/search/signature`: Exposes signature pattern query via HTTP.
+  - `GET /call-stack` & `GET /api/call-stack`: Bidirectional call stack exploration (`up`, `down`, `both`).
+* **Modular Call Stack Traversal (`services/graph_service.py`, `mcp/server.py`)**: Encapsulated bidirectional call stack traversal in `build_call_stack()`, shared across MCP, CLI, and REST API while reducing file size in `mcp/server.py`.
+* **FastAPI Server Lifespan Database Shutdown (`server_api.py`)**: Wired `db.close()` into `lifespan` cleanup block to ensure all SQLite handles and locks are released upon server shutdown.
+
 ---
 
 ## Non-Regression Policy & Guidelines

@@ -33,6 +33,7 @@ __all__ = [
     "TraceHop",
     "TraceNodeInfo",
     "TracePathResult",
+    "build_call_stack",
     "build_call_tree",
     "categorize_file_dependencies",
     "compute_impact_analysis",
@@ -283,6 +284,44 @@ class GraphTraverser:
                 current_path,
                 next_ancestors,
             )
+
+
+def build_call_stack(
+    db: IndexerDB,
+    symbol_name: str,
+    direction: Literal["up", "down", "both"] = "both",
+    max_depth: int = 3,
+    file_path: str | None = None,
+) -> tuple[bool, list[str], list[dict[str, Any]]]:
+    """Build call stack tracing incoming callers (up), outgoing callees (down), or both."""
+    clean_sym = symbol_name.strip().removesuffix("()")
+    start_nodes = db.find_nodes_by_name(clean_sym, file_path)
+    if not start_nodes:
+        return False, [f"Node '{symbol_name}' not found in index."], []
+
+    traverser = GraphTraverser(db)
+    for start_node in start_nodes:
+        name, kind, fp = start_node["name"], start_node["kind"], start_node["file_path"]
+        traverser.output.append(f"### Trace for `{name}` ({kind}) in `{fp}`")
+        if direction in ("up", "both"):
+            traverser.visited.clear()
+            traverser.output.append("\n**Callers (Incoming):**")
+            traverser.traverse(
+                start_node["id"], 1, max_depth, "up", 0, path_stack=[start_node["name"]]
+            )
+            if not any(safe_str("←") in line for line in traverser.output[-5:]):
+                traverser.output.append("  (no callers found)")
+
+        if direction in ("down", "both"):
+            traverser.visited.clear()
+            traverser.output.append("\n**Callees (Outgoing):**")
+            traverser.traverse(
+                start_node["id"], 1, max_depth, "down", 0, path_stack=[start_node["name"]]
+            )
+            if not any(safe_str("→") in line for line in traverser.output[-5:]):
+                traverser.output.append("  (no callees found)")
+
+    return True, traverser.output, start_nodes
 
 
 def compute_impact_analysis(

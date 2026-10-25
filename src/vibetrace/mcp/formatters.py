@@ -205,3 +205,16 @@ def format_dependencies_md(
                 for dep in group
             )
     return "\n".join(lines)
+
+
+def format_signature_search_md(pattern: str, rows: list[dict[str, Any]]) -> str:
+    lines = [f"## Signature Search: `{pattern}`"]
+    if not rows:
+        lines.append("No matches found.")
+    else:
+        for row in rows:
+            loc = f":L{row['start_line']}" if row.get("start_line") is not None else ""
+            lines.append(
+                f"- **`{row['name']}`** `{row.get('signature', '')}` in `{row['file_path']}{loc}`"
+            )
+    return "\n".join(lines)

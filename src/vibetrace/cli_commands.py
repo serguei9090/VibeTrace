@@ -17,6 +17,7 @@ from vibetrace.mcp.formatters import (
     format_dependencies_md,
     format_references_md,
     format_semantic_search_md,
+    format_signature_search_md,
     format_structural_summary_md,
     format_trace_path_md,
 )
@@ -91,6 +92,17 @@ def cmd_search(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(
         args.path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
     )
+    if getattr(args, "signature", False):
+        rows = db.search_by_signature_pattern(args.query, limit=args.limit)
+        notify_ui_focus(
+            "signature_search", [r["id"] for r in rows[:5]], summary=f"CLI sig '{args.query}'"
+        )
+        if args.json:
+            print(json.dumps(rows, indent=2))
+        else:
+            print(safe_str(format_signature_search_md(args.query, rows)))
+        return 0
+
     engine = EmbeddingEngine(project_root=root)
     results = hybrid_search(db, args.query, limit=args.limit, embedding_engine=engine)
     notify_ui_focus(

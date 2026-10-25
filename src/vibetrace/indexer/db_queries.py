@@ -67,12 +67,13 @@ class DBQueriesMixin:
 
     def search_by_signature_pattern(self, pattern: str, limit: int = 50) -> list[dict[str, Any]]:
         """Search functions matching SQL LIKE pattern in signature."""
+        p = pattern if ("%" in pattern or "_" in pattern) else f"%{pattern}%"
         with self._get_conn() as conn:
             query = (
                 "SELECT id, name, qualified_name, kind, signature, file_path, start_line, end_line "
                 "FROM nodes WHERE signature LIKE ? LIMIT ?"
             )
-            cursor = conn.execute(query, (pattern, limit))
+            cursor = conn.execute(query, (p, limit))
             return [dict(r) for r in cursor.fetchall()]
 
     def search_ast_exact_or_prefix(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
