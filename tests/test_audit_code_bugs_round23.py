@@ -118,11 +118,18 @@ def test_cli_serve_accepts_path(tmp_path: Path):
     assert args.path == target_dir
     assert args.port == 9000
 
-    with patch("uvicorn.run") as mock_run:
-        code = cmd_serve(args)
-        assert code == 0
-        mock_run.assert_called_once()
-        assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(Path(target_dir).resolve())
+    orig_env = os.environ.get("VIBETRACE_PROJECT_ROOT")
+    try:
+        with patch("uvicorn.run") as mock_run:
+            code = cmd_serve(args)
+            assert code == 0
+            mock_run.assert_called_once()
+            assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(Path(target_dir).resolve())
+    finally:
+        if orig_env is not None:
+            os.environ["VIBETRACE_PROJECT_ROOT"] = orig_env
+        else:
+            os.environ.pop("VIBETRACE_PROJECT_ROOT", None)
 
 
 @pytest.mark.asyncio

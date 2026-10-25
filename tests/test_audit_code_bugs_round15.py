@@ -166,7 +166,14 @@ def test_cli_subcommands_respect_root_override(monkeypatch, tmp_path: Path):
     assert (target_root / ".agents" / "skills" / "vibetrace-navigator").is_dir()
 
     # 3. cmd_mcp with --root sets VIBETRACE_PROJECT_ROOT environment variable
-    monkeypatch.setattr("vibetrace.mcp.server.main", lambda: None)
-    args_mcp = parser.parse_args(["mcp", "--root", str(target_root)])
-    cmd_mcp(args_mcp)
-    assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(target_root.resolve())
+    orig_env = os.environ.get("VIBETRACE_PROJECT_ROOT")
+    try:
+        monkeypatch.setattr("vibetrace.mcp.server.main", lambda: None)
+        args_mcp = parser.parse_args(["mcp", "--root", str(target_root)])
+        cmd_mcp(args_mcp)
+        assert os.environ.get("VIBETRACE_PROJECT_ROOT") == str(target_root.resolve())
+    finally:
+        if orig_env is not None:
+            os.environ["VIBETRACE_PROJECT_ROOT"] = orig_env
+        else:
+            os.environ.pop("VIBETRACE_PROJECT_ROOT", None)

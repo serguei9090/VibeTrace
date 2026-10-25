@@ -114,7 +114,7 @@ def get_context_for_path(
         project_root = Path(root_override).resolve()
     else:
         env_root = os.environ.get("VIBETRACE_PROJECT_ROOT")
-        if (not path_hint or path_hint == ".") and env_root:
+        if (not path_hint or path_hint == ".") and env_root and Path(env_root).is_dir():
             project_root = Path(env_root).resolve()
         else:
             if not path_hint or path_hint == ".":
@@ -142,7 +142,7 @@ def get_context_for_path(
                     found = True
                     break
 
-            if not found and env_root:
+            if not found and env_root and Path(env_root).is_dir():
                 project_root = Path(env_root).resolve()
 
     from vibetrace.config import load_config
@@ -159,11 +159,11 @@ def get_context_for_path(
         project_root / "vibetrace_context"
     ).exists():
         context_dir = project_root / ".vibetrace"
-        context_dir.mkdir(exist_ok=True)
+        context_dir.mkdir(parents=True, exist_ok=True)
         db_path = context_dir / "vibetrace.db"
     else:
         context_dir = project_root / "vibetrace_context"
-        context_dir.mkdir(exist_ok=True)
+        context_dir.mkdir(parents=True, exist_ok=True)
         db_path = context_dir / "vibetrace.db"
 
     db = IndexerDB(db_path=str(db_path))

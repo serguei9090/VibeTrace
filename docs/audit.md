@@ -218,6 +218,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - `GET /call-stack` & `GET /api/call-stack`: Bidirectional call stack exploration (`up`, `down`, `both`).
 * **Modular Call Stack Traversal (`services/graph_service.py`, `mcp/server.py`)**: Encapsulated bidirectional call stack traversal in `build_call_stack()`, shared across MCP, CLI, and REST API while reducing file size in `mcp/server.py`.
 * **FastAPI Server Lifespan Database Shutdown (`server_api.py`)**: Wired `db.close()` into `lifespan` cleanup block to ensure all SQLite handles and locks are released upon server shutdown.
+* **Environment Root Validation & Recursive Context Directory Creation (`services/graph_service.py`)**: Added `Path(env_root).is_dir()` validation before accepting `VIBETRACE_PROJECT_ROOT` to prevent crashes when stale/deleted paths are in the environment, and used `parents=True, exist_ok=True` for directory creation. Cleaned up environment variables in test fixtures (`test_audit_code_bugs_round15.py`, `test_audit_code_bugs_round23.py`).
 
 ---
 
