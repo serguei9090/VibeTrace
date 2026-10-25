@@ -190,3 +190,69 @@ def extract_python_routes(
                 route_edges.append(edge)
 
     return endpoint_nodes, route_edges
+
+
+def extract_js_endpoint_route(
+    node: Any,
+    called_name: str,
+    args: list[Any],
+    parent_id: str,
+    file_path: str,
+    file_module_id: str,
+    get_text_fn: Any,
+    get_id_fn: Any,
+    create_node_fn: Any,
+    create_edge_fn: Any,
+    resolve_call_target_fn: Any,
+    ctx: Any,
+    nodes: list[DBNode],
+    edges: list[Edge],
+) -> None:
+    """Extract clientside or backend API requests/routes in JS/TS AST."""
+    if not args:
+        return
+    first_arg = args[0]
+    if getattr(first_arg, "type", "") not in ("string", "template_string"):
+        return
+
+    raw_url = get_text_fn(first_arg).strip("'\"`")
+    if not (raw_url.startswith("/") or "/api/" in raw_url):
+        return
+
+    lower_func = called_name.lower()
+    method = next(
+        (
+            m.upper()
+            for m in ("post", "put", "delete", "patch", "options", "head")
+            if f".{m}" in lower_func
+        ),
+        "GET",
+    )
+    endpoint_name = f"{method} {raw_url}"
+    endpoint_id = get_id_fn("__endpoint__", endpoint_name, kind="endpoint")
+    if not any(n.id == endpoint_id for n in nodes):
+        nodes.append(
+            create_node_fn(
+                endpoint_id,
+                endpoint_name,
+                "endpoint",
+                file_path,
+                node,
+                qualified_name=endpoint_name,
+                parent_id=file_module_id,
+            )
+        )
+    is_b_route = (
+        any(called_name.startswith(p) for p in ("app.", "router.", "server.", "api."))
+        and len(args) >= 2
+    )
+    h_arg = args[-1] if is_b_route else None
+    if (
+        h_arg
+        and getattr(h_arg, "type", "") == "identifier"
+        and (h_id := resolve_call_target_fn(get_text_fn(h_arg), ctx))
+    ):
+        edges.append(create_edge_fn(endpoint_id, h_id, "routes", node=h_arg))
+        edges.append(create_edge_fn(parent_id, endpoint_id, "defines", node=node))
+    else:
+        edges.append(create_edge_fn(parent_id, endpoint_id, "routes", node=node))

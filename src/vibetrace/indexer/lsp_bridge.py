@@ -14,6 +14,8 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.db_queries import _clean_path
+from vibetrace.indexer.db_retry import with_write_retry
 
 
 class LSPClient:
@@ -31,11 +33,13 @@ class LSPClient:
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
-        if not shutil.which(self.command[0]):
+        executable = shutil.which(self.command[0])
+        if not executable:
             return False
+        cmd = [executable, *self.command[1:]]
         try:
             self.process = subprocess.Popen(
-                self.command,
+                cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -241,44 +245,58 @@ def resolve_unresolved_edges(
     """
     with db._get_conn() as conn:
         cursor = conn.execute(sql_unresolved)
-        rows = cursor.fetchall()
+        rows = [dict(r) for r in cursor.fetchall()]
 
     if not rows:
         return 0
 
-    resolved_count = 0
-    with db._get_conn() as conn:
-        for row in rows:
-            caller_file = project_root / row["caller_file"]
-            call_line = row["call_line"]
-            if not caller_file.exists():
-                continue
+    # Resolve definitions via LSP OUTSIDE of any database transaction
+    rewire_candidates: list[tuple[int, str, int]] = []
+    for row in rows:
+        caller_file = project_root / row["caller_file"]
+        call_line = row["call_line"]
+        if not caller_file.exists():
+            continue
 
-            def_target = lsp_client.get_definition(caller_file, call_line)
-            if not def_target:
-                continue
+        def_target = lsp_client.get_definition(caller_file, call_line)
+        if not def_target:
+            continue
 
-            target_file, target_line = def_target
-            # Find closest node in target file covering the line (case-insensitive on Windows)
-            find_node_sql = """
-                SELECT id FROM nodes
-                WHERE LOWER(file_path) = LOWER(?) AND start_line <= ? AND end_line >= ?
-                ORDER BY (end_line - start_line) ASC
-                LIMIT 1
-            """
-            matched = conn.execute(
-                find_node_sql, (target_file, target_line, target_line)
-            ).fetchone()
-            if matched:
-                new_target_id = matched["id"]
-                conn.execute(
-                    "UPDATE edges SET to_node_id = ? WHERE id = ?",
-                    (new_target_id, row["id"]),
-                )
-                resolved_count += 1
+        target_file, target_line = def_target
+        clean_target = _clean_path(target_file)
+        rewire_candidates.append((row["id"], clean_target, target_line))
 
-        if resolved_count > 0:
-            conn.commit()
+    if not rewire_candidates:
+        return 0
+
+    # Match and batch-update rewired targets under a fast retryable write transaction
+    find_node_sql = """
+        SELECT id FROM nodes
+        WHERE LOWER(file_path) = LOWER(?) AND start_line <= ? AND end_line >= ?
+        ORDER BY (end_line - start_line) ASC
+        LIMIT 1
+    """
+
+    @with_write_retry()
+    def _apply_rewires() -> int:
+        count = 0
+        with db._get_conn() as conn:
+            for edge_id, target_file, target_line in rewire_candidates:
+                matched = conn.execute(
+                    find_node_sql, (target_file, target_line, target_line)
+                ).fetchone()
+                if matched:
+                    new_target_id = matched["id"]
+                    conn.execute(
+                        "UPDATE edges SET to_node_id = ? WHERE id = ?",
+                        (new_target_id, edge_id),
+                    )
+                    count += 1
+            if count > 0:
+                conn.commit()
+        return count
+
+    resolved_count = _apply_rewires()
 
     if verbose and resolved_count > 0:
         print(f"LSP Hybrid Bridge: Rewired {resolved_count} polymorphic/re-exported call edges.")

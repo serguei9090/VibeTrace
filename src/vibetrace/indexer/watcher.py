@@ -78,36 +78,45 @@ class CodeChangeHandler(FileSystemEventHandler):
             self._debounce_timer.daemon = True
             self._debounce_timer.start()
 
+    def stop(self) -> None:
+        """Cancel any pending debounce timer on shutdown."""
+        with self._lock:
+            if self._debounce_timer is not None:
+                self._debounce_timer.cancel()
+                self._debounce_timer = None
+
     def on_modified(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
         rel_path = self._to_rel_path(src_path)
-        print(f"File modified: {rel_path}")
-        index_file(
+        indexed = index_file(
             self.db,
             src_path,
             project_root=self.root_path,
             resolver=self.resolver,
             force=True,
         )
-        self._schedule_post_sync()
+        if indexed:
+            print(f"File modified: {rel_path}")
+            self._schedule_post_sync()
 
     def on_created(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
             return
         rel_path = self._to_rel_path(src_path)
-        print(f"File created: {rel_path}")
-        self.resolver.add_file(rel_path)
-        index_file(
+        indexed = index_file(
             self.db,
             src_path,
             project_root=self.root_path,
             resolver=self.resolver,
             force=True,
         )
-        self._schedule_post_sync()
+        if indexed:
+            print(f"File created: {rel_path}")
+            self.resolver.add_file(rel_path)
+            self._schedule_post_sync()
 
     def on_deleted(self, event):
         src_path = str(event.src_path)
@@ -130,6 +139,12 @@ class CodeChangeHandler(FileSystemEventHandler):
             return
 
         rel_path = self._to_rel_path(src_path)
+        was_indexed = (
+            rel_path in self.resolver.known_files or self.db.get_file_hash(rel_path) is not None
+        )
+        if not was_indexed:
+            return
+
         print(f"File deleted: {rel_path}")
         self.resolver.remove_file(rel_path)
         self.db.clear_file(rel_path)
@@ -165,32 +180,40 @@ class CodeChangeHandler(FileSystemEventHandler):
                             full_file = Path(root) / file
                             if not self._should_ignore(str(full_file)):
                                 rel_f = self._to_rel_path(str(full_file))
-                                self.resolver.add_file(rel_f)
-                                index_file(
+                                indexed = index_file(
                                     self.db,
                                     str(full_file),
                                     project_root=self.root_path,
                                     resolver=self.resolver,
                                     force=True,
                                 )
+                                if indexed:
+                                    self.resolver.add_file(rel_f)
             print(f"Directory moved: {rel_src} -> {rel_dest}")
             self._schedule_post_sync()
             return
 
         print(f"File moved: {rel_src} -> {rel_dest}")
-        if not src_ignored:
+        changed = False
+        if not src_ignored and (
+            rel_src in self.resolver.known_files or self.db.get_file_hash(rel_src) is not None
+        ):
             self.resolver.remove_file(rel_src)
             self.db.clear_file(rel_src)
+            changed = True
         if not dest_ignored:
-            self.resolver.add_file(rel_dest)
-            index_file(
+            indexed = index_file(
                 self.db,
                 dest_path,
                 project_root=self.root_path,
                 resolver=self.resolver,
                 force=True,
             )
-        self._schedule_post_sync()
+            if indexed:
+                self.resolver.add_file(rel_dest)
+                changed = True
+        if changed:
+            self._schedule_post_sync()
 
 
 def start_observer(path: str, db: IndexerDB, callback: Callable[[], None] | None = None) -> Any:

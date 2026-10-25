@@ -142,7 +142,7 @@ examples:
         "--list-saved", action="store_true", help="List all saved trace queries in this project"
     )
     p_trace.add_argument(
-        "--depth", type=int, default=6, help="Maximum BFS traversal depth in hops (default: 6)"
+        "--depth", type=int, default=None, help="Maximum BFS traversal depth in hops (default: 6)"
     )
     p_trace.add_argument(
         "--engine",

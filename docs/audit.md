@@ -33,6 +33,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **23** | Builtin Filtering & CLI | Multi-language builtin filtering (`builtins.py`), phantom edge elimination, CLI `serve --path`, API lifespan | `tests/test_audit_code_bugs_round23.py` | ✅ Verified |
 | **24** | Go Modules & Git SHA | Go `go.mod` & Cargo `Cargo.toml` self-package resolution, Git SHA-256 (64-char) hash support | `tests/test_audit_code_bugs_round24.py` | ✅ Verified |
 | **25** | DB Paths & API Routes | `_clean_path` for leading `./` across DB ops, call-tree `(external)` formatting, `@router.api_route` | `tests/test_audit_code_bugs_round25.py` | ✅ Verified |
+| **26** | Concurrency & Precedence | LSP edge rewires without DB transaction lock, Watcher non-code ignore & stop(), CLI `--depth` override | `tests/test_audit_code_bugs_round26.py` | ✅ Verified |
 
 ---
 
@@ -175,6 +176,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Database Path Normalization (`indexer/db.py`, `indexer/db_queries.py`)**: Standardized `_clean_path` across `get_file_hash`, `clear_file`, `batch_save_file_index`, `find_nodes_by_name`, `get_nodes_in_file`, `get_file_structure`, and `get_file_imports` to strip redundant leading `./` prefixes.
 * **Call-Tree External Node Formatting (`services/call_tree_service.py`)**: Formatted unindexed external modules as `(external)` without appending `:L1`. Scoped candidate AST prefix fallbacks against provided `file_path`.
 * **FastAPI Generic `@router.api_route` Route Extraction (`parsers/route_extractor.py`)**: Extracted multi-method routes from `@router.api_route` and `@app.api_route` decorators and pruned unused `EXPRESS_ROUTE_RE`.
+
+### Round 26: LSP Lock Decoupling, Watcher Non-Code Suppression & CLI Depth Precedence
+* **LSP Database Lock Decoupling (`indexer/lsp_bridge.py`)**: Decoupled definition queries from database write transactions in `resolve_unresolved_edges`. LSP definitions are now resolved in memory before opening a short batch-write transaction with `with_write_retry`. Sanitized returned target paths via `_clean_path`.
+* **Watcher Non-Code File Suppression & Lifecycle (`indexer/watcher.py`)**: Guarded `on_modified` and `on_created` against non-code or skipped files so `_schedule_post_sync()` is only called when `index_file(...)` returns `True`. Added `CodeChangeHandler.stop()` to cancel active debounce timers cleanly.
+* **CLI Saved Trace `--depth` Precedence (`cli.py`, `cli_commands.py`)**: Set default `--depth` in `vibetrace trace` to `None`. In `cmd_trace`, explicit `--depth` CLI flags now cleanly override `saved.max_depth`.
+* **Modular JS Route Extraction & LOC Limits (`parsers/js_parser.py`, `parsers/route_extractor.py`)**: Extracted `extract_js_endpoint_route` to `route_extractor.py`, bringing `js_parser.py` from 505 lines down to 470 lines safely beneath the $< 500$ LOC ceiling.
 
 ---
 

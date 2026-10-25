@@ -136,7 +136,11 @@ def cmd_trace(args: argparse.Namespace) -> int:
             return 1
         from_sym = saved.from_symbol
         to_sym = saved.to_symbol
-        depth = saved.max_depth
+        if depth is None:
+            depth = saved.max_depth
+
+    if depth is None:
+        depth = 6
 
     if not from_sym or not to_sym:
         err = "Error: Specify both from_symbol and to_symbol, or use --saved <name>."

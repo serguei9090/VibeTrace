@@ -3,6 +3,7 @@ from tree_sitter import Node
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
+from vibetrace.indexer.parsers.route_extractor import extract_js_endpoint_route
 from vibetrace.indexer.resolver import ModuleResolver
 
 _FUNC_TYPES = {
@@ -429,58 +430,22 @@ class JavaScriptParser(LanguageParser):
                     if target_id := self._resolve_call_target(called_name, ctx):
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
-                    # Check for clientside or backend API requests/routes
-                    if args and args[0].type in ("string", "template_string"):
-                        raw_url = self._get_text(args[0]).strip("'\"`")
-                        if raw_url.startswith("/") or "/api/" in raw_url:
-                            lower_func = called_name.lower()
-                            method = next(
-                                (
-                                    m.upper()
-                                    for m in ("post", "put", "delete", "patch", "options", "head")
-                                    if f".{m}" in lower_func
-                                ),
-                                "GET",
-                            )
-                            endpoint_name = f"{method} {raw_url}"
-                            endpoint_id = self._get_id(
-                                "__endpoint__", endpoint_name, kind="endpoint"
-                            )
-                            if not any(n.id == endpoint_id for n in nodes):
-                                nodes.append(
-                                    self._create_node(
-                                        endpoint_id,
-                                        endpoint_name,
-                                        "endpoint",
-                                        file_path,
-                                        node,
-                                        qualified_name=endpoint_name,
-                                        parent_id=file_module_id,
-                                    )
-                                )
-                            is_b_route = (
-                                any(
-                                    called_name.startswith(p)
-                                    for p in ("app.", "router.", "server.", "api.")
-                                )
-                                and len(args) >= 2
-                            )
-                            h_arg = args[-1] if is_b_route else None
-                            if (
-                                h_arg
-                                and h_arg.type == "identifier"
-                                and (h_id := self._resolve_call_target(self._get_text(h_arg), ctx))
-                            ):
-                                edges.append(
-                                    self._create_edge(endpoint_id, h_id, "routes", node=h_arg)
-                                )
-                                edges.append(
-                                    self._create_edge(parent_id, endpoint_id, "defines", node=node)
-                                )
-                            else:
-                                edges.append(
-                                    self._create_edge(parent_id, endpoint_id, "routes", node=node)
-                                )
+                    extract_js_endpoint_route(
+                        node,
+                        called_name,
+                        args,
+                        parent_id,
+                        file_path,
+                        file_module_id,
+                        self._get_text,
+                        self._get_id,
+                        self._create_node,
+                        self._create_edge,
+                        self._resolve_call_target,
+                        ctx,
+                        nodes,
+                        edges,
+                    )
 
             elif parent_id and node.type in ("jsx_self_closing_element", "jsx_opening_element"):
                 if (nn := node.child_by_field_name("name")) and (tag := self._get_text(nn)):
