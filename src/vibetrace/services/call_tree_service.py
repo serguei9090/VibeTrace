@@ -47,9 +47,14 @@ def _resolve_root_node(
     exact = db.find_nodes_by_name(clean, file_path=file_path)
     if exact:
         return exact[0]
-    prefix = db.search_ast_exact_or_prefix(clean, limit=1)
-    if prefix:
-        return prefix[0]
+    prefix_candidates = db.search_ast_exact_or_prefix(clean, limit=10)
+    if file_path:
+        norm_file = file_path.replace("\\", "/").removeprefix("./")
+        for p in prefix_candidates:
+            if p.get("file_path") == norm_file:
+                return p
+    elif prefix_candidates:
+        return prefix_candidates[0]
     return None
 
 
@@ -200,8 +205,12 @@ def format_call_tree_md(result: CallTreeResult, ascii_only: bool | None = None) 
             call_at = f":L{node.call_line}" if node.call_line else ""
             rel = f"[{node.relation_type}{call_at}] " if node.relation_type else ""
             cycle_note = " (recursive / cycle)" if node.is_cycle else ""
-            loc = f"({node.file_path}:L{node.start_line or 1})"
-            lines.append(f"{prefix}{connector}{rel}{node.name} {loc}{cycle_note}")
+            if node.file_path in ("external", ""):
+                loc = f"({node.file_path})" if node.file_path else ""
+            else:
+                loc = f"({node.file_path}:L{node.start_line or 1})"
+            loc_str = f" {loc}" if loc else ""
+            lines.append(f"{prefix}{connector}{rel}{node.name}{loc_str}{cycle_note}")
 
         child_prefix = prefix + (child_space if is_last else child_pipe) if node.depth > 0 else ""
         for idx, child in enumerate(node.children):

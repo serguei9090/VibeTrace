@@ -31,9 +31,9 @@ BLUEPRINT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Matches Express app.get("/path", ...) or router.post('/path', ...)
-EXPRESS_ROUTE_RE = re.compile(
-    r"(?:app|router)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\"']([^\"']+)[\"']",
+# Matches @router.api_route("/path", methods=["GET", "POST"]) or @app.api_route("/path")
+API_ROUTE_RE = re.compile(
+    r"@(?:\w+\.)?(\w+)\.api_route\s*\(\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 
@@ -103,7 +103,50 @@ def extract_python_routes(
             route_edges.append(edge)
             continue
 
-        # 2. Flask
+        # 2. FastAPI generic api_route: @router.api_route("/path", methods=["GET", "POST"])
+        m_api_route = API_ROUTE_RE.search(dec)
+        if m_api_route:
+            router_var = m_api_route.group(1).lower()
+            route_path = m_api_route.group(2)
+            if router_prefixes and router_var in router_prefixes:
+                pfx = router_prefixes[router_var].rstrip("/")
+                sub_path = route_path.lstrip("/")
+                route_path = f"{pfx}/{sub_path}" if pfx else f"/{sub_path}"
+            methods = ["GET"]
+            m_methods = FLASK_METHODS_RE.search(dec)
+            if m_methods:
+                parsed_methods = re.findall(r"[\"']([A-Za-z]+)[\"']", m_methods.group(1))
+                if parsed_methods:
+                    methods = [m.upper() for m in parsed_methods]
+
+            for method in methods:
+                endpoint_name = f"{method} {route_path}"
+                endpoint_id = node_id_fn("__endpoint__", endpoint_name, kind="endpoint")
+                node = DBNode(
+                    id=endpoint_id,
+                    name=endpoint_name,
+                    qualified_name=endpoint_name,
+                    parent_id=handler_node.parent_id,
+                    kind="endpoint",
+                    file_path=file_path,
+                    start_line=handler_node.start_line,
+                    end_line=handler_node.start_line,
+                    signature=f"{method} {route_path}",
+                    docstring=handler_node.docstring,
+                    decorators=[dec],
+                    visibility="public",
+                )
+                edge = Edge(
+                    from_node_id=endpoint_id,
+                    to_node_id=handler_node.id,
+                    relation_type="routes",
+                    call_line=handler_node.start_line,
+                )
+                endpoint_nodes.append(node)
+                route_edges.append(edge)
+            continue
+
+        # 3. Flask
         m_flask = FLASK_ROUTE_RE.search(dec)
         if m_flask:
             bp_var = m_flask.group(1).lower()

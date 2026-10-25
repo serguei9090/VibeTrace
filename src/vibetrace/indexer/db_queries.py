@@ -7,6 +7,14 @@ import sqlite3
 from typing import Any, Literal
 
 
+def _clean_path(path: str) -> str:
+    """Normalize Windows backslashes and strip leading redundant './' prefixes."""
+    p = path.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
 class DBQueriesMixin:
     """Mixin providing AST, FTS5 BM25 lexical search, and recursive CTE pathfinding."""
 
@@ -153,7 +161,7 @@ class DBQueriesMixin:
         self, file_path: str, limit: int = 100, offset: int = 0
     ) -> tuple[int, list[dict[str, Any]]]:
         """Return total count and paginated list of symbols in a file."""
-        norm_path = file_path.replace("\\", "/")
+        norm_path = _clean_path(file_path)
         with self._get_conn() as conn:
             count_cursor = conn.execute(
                 "SELECT COUNT(*) FROM nodes WHERE file_path = ?", (norm_path,)
@@ -183,7 +191,7 @@ class DBQueriesMixin:
             params: list[Any] = [name, name]
             if file_path:
                 query += " AND file_path = ?"
-                params.append(file_path.replace("\\", "/"))
+                params.append(_clean_path(file_path))
             cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
@@ -213,7 +221,7 @@ class DBQueriesMixin:
 
     def get_nodes_in_file(self, file_path: str) -> list[dict[str, Any]]:
         """Get all node IDs and names in a file."""
-        norm_path = file_path.replace("\\", "/")
+        norm_path = _clean_path(file_path)
         with self._get_conn() as conn:
             cursor = conn.execute(
                 "SELECT id, name, qualified_name FROM nodes WHERE file_path = ?", (norm_path,)
@@ -248,7 +256,7 @@ class DBQueriesMixin:
 
     def get_file_imports(self, file_path: str) -> list[dict[str, Any]]:
         """Find all imported modules and symbols from a file."""
-        norm_path = file_path.replace("\\", "/")
+        norm_path = _clean_path(file_path)
         with self._get_conn() as conn:
             query = """
                 SELECT DISTINCT n_to.name, n_to.file_path, n_to.kind

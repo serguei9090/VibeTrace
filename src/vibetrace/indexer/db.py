@@ -6,11 +6,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from vibetrace.indexer.db_queries import DBQueriesMixin
+from vibetrace.indexer.db_queries import DBQueriesMixin, _clean_path
 from vibetrace.indexer.db_retry import with_write_retry
 from vibetrace.indexer.models import Edge, Node
 
-__all__ = ["Edge", "IndexerDB", "Node", "with_write_retry"]
+__all__ = ["Edge", "IndexerDB", "Node", "_clean_path", "with_write_retry"]
 
 
 class IndexerDB(DBQueriesMixin):
@@ -165,7 +165,7 @@ class IndexerDB(DBQueriesMixin):
         indexed_time: int | None = None,
     ) -> None:
         """Atomically clear old file data and persist new nodes, edges, FTS5, and hash."""
-        file_path = file_path.replace("\\", "/")
+        file_path = _clean_path(file_path)
         idx_time = indexed_time if indexed_time is not None else int(time.time())
         node_tuples = [
             (
@@ -174,7 +174,7 @@ class IndexerDB(DBQueriesMixin):
                 n.qualified_name or n.name,
                 n.parent_id,
                 n.kind,
-                n.file_path.replace("\\", "/"),
+                _clean_path(n.file_path),
                 n.start_line,
                 n.end_line,
                 n.signature,
@@ -299,7 +299,7 @@ class IndexerDB(DBQueriesMixin):
     @with_write_retry()
     def clear_file(self, file_path: str) -> None:
         """Remove all nodes, edges (inbound & outbound), FTS5, and file metadata."""
-        file_path = file_path.replace("\\", "/")
+        file_path = _clean_path(file_path)
         with self._get_conn() as conn:
             conn.execute(
                 """
@@ -337,7 +337,7 @@ class IndexerDB(DBQueriesMixin):
 
     def get_file_hash(self, file_path: str) -> str | None:
         """Retrieve stored content hash for a file."""
-        file_path = file_path.replace("\\", "/")
+        file_path = _clean_path(file_path)
         with self._get_conn() as conn:
             cursor = conn.execute(
                 "SELECT content_hash FROM indexed_files WHERE file_path = ?", (file_path,)
@@ -348,7 +348,7 @@ class IndexerDB(DBQueriesMixin):
     @with_write_retry()
     def update_file_hash(self, file_path: str, content_hash: str, updated_at: int) -> None:
         """Update or insert content hash for a file."""
-        file_path = file_path.replace("\\", "/")
+        file_path = _clean_path(file_path)
         sql = (
             "INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at) "
             "VALUES (?, ?, ?)"
