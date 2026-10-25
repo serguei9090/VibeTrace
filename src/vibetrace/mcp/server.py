@@ -405,8 +405,12 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
     """Reindex a file or directory recursively."""
     try:
         db, root = _get_context_for_path(params.path, auto_sync=False)
-        # "." means the resolved project root, not the server process cwd.
-        target_path = root if params.path in ("", ".") else Path(params.path).resolve()
+        # "." means the resolved project root; relative paths resolve within project root.
+        if params.path in ("", "."):
+            target_path = root
+        else:
+            p = Path(params.path)
+            target_path = p.resolve() if p.is_absolute() else (root / p).resolve()
 
         with redirect_stdout(sys.stderr):
             reindex_all(

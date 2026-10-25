@@ -26,6 +26,18 @@ class IndexerDB(DBQueriesMixin):
         else:
             self.db_path = db_path
 
+        self._is_memory = self.db_path == ":memory:" or (
+            isinstance(self.db_path, str) and "mode=memory" in self.db_path
+        )
+        self._mem_conn: sqlite3.Connection | None = None
+        if self._is_memory:
+            self._mem_conn = sqlite3.connect(
+                self.db_path,
+                timeout=30.0,
+                uri="mode=memory" in str(self.db_path),
+            )
+            self._mem_conn.row_factory = sqlite3.Row
+
         self.vector_store = vector_store
         self._init_db()
 
@@ -33,7 +45,7 @@ class IndexerDB(DBQueriesMixin):
         if getattr(self, "vector_store", None) is not None:
             return
         try:
-            if hasattr(self, "db_path") and self.db_path:
+            if hasattr(self, "db_path") and self.db_path and self.db_path != ":memory:":
                 p = Path(self.db_path).resolve()
                 is_sub = p.parent.name in (".vibetrace", "vibetrace_context")
                 root = p.parent.parent if is_sub else p.parent
@@ -49,6 +61,11 @@ class IndexerDB(DBQueriesMixin):
 
     @contextmanager
     def _get_conn(self) -> Generator[sqlite3.Connection, None, None]:
+        if getattr(self, "_is_memory", False) and self._mem_conn is not None:
+            with self._mem_conn:
+                yield self._mem_conn
+            return
+
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode = WAL")
@@ -59,6 +76,15 @@ class IndexerDB(DBQueriesMixin):
                 yield conn
         finally:
             conn.close()
+
+    def close(self) -> None:
+        """Close connection resources if in-memory database is active."""
+        if getattr(self, "_is_memory", False) and self._mem_conn is not None:
+            try:
+                self._mem_conn.close()
+            except Exception:
+                pass
+            self._mem_conn = None
 
     def _init_db(self) -> None:
         """Initialize the database schema if it doesn't exist, applying migrations."""
@@ -451,39 +477,3 @@ class IndexerDB(DBQueriesMixin):
                 for row in cursor.fetchall():
                     result[row["id"]] = dict(row)
         return result
-
-    @with_write_retry()
-    def upsert_embeddings(self, rows: list[tuple[str, bytes, int, str]]) -> None:
-        """Batch insert or replace serialized float32 vector embeddings."""
-        if not rows:
-            return
-        sql = (
-            "INSERT OR REPLACE INTO node_embeddings (node_id, embedding, dimensions, model_id) "
-            "VALUES (?, ?, ?, ?)"
-        )
-        with self._get_conn() as conn:
-            conn.executemany(sql, rows)
-            conn.commit()
-
-    def get_all_embeddings(self, model_id: str | None = None) -> list[tuple[str, bytes, int]]:
-        """Retrieve all stored node embeddings."""
-        with self._get_conn() as conn:
-            if model_id:
-                cursor = conn.execute(
-                    "SELECT node_id, embedding, dimensions FROM node_embeddings WHERE model_id = ?",
-                    (model_id,),
-                )
-            else:
-                cursor = conn.execute("SELECT node_id, embedding, dimensions FROM node_embeddings")
-            return [(row[0], bytes(row[1]), int(row[2])) for row in cursor.fetchall()]
-
-    def get_nodes_missing_embeddings(self, model_id: str) -> list[dict[str, Any]]:
-        """Return nodes that do not yet have embeddings for the specified model."""
-        sql = (
-            "SELECT n.* FROM nodes n "
-            "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
-            "WHERE e.node_id IS NULL"
-        )
-        with self._get_conn() as conn:
-            cursor = conn.execute(sql, (model_id,))
-            return [dict(r) for r in cursor.fetchall()]

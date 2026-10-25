@@ -90,7 +90,7 @@ def hybrid_search(
         engine = embedding_engine
     else:
         candidate_root = None
-        if hasattr(db, "db_path") and db.db_path:
+        if hasattr(db, "db_path") and db.db_path and db.db_path != ":memory:":
             p = Path(db.db_path).resolve()
             if p.parent.name in (".vibetrace", "vibetrace_context"):
                 candidate_root = p.parent.parent

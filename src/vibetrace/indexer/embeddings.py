@@ -134,7 +134,7 @@ class EmbeddingEngine:
         if self.vector_store is not None:
             return
         root = self.project_root
-        if root is None and hasattr(db, "db_path") and db.db_path:
+        if root is None and hasattr(db, "db_path") and db.db_path and db.db_path != ":memory:":
             p = Path(db.db_path).resolve()
             is_sub = p.parent.name in (".vibetrace", "vibetrace_context")
             root = p.parent.parent if is_sub else p.parent

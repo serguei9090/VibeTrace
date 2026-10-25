@@ -148,13 +148,14 @@ def reindex_all(
             force=force,
             failed=failed,
         )
-        if success and resolver:
-            try:
-                rel_p = str(target_path.relative_to(eff_root)).replace("\\", "/")
-            except ValueError:
-                rel_p = str(target_path).replace("\\", "/")
-            resolver.add_file(rel_p)
-        db.update_centrality_scores()
+        if success:
+            if resolver:
+                try:
+                    rel_p = str(target_path.relative_to(eff_root)).replace("\\", "/")
+                except ValueError:
+                    rel_p = str(target_path).replace("\\", "/")
+                resolver.add_file(rel_p)
+            db.update_centrality_scores()
     elif target_path.is_dir():
         target_rel = ""
         try:

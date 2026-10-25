@@ -34,6 +34,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **24** | Go Modules & Git SHA | Go `go.mod` & Cargo `Cargo.toml` self-package resolution, Git SHA-256 (64-char) hash support | `tests/test_audit_code_bugs_round24.py` | ✅ Verified |
 | **25** | DB Paths & API Routes | `_clean_path` for leading `./` across DB ops, call-tree `(external)` formatting, `@router.api_route` | `tests/test_audit_code_bugs_round25.py` | ✅ Verified |
 | **26** | Concurrency & Precedence | LSP edge rewires without DB transaction lock, Watcher non-code ignore & stop(), CLI `--depth` override | `tests/test_audit_code_bugs_round26.py` | ✅ Verified |
+| **27** | Routes & In-Memory Safety | Call-tree `routes` relation traversal, MCP relative path reindex root, `:memory:` DB safety, LOC ceilings | `tests/test_audit_code_bugs_round27.py` | ✅ Verified |
 
 ---
 
@@ -182,6 +183,12 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Watcher Non-Code File Suppression & Lifecycle (`indexer/watcher.py`)**: Guarded `on_modified` and `on_created` against non-code or skipped files so `_schedule_post_sync()` is only called when `index_file(...)` returns `True`. Added `CodeChangeHandler.stop()` to cancel active debounce timers cleanly.
 * **CLI Saved Trace `--depth` Precedence (`cli.py`, `cli_commands.py`)**: Set default `--depth` in `vibetrace trace` to `None`. In `cmd_trace`, explicit `--depth` CLI flags now cleanly override `saved.max_depth`.
 * **Modular JS Route Extraction & LOC Limits (`parsers/js_parser.py`, `parsers/route_extractor.py`)**: Extracted `extract_js_endpoint_route` to `route_extractor.py`, bringing `js_parser.py` from 505 lines down to 470 lines safely beneath the $< 500$ LOC ceiling.
+
+### Round 27: Call-Tree Routes Traversal, MCP Reindex Project Root & In-Memory Safety
+* **Call Tree `routes` Relation Traversal (`services/call_tree_service.py`)**: Added `"routes"` to default relations in `build_call_tree`, enabling call-tree hierarchy descent from HTTP API endpoints into underlying route handler functions. Normalized root location formatting for external and synthetic symbols.
+* **MCP Reindex Relative Path Scoping (`mcp/server.py`)**: Resolved relative target paths in `vibetrace_reindex_project` against discovered project `root` rather than process `cwd`.
+* **Single-File Centrality Recalculation Guard (`indexer/main.py`)**: Guarded `db.update_centrality_scores()` with `if success:` to eliminate wasteful PageRank recalculation when single-file reindexing skips unsupported or unchanged files.
+* **In-Memory SQLite Multi-Transaction Resilience & LOC Ceilings (`indexer/db.py`, `indexer/db_queries.py`, `indexer/embeddings.py`, `services/hybrid_search.py`)**: Added persistent memory connection `_mem_conn` and `close()` method to `IndexerDB`, preventing in-memory SQLite tables from dropping between transactions. Modularized embedding queries into `DBQueriesMixin` to keep both `db.py` (480 LOC) and `db_queries.py` (307 LOC) strictly under the 500-line ceiling.
 
 ---
 

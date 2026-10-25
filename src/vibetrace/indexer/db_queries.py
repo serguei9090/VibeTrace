@@ -6,6 +6,8 @@ import re
 import sqlite3
 from typing import Any, Literal
 
+from vibetrace.indexer.db_retry import with_write_retry
+
 
 def _clean_path(path: str) -> str:
     """Normalize Windows backslashes and strip leading redundant './' prefixes."""
@@ -266,4 +268,40 @@ class DBQueriesMixin:
                 WHERE n_from.file_path = ? AND e.relation_type = 'imports'
             """
             cursor = conn.execute(query, (norm_path,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    @with_write_retry()
+    def upsert_embeddings(self, rows: list[tuple[str, bytes, int, str]]) -> None:
+        """Batch insert or replace serialized float32 vector embeddings."""
+        if not rows:
+            return
+        sql = (
+            "INSERT OR REPLACE INTO node_embeddings (node_id, embedding, dimensions, model_id) "
+            "VALUES (?, ?, ?, ?)"
+        )
+        with self._get_conn() as conn:
+            conn.executemany(sql, rows)
+            conn.commit()
+
+    def get_all_embeddings(self, model_id: str | None = None) -> list[tuple[str, bytes, int]]:
+        """Retrieve all stored node embeddings."""
+        with self._get_conn() as conn:
+            if model_id:
+                cursor = conn.execute(
+                    "SELECT node_id, embedding, dimensions FROM node_embeddings WHERE model_id = ?",
+                    (model_id,),
+                )
+            else:
+                cursor = conn.execute("SELECT node_id, embedding, dimensions FROM node_embeddings")
+            return [(row[0], bytes(row[1]), int(row[2])) for row in cursor.fetchall()]
+
+    def get_nodes_missing_embeddings(self, model_id: str) -> list[dict[str, Any]]:
+        """Return nodes that do not yet have embeddings for the specified model."""
+        sql = (
+            "SELECT n.* FROM nodes n "
+            "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
+            "WHERE e.node_id IS NULL"
+        )
+        with self._get_conn() as conn:
+            cursor = conn.execute(sql, (model_id,))
             return [dict(r) for r in cursor.fetchall()]

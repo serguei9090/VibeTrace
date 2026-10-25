@@ -62,7 +62,7 @@ def build_call_tree(
     db: IndexerDB,
     root_symbol: str,
     max_depth: int = 3,
-    relations: tuple[str, ...] = ("calls", "references"),
+    relations: tuple[str, ...] = ("calls", "routes", "references"),
     file_path: str | None = None,
     max_nodes: int = 500,
 ) -> CallTreeResult:
@@ -198,18 +198,19 @@ def format_call_tree_md(result: CallTreeResult, ascii_only: bool | None = None) 
     ]
 
     def _render_ascii(node: CallTreeNode, prefix: str = "", is_last: bool = True) -> None:
+        if node.file_path in ("external", ""):
+            loc = f"({node.file_path})" if node.file_path else ""
+        else:
+            loc = f"({node.file_path}:L{node.start_line or 1})"
+        loc_str = f" {loc}" if loc else ""
+
         if node.depth == 0:
-            lines.append(f"{node.name} ({node.file_path}:L{node.start_line or 1})")
+            lines.append(f"{node.name}{loc_str}")
         else:
             connector = conn_last if is_last else conn_mid
             call_at = f":L{node.call_line}" if node.call_line else ""
             rel = f"[{node.relation_type}{call_at}] " if node.relation_type else ""
             cycle_note = " (recursive / cycle)" if node.is_cycle else ""
-            if node.file_path in ("external", ""):
-                loc = f"({node.file_path})" if node.file_path else ""
-            else:
-                loc = f"({node.file_path}:L{node.start_line or 1})"
-            loc_str = f" {loc}" if loc else ""
             lines.append(f"{prefix}{connector}{rel}{node.name}{loc_str}{cycle_note}")
 
         child_prefix = prefix + (child_space if is_last else child_pipe) if node.depth > 0 else ""
