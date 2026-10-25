@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from vibetrace.indexer.watcher import start_observer
+from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.services.graph_service import (
     build_call_tree,
     get_context_for_path,
@@ -87,11 +87,7 @@ async def lifespan(app: FastAPI):
     yield
 
     if observer is not None:
-        try:
-            observer.stop()
-            observer.join()
-        except Exception:
-            pass
+        stop_observer(observer)
 
 
 app = FastAPI(title="VibeTrace API", lifespan=lifespan)
@@ -136,7 +132,8 @@ def get_call_tree(
     file_path: str | None = Query(default=None),
 ):
     """Explore top-down execution call-tree from an entry point."""
-    res = build_call_tree(db, symbol, max_depth=depth, file_path=file_path)
+    norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
+    res = build_call_tree(db, symbol, max_depth=depth, file_path=norm_file)
     return res.model_dump()
 
 

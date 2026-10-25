@@ -225,9 +225,27 @@ def start_observer(path: str, db: IndexerDB, callback: Callable[[], None] | None
     event_handler = CodeChangeHandler(db, callback, root_path=str(path_obj))
     observer = Observer()
     observer.schedule(event_handler, str(path_obj), recursive=True)
+    observer._event_handler = event_handler  # type: ignore[attr-defined]
     observer.start()
     print(f"VibeTrace Watcher started on {path_obj}")
     return observer
+
+
+def stop_observer(observer: Any) -> None:
+    """Stop the filesystem observer and cancel any pending debounce timers."""
+    if observer is None:
+        return
+    handler = getattr(observer, "_event_handler", None)
+    if handler is not None and hasattr(handler, "stop"):
+        try:
+            handler.stop()
+        except Exception:
+            pass
+    try:
+        observer.stop()
+        observer.join(timeout=2.0)
+    except Exception:
+        pass
 
 
 def start_watcher_blocking(path: str):
@@ -240,8 +258,9 @@ def start_watcher_blocking(path: str):
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
+        pass
+    finally:
+        stop_observer(observer)
 
 
 if __name__ == "__main__":

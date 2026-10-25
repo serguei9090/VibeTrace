@@ -187,7 +187,12 @@ class GoParser(LanguageParser):
                                             if f.type == "field_declaration" and not any(
                                                 fc.type == "field_identifier" for fc in f.children
                                             ):
-                                                emb_type = self._get_text(f).strip("* ")
+                                                type_n = f.child_by_field_name("type")
+                                                emb_type = (
+                                                    self._get_text(type_n).strip("* ")
+                                                    if type_n
+                                                    else self._get_text(f).strip("* ")
+                                                )
                                                 if emb_type and (
                                                     emb_id := self._resolve_call_target(
                                                         emb_type, ctx

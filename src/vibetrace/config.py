@@ -154,6 +154,9 @@ def load_config(project_root: Path | str | None = None) -> VibeTraceConfig:
     else:
         root = Path(project_root).resolve()
 
+    if root.is_file():
+        root = root.parent
+
     cfg_file = get_config_path(root)
     if not cfg_file or not cfg_file.exists():
         return VibeTraceConfig(project=ProjectConfig(name=root.name))
@@ -175,6 +178,8 @@ def load_config(project_root: Path | str | None = None) -> VibeTraceConfig:
 def save_default_config(project_root: Path | str, project_name: str | None = None) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
+    if root.is_file():
+        root = root.parent
     target = root / ".vibetrace.toml"
     if not target.exists():
         name = project_name or root.name

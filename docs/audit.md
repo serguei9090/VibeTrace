@@ -35,6 +35,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **25** | DB Paths & API Routes | `_clean_path` for leading `./` across DB ops, call-tree `(external)` formatting, `@router.api_route` | `tests/test_audit_code_bugs_round25.py` | ✅ Verified |
 | **26** | Concurrency & Precedence | LSP edge rewires without DB transaction lock, Watcher non-code ignore & stop(), CLI `--depth` override | `tests/test_audit_code_bugs_round26.py` | ✅ Verified |
 | **27** | Routes & In-Memory Safety | Call-tree `routes` relation traversal, MCP relative path reindex root, `:memory:` DB safety, LOC ceilings | `tests/test_audit_code_bugs_round27.py` | ✅ Verified |
+| **28** | Observer Lifecycle & Go Tags | Watcher `stop_observer()` timer cancellation, `/call-tree` path normalization, Go struct tag stripping | `tests/test_audit_code_bugs_round28.py` | ✅ Verified |
 
 ---
 
@@ -189,6 +190,13 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **MCP Reindex Relative Path Scoping (`mcp/server.py`)**: Resolved relative target paths in `vibetrace_reindex_project` against discovered project `root` rather than process `cwd`.
 * **Single-File Centrality Recalculation Guard (`indexer/main.py`)**: Guarded `db.update_centrality_scores()` with `if success:` to eliminate wasteful PageRank recalculation when single-file reindexing skips unsupported or unchanged files.
 * **In-Memory SQLite Multi-Transaction Resilience & LOC Ceilings (`indexer/db.py`, `indexer/db_queries.py`, `indexer/embeddings.py`, `services/hybrid_search.py`)**: Added persistent memory connection `_mem_conn` and `close()` method to `IndexerDB`, preventing in-memory SQLite tables from dropping between transactions. Modularized embedding queries into `DBQueriesMixin` to keep both `db.py` (480 LOC) and `db_queries.py` (307 LOC) strictly under the 500-line ceiling.
+
+### Round 28: Observer Shutdown Lifecycle, Go Struct Tag Stripping & Config Defense
+* **Watcher Observer Debounce Timer Cancellation (`indexer/watcher.py`, `server_api.py`)**: Attached `_event_handler` to observer in `start_observer()`, exported `stop_observer()`, and wired it into `server_api.py` `lifespan` and `start_watcher_blocking()` to prevent thread leaks on shutdown.
+* **Call-Tree Route Endpoint Path Normalization (`server_api.py`)**: Applied `normalize_path` to `/call-tree` endpoint `file_path` query parameter, ensuring Windows backslashes and relative paths match indexed files.
+* **Go Struct Embedded Field Tag Stripping (`parsers/go_parser.py`)**: Extracted clean type nodes via `f.child_by_field_name("type")` before stripping `*`, correctly resolving `inherits` edges for structs with tags (e.g. `*BaseService `json:"-"``).
+* **Configuration File-Path Defense (`config.py`)**: Added `if root.is_file(): root = root.parent` guards to `load_config` and `save_default_config`.
+* **Lefthook Duplicate Key Cleanup (`lefthook.yml`)**: Deduplicated empty `post-commit` and `post-merge` keys from `lefthook.yml`.
 
 ---
 
