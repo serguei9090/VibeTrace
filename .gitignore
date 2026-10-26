@@ -77,6 +77,7 @@ vibetrace_context/
 .codanna/
 .codannaignore
 .fastembed_cache
+.last_review_hash
 
 
 

@@ -239,6 +239,14 @@ class JavaScriptParser(LanguageParser):
                 signature = None
                 if params_node := node.child_by_field_name("parameters"):
                     signature = self._get_text(params_node)
+                    if ret_node := node.child_by_field_name("return_type"):
+                        ret_text = self._get_text(ret_node).strip()
+                        if ret_text:
+                            signature = (
+                                f"{signature}{ret_text}"
+                                if ret_text.startswith(":")
+                                else f"{signature}: {ret_text}"
+                            )
                     for p in params_node.children:
                         if p.type in ("required_parameter", "optional_parameter"):
                             pn = next(

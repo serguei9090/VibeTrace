@@ -416,6 +416,10 @@ def post_reindex_endpoint(payload: ReindexPayload | None = None):
     if eff_payload.file_path:
         norm_path = normalize_path(eff_payload.file_path, Path(project_root))
         abs_target = (Path(project_root) / norm_path).resolve()
+        root_resolved = Path(project_root).resolve()
+        if not abs_target.is_relative_to(root_resolved):
+            msg = f"Access denied: file path '{eff_payload.file_path}' is outside project root."
+            raise HTTPException(status_code=403, detail=msg)
         if not abs_target.exists():
             raise HTTPException(
                 status_code=404, detail=f"File not found: '{eff_payload.file_path}'"
@@ -470,23 +474,14 @@ else:
 
     @app.get("/", response_class=HTMLResponse)
     def index_fallback():
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head><title>VibeTrace Map Room</title></head>
-        <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem;">
-            <h1>VibeTrace API Running</h1>
-            <p>The Map Room Web UI is not built yet.</p>
-            <pre style="background: #1e293b; padding: 1rem; border-radius: 8px;">
-bun run --cwd src/web build
-            </pre>
-            <p>Or run the live development server on port 5173:</p>
-            <pre style="background: #1e293b; padding: 1rem; border-radius: 8px;">
-bun run --cwd src/web dev
-            </pre>
-        </body>
-        </html>
-        """
+        return (
+            "<!DOCTYPE html><html><head><title>VibeTrace Map Room</title></head>"
+            "<body style='font-family: sans-serif; background: #0f172a; "
+            "color: #f8fafc; padding: 2rem;'><h1>VibeTrace API Running</h1>"
+            "<p>The Map Room Web UI is not built yet.</p>"
+            "<pre style='background: #1e293b; padding: 1rem; border-radius: 8px;'>"
+            "bun run --cwd src/web dev</pre></body></html>"
+        )
 
 
 if __name__ == "__main__":

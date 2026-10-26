@@ -299,6 +299,11 @@ class PythonParser(LanguageParser):
         if params_node:
             self._extract_param_types(params_node, ctx)
         signature = self._get_text(params_node) if params_node else None
+        if signature and node.type == "function_definition":
+            if ret_node := node.child_by_field_name("return_type"):
+                ret_text = self._get_text(ret_node).strip()
+                if ret_text:
+                    signature = f"{signature} -> {ret_text}"
         docstring = self._extract_docstring(node)
 
         visibility = "private" if name.startswith("_") and not name.startswith("__") else "public"

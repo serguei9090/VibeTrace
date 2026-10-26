@@ -92,6 +92,10 @@ class RustParser(LanguageParser):
                     node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
                     signature = self._get_text(params_node) if params_node else None
+                    if signature and (ret_node := node.child_by_field_name("return_type")):
+                        ret_text = self._get_text(ret_node).strip()
+                        if ret_text:
+                            signature = f"{signature} -> {ret_text}"
                     if params_node:
                         for p in params_node.children:
                             if p.type == "parameter":

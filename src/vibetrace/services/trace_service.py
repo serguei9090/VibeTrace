@@ -146,7 +146,10 @@ def trace_execution_path(
                 v_id = path_nodes[i + 1]["id"]
                 row = conn.execute(
                     "SELECT relation_type, call_line FROM edges "
-                    "WHERE from_node_id = ? AND to_node_id = ? LIMIT 1",
+                    "WHERE from_node_id = ? AND to_node_id = ? "
+                    "ORDER BY CASE relation_type WHEN 'calls' THEN 0 WHEN 'routes' THEN 1 "
+                    "WHEN 'references' THEN 2 WHEN 'inherits' THEN 3 WHEN 'implements' THEN 4 "
+                    "ELSE 5 END, call_line ASC LIMIT 1",
                     (u_id, v_id),
                 ).fetchone()
                 rel_type = row["relation_type"] if (row and row["relation_type"]) else "calls"

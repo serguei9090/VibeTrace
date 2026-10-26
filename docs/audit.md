@@ -36,6 +36,9 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **26** | Concurrency & Precedence | LSP edge rewires without DB transaction lock, Watcher non-code ignore & stop(), CLI `--depth` override | `tests/test_audit_code_bugs_round26.py` | ✅ Verified |
 | **27** | Routes & In-Memory Safety | Call-tree `routes` relation traversal, MCP relative path reindex root, `:memory:` DB safety, LOC ceilings | `tests/test_audit_code_bugs_round27.py` | ✅ Verified |
 | **28** | Observer Lifecycle & Go Tags | Watcher `stop_observer()` timer cancellation, `/call-tree` path normalization, Go struct tag stripping | `tests/test_audit_code_bugs_round28.py` | ✅ Verified |
+| **29** | CLI & REST API Parity | CLI `references` & `dependencies`, 5 parity REST endpoints (`/api/impact`, etc.), `_clean_path` | `tests/test_audit_code_bugs_round29.py` | ✅ Verified |
+| **30** | Signature & Call Stack | Auto-wildcard `%sig%`, CLI `--sig`, `/call-stack`, `POST /api/reindex`, server shutdown | `tests/test_audit_code_bugs_round30.py` | ✅ Verified |
+| **31** | Return Types & Traversal Sec | Multi-language return types (Python/TS/Go/Rust), CTE edge priority, `POST /api/reindex` 403 guard | `tests/test_audit_code_bugs_round31.py` | ✅ Verified |
 
 ---
 
@@ -219,6 +222,17 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Modular Call Stack Traversal (`services/graph_service.py`, `mcp/server.py`)**: Encapsulated bidirectional call stack traversal in `build_call_stack()`, shared across MCP, CLI, and REST API while reducing file size in `mcp/server.py`.
 * **FastAPI Server Lifespan Database Shutdown (`server_api.py`)**: Wired `db.close()` into `lifespan` cleanup block to ensure all SQLite handles and locks are released upon server shutdown.
 * **Environment Root Validation & Recursive Context Directory Creation (`services/graph_service.py`)**: Added `Path(env_root).is_dir()` validation before accepting `VIBETRACE_PROJECT_ROOT` to prevent crashes when stale/deleted paths are in the environment, and used `parents=True, exist_ok=True` for directory creation. Cleaned up environment variables in test fixtures (`test_audit_code_bugs_round15.py`, `test_audit_code_bugs_round23.py`).
+
+### Round 31: Multi-Language AST Return Types, CTE Deterministic Edge Selection & Path Traversal Security
+* **Multi-Language AST Return Type Extraction (`parsers/python_parser.py`, `parsers/js_parser.py`, `parsers/go_parser.py`, `parsers/rust_parser.py`)**:
+  - *Python*: Extracted `node.child_by_field_name("return_type")` and formatted signature as `(params) -> ReturnType`.
+  - *TypeScript/JavaScript*: Extracted `node.child_by_field_name("return_type")` and formatted signature as `(params): ReturnType`.
+  - *Go*: Extracted `node.child_by_field_name("result")` and formatted signature as `(params) (ReturnType, error)`.
+  - *Rust*: Extracted `node.child_by_field_name("return_type")` and formatted signature as `(params) -> ReturnType`.
+  - Resolved zero-result signature search when querying by function return types (e.g. `vibetrace search "Promise" --sig`, `GET /api/search/signature?pattern=->%20dict`).
+* **Deterministic Edge Selection in CTE Tracepath (`services/trace_service.py`)**: Added explicit `ORDER BY CASE relation_type WHEN 'calls' THEN 0 WHEN 'routes' THEN 1 WHEN 'references' THEN 2 WHEN 'inherits' THEN 3 WHEN 'implements' THEN 4 ELSE 5 END, call_line ASC LIMIT 1` to resolve non-deterministic edge selection in recursive CTE queries when multiple relation types exist between two symbols.
+* **Path Traversal Security Boundary in REST Reindex (`server_api.py`)**: Added `abs_target.is_relative_to(root_resolved)` validation returning HTTP 403 on path traversal attempts (`../../`) targeting files outside the workspace root.
+* **Strict LOC Ceiling & Anti-Monolith Compliance**: Maintained all backend files strictly under 500 lines: `server_api.py` (490 lines), `trace_service.py` (492 lines), `python_parser.py` (475 lines), `js_parser.py` (478 lines), `go_parser.py` (336 lines), and `rust_parser.py` (242 lines).
 
 ---
 

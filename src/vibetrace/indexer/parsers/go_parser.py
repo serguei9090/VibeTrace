@@ -119,6 +119,10 @@ class GoParser(LanguageParser):
                     node_id = self._get_id(file_path, qualified_name)
                     params_node = node.child_by_field_name("parameters")
                     signature = self._get_text(params_node) if params_node else None
+                    if signature and (res_node := node.child_by_field_name("result")):
+                        res_text = self._get_text(res_node).strip()
+                        if res_text:
+                            signature = f"{signature} {res_text}"
                     if params_node:
                         for p in params_node.children:
                             if p.type == "parameter_declaration":
