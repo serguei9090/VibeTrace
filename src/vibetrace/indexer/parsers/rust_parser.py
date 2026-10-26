@@ -76,7 +76,14 @@ class RustParser(LanguageParser):
                                 items.append((sym, orig, f"{base}::{orig}".replace("::", "/")))
                     elif "::" in raw:
                         parts = raw.split("::")
-                        items.append((parts[-1], parts[-1], "/".join(parts[:-1])))
+                        last = parts[-1]
+                        sym = last.split(" as ")[-1].strip()
+                        orig = last.split(" as ")[0].strip()
+                        items.append((sym, orig, "/".join(parts[:-1])))
+                    else:
+                        sym = raw.split(" as ")[-1].strip()
+                        orig = raw.split(" as ")[0].strip()
+                        items.append((sym, orig, orig))
                     for sym, orig, mod in items:
                         res = self._register_imported_module(mod, ctx, node)
                         m_path = res or "external"

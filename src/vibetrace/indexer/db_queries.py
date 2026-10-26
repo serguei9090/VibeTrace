@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from typing import Any, Literal
@@ -185,6 +186,15 @@ class DBQueriesMixin:
                 (norm_path, limit, offset),
             )
             rows = [dict(r) for r in cursor.fetchall()]
+        for r in rows:
+            raw_dec = r.get("decorators")
+            if raw_dec and isinstance(raw_dec, str):
+                try:
+                    r["decorators"] = json.loads(raw_dec)
+                except Exception:
+                    r["decorators"] = []
+            elif not raw_dec:
+                r["decorators"] = []
         return total, rows
 
     def find_nodes_by_name(self, name: str, file_path: str | None = None) -> list[dict[str, Any]]:

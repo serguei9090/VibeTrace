@@ -41,6 +41,11 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **31** | Return Types & Traversal Sec | Multi-language return types (Python/TS/Go/Rust), CTE edge priority, `POST /api/reindex` 403 guard | `tests/test_audit_code_bugs_round31.py` | ✅ Verified |
 | **32** | Parity & Deduplication | CLI `call-stack`, `/api/` route parity, call stack multi-symbol isolation, shared formatters | `tests/test_audit_code_bugs_round32.py` | ✅ Verified |
 | **33** | Polyglot Signatures & Ranking | GenericParser (Java/C++/C#) signatures, deterministic centrality ranking, signature search pagination | `tests/test_audit_code_bugs_round33.py` | ✅ Verified |
+| **34** | Pointer Signatures & MCP Schema | C/C++ pointer declarators, JS unparenthesized arrow signatures, MCP/CLI signature & call-stack JSON | `tests/test_audit_code_bugs_round34.py` | ✅ Verified |
+| **35** | Saved Traces & Parity | MCP saved trace suite, CLI/REST delete parity, typed MCP JSON outputs, watcher cleanup | `tests/test_audit_code_bugs_round35.py` | ✅ Verified |
+| **36** | Directory Graph & Search Pagination | Directory graph subsystem queries, LSP indentation offset, hybrid search pagination | `tests/test_audit_code_bugs_round36.py` | ✅ Verified |
+| **37** | Routes & Cross-File Receivers | 'routes' references inclusion, Express member handlers, Go cross-file struct receivers | `tests/test_audit_code_bugs_round37.py` | ✅ Verified |
+| **38** | External Imports & Summary Parity | JS external require/import registration, Rust bare crate use declarations, summary decorators schema parity | `tests/test_audit_code_bugs_round38.py` | ✅ Verified |
 
 ---
 
@@ -318,6 +323,23 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Resolved `recv_text` across sibling `.go` files in the same directory using `self.resolver` when a struct is declared in a separate file (e.g. `type Server struct` in `server.go` and `func (s *Server) Start()` in `server_start.go`).
   - Generates the exact `defines` edge from the true struct declaration rather than creating a dangling edge to a nonexistent hash in the method file.
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `cli.py` (464 LOC), `go_parser.py` (360 LOC), `mcp/schemas.py` (368 LOC), `db_queries.py` (312 LOC), and `route_extractor.py` (260 LOC).
+
+### Round 38: External Package Import Registration & Structural Summary Decorators Schema Parity
+* **JavaScript/TypeScript External Require and ES Import Registration (`parsers/js_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `_handle_require` and `_handle_es_import`, removed early-return guards on unresolved module paths (`if not res_p:` and `if not resolved_path:`).
+  - External npm packages and standard Node libraries (e.g., `axios`, `express`, `react`, `zod`, `fs`) now assign module target to `"external"` and populate `ctx.imported_symbols` and `ctx.defined_symbols`.
+  - Fixes misclassification of calls like `axios.post()` or `express()` as intra-file symbols or unrecognized calls.
+* **Rust Bare Single-Crate Use Declarations & Aliased Imports (`parsers/rust_parser.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - Added an `else` branch in `use_declaration` parsing for bare crate imports (e.g., `use anyhow;`, `use serde;`, `use tracing;`) as well as aliased imports (`use anyhow as ah;`).
+  - Registers the external module and populates `ctx.imported_symbols`, ensuring `vibetrace dependencies` and impact analysis capture top-level crate dependencies.
+* **Structural Summary Decorators Schema Parity Across CLI, MCP, and REST API (`indexer/db_queries.py`, `mcp/formatters.py`, `mcp/server.py`)**:
+  - `[Severity: Medium] [Maintainability: Medium]`
+  - Updated `IndexerDB.get_file_structure()` to deserialize JSON-encoded `decorators` into a native `list[str]`.
+  - Ensures CLI (`vibetrace summary --json`), MCP (`vibetrace_get_structural_summary`), and REST API (`GET /api/summary`) all consistently return structured `decorators: list[str]` rather than raw JSON strings.
+  - Made `format_structural_summary_md()` resilient to both `list` and `str` types.
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `mcp/server.py` (489 LOC), `js_parser.py` (482 LOC), `db_queries.py` (322 LOC), `mcp/formatters.py` (270 LOC), and `rust_parser.py` (249 LOC).
 
 ---
 

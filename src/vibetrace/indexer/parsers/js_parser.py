@@ -32,27 +32,27 @@ class JavaScriptParser(LanguageParser):
         if not args or args[0].type not in ("string", "template_string"):
             return
         res_p = self._register_imported_module(self._get_text(args[0]).strip("'\"`"), ctx, node)
+        m_path = res_p or "external"
         if not (
-            res_p
-            and node.parent
+            node.parent
             and node.parent.type == "variable_declarator"
             and (vn := node.parent.child_by_field_name("name"))
         ):
             return
         if vn.type == "identifier":
             v_name = self._get_text(vn)
-            ctx.imported_symbols[v_name] = (res_p, "*")
+            ctx.imported_symbols[v_name] = (m_path, "*")
             ctx.defined_symbols.add(v_name)
         elif vn.type == "object_pattern":
             for c in vn.children:
                 if c.type == "shorthand_property_identifier_pattern":
                     p = self._get_text(c)
-                    ctx.imported_symbols[p] = (res_p, p)
+                    ctx.imported_symbols[p] = (m_path, p)
                     ctx.defined_symbols.add(p)
                 elif c.type == "pair_pattern":
                     k, v = c.child_by_field_name("key"), c.child_by_field_name("value")
                     if k and v:
-                        ctx.imported_symbols[self._get_text(v)] = (res_p, self._get_text(k))
+                        ctx.imported_symbols[self._get_text(v)] = (m_path, self._get_text(k))
                         ctx.defined_symbols.add(self._get_text(v))
 
     def _handle_es_import(self, node: Node, ctx: ParserContext) -> None:
@@ -60,8 +60,7 @@ class JavaScriptParser(LanguageParser):
             return
         mod_spec = self._get_text(source_node).strip("\"'`")
         resolved_path = self._register_imported_module(mod_spec, ctx, node)
-        if not resolved_path:
-            return
+        m_path = resolved_path or "external"
 
         def visit_clause(n: Node) -> None:
             if n.type == "import_specifier":
@@ -70,16 +69,16 @@ class JavaScriptParser(LanguageParser):
                 if name_node:
                     orig = self._get_text(name_node)
                     local = self._get_text(alias_node) if alias_node else orig
-                    ctx.imported_symbols[local] = (resolved_path, orig)
+                    ctx.imported_symbols[local] = (m_path, orig)
                 return
             if n.type == "namespace_import":
                 for c in n.children:
                     if c.type == "identifier":
-                        ctx.imported_symbols[self._get_text(c)] = (resolved_path, "__module__")
+                        ctx.imported_symbols[self._get_text(c)] = (m_path, "__module__")
                 return
             if n.type == "identifier" and n.parent and n.parent.type == "import_clause":
                 ident = self._get_text(n)
-                ctx.imported_symbols[ident] = (resolved_path, ident)
+                ctx.imported_symbols[ident] = (m_path, ident)
                 return
             for c in n.children:
                 visit_clause(c)

@@ -56,7 +56,11 @@ def format_structural_summary_md(
 
         decorators = ""
         if row["decorators"]:
-            decs = json.loads(row["decorators"])
+            decs = (
+                json.loads(row["decorators"])
+                if isinstance(row["decorators"], str)
+                else (row["decorators"] or [])
+            )
             for d in decs:
                 decorators += f"\n  {d}"
 

@@ -117,7 +117,7 @@ async def vibetrace_get_structural_summary(params: StructuralSummaryInput) -> st
                     "signature": r["signature"],
                     "start_line": r["start_line"],
                     "end_line": r["end_line"],
-                    "decorators": json.loads(r["decorators"]) if r["decorators"] else [],
+                    "decorators": r["decorators"] or [],
                     "visibility": r["visibility"] or "public",
                 }
                 for r in rows
