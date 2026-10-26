@@ -284,7 +284,13 @@ async def vibetrace_semantic_search(params: SemanticSearchInput) -> str:
     try:
         db, root = _get_context_for_path(params.scope_path)
         engine = EmbeddingEngine(project_root=root)
-        results = hybrid_search(db, params.query, limit=params.limit, embedding_engine=engine)
+        results = hybrid_search(
+            db,
+            params.query,
+            limit=params.limit,
+            offset=params.offset,
+            embedding_engine=engine,
+        )
 
         notify_ui_focus(
             "semantic_search",

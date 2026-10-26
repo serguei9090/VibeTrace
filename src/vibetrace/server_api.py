@@ -2,7 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -221,30 +221,26 @@ def search_nodes_endpoint(
     q: str = Query(..., min_length=1),
     kind: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
     """Search code symbols and endpoints by name, qualified name, or lexical query."""
-    fetch_limit = limit if not kind else max(limit * 5, 50)
+    fetch_limit = (limit + offset) if not kind else max((limit + offset) * 5, 50)
     ast_results = db.search_ast_exact_or_prefix(q, limit=fetch_limit)
     if kind:
         ast_results = [r for r in ast_results if r.get("kind") == kind]
-
-    if len(ast_results) >= limit:
-        return ast_results[:limit]
 
     fts_results = db.search_lexical(q, limit=fetch_limit)
     if kind:
         fts_results = [r for r in fts_results if r.get("kind") == kind]
 
-    seen_ids = {r["id"] for r in ast_results}
-    combined = list(ast_results)
-    for r in fts_results:
+    seen_ids: set[str] = set()
+    combined: list[dict[str, Any]] = []
+    for r in ast_results + fts_results:
         if r["id"] not in seen_ids:
             seen_ids.add(r["id"])
             combined.append(r)
-            if len(combined) >= limit:
-                break
 
-    return combined[:limit]
+    return combined[offset : offset + limit]
 
 
 @app.get("/api/search/signature")

@@ -412,8 +412,13 @@ class IndexerDB(DBQueriesMixin):
             file_path = file_path.replace("\\", "/")
         with self._get_conn() as conn:
             if file_path:
-                nodes_cursor = conn.execute("SELECT * FROM nodes WHERE file_path = ?", (file_path,))
+                pattern = f"{file_path.rstrip('/')}/%"
+                nodes_cursor = conn.execute(
+                    "SELECT * FROM nodes WHERE file_path = ? OR file_path LIKE ?",
+                    (file_path, pattern),
+                )
             else:
+                pattern = ""
                 nodes_cursor = conn.execute("SELECT * FROM nodes")
 
             nodes = [dict(row) for row in nodes_cursor.fetchall()]
@@ -421,7 +426,6 @@ class IndexerDB(DBQueriesMixin):
                 return {"nodes": [], "edges": []}
 
             if file_path:
-                pattern = f"{file_path.rstrip('/')}/%"
                 edges_cursor = conn.execute(
                     """
                     SELECT * FROM edges WHERE from_node_id IN (

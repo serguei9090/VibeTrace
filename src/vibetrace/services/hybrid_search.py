@@ -40,6 +40,7 @@ def hybrid_search(
     db: IndexerDB,
     query: str,
     limit: int = 15,
+    offset: int = 0,
     embedding_engine: EmbeddingEngine | None = None,
     rrf_k: int = 60,
 ) -> list[SearchResult]:
@@ -50,10 +51,10 @@ def hybrid_search(
     where rank_s(d) is the 1-based rank of symbol d in stream s.
     """
     clean_query = query.strip().removesuffix("()").strip()
-    if not clean_query or limit <= 0:
+    if not clean_query or limit <= 0 or offset < 0:
         return []
 
-    pool_limit = max(limit * 2, 30)
+    pool_limit = max((limit + offset) * 2, 30)
 
     # Stream weights
     weight_ast = 1.2
@@ -121,7 +122,9 @@ def hybrid_search(
         _accumulate(nid, idx, weight_centrality, "centrality")
 
     # Sort combined hits by descending RRF score
-    ranked_ids = sorted(scores.keys(), key=lambda nid: scores[nid], reverse=True)[:limit]
+    ranked_ids = sorted(scores.keys(), key=lambda nid: scores[nid], reverse=True)[
+        offset : offset + limit
+    ]
 
     results: list[SearchResult] = []
     for nid in ranked_ids:

@@ -287,6 +287,23 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Added `try ... finally: db.close()` in `start_watcher_blocking()` to ensure clean SQLite connection closure on shutdown.
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `server_api.py` (492 LOC), `cli_commands.py` (491 LOC), `mcp/server.py` (483 LOC), `cli.py` (464 LOC), `mcp/schemas.py` (362 LOC), `watcher.py` (276 LOC), `mcp/formatters.py` (260 LOC), and `saved_traces_service.py` (144 LOC).
 
+### Round 36: Directory Graph Querying, LSP Indentation Offset & Hybrid Search Pagination Parity
+* **Directory Subsystem Filtering in Graph Data Query (`indexer/db.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - In `IndexerDB.get_graph_data(file_path)`, updated `nodes_cursor` to query `WHERE file_path = ? OR file_path LIKE ?` using `pattern = f"{file_path.rstrip('/')}/%"`.
+  - Fixes folder-level subsystem visualizer queries in Map Room UI and REST API (`GET /api/graph?file_path=src`) which previously returned 0 nodes and an empty graph `{"nodes": [], "edges": []}`.
+* **LSP Hybrid Bridge Indentation Offset on Call Lines (`indexer/lsp_bridge.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `resolve_unresolved_edges()`, calculate the column offset of the first non-whitespace character on `call_line` in `caller_file` and pass `character=char_offset` to `lsp_client.get_definition`.
+  - Eliminates failed definition queries where LSP servers received column 0 pointing to leading whitespace on indented calls.
+* **Hybrid RRF Search Pagination Parity (`services/hybrid_search.py`, `server_api.py`, `mcp/schemas.py`, `mcp/server.py`, `cli_commands.py`)**:
+  - `[Severity: Medium] [Maintainability: Medium]`
+  - Added `offset: int = 0` to `hybrid_search()` with candidate pool expansion `pool_limit = max((limit + offset) * 2, 30)` and slicing `[offset : offset + limit]`.
+  - Added `offset: int = Query(default=0, ge=0)` to `GET /api/search` in `server_api.py`.
+  - Added `offset: int = Field(default=0, ge=0)` to `SemanticSearchInput` in `mcp/schemas.py`.
+  - Wired `offset` into FastMCP `vibetrace_search_semantic` and CLI `vibetrace search`.
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `cli_commands.py` (494 LOC), `server_api.py` (488 LOC), `mcp/server.py` (489 LOC), `indexer/db.py` (483 LOC), `mcp/schemas.py` (367 LOC), `indexer/lsp_bridge.py` (330 LOC), and `services/hybrid_search.py` (150 LOC).
+
 ---
 
 ## Non-Regression Policy & Guidelines

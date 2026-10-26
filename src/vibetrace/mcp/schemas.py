@@ -257,6 +257,11 @@ class SemanticSearchInput(BaseModel):
         ge=1,
         le=100,
     )
+    offset: int = Field(
+        default=0,
+        description="Number of matches to skip for pagination",
+        ge=0,
+    )
     scope_path: str = Field(
         default=".",
         description="Project root or relevant path to scope the search context",

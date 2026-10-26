@@ -65,8 +65,7 @@ def cmd_index(args: argparse.Namespace) -> int:
         engine = EmbeddingEngine(project_root=root)
         if not engine.is_available():
             msg = (
-                "Optional [embeddings] extra not installed. "
-                "Install with: uv pip install -e '.[embeddings]'"
+                "Optional [embeddings] extra not installed. Run: uv pip install -e '.[embeddings]'"
             )
             if args.json:
                 print(json.dumps({"status": "indexed", "embeddings_error": msg}))
@@ -103,7 +102,13 @@ def cmd_search(args: argparse.Namespace) -> int:
         return 0
 
     engine = EmbeddingEngine(project_root=root)
-    results = hybrid_search(db, args.query, limit=args.limit, embedding_engine=engine)
+    results = hybrid_search(
+        db,
+        args.query,
+        limit=args.limit,
+        offset=getattr(args, "offset", 0),
+        embedding_engine=engine,
+    )
     notify_ui_focus(
         "semantic_search",
         [r.node_id for r in results[:5]],
@@ -150,13 +155,10 @@ def cmd_trace(args: argparse.Namespace) -> int:
         if not saved:
             print(f"Error: Saved trace '{args.saved}' not found.", file=sys.stderr)
             return 1
-        from_sym = saved.from_symbol
-        to_sym = saved.to_symbol
-        if depth is None:
-            depth = saved.max_depth
+        from_sym, to_sym = saved.from_symbol, saved.to_symbol
+        depth = depth or saved.max_depth
 
-    if depth is None:
-        depth = 6
+    depth = depth or 6
 
     if not from_sym or not to_sym:
         err = "Error: Specify both from_symbol and to_symbol, or use --saved <name>."

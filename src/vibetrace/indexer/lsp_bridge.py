@@ -258,7 +258,17 @@ def resolve_unresolved_edges(
         if not caller_file.exists():
             continue
 
-        def_target = lsp_client.get_definition(caller_file, call_line)
+        char_offset = 0
+        try:
+            with open(caller_file, encoding="utf-8", errors="replace") as f:
+                for idx, line_str in enumerate(f, start=1):
+                    if idx == call_line:
+                        char_offset = len(line_str) - len(line_str.lstrip())
+                        break
+        except Exception:
+            pass
+
+        def_target = lsp_client.get_definition(caller_file, call_line, character=char_offset)
         if not def_target:
             continue
 
