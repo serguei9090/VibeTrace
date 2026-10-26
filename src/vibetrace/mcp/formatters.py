@@ -218,3 +218,26 @@ def format_signature_search_md(pattern: str, rows: list[dict[str, Any]]) -> str:
                 f"- **`{row['name']}`** `{row.get('signature', '')}` in `{row['file_path']}{loc}`"
             )
     return "\n".join(lines)
+
+
+def format_impact_analysis_md(
+    normalized_path: str,
+    total_impact: int,
+    impacts_by_level: dict[int, list[str]],
+) -> str:
+    """Format 3-level blast radius impact analysis as GitHub markdown."""
+    output = [f"## Impact Analysis for `{normalized_path}`"]
+    if total_impact == 0:
+        output.append("✅ No external dependencies found. Safe to refactor internally.")
+    else:
+        output.append(f"**Total Impact**: {total_impact} components affected up to 3 levels.\n")
+        for lvl, title in (
+            (1, "### Level 1: Direct Impact"),
+            (2, "### Level 2: Secondary Impact (Ripple Effect)"),
+            (3, "### Level 3: Deep Impact"),
+        ):
+            if impacts_by_level.get(lvl):
+                output.append(title)
+                output.extend(sorted(set(impacts_by_level[lvl])))
+                output.append("")
+    return "\n".join(output)

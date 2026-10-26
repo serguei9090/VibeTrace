@@ -7,7 +7,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
@@ -15,6 +14,7 @@ from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
     format_dependencies_md,
+    format_impact_analysis_md,
     format_references_md,
     format_semantic_search_md,
     format_signature_search_md,
@@ -22,9 +22,11 @@ from vibetrace.mcp.formatters import (
     format_trace_path_md,
 )
 from vibetrace.services.graph_service import (
+    build_call_stack,
     build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
+    find_symbol_references,
     format_call_tree_md,
     get_code_slice,
     get_context_for_path,
@@ -127,18 +129,14 @@ def cmd_trace(args: argparse.Namespace) -> int:
         traces = list_saved_traces(db)
         if args.json:
             print(json.dumps([t.model_dump() for t in traces], indent=2))
+        elif not traces:
+            print("No saved architectural traces found.")
         else:
-            if not traces:
-                print("No saved architectural traces found.")
-            else:
-                print("## Saved Architectural Traces")
-                for t in traces:
-                    desc = f" — {t.description}" if t.description else ""
-                    line = (
-                        f"- **{t.name}**: `{t.from_symbol}` -> `{t.to_symbol}` "
-                        f"(depth {t.max_depth}){desc}"
-                    )
-                    print(line)
+            print("## Saved Architectural Traces")
+            for t in traces:
+                desc = f" — {t.description}" if t.description else ""
+                info = f"`{t.from_symbol}` -> `{t.to_symbol}` (depth {t.max_depth})"
+                print(f"- **{t.name}**: {info}{desc}")
         return 0
 
     from_sym = args.from_symbol
@@ -167,10 +165,7 @@ def cmd_trace(args: argparse.Namespace) -> int:
         create_saved_trace(
             db,
             SavedTraceCreate(
-                name=args.save_as,
-                from_symbol=from_sym,
-                to_symbol=to_sym,
-                max_depth=depth,
+                name=args.save_as, from_symbol=from_sym, to_symbol=to_sym, max_depth=depth
             ),
         )
         if not args.json:
@@ -262,17 +257,43 @@ def cmd_impact(args: argparse.Namespace) -> int:
         )
         return 0
 
-    lines = [f"## Impact Analysis for `{norm_path}`"]
-    if total_impact == 0:
-        lines.append(safe_str("✅ No external dependencies found."))
-    else:
-        lines.append(f"**Total Impact**: {total_impact} components affected.\n")
-        for lvl in (1, 2, 3):
-            if impacts_by_level.get(lvl):
-                lines.append(f"### Level {lvl}")
-                lines.extend(sorted(set(impacts_by_level[lvl])))
-    print("\n".join(lines))
+    print(safe_str(format_impact_analysis_md(norm_path, total_impact, impacts_by_level)))
     return 0
+
+
+def cmd_call_stack(args: argparse.Namespace) -> int:
+    auto_sync = not getattr(args, "no_sync", False)
+    db, _ = get_context_for_path(
+        getattr(args, "path", "."),
+        auto_sync=auto_sync,
+        root_override=getattr(args, "root", None),
+    )
+    raw_dir = getattr(args, "direction", "both")
+    direction = raw_dir if raw_dir in ("up", "down") else "both"
+    depth = getattr(args, "depth", 3)
+    file_path = getattr(args, "file", None)
+    found, output, start_nodes = build_call_stack(
+        db, args.symbol, direction=direction, max_depth=depth, file_path=file_path
+    )
+    if found and start_nodes:
+        notify_ui_focus(
+            "call_stack",
+            [n["id"] for n in start_nodes],
+            summary=f"CLI call-stack '{args.symbol}' ({direction}, depth {depth})",
+        )
+    if getattr(args, "json", False):
+        res = {
+            "found": found,
+            "symbol": args.symbol,
+            "direction": direction,
+            "depth": depth,
+            "call_stack": output,
+            "nodes": [n["id"] for n in start_nodes],
+        }
+        print(json.dumps(res, indent=2))
+    else:
+        print("\n".join(output))
+    return 0 if found else 1
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
@@ -369,17 +390,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     if res["installed_skills"]:
         lines.append(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
     if res["indexed"]:
-        lines.append(
-            f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"
-        )
-    lines.extend(
-        [
-            "\nNext steps:",
-            '  vibetrace search "<query>"',
-            '  vibetrace trace "from" "to"',
-            "  vibetrace serve",
-        ]
-    )
+        idx_info = f"{res['node_count']} symbols, {res['edge_count']} relations"
+        lines.append(f"- **Initial Index**: {idx_info}")
+    lines.extend(["\nNext steps:", '  vibetrace search "<query>"', "  vibetrace serve"])
     print("\n".join(lines))
     return 0
 
@@ -419,8 +432,10 @@ def cmd_references(args: argparse.Namespace) -> int:
     )
     clean_sym = args.symbol.strip().removesuffix("()")
     norm_file = normalize_path(args.file, root) if getattr(args, "file", None) else None
-    targets = db.find_nodes_by_name(clean_sym, file_path=norm_file)
-    if not targets:
+    found, targets, summaries = find_symbol_references(
+        db, args.symbol, file_path=norm_file, kind=getattr(args, "kind", None)
+    )
+    if not found:
         if args.json:
             print(
                 json.dumps(
@@ -432,31 +447,15 @@ def cmd_references(args: argparse.Namespace) -> int:
             print(f"Symbol '{args.symbol}' not found in index.")
         return 1
 
-    all_refs: list[dict[str, Any]] = []
-    summaries: list[dict[str, Any]] = []
-    for t in targets:
-        refs = db.get_symbol_references(t["id"])
-        if getattr(args, "kind", None):
-            refs = [r for r in refs if r.get("relation_type") == args.kind]
-        summaries.append(
-            {
-                "id": t["id"],
-                "name": t["name"],
-                "file_path": t["file_path"],
-                "start_line": t["start_line"],
-                "references": refs,
-            }
-        )
-        all_refs.extend(refs)
-
     notify_ui_focus("references", [t["id"] for t in targets], summary=f"CLI references {clean_sym}")
 
     if args.json:
+        total_refs = sum(len(s["references"]) for s in summaries)
         payload = {
             "symbol": clean_sym,
             "found": True,
             "target_count": len(targets),
-            "total_references": len(all_refs),
+            "total_references": total_refs,
             "targets": summaries,
         }
         print(json.dumps(payload, indent=2))
@@ -478,14 +477,15 @@ def cmd_dependencies(args: argparse.Namespace) -> int:
     )
 
     if args.json:
+        counts = {
+            "internal": len(internal),
+            "third_party": len(third_party),
+            "stdlib": len(stdlib),
+            "total": len(internal) + len(third_party) + len(stdlib),
+        }
         payload = {
             "file_path": norm_path,
-            "counts": {
-                "internal": len(internal),
-                "third_party": len(third_party),
-                "stdlib": len(stdlib),
-                "total": len(internal) + len(third_party) + len(stdlib),
-            },
+            "counts": counts,
             "internal": internal,
             "third_party": third_party,
             "stdlib": stdlib,

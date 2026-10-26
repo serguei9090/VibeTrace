@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from vibetrace.cli_commands import (
+    cmd_call_stack,
     cmd_call_tree,
     cmd_dependencies,
     cmd_hooks,
@@ -27,6 +28,7 @@ _cmd_index = cmd_index
 _cmd_search = cmd_search
 _cmd_trace = cmd_trace
 _cmd_slice = cmd_slice
+_cmd_call_stack = cmd_call_stack
 _cmd_call_tree = cmd_call_tree
 _cmd_impact = cmd_impact
 _cmd_summary = cmd_summary
@@ -50,6 +52,7 @@ examples:
   vibetrace trace --list-saved          # List saved trace queries
   vibetrace trace --saved "GraphFlow"   # Execute saved trace query
   vibetrace slice IndexerDB.upsert_node # Surgical source slice + callee contracts
+  vibetrace call-stack upsert_node      # Bidirectional call stack exploration
   vibetrace call-tree hybrid_search     # Top-down recursive call tree hierarchy
   vibetrace impact src/vibetrace/db.py  # 3-level blast radius impact analysis
   vibetrace references upsert_node     # Find incoming callers and references
@@ -213,6 +216,29 @@ examples:
     p_tree.add_argument("--path", default=".", help="Project root directory path")
     p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_tree.set_defaults(func=_cmd_call_tree)
+
+    # call-stack
+    p_stack = sub.add_parser(
+        "call-stack",
+        help="Explore incoming/outgoing call stack hierarchy for a symbol",
+        description="Trace callers (incoming), callees (outgoing), or both up to N depth levels.",
+    )
+    p_stack.add_argument("symbol", help="Target symbol or function name")
+    p_stack.add_argument(
+        "--direction",
+        choices=["up", "down", "both"],
+        default="both",
+        help="Traversal direction: up (callers), down (callees), or both (default: both)",
+    )
+    p_stack.add_argument(
+        "--depth", type=int, default=3, help="Maximum traversal depth (default: 3)"
+    )
+    p_stack.add_argument(
+        "--file", default=None, help="Optional relative file path to disambiguate symbol"
+    )
+    p_stack.add_argument("--path", default=".", help="Project root directory path")
+    p_stack.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+    p_stack.set_defaults(func=_cmd_call_stack)
 
     # impact
     p_impact = sub.add_parser(

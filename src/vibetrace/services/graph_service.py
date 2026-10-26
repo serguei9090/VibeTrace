@@ -306,22 +306,54 @@ def build_call_stack(
         if direction in ("up", "both"):
             traverser.visited.clear()
             traverser.output.append("\n**Callers (Incoming):**")
+            before_len = len(traverser.output)
             traverser.traverse(
                 start_node["id"], 1, max_depth, "up", 0, path_stack=[start_node["name"]]
             )
-            if not any(safe_str("←") in line for line in traverser.output[-5:]):
+            if len(traverser.output) == before_len:
                 traverser.output.append("  (no callers found)")
 
         if direction in ("down", "both"):
             traverser.visited.clear()
             traverser.output.append("\n**Callees (Outgoing):**")
+            before_len = len(traverser.output)
             traverser.traverse(
                 start_node["id"], 1, max_depth, "down", 0, path_stack=[start_node["name"]]
             )
-            if not any(safe_str("→") in line for line in traverser.output[-5:]):
+            if len(traverser.output) == before_len:
                 traverser.output.append("  (no callees found)")
 
     return True, traverser.output, start_nodes
+
+
+def find_symbol_references(
+    db: IndexerDB,
+    symbol_name: str,
+    file_path: str | None = None,
+    kind: str | None = None,
+) -> tuple[bool, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Find target nodes matching symbol and their incoming references/callers."""
+    clean_sym = symbol_name.strip().removesuffix("()")
+    norm_file = _clean_path(file_path) if file_path else None
+    targets = db.find_nodes_by_name(clean_sym, file_path=norm_file)
+    if not targets:
+        return False, [], []
+
+    summaries: list[dict[str, Any]] = []
+    for t in targets:
+        refs = db.get_symbol_references(t["id"])
+        if kind:
+            refs = [r for r in refs if r.get("relation_type") == kind]
+        summaries.append(
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "file_path": t["file_path"],
+                "start_line": t["start_line"],
+                "references": refs,
+            }
+        )
+    return True, targets, summaries
 
 
 def compute_impact_analysis(

@@ -2,7 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +16,7 @@ from vibetrace.services.graph_service import (
     build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
+    find_symbol_references,
     get_code_slice,
     get_context_for_path,
     normalize_path,
@@ -119,6 +120,7 @@ app.add_middleware(
 
 
 @app.get("/graph")
+@app.get("/api/graph")
 def get_graph(file_path: str | None = None):
     """
     Return nodes and edges.
@@ -131,6 +133,7 @@ def get_graph(file_path: str | None = None):
 
 
 @app.get("/trace")
+@app.get("/api/trace")
 def get_trace(
     from_symbol: str = Query(..., min_length=1),
     to_symbol: str = Query(..., min_length=1),
@@ -143,6 +146,7 @@ def get_trace(
 
 
 @app.get("/call-tree")
+@app.get("/api/call-tree")
 def get_call_tree(
     symbol: str = Query(..., min_length=1),
     depth: int = Query(default=3, ge=1, le=10),
@@ -184,6 +188,7 @@ def get_call_stack_endpoint(
 
 
 @app.get("/source")
+@app.get("/api/source")
 def get_source(
     file_path: str = Query(..., min_length=1),
     start_line: int | None = Query(default=None, ge=1),
@@ -339,32 +344,18 @@ def get_references_endpoint(
     """Find all incoming calls, references, inheritance, or implementations to a symbol."""
     norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
     clean_symbol = symbol.strip().removesuffix("()")
-    targets = db.find_nodes_by_name(clean_symbol, file_path=norm_file)
-    if not targets:
+    found, targets, summaries = find_symbol_references(
+        db, clean_symbol, file_path=norm_file, kind=kind
+    )
+    if not found:
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in index")
 
-    target_summaries: list[dict[str, Any]] = []
-    total_refs = 0
-    for t in targets:
-        refs = db.get_symbol_references(t["id"])
-        if kind:
-            refs = [r for r in refs if r.get("relation_type") == kind]
-        total_refs += len(refs)
-        target_summaries.append(
-            {
-                "id": t["id"],
-                "name": t["name"],
-                "qualified_name": t.get("qualified_name"),
-                "file_path": t["file_path"],
-                "start_line": t["start_line"],
-                "references": refs,
-            }
-        )
+    total_refs = sum(len(s["references"]) for s in summaries)
     return {
         "symbol": clean_symbol,
         "target_count": len(targets),
         "total_references": total_refs,
-        "targets": target_summaries,
+        "targets": summaries,
     }
 
 

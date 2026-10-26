@@ -16,6 +16,9 @@ from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
+    format_dependencies_md,
+    format_impact_analysis_md,
+    format_references_md,
     format_semantic_search_md,
     format_structural_summary_md,
     format_trace_path_md,
@@ -42,6 +45,7 @@ from vibetrace.services.graph_service import (
     build_call_tree,
     categorize_file_dependencies,
     compute_impact_analysis,
+    find_symbol_references,
     format_call_tree_md,
     get_code_slice,
     get_context_for_path,
@@ -166,23 +170,7 @@ async def vibetrace_impact_analysis(params: ImpactAnalysisInput) -> str:
             [n["id"] for n in file_nodes],
             summary=f"Blast radius analysis for {norm_path}",
         )
-
-        output = [f"## Impact Analysis for `{norm_path}`"]
-        if total_impact == 0:
-            output.append("✅ No external dependencies found. Safe to refactor internally.")
-        else:
-            output.append(f"**Total Impact**: {total_impact} components affected up to 3 levels.\n")
-            for lvl, title in (
-                (1, "### Level 1: Direct Impact"),
-                (2, "### Level 2: Secondary Impact (Ripple Effect)"),
-                (3, "### Level 3: Deep Impact"),
-            ):
-                if impacts_by_level.get(lvl):
-                    output.append(title)
-                    output.extend(sorted(set(impacts_by_level[lvl])))
-                    output.append("")
-
-        return "\n".join(output)
+        return format_impact_analysis_md(norm_path, total_impact, impacts_by_level)
     except Exception as e:
         return handle_error(e, f"analyzing impact for {params.file_path}")
 
@@ -192,28 +180,10 @@ async def vibetrace_find_references(params: ReferencesInput) -> str:
     """Find where a specific function or class is called/used."""
     try:
         db, _ = _get_context_for_path(params.scope_path)
-        clean_symbol = params.symbol_name.strip().removesuffix("()")
-        targets = db.find_nodes_by_name(clean_symbol)
-
-        if not targets:
+        found, _, summaries = find_symbol_references(db, params.symbol_name)
+        if not found:
             return f"Symbol '{params.symbol_name}' not found in index."
-
-        output = [f"## References to `{params.symbol_name}`"]
-        for target in targets:
-            target_desc = f"`{target['name']}` from `{target['file_path']}`"
-            refs = db.get_symbol_references(target["id"])
-            if refs:
-                output.append(f"\n### Usages of {target_desc}")
-                for ref in refs:
-                    call_ln = ref.get("call_line") or ref["start_line"]
-                    output.append(
-                        f"- Used by `{ref['name']}` in `{ref['file_path']}` "
-                        f"(L{call_ln}) [{ref['relation_type']}]"
-                    )
-            else:
-                output.append(f"\n### Usages of {target_desc}\n- No direct calls found.")
-
-        return "\n".join(output)
+        return format_references_md(params.symbol_name, summaries)
     except Exception as e:
         return handle_error(e, f"finding references for {params.symbol_name}")
 
@@ -225,24 +195,7 @@ async def vibetrace_get_dependencies(params: DependenciesInput) -> str:
         db, root = _get_context_for_path(params.file_path)
         norm_path = _normalize_path(params.file_path, root)
         internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
-
-        output = [f"## Dependencies for `{norm_path}`"]
-        if internal:
-            output.append("\n### 🏠 Internal Project Modules")
-            for dep in internal:
-                output.append(f"- **{dep['name']}** (`{dep['file_path']}`)")
-        if third_party:
-            output.append("\n### 📦 Third-Party Packages")
-            for dep in third_party:
-                output.append(f"- **{dep['name']}**")
-        if stdlib:
-            output.append("\n### 🐍 Standard Library")
-            for dep in stdlib:
-                output.append(f"- {dep['name']}")
-        if not (internal or third_party or stdlib):
-            output.append("No explicit imports found in index.")
-
-        return "\n".join(output)
+        return format_dependencies_md(norm_path, internal, third_party, stdlib)
     except Exception as e:
         return handle_error(e, f"getting dependencies for {params.file_path}")
 

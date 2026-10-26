@@ -39,6 +39,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **29** | CLI & REST API Parity | CLI `references` & `dependencies`, 5 parity REST endpoints (`/api/impact`, etc.), `_clean_path` | `tests/test_audit_code_bugs_round29.py` | ✅ Verified |
 | **30** | Signature & Call Stack | Auto-wildcard `%sig%`, CLI `--sig`, `/call-stack`, `POST /api/reindex`, server shutdown | `tests/test_audit_code_bugs_round30.py` | ✅ Verified |
 | **31** | Return Types & Traversal Sec | Multi-language return types (Python/TS/Go/Rust), CTE edge priority, `POST /api/reindex` 403 guard | `tests/test_audit_code_bugs_round31.py` | ✅ Verified |
+| **32** | Parity & Deduplication | CLI `call-stack`, `/api/` route parity, call stack multi-symbol isolation, shared formatters | `tests/test_audit_code_bugs_round32.py` | ✅ Verified |
 
 ---
 
@@ -233,6 +234,16 @@ This document tracks all strict critique audit rounds, identified root causes, f
 * **Deterministic Edge Selection in CTE Tracepath (`services/trace_service.py`)**: Added explicit `ORDER BY CASE relation_type WHEN 'calls' THEN 0 WHEN 'routes' THEN 1 WHEN 'references' THEN 2 WHEN 'inherits' THEN 3 WHEN 'implements' THEN 4 ELSE 5 END, call_line ASC LIMIT 1` to resolve non-deterministic edge selection in recursive CTE queries when multiple relation types exist between two symbols.
 * **Path Traversal Security Boundary in REST Reindex (`server_api.py`)**: Added `abs_target.is_relative_to(root_resolved)` validation returning HTTP 403 on path traversal attempts (`../../`) targeting files outside the workspace root.
 * **Strict LOC Ceiling & Anti-Monolith Compliance**: Maintained all backend files strictly under 500 lines: `server_api.py` (490 lines), `trace_service.py` (492 lines), `python_parser.py` (475 lines), `js_parser.py` (478 lines), `go_parser.py` (336 lines), and `rust_parser.py` (242 lines).
+
+### Round 32: Full CLI/MCP/REST Parity, Traverser State Isolation & Shared Formatters Deduplication
+* **CLI `call-stack` Subcommand Parity (`cli.py`, `cli_commands.py`)**: Added `vibetrace call-stack <symbol>` supporting `--direction {up,down,both}`, `--depth`, `--file`, and `--json`, completing full feature parity across CLI, MCP (`vibetrace_get_call_stack`), and REST (`/api/call-stack`).
+* **Multi-Symbol Output Isolation in `build_call_stack` (`services/graph_service.py`)**: Replaced heuristic `traverser.output[-5:]` slice with exact list length comparison (`before_len = len(traverser.output)`). Fixed bug where a symbol matching multiple files leaked caller checks from the first symbol into subsequent symbols.
+* **REST API `/api/` Namespace Parity (`server_api.py`)**: Added `@app.get("/api/graph")`, `@app.get("/api/trace")`, `@app.get("/api/call-tree")`, and `@app.get("/api/source")` decorators alongside legacy root paths, providing uniform `/api/` routing while preserving 100% backward compatibility.
+* **Shared Formatters & Deduplication Across MCP, CLI, and REST (`mcp/formatters.py`, `mcp/server.py`, `cli_commands.py`, `services/graph_service.py`)**:
+  - Extracted `format_impact_analysis_md` into `mcp/formatters.py`, reused in `cli_commands.py` (`cmd_impact`) and `mcp/server.py` (`vibetrace_impact_analysis`).
+  - Extracted `find_symbol_references` into `services/graph_service.py`, reused across CLI (`cmd_references`), MCP (`vibetrace_find_references`), and REST (`/api/references`).
+  - Reused `format_dependencies_md` in `mcp/server.py` (`vibetrace_get_dependencies`).
+* **Strict LOC Ceiling Compliance**: Reduced and preserved all source files strictly $< 500$ LOC: `cli_commands.py` (496 LOC), `server_api.py` (481 LOC), `cli.py` (455 LOC), `mcp/server.py` (375 LOC), `services/graph_service.py` (425 LOC), and `mcp/formatters.py` (243 LOC).
 
 ---
 
