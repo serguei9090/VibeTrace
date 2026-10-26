@@ -19,6 +19,7 @@ from vibetrace.mcp.formatters import (
     format_dependencies_md,
     format_impact_analysis_md,
     format_references_md,
+    format_saved_traces_md,
     format_semantic_search_md,
     format_signature_search_md,
     format_structural_summary_md,
@@ -28,11 +29,14 @@ from vibetrace.mcp.schemas import (
     CallStackInput,
     CallTreeInput,
     CodeSliceInput,
+    DeleteSavedTraceInput,
     DependenciesInput,
     ImpactAnalysisInput,
+    ListSavedTracesInput,
     ReferencesInput,
     ReindexInput,
     ResponseFormat,
+    SaveTraceInput,
     SearchInput,
     SemanticSearchInput,
     StructuralSummaryInput,
@@ -57,6 +61,13 @@ from vibetrace.services.graph_service import (
     trace_execution_path,
 )
 from vibetrace.services.hybrid_search import hybrid_search
+from vibetrace.services.saved_traces_service import (
+    SavedTraceCreate,
+    create_saved_trace,
+    delete_saved_trace_by_name,
+    get_saved_trace_by_name,
+    list_saved_traces,
+)
 
 # Compatibility aliases for existing tests and callers
 _get_context_for_path = get_context_for_path
@@ -67,10 +78,13 @@ _handle_error = handle_error
 mcp = FastMCP("vibetrace_mcp")
 
 _READ_ONLY = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+)
+_MUTATION = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+)
+_DESTRUCTIVE = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
 )
 
 
@@ -97,27 +111,26 @@ async def vibetrace_get_structural_summary(params: StructuralSummaryInput) -> st
         if params.response_format == ResponseFormat.JSON:
             nodes = [
                 {
-                    "name": row["name"],
-                    "qualified_name": row.get("qualified_name") or row["name"],
-                    "kind": row["kind"],
-                    "signature": row["signature"],
-                    "start_line": row["start_line"],
-                    "end_line": row["end_line"],
-                    "decorators": json.loads(row["decorators"]) if row["decorators"] else [],
-                    "visibility": row["visibility"] or "public",
+                    "name": r["name"],
+                    "qualified_name": r.get("qualified_name") or r["name"],
+                    "kind": r["kind"],
+                    "signature": r["signature"],
+                    "start_line": r["start_line"],
+                    "end_line": r["end_line"],
+                    "decorators": json.loads(r["decorators"]) if r["decorators"] else [],
+                    "visibility": r["visibility"] or "public",
                 }
-                for row in rows
+                for r in rows
             ]
+            has_more = total > params.offset + len(nodes)
             return json.dumps(
                 {
                     "file_path": norm_path,
                     "total": total,
                     "count": len(nodes),
                     "offset": params.offset,
-                    "has_more": total > params.offset + len(nodes),
-                    "next_offset": (
-                        params.offset + len(nodes) if total > params.offset + len(nodes) else None
-                    ),
+                    "has_more": has_more,
+                    "next_offset": params.offset + len(nodes) if has_more else None,
                     "nodes": nodes,
                 },
                 indent=2,
@@ -181,6 +194,15 @@ async def vibetrace_impact_analysis(params: ImpactAnalysisInput) -> str:
             [n["id"] for n in file_nodes],
             summary=f"Blast radius analysis for {norm_path}",
         )
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(
+                {
+                    "file_path": norm_path,
+                    "total_impact": total_impact,
+                    "levels": impacts_by_level,
+                },
+                indent=2,
+            )
         return format_impact_analysis_md(norm_path, total_impact, impacts_by_level)
     except Exception as e:
         return handle_error(e, f"analyzing impact for {params.file_path}")
@@ -195,31 +217,21 @@ async def vibetrace_find_references(params: ReferencesInput) -> str:
         found, targets, summaries = find_symbol_references(
             db, params.symbol_name, file_path=norm_file, kind=params.kind
         )
-        if not found:
-            if params.response_format == ResponseFormat.JSON:
-                return json.dumps(
-                    {
-                        "symbol": params.symbol_name.strip().removesuffix("()"),
-                        "found": False,
-                        "targets": [],
-                        "total_references": 0,
-                    },
-                    indent=2,
-                )
-            return f"Symbol '{params.symbol_name}' not found in index."
-
         if params.response_format == ResponseFormat.JSON:
-            total_refs = sum(len(s["references"]) for s in summaries)
+            clean = params.symbol_name.strip().removesuffix("()")
+            total_refs = sum(len(s["references"]) for s in summaries) if found else 0
             return json.dumps(
                 {
-                    "symbol": params.symbol_name.strip().removesuffix("()"),
-                    "found": True,
+                    "symbol": clean,
+                    "found": found,
                     "target_count": len(targets),
                     "total_references": total_refs,
                     "targets": summaries,
                 },
                 indent=2,
             )
+        if not found:
+            return f"Symbol '{params.symbol_name}' not found in index."
         return format_references_md(params.symbol_name, summaries)
     except Exception as e:
         return handle_error(e, f"finding references for {params.symbol_name}")
@@ -232,6 +244,20 @@ async def vibetrace_get_dependencies(params: DependenciesInput) -> str:
         db, root = _get_context_for_path(params.file_path)
         norm_path = _normalize_path(params.file_path, root)
         internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+        if params.response_format == ResponseFormat.JSON:
+            payload = {
+                "file_path": norm_path,
+                "counts": {
+                    "internal": len(internal),
+                    "third_party": len(third_party),
+                    "stdlib": len(stdlib),
+                    "total": len(internal) + len(third_party) + len(stdlib),
+                },
+                "internal": internal,
+                "third_party": third_party,
+                "stdlib": stdlib,
+            }
+            return json.dumps(payload, indent=2)
         return format_dependencies_md(norm_path, internal, third_party, stdlib)
     except Exception as e:
         return handle_error(e, f"getting dependencies for {params.file_path}")
@@ -275,14 +301,29 @@ async def vibetrace_semantic_search(params: SemanticSearchInput) -> str:
 
 @mcp.tool(name="vibetrace_trace_path", annotations=_READ_ONLY)
 async def vibetrace_trace_path(params: TracePathInput) -> str:
-    """Find shortest execution tracepath(s) between two symbols with call-site lines."""
+    """Find shortest execution tracepath(s) between two symbols or execute a saved trace."""
     try:
         db, _ = _get_context_for_path(params.scope_path)
+        from_sym = params.from_symbol
+        to_sym = params.to_symbol
+        depth = params.max_depth
+
+        if params.saved_name:
+            saved = get_saved_trace_by_name(db, params.saved_name)
+            if not saved:
+                return f"Error: Saved trace '{params.saved_name}' not found."
+            from_sym = saved.from_symbol
+            to_sym = saved.to_symbol
+            depth = params.max_depth if params.max_depth != 6 else saved.max_depth
+
+        if not from_sym or not to_sym:
+            return "Error: Specify both from_symbol and to_symbol, or provide saved_name."
+
         result = trace_execution_path(
             db,
-            params.from_symbol,
-            params.to_symbol,
-            max_depth=params.max_depth,
+            from_sym,
+            to_sym,
+            max_depth=depth,
             engine=params.engine,
         )
 
@@ -290,9 +331,9 @@ async def vibetrace_trace_path(params: TracePathInput) -> str:
             notify_ui_focus(
                 "trace_path",
                 result.node_ids,
-                summary=f"Tracepath {params.from_symbol} -> {params.to_symbol}",
-                from_symbol=params.from_symbol,
-                to_symbol=params.to_symbol,
+                summary=f"Tracepath {from_sym} -> {to_sym}",
+                from_symbol=from_sym,
+                to_symbol=to_sym,
             )
 
         if params.response_format == ResponseFormat.JSON:
@@ -300,6 +341,51 @@ async def vibetrace_trace_path(params: TracePathInput) -> str:
         return format_trace_path_md(result)
     except Exception as e:
         return handle_error(e, f"tracing path {params.from_symbol} -> {params.to_symbol}")
+
+
+@mcp.tool(name="vibetrace_list_saved_traces", annotations=_READ_ONLY)
+async def vibetrace_list_saved_traces(params: ListSavedTracesInput) -> str:
+    """List all saved architectural trace queries in this project."""
+    try:
+        db, _ = _get_context_for_path(params.scope_path)
+        traces = list_saved_traces(db)
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps([t.model_dump() for t in traces], indent=2)
+        return format_saved_traces_md(traces)
+    except Exception as e:
+        return handle_error(e, "listing saved traces")
+
+
+@mcp.tool(name="vibetrace_save_trace", annotations=_MUTATION)
+async def vibetrace_save_trace(params: SaveTraceInput) -> str:
+    """Bookmark or update a persistent architectural trace query."""
+    try:
+        db, _ = _get_context_for_path(params.scope_path)
+        payload = SavedTraceCreate(
+            name=params.name,
+            from_symbol=params.from_symbol,
+            to_symbol=params.to_symbol,
+            description=params.description,
+            max_depth=params.max_depth,
+        )
+        saved = create_saved_trace(db, payload)
+        info = f"{saved.from_symbol} -> {saved.to_symbol} (depth {saved.max_depth})"
+        return f"✅ Saved architectural trace '{saved.name}' ({info})"
+    except Exception as e:
+        return handle_error(e, f"saving trace {params.name}")
+
+
+@mcp.tool(name="vibetrace_delete_saved_trace", annotations=_DESTRUCTIVE)
+async def vibetrace_delete_saved_trace(params: DeleteSavedTraceInput) -> str:
+    """Delete a saved architectural trace query by name."""
+    try:
+        db, _ = _get_context_for_path(params.scope_path)
+        deleted = delete_saved_trace_by_name(db, params.name)
+        if not deleted:
+            return f"Saved trace '{params.name}' not found."
+        return f"✅ Successfully deleted saved trace '{params.name}'."
+    except Exception as e:
+        return handle_error(e, f"deleting saved trace {params.name}")
 
 
 @mcp.tool(name="vibetrace_get_code_slice", annotations=_READ_ONLY)
@@ -355,16 +441,7 @@ async def vibetrace_get_call_tree(params: CallTreeInput) -> str:
         return handle_error(e, f"building call tree for {params.symbol_name}")
 
 
-@mcp.tool(
-    name="vibetrace_reindex_project",
-    annotations=ToolAnnotations(
-        title="Reindex Project Files",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=False,
-    ),
-)
+@mcp.tool(name="vibetrace_reindex_project", annotations=_MUTATION)
 async def vibetrace_reindex_project(params: ReindexInput) -> str:
     """Reindex a file or directory recursively."""
     try:

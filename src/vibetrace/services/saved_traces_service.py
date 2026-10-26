@@ -133,3 +133,12 @@ def delete_saved_trace(db: IndexerDB, trace_id: int) -> bool:
         cursor = conn.execute("DELETE FROM saved_traces WHERE id = ?", (trace_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+@with_write_retry()
+def delete_saved_trace_by_name(db: IndexerDB, name: str) -> bool:
+    """Delete a saved trace by name. Returns True if deleted, False if not found."""
+    with db._get_conn() as conn:
+        cursor = conn.execute("DELETE FROM saved_traces WHERE name = ?", (name,))
+        conn.commit()
+        return cursor.rowcount > 0

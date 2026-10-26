@@ -271,6 +271,22 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Added `response_format` to `CallStackInput`, returning structured JSON matching CLI and REST API when requested.
 * **Strict LOC Ceiling Compliance**: All source files remain strictly under 500 lines: `cli_commands.py` (498 LOC), `js_parser.py` (483 LOC), `generic_parser.py` (464 LOC), `cli.py` (461 LOC), `mcp/server.py` (406 LOC), and `mcp/schemas.py` (308 LOC).
 
+### Round 35: Saved Architectural Traces MCP Suite, CLI/REST Deletion Parity & Watcher SQLite Cleanup
+* **MCP Saved Architectural Traces Suite (`mcp/schemas.py`, `mcp/server.py`)**:
+  - Added FastMCP tools `vibetrace_list_saved_traces`, `vibetrace_save_trace`, and `vibetrace_delete_saved_trace`.
+  - Added `saved_name` support to `vibetrace_trace_path`, enabling agents to execute saved architectural traces by name.
+* **CLI & REST API Saved Trace Deletion Parity (`services/saved_traces_service.py`, `cli.py`, `cli_commands.py`, `server_api.py`)**:
+  - Added `delete_saved_trace_by_name()` to `saved_traces_service`.
+  - Added `--delete-saved <name>` flag to CLI `vibetrace trace`.
+  - Added `DELETE /api/saved-traces/by-name/{name}` REST API endpoint.
+* **MCP Dependencies & Impact Analysis JSON Response Parity (`mcp/schemas.py`, `mcp/server.py`)**:
+  - Added `response_format: ResponseFormat` to `DependenciesInput` and `ImpactAnalysisInput`, returning typed JSON payloads matching CLI `--json` and REST API.
+* **Shared Saved-Trace Formatting Deduplication (`mcp/formatters.py`, `cli_commands.py`)**:
+  - Extracted `format_saved_traces_md()` into `vibetrace.mcp.formatters`, shared by CLI `cmd_trace` and MCP `vibetrace_list_saved_traces`.
+* **Standalone Watcher SQLite Cleanup (`indexer/watcher.py`)**:
+  - Added `try ... finally: db.close()` in `start_watcher_blocking()` to ensure clean SQLite connection closure on shutdown.
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `server_api.py` (492 LOC), `cli_commands.py` (491 LOC), `mcp/server.py` (483 LOC), `cli.py` (464 LOC), `mcp/schemas.py` (362 LOC), `watcher.py` (276 LOC), `mcp/formatters.py` (260 LOC), and `saved_traces_service.py` (144 LOC).
+
 ---
 
 ## Non-Regression Policy & Guidelines

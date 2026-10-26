@@ -27,6 +27,7 @@ from vibetrace.services.saved_traces_service import (
     SavedTraceCreate,
     create_saved_trace,
     delete_saved_trace,
+    delete_saved_trace_by_name,
     get_saved_trace_by_id,
     get_saved_trace_by_name,
     list_saved_traces,
@@ -284,6 +285,15 @@ def delete_saved_trace_endpoint(trace_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved trace not found")
     return {"status": "deleted", "id": trace_id}
+
+
+@app.delete("/api/saved-traces/by-name/{name}")
+def delete_saved_trace_by_name_endpoint(name: str):
+    """Delete a saved trace query by name."""
+    deleted = delete_saved_trace_by_name(db, name)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
+    return {"status": "deleted", "name": name}
 
 
 @app.get("/api/saved-traces/{name}/run")

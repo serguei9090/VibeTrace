@@ -16,6 +16,7 @@ from vibetrace.mcp.formatters import (
     format_dependencies_md,
     format_impact_analysis_md,
     format_references_md,
+    format_saved_traces_md,
     format_semantic_search_md,
     format_signature_search_md,
     format_structural_summary_md,
@@ -39,6 +40,7 @@ from vibetrace.services.hybrid_search import hybrid_search
 from vibetrace.services.saved_traces_service import (
     SavedTraceCreate,
     create_saved_trace,
+    delete_saved_trace_by_name,
     get_saved_trace_by_name,
     list_saved_traces,
 )
@@ -77,14 +79,7 @@ def cmd_index(args: argparse.Namespace) -> int:
 
     if args.json:
         print(
-            json.dumps(
-                {
-                    "status": "ok",
-                    "path": target,
-                    "embedded_count": embedded_count,
-                },
-                indent=2,
-            )
+            json.dumps({"status": "ok", "path": target, "embedded_count": embedded_count}, indent=2)
         )
     return 0
 
@@ -131,14 +126,19 @@ def cmd_trace(args: argparse.Namespace) -> int:
         traces = list_saved_traces(db)
         if args.json:
             print(json.dumps([t.model_dump() for t in traces], indent=2))
-        elif not traces:
-            print("No saved architectural traces found.")
         else:
-            print("## Saved Architectural Traces")
-            for t in traces:
-                desc = f" — {t.description}" if t.description else ""
-                info = f"`{t.from_symbol}` -> `{t.to_symbol}` (depth {t.max_depth})"
-                print(f"- **{t.name}**: {info}{desc}")
+            print(safe_str(format_saved_traces_md(traces)))
+        return 0
+
+    if getattr(args, "delete_saved", None):
+        deleted = delete_saved_trace_by_name(db, args.delete_saved)
+        if not deleted:
+            print(f"Error: Saved trace '{args.delete_saved}' not found.", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps({"status": "deleted", "name": args.delete_saved}))
+        else:
+            print(f"Deleted saved trace '{args.delete_saved}'.")
         return 0
 
     from_sym = args.from_symbol
@@ -392,8 +392,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     if res["installed_skills"]:
         lines.append(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
     if res["indexed"]:
-        idx_info = f"{res['node_count']} symbols, {res['edge_count']} relations"
-        lines.append(f"- **Initial Index**: {idx_info}")
+        lines.append(
+            f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"
+        )
     lines.extend(["\nNext steps:", '  vibetrace search "<query>"', "  vibetrace serve"])
     print("\n".join(lines))
     return 0
@@ -403,16 +404,11 @@ def cmd_skill(args: argparse.Namespace) -> int:
     from vibetrace.skill_installer import install_skill
 
     root = Path(getattr(args, "root", None) or getattr(args, "path", ".") or ".").resolve()
-    global_skill = getattr(args, "global_skill", False)
-    action = getattr(args, "action", "install")
-
-    if action == "install":
-        paths = install_skill(root, global_install=global_skill)
-        if getattr(args, "json", False):
-            print(json.dumps({"status": "ok", "installed_paths": [str(p) for p in paths]}))
-        else:
-            print(f"✅ VibeTrace Navigator skill installed to: {', '.join(str(p) for p in paths)}")
-        return 0
+    paths = install_skill(root, global_install=getattr(args, "global_skill", False))
+    if getattr(args, "json", False):
+        print(json.dumps({"status": "ok", "installed_paths": [str(p) for p in paths]}))
+    else:
+        print(f"✅ VibeTrace Navigator skill installed to: {', '.join(str(p) for p in paths)}")
     return 0
 
 

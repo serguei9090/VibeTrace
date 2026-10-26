@@ -165,6 +165,9 @@ examples:
         "--list-saved", action="store_true", help="List all saved trace queries in this project"
     )
     p_trace.add_argument(
+        "--delete-saved", default=None, help="Delete a saved architectural trace by name"
+    )
+    p_trace.add_argument(
         "--depth", type=int, default=None, help="Maximum BFS traversal depth in hops (default: 6)"
     )
     p_trace.add_argument(

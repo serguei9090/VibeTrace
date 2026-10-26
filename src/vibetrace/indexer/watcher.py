@@ -261,6 +261,10 @@ def start_watcher_blocking(path: str):
         pass
     finally:
         stop_observer(observer)
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -240,3 +240,27 @@ def format_impact_analysis_md(
                 output.extend(sorted(set(impacts_by_level[lvl])))
                 output.append("")
     return "\n".join(output)
+
+
+def format_saved_traces_md(traces: list[Any]) -> str:
+    """Format saved architectural trace queries as GitHub markdown."""
+    if not traces:
+        return "No saved architectural traces found."
+    lines = ["## Saved Architectural Traces"]
+    for t in traces:
+        name = getattr(t, "name", None) or (t.get("name") if isinstance(t, dict) else "")
+        desc = getattr(t, "description", None) or (
+            t.get("description") if isinstance(t, dict) else ""
+        )
+        from_sym = getattr(t, "from_symbol", None) or (
+            t.get("from_symbol") if isinstance(t, dict) else ""
+        )
+        to_sym = getattr(t, "to_symbol", None) or (
+            t.get("to_symbol") if isinstance(t, dict) else ""
+        )
+        depth = getattr(t, "max_depth", None) or (
+            t.get("max_depth", 6) if isinstance(t, dict) else 6
+        )
+        desc_str = f" — {desc}" if desc else ""
+        lines.append(f"- **{name}**: `{from_sym}` -> `{to_sym}` (depth {depth}){desc_str}")
+    return "\n".join(lines)

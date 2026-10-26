@@ -88,6 +88,10 @@ class ImpactAnalysisInput(BaseModel):
         description="Path to the file to analyze for impact (e.g., 'src/db.py')",
         min_length=1,
     )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
 
 
 class ReindexInput(BaseModel):
@@ -156,6 +160,52 @@ class DependenciesInput(BaseModel):
         description="Path to the file to check for outgoing dependencies",
         min_length=1,
     )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ListSavedTracesInput(BaseModel):
+    """Input model for listing saved architectural trace queries."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class SaveTraceInput(BaseModel):
+    """Input model for persisting a saved architectural trace query."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    name: str = Field(
+        ...,
+        description="Unique persistent name for this trace query",
+        min_length=1,
+        max_length=100,
+    )
+    from_symbol: str = Field(..., description="Source starting symbol or endpoint", min_length=1)
+    to_symbol: str = Field(..., description="Target destination symbol", min_length=1)
+    description: str = Field(default="", description="Optional architectural description")
+    max_depth: int = Field(default=6, description="Maximum traversal depth", ge=1, le=20)
+    scope_path: str = Field(default=".", description="Project root directory path")
+
+
+class DeleteSavedTraceInput(BaseModel):
+    """Input model for deleting a saved architectural trace query."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    name: str = Field(..., description="Name of the saved trace to delete", min_length=1)
+    scope_path: str = Field(default=".", description="Project root directory path")
 
 
 class SearchInput(BaseModel):
@@ -222,15 +272,17 @@ class TracePathInput(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
 
-    from_symbol: str = Field(
-        ...,
+    from_symbol: str | None = Field(
+        default=None,
         description="Starting symbol or qualified name (e.g. 'process_checkout')",
-        min_length=1,
     )
-    to_symbol: str = Field(
-        ...,
+    to_symbol: str | None = Field(
+        default=None,
         description="Target symbol or qualified name (e.g. 'save_invoice')",
-        min_length=1,
+    )
+    saved_name: str | None = Field(
+        default=None,
+        description="Execute a persistent named saved trace query (e.g. 'AuthFlow')",
     )
     max_depth: int = Field(
         default=6,
