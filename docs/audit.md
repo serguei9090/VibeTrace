@@ -304,6 +304,21 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Wired `offset` into FastMCP `vibetrace_search_semantic` and CLI `vibetrace search`.
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `cli_commands.py` (494 LOC), `server_api.py` (488 LOC), `mcp/server.py` (489 LOC), `indexer/db.py` (483 LOC), `mcp/schemas.py` (367 LOC), `indexer/lsp_bridge.py` (330 LOC), and `services/hybrid_search.py` (150 LOC).
 
+### Round 37: References Routing Inclusion, Express Member Handler Linking & Go Cross-File Receivers
+* **References 'routes' Inclusion (`indexer/db_queries.py`, `cli.py`, `mcp/schemas.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - Added `'routes'` to `get_symbol_references` SQL IN clause in `db_queries.py`, enabling route handler functions to return their incoming HTTP route endpoint edges.
+  - Added `"routes"` to CLI `references --kind` choices in `cli.py` and updated schema description in `mcp/schemas.py`.
+* **Express / Next.js Member Expression Handlers & Bare Client Extraction (`parsers/route_extractor.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Allowed both `identifier` and `member_expression` for route handlers in `extract_js_endpoint_route`, properly linking controller methods (`router.get('/api/users', userController.getUsers)`).
+  - Updated HTTP method extraction to check `called_name.lower().split('.')[-1]`, correctly identifying bare destructured client calls (e.g. `post('/api/users')`) as `POST` instead of defaulting to `GET`.
+* **Go Cross-File Receiver Method Linking in Same Package (`parsers/go_parser.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - Resolved `recv_text` across sibling `.go` files in the same directory using `self.resolver` when a struct is declared in a separate file (e.g. `type Server struct` in `server.go` and `func (s *Server) Start()` in `server_start.go`).
+  - Generates the exact `defines` edge from the true struct declaration rather than creating a dangling edge to a nonexistent hash in the method file.
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `cli.py` (464 LOC), `go_parser.py` (360 LOC), `mcp/schemas.py` (368 LOC), `db_queries.py` (312 LOC), and `route_extractor.py` (260 LOC).
+
 ---
 
 ## Non-Regression Policy & Guidelines

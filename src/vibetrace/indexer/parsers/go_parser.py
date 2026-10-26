@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from tree_sitter import Node
 
 from vibetrace.indexer.db import Edge
@@ -153,7 +155,29 @@ class GoParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
                     if recv_text:
-                        struct_id = self._get_id(file_path, recv_text)
+                        struct_file = file_path
+                        if recv_text not in ctx.defined_symbols and self.resolver:
+                            curr_parent = str(Path(file_path).parent).replace("\\", "/")
+                            for kf in self.resolver.known_files:
+                                if (
+                                    kf != file_path
+                                    and str(Path(kf).parent).replace("\\", "/") == curr_parent
+                                    and kf.endswith(".go")
+                                ):
+                                    sibling_abs = self.resolver.project_root / kf
+                                    try:
+                                        with open(sibling_abs, "rb") as sf:
+                                            s_src = sf.read()
+                                        if (
+                                            f"type {recv_text} ".encode() in s_src
+                                            or f"type {recv_text}\t".encode() in s_src
+                                            or f"type {recv_text}\n".encode() in s_src
+                                        ):
+                                            struct_file = kf
+                                            break
+                                    except Exception:
+                                        pass
+                        struct_id = self._get_id(struct_file, recv_text)
                         edges.append(self._create_edge(struct_id, node_id, "defines", node=node))
 
             elif node.type == "type_declaration":

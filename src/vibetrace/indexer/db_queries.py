@@ -248,7 +248,7 @@ class DBQueriesMixin:
             return [dict(r) for r in cursor.fetchall()]
 
     def get_symbol_references(self, node_id: str) -> list[dict[str, Any]]:
-        """Find calls, references, inheritance, or implementations incoming to a node."""
+        """Find calls, references, inheritance, implementations, or routes incoming to a node."""
         with self._get_conn() as conn:
             query = """
                 SELECT n.name, n.qualified_name, n.file_path, n.start_line,
@@ -256,7 +256,7 @@ class DBQueriesMixin:
                 FROM edges e
                 JOIN nodes n ON e.from_node_id = n.id
                 WHERE e.to_node_id = ?
-                  AND e.relation_type IN ('calls', 'references', 'inherits', 'implements')
+                  AND e.relation_type IN ('calls', 'references', 'inherits', 'implements', 'routes')
             """
             cursor = conn.execute(query, (node_id,))
             return [dict(r) for r in cursor.fetchall()]

@@ -220,11 +220,12 @@ def extract_js_endpoint_route(
         return
 
     lower_func = called_name.lower()
+    fn_part = lower_func.split(".")[-1]
     method = next(
         (
             m.upper()
-            for m in ("post", "put", "delete", "patch", "options", "head")
-            if f".{m}" in lower_func
+            for m in ("post", "put", "delete", "patch", "options", "head", "get")
+            if fn_part == m or f".{m}" in lower_func
         ),
         "GET",
     )
@@ -249,7 +250,7 @@ def extract_js_endpoint_route(
     h_arg = args[-1] if is_b_route else None
     if (
         h_arg
-        and getattr(h_arg, "type", "") == "identifier"
+        and getattr(h_arg, "type", "") in ("identifier", "member_expression")
         and (h_id := resolve_call_target_fn(get_text_fn(h_arg), ctx))
     ):
         edges.append(create_edge_fn(endpoint_id, h_id, "routes", node=h_arg))

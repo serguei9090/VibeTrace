@@ -137,7 +137,8 @@ class ReferencesInput(BaseModel):
     kind: str | None = Field(
         default=None,
         description=(
-            "Optional filter by relation kind: 'calls', 'references', 'inherits', 'implements'"
+            "Optional filter by relation kind: 'calls', 'references', 'inherits', "
+            "'implements', 'routes'"
         ),
     )
     scope_path: str = Field(

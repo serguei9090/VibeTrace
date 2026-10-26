@@ -292,7 +292,7 @@ examples:
     p_refs.add_argument(
         "--kind",
         default=None,
-        choices=["calls", "references", "inherits", "implements"],
+        choices=["calls", "references", "inherits", "implements", "routes"],
         help="Filter by relation type",
     )
     p_refs.add_argument("--path", default=".", help="Project root directory path")
