@@ -263,6 +263,11 @@ class JavaScriptParser(LanguageParser):
                             )
                             if pn and pt:
                                 ctx.local_types[pn] = self._clean_ts_type(pt)
+                elif single_param := node.child_by_field_name("parameter"):
+                    p_name = self._get_text(single_param).strip()
+                    signature = f"({p_name})"
+                    if single_param.type == "identifier":
+                        ctx.local_types[p_name] = "any"
 
                 self._add_node(
                     ctx,

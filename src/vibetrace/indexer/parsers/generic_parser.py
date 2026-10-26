@@ -196,9 +196,24 @@ class GenericParser(LanguageParser):
                         if ch.type in ("formal_parameters", "parameter_list")
                     ]
                     if not param_containers and (decl := node.child_by_field_name("declarator")):
-                        param_containers = [
-                            ch for ch in decl.children if ch.type == "parameter_list"
-                        ]
+                        while decl and decl.type in ("pointer_declarator", "reference_declarator"):
+                            decl = decl.child_by_field_name("declarator") or next(
+                                (
+                                    c
+                                    for c in decl.children
+                                    if c.type
+                                    in (
+                                        "function_declarator",
+                                        "pointer_declarator",
+                                        "reference_declarator",
+                                    )
+                                ),
+                                None,
+                            )
+                        if decl:
+                            param_containers = [
+                                ch for ch in decl.children if ch.type == "parameter_list"
+                            ]
                     for ch in param_containers:
                         for param in ch.children:
                             if param.type in ("formal_parameter", "parameter_declaration"):
@@ -225,7 +240,7 @@ class GenericParser(LanguageParser):
                         n_text.split("(")[0].strip().split()[-1]
                         if ("(" in n_text and is_func)
                         else n_text
-                    )
+                    ).lstrip("*& ")
                     qualified_name = (
                         name if "." in name else self._scoped_name(name, ctx.scope_stack)
                     )

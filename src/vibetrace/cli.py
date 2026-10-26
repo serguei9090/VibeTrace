@@ -119,6 +119,12 @@ examples:
         "--limit", type=int, default=15, help="Maximum number of results to return (default: 15)"
     )
     p_search.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="Pagination offset for signature search (default: 0)",
+    )
+    p_search.add_argument(
         "--sig",
         "--signature",
         dest="signature",

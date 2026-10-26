@@ -256,6 +256,21 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Replaced inline formatting in `vibetrace_search_by_signature` with shared `format_signature_search_md`, ensuring format consistency across CLI (`cmd_search`) and MCP.
 * **Strict LOC Ceiling Compliance**: Maintained all backend files strictly under 500 lines: `generic_parser.py` (461 LOC), `server_api.py` (482 LOC), `mcp/server.py` (366 LOC), and `db_queries.py` (312 LOC).
 
+### Round 34: C/C++ Pointer Declarator Unwrapping, JS/TS Single-Param Arrow Functions & Full MCP/CLI Pagination
+* **C/C++ Nested Declarator Unwrapping & Name Cleaning (`parsers/generic_parser.py`)**:
+  - Unwrapped nested `pointer_declarator` and `reference_declarator` nodes to reach inner `function_declarator` and `parameter_list` in functions with pointer/reference return types (`T* func()`, `T& func()`).
+  - Stripped leading `*` and `&` from symbol names (`n.lstrip("*& ")`), resolving misnamed nodes (e.g. `*get_data` -> `get_data`).
+* **JS/TS Single-Parameter Arrow Function Signatures (`parsers/js_parser.py`)**:
+  - Added support for `node.child_by_field_name("parameter")` (singular identifier in tree-sitter JS/TS) on unparenthesized arrow functions (`x => x * 2`), extracting signature as `(x)`.
+* **MCP & CLI Signature Search Pagination & JSON Parity (`mcp/schemas.py`, `mcp/server.py`, `cli.py`, `cli_commands.py`)**:
+  - Added `limit`, `offset`, and `response_format` to `SearchInput` in `mcp/schemas.py`, and wired them into `vibetrace_search_by_signature`.
+  - Added `--offset` to CLI `vibetrace search --sig` in `cli.py` and passed it in `cmd_search` in `cli_commands.py`.
+* **MCP References Disambiguation & Relation Filter (`mcp/schemas.py`, `mcp/server.py`)**:
+  - Added `file_path`, `kind`, and `response_format` to `ReferencesInput`, enabling file disambiguation, relation filtering, and JSON output in `vibetrace_find_references`.
+* **MCP Call Stack JSON Formatting (`mcp/schemas.py`, `mcp/server.py`)**:
+  - Added `response_format` to `CallStackInput`, returning structured JSON matching CLI and REST API when requested.
+* **Strict LOC Ceiling Compliance**: All source files remain strictly under 500 lines: `cli_commands.py` (498 LOC), `js_parser.py` (483 LOC), `generic_parser.py` (464 LOC), `cli.py` (461 LOC), `mcp/server.py` (406 LOC), and `mcp/schemas.py` (308 LOC).
+
 ---
 
 ## Non-Regression Policy & Guidelines

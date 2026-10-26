@@ -72,6 +72,10 @@ class CallStackInput(BaseModel):
         ge=1,
         le=10,
     )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
 
 
 class ImpactAnalysisInput(BaseModel):
@@ -122,9 +126,23 @@ class ReferencesInput(BaseModel):
         description="Name of the function/class/variable to find references for",
         min_length=1,
     )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file path to disambiguate if multiple nodes share the same name",
+    )
+    kind: str | None = Field(
+        default=None,
+        description=(
+            "Optional filter by relation kind: 'calls', 'references', 'inherits', 'implements'"
+        ),
+    )
     scope_path: str = Field(
         default=".",
         description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
     )
 
 
@@ -155,6 +173,21 @@ class SearchInput(BaseModel):
     scope_path: str = Field(
         default=".",
         description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
+    limit: int = Field(
+        default=50,
+        description="Maximum number of matches to return",
+        ge=1,
+        le=200,
+    )
+    offset: int = Field(
+        default=0,
+        description="Number of matches to skip for pagination",
+        ge=0,
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
     )
 
 

@@ -149,6 +149,16 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
             [n["id"] for n in start_nodes],
             summary=f"Tracing call stack for {params.node_name}",
         )
+        if params.response_format == ResponseFormat.JSON:
+            res = {
+                "found": found,
+                "symbol": params.node_name,
+                "direction": params.direction.value,
+                "depth": params.depth,
+                "call_stack": output,
+                "nodes": [n["id"] for n in start_nodes],
+            }
+            return json.dumps(res, indent=2)
         return "\n".join(output)
     except Exception as e:
         return handle_error(e, f"tracing {params.node_name}")
@@ -180,10 +190,36 @@ async def vibetrace_impact_analysis(params: ImpactAnalysisInput) -> str:
 async def vibetrace_find_references(params: ReferencesInput) -> str:
     """Find where a specific function or class is called/used."""
     try:
-        db, _ = _get_context_for_path(params.scope_path)
-        found, _, summaries = find_symbol_references(db, params.symbol_name)
+        db, root = _get_context_for_path(params.file_path or params.scope_path)
+        norm_file = _normalize_path(params.file_path, root) if params.file_path else None
+        found, targets, summaries = find_symbol_references(
+            db, params.symbol_name, file_path=norm_file, kind=params.kind
+        )
         if not found:
+            if params.response_format == ResponseFormat.JSON:
+                return json.dumps(
+                    {
+                        "symbol": params.symbol_name.strip().removesuffix("()"),
+                        "found": False,
+                        "targets": [],
+                        "total_references": 0,
+                    },
+                    indent=2,
+                )
             return f"Symbol '{params.symbol_name}' not found in index."
+
+        if params.response_format == ResponseFormat.JSON:
+            total_refs = sum(len(s["references"]) for s in summaries)
+            return json.dumps(
+                {
+                    "symbol": params.symbol_name.strip().removesuffix("()"),
+                    "found": True,
+                    "target_count": len(targets),
+                    "total_references": total_refs,
+                    "targets": summaries,
+                },
+                indent=2,
+            )
         return format_references_md(params.symbol_name, summaries)
     except Exception as e:
         return handle_error(e, f"finding references for {params.symbol_name}")
@@ -206,7 +242,11 @@ async def vibetrace_search_by_signature(params: SearchInput) -> str:
     """Search for functions matching a specific signature pattern."""
     try:
         db, _ = _get_context_for_path(params.scope_path)
-        rows = db.search_by_signature_pattern(params.pattern, limit=50)
+        rows = db.search_by_signature_pattern(
+            params.pattern, limit=params.limit, offset=params.offset
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(rows, indent=2)
         return format_signature_search_md(params.pattern, rows)
     except Exception as e:
         return handle_error(e, f"searching signature {params.pattern}")
