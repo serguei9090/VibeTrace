@@ -214,9 +214,8 @@ def format_signature_search_md(pattern: str, rows: list[dict[str, Any]]) -> str:
     else:
         for row in rows:
             loc = f":L{row['start_line']}" if row.get("start_line") is not None else ""
-            lines.append(
-                f"- **`{row['name']}`** `{row.get('signature', '')}` in `{row['file_path']}{loc}`"
-            )
+            sig = f": `{row.get('signature')}`" if row.get("signature") else ""
+            lines.append(f"- **`{row['name']}`**{sig}\n  - In `{row['file_path']}{loc}`")
     return "\n".join(lines)
 
 

@@ -250,9 +250,10 @@ def search_nodes_endpoint(
 def search_signature_endpoint(
     pattern: str = Query(..., min_length=1),
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ):
     """Search function signatures matching a SQL LIKE pattern or substring."""
-    return db.search_by_signature_pattern(pattern, limit=limit)
+    return db.search_by_signature_pattern(pattern, limit=limit, offset=offset)
 
 
 @app.get("/api/saved-traces")

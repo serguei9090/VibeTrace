@@ -40,6 +40,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **30** | Signature & Call Stack | Auto-wildcard `%sig%`, CLI `--sig`, `/call-stack`, `POST /api/reindex`, server shutdown | `tests/test_audit_code_bugs_round30.py` | ✅ Verified |
 | **31** | Return Types & Traversal Sec | Multi-language return types (Python/TS/Go/Rust), CTE edge priority, `POST /api/reindex` 403 guard | `tests/test_audit_code_bugs_round31.py` | ✅ Verified |
 | **32** | Parity & Deduplication | CLI `call-stack`, `/api/` route parity, call stack multi-symbol isolation, shared formatters | `tests/test_audit_code_bugs_round32.py` | ✅ Verified |
+| **33** | Polyglot Signatures & Ranking | GenericParser (Java/C++/C#) signatures, deterministic centrality ranking, signature search pagination | `tests/test_audit_code_bugs_round33.py` | ✅ Verified |
 
 ---
 
@@ -244,6 +245,16 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Extracted `find_symbol_references` into `services/graph_service.py`, reused across CLI (`cmd_references`), MCP (`vibetrace_find_references`), and REST (`/api/references`).
   - Reused `format_dependencies_md` in `mcp/server.py` (`vibetrace_get_dependencies`).
 * **Strict LOC Ceiling Compliance**: Reduced and preserved all source files strictly $< 500$ LOC: `cli_commands.py` (496 LOC), `server_api.py` (481 LOC), `cli.py` (455 LOC), `mcp/server.py` (375 LOC), `services/graph_service.py` (425 LOC), and `mcp/formatters.py` (243 LOC).
+
+### Round 33: Polyglot Generic Parser Signatures, Deterministic Centrality Ranking & MCP Search Parity
+* **Polyglot Function & Method Signature Extraction (`parsers/generic_parser.py`)**:
+  - Extracted parameter lists and return types (`child_by_field_name("type")` in Java/C++, `returns` in C#) for all functions, methods, and constructors across Java, C++, C#, Ruby, and PHP, eliminating missing signatures (`signature=None`) across these 5 languages.
+* **Deterministic Centrality Ordering & Pagination (`indexer/db_queries.py`)**:
+  - Added `ORDER BY centrality DESC, file_path ASC, start_line ASC LIMIT ? OFFSET ?` to `search_by_signature_pattern`, guaranteeing deterministic results ranked by architectural significance and supporting offset pagination.
+* **REST API & MCP Signature Parity (`server_api.py`, `mcp/server.py`)**:
+  - Added `offset: int = Query(default=0, ge=0)` to `GET /api/search/signature`.
+  - Replaced inline formatting in `vibetrace_search_by_signature` with shared `format_signature_search_md`, ensuring format consistency across CLI (`cmd_search`) and MCP.
+* **Strict LOC Ceiling Compliance**: Maintained all backend files strictly under 500 lines: `generic_parser.py` (461 LOC), `server_api.py` (482 LOC), `mcp/server.py` (366 LOC), and `db_queries.py` (312 LOC).
 
 ---
 

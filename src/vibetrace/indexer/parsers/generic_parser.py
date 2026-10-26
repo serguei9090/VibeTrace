@@ -186,6 +186,7 @@ class GenericParser(LanguageParser):
 
             if node.type in function_types or node.type in class_types:
                 is_func = node.type in function_types
+                param_containers: list[Node] = []
                 if is_func:
                     saved_local_types = dict(ctx.local_types)
                     # Extract parameter types from Java formal_parameters or C++ parameter_list
@@ -229,6 +230,21 @@ class GenericParser(LanguageParser):
                         name if "." in name else self._scoped_name(name, ctx.scope_stack)
                     )
                     node_id = self._get_id(file_path, qualified_name)
+                    signature = None
+                    if is_func:
+                        if param_containers:
+                            signature = self._get_text(param_containers[0])
+                        elif p_node := node.child_by_field_name("parameters"):
+                            signature = self._get_text(p_node)
+                        ret_node = (
+                            node.child_by_field_name("type")
+                            or node.child_by_field_name("returns")
+                            or node.child_by_field_name("return_type")
+                        )
+                        if ret_node and signature:
+                            ret_text = self._get_text(ret_node).strip()
+                            if ret_text:
+                                signature = f"{signature} -> {ret_text}"
                     nodes.append(
                         self._create_node(
                             node_id,
@@ -236,6 +252,7 @@ class GenericParser(LanguageParser):
                             "function" if is_func else "class",
                             file_path,
                             node,
+                            signature=signature,
                             qualified_name=qualified_name,
                             parent_id=parent_id,
                         )

@@ -20,6 +20,7 @@ from vibetrace.mcp.formatters import (
     format_impact_analysis_md,
     format_references_md,
     format_semantic_search_md,
+    format_signature_search_md,
     format_structural_summary_md,
     format_trace_path_md,
 )
@@ -206,17 +207,7 @@ async def vibetrace_search_by_signature(params: SearchInput) -> str:
     try:
         db, _ = _get_context_for_path(params.scope_path)
         rows = db.search_by_signature_pattern(params.pattern, limit=50)
-
-        output = [f"## Signature Search: `{params.pattern}`"]
-        if not rows:
-            output.append("No matches found.")
-        else:
-            for row in rows:
-                loc = f":L{row['start_line']}" if row.get("start_line") is not None else ""
-                output.append(
-                    f"- **`{row['name']}`**: `{row['signature']}`\n  - In `{row['file_path']}`{loc}"
-                )
-        return "\n".join(output)
+        return format_signature_search_md(params.pattern, rows)
     except Exception as e:
         return handle_error(e, f"searching signature {params.pattern}")
 
