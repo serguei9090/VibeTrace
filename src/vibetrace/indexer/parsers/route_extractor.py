@@ -213,7 +213,14 @@ def extract_js_endpoint_route(
         return
     first_arg = args[0]
     if getattr(first_arg, "type", "") not in ("string", "template_string"):
-        return
+        if getattr(first_arg, "type", "") == "binary_expression":
+            left = getattr(first_arg, "child_by_field_name", lambda _: None)("left")
+            if getattr(left, "type", "") in ("string", "template_string"):
+                first_arg = left
+            else:
+                return
+        else:
+            return
 
     raw_url = get_text_fn(first_arg).strip("'\"`")
     if not (raw_url.startswith("/") or "/api/" in raw_url):
@@ -229,6 +236,10 @@ def extract_js_endpoint_route(
         ),
         "GET",
     )
+    if fn_part == "fetch" and len(args) > 1:
+        opts_text = get_text_fn(args[1])
+        if m_meth := re.search(r"""method\s*:\s*['"]([A-Za-z]+)['"]""", opts_text, re.IGNORECASE):
+            method = m_meth.group(1).upper()
     endpoint_name = f"{method} {raw_url}"
     endpoint_id = get_id_fn("__endpoint__", endpoint_name, kind="endpoint")
     if not any(n.id == endpoint_id for n in nodes):

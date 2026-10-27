@@ -243,9 +243,11 @@ class DBQueriesMixin:
         """Get all node IDs and names in a file."""
         norm_path = _clean_path(file_path)
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT id, name, qualified_name FROM nodes WHERE file_path = ?", (norm_path,)
+            query = (
+                "SELECT id, name, qualified_name FROM nodes "
+                "WHERE file_path = ? ORDER BY start_line ASC, name ASC"
             )
+            cursor = conn.execute(query, (norm_path,))
             return [dict(r) for r in cursor.fetchall()]
 
     def get_incoming_dependents(self, node_id: str) -> list[dict[str, Any]]:
@@ -256,6 +258,7 @@ class DBQueriesMixin:
                 FROM edges e
                 JOIN nodes n ON e.from_node_id = n.id
                 WHERE e.to_node_id = ?
+                ORDER BY n.file_path ASC, n.name ASC, e.relation_type ASC
             """
             cursor = conn.execute(query, (node_id,))
             return [dict(r) for r in cursor.fetchall()]
@@ -285,6 +288,7 @@ class DBQueriesMixin:
                 JOIN edges e ON n_from.id = e.from_node_id
                 JOIN nodes n_to ON e.to_node_id = n_to.id
                 WHERE n_from.file_path = ? AND e.relation_type = 'imports'
+                ORDER BY n_to.file_path ASC, n_to.name ASC
             """
             cursor = conn.execute(query, (norm_path,))
             return [dict(r) for r in cursor.fetchall()]

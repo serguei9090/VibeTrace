@@ -375,9 +375,37 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Guarantees deterministic output across platforms and SQLite versions for CLI (`references`), FastMCP (`vibetrace_find_references`), and REST API (`/api/references`).
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `generic_parser.py` (466 LOC), `go_parser.py` (361 LOC), and `db_queries.py` (326 LOC).
 
+### Round 41: JS/TS Aliased Named Exports, Fetch Verb Extraction, Polyglot Enums & Query Determinism
+* **JavaScript/TypeScript Aliased Named Exports & Visibility Tracking (`parsers/js_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `_handle_es_export`, supported both `name` and `alias` in `export_specifier` without a `from` clause (`export { computeTotal as calcTotal, internalHelper }`).
+  - Emits an exported `variable` node for the alias (`calcTotal`) and creates a `references` edge to the local function (`computeTotal`), while upgrading `internalHelper` visibility from `internal` to `exported`.
+  - Preserves `export default identifier` visibility upgrades via unified traversal.
+* **Frontend `fetch()` HTTP Method Options Extraction (`parsers/route_extractor.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added options bag inspection in `extract_js_endpoint_route()` for `fetch(url, { method: "POST" })` or `"DELETE"`/`"PUT"`/`"PATCH"`.
+  - Extracts the uppercase HTTP method rather than defaulting to `GET`, and supports binary expressions (e.g. `'/api/data/' + id`), restoring fullstack trace linking between frontend fetch calls and backend endpoints.
+* **Rust `enum_item` & `type_item` AST Extraction (`parsers/rust_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `"enum_item"` and `"type_item"` to the type declaration branch in `rust_parser.py`.
+  - Assigns `kind="enum"` for `enum_item` and extracts all variants inside `enum_variant_list` with `defines` edges from the parent enum. Maps type aliases (`type_item`) to `kind="struct"`.
+* **Polyglot Enum Extraction in Generic Parser (`parsers/generic_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `"enum_declaration"` (Java, C#) and `"enum_specifier"` (C, C++) to `class_types` and symbol collection in `generic_parser.py`.
+  - Assigns `kind="enum"` for enums, making Java, C#, and C/C++ enums first-class nodes in the knowledge graph.
+* **Database Query Sorting Determinism (`indexer/db_queries.py`)**:
+  - `[Severity: Medium] [Maintainability: Medium]`
+  - Added explicit `ORDER BY` clauses to `get_nodes_in_file` (`ORDER BY start_line ASC, name ASC`), `get_incoming_dependents` (`ORDER BY n.file_path ASC, n.name ASC, e.relation_type ASC`), and `get_file_imports` (`ORDER BY n_to.file_path ASC, n_to.name ASC`).
+  - Eliminates non-deterministic ordering caused by SQLite physical disk page reorganization.
+* **Deterministic RRF Tie-Breaking in Hybrid Search (`services/hybrid_search.py`)**:
+  - `[Severity: Medium] [Maintainability: Low]`
+  - Added multi-key tie-breaker `_rank_key` in `hybrid_search()` (`-score`, `-centrality`, `file_path`, `start_line`, `name`).
+  - Prevents pagination drift and unstable result ordering when multiple candidates have identical RRF scores across page boundaries.
+* **Buffer Ceiling & Formatting Policy**: All modified files comfortably reside within the 500–600 line range without artificial formatting compression: `js_parser.py` (508 LOC), `generic_parser.py` (476 LOC), `db_queries.py` (330 LOC), `rust_parser.py` (277 LOC), `route_extractor.py` (278 LOC), and `hybrid_search.py` (159 LOC).
+
 ---
 
 ## Non-Regression Policy & Guidelines
 1. **Never Revert Approved Contracts**: Do not flip edge relation semantics or path normalization without cross-checking existing test files (`tests/test_fullstack_routes.py`, `tests/test_audit_code_bugs_*.py`).
-2. **File Line Ceilings**: Keep all backend files strictly under 500 lines (Rules 10 & 12).
+2. **File Line Ceilings & Buffer Ranges**: Target 400–500 LOC with an acceptable buffer range of 500–600 lines (Rules 10 & 12). Never compress clean formatting solely to meet arbitrary counts. Justified exceptions exceeding 600 LOC by up to 10% must include a top-of-file explanatory comment.
 3. **No Mocks / Zero Stubs**: Every audit finding must be backed by a concrete, runnable test using the real parser, database, or Git CLI.

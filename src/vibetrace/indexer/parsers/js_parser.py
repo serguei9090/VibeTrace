@@ -89,12 +89,42 @@ class JavaScriptParser(LanguageParser):
         source_node = node.child_by_field_name("source")
         if not source_node:
             for child in node.children:
-                if child.type == "export_clause":
+                if child.type == "identifier":
+                    exp_name = self._get_text(child)
+                    ctx.defined_symbols.add(exp_name)
+                    for n in ctx.nodes:
+                        if n.name == exp_name and n.file_path == ctx.file_path:
+                            n.visibility = "exported"
+                elif child.type == "export_clause":
                     for spec in child.children:
                         if spec.type == "export_specifier" and (
                             sn := spec.child_by_field_name("name")
                         ):
-                            ctx.defined_symbols.add(self._get_text(sn))
+                            loc = self._get_text(sn)
+                            an = spec.child_by_field_name("alias")
+                            exp = self._get_text(an) if an else loc
+                            ctx.defined_symbols.update((loc, exp))
+                            if an:
+                                exp_id = self._get_id(ctx.file_path, exp)
+                                if not any(n.id == exp_id for n in ctx.nodes):
+                                    self._add_node(
+                                        ctx,
+                                        exp_id,
+                                        exp,
+                                        "variable",
+                                        spec,
+                                        parent_id=ctx.file_module_id,
+                                        qualified_name=exp,
+                                        visibility="exported",
+                                    )
+                                loc_id = self._get_id(ctx.file_path, loc)
+                                ctx.edges.append(
+                                    self._create_edge(exp_id, loc_id, "references", node=spec)
+                                )
+                            else:
+                                for n in ctx.nodes:
+                                    if n.name == loc and n.file_path == ctx.file_path:
+                                        n.visibility = "exported"
             return
 
         mod_spec = self._get_text(source_node).strip("\"'`")
@@ -174,10 +204,11 @@ class JavaScriptParser(LanguageParser):
                         break
                     if c.type == "export_clause":
                         for spec in c.children:
-                            if spec.type == "export_specifier" and (
-                                sn := spec.child_by_field_name("name")
-                            ):
-                                ctx.defined_symbols.add(self._get_text(sn))
+                            if spec.type == "export_specifier":
+                                if sn := spec.child_by_field_name("name"):
+                                    ctx.defined_symbols.add(self._get_text(sn))
+                                if an := spec.child_by_field_name("alias"):
+                                    ctx.defined_symbols.add(self._get_text(an))
                     elif c.type == "identifier":
                         ctx.defined_symbols.add(self._get_text(c))
             if target.type in _SYM_TYPES and (name_node := target.child_by_field_name("name")):
@@ -185,18 +216,9 @@ class JavaScriptParser(LanguageParser):
 
         def traverse(node: Node, parent_id: str | None = None, is_exported: bool = False) -> None:
             if node.type == "export_statement":
-                source_node = node.child_by_field_name("source")
-                if source_node:
-                    self._handle_es_export(node, ctx)
-                    return
+                self._handle_es_export(node, ctx)
                 for child in node.children:
-                    if child.type == "identifier":
-                        exp_name = self._get_text(child)
-                        ctx.defined_symbols.add(exp_name)
-                        for n in ctx.nodes:
-                            if n.name == exp_name and n.file_path == file_path:
-                                n.visibility = "exported"
-                    else:
+                    if child.type not in ("export_clause", "namespace_export"):
                         traverse(child, parent_id, is_exported=True)
                 return
 

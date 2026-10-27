@@ -84,6 +84,8 @@ class GenericParser(LanguageParser):
             "trait_item",
             "class",
             "module",
+            "enum_declaration",
+            "enum_specifier",
         }
 
         def collect_defined_symbols(node: Node) -> None:
@@ -266,7 +268,15 @@ class GenericParser(LanguageParser):
                         self._create_node(
                             node_id,
                             name.split(".")[-1],
-                            "function" if is_func else "class",
+                            (
+                                "function"
+                                if is_func
+                                else (
+                                    "enum"
+                                    if node.type in ("enum_declaration", "enum_specifier")
+                                    else "class"
+                                )
+                            ),
                             file_path,
                             node,
                             signature=signature,

@@ -121,10 +121,18 @@ def hybrid_search(
     for idx, (nid, _cent) in enumerate(centrality_candidates, start=1):
         _accumulate(nid, idx, weight_centrality, "centrality")
 
-    # Sort combined hits by descending RRF score
-    ranked_ids = sorted(scores.keys(), key=lambda nid: scores[nid], reverse=True)[
-        offset : offset + limit
-    ]
+    # Sort combined hits by descending RRF score with deterministic tie-breaking
+    def _rank_key(nid: str) -> tuple[float, float, str, int, str]:
+        c = node_cache.get(nid, {})
+        return (
+            -scores[nid],
+            -float(c.get("centrality") or 0.0),
+            str(c.get("file_path") or ""),
+            int(c.get("start_line") or 0),
+            str(c.get("name") or ""),
+        )
+
+    ranked_ids = sorted(scores.keys(), key=_rank_key)[offset : offset + limit]
 
     results: list[SearchResult] = []
     for nid in ranked_ids:

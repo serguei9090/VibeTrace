@@ -129,13 +129,17 @@ class RustParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
-            elif node.type in ("trait_item", "struct_item"):
+            elif node.type in ("trait_item", "struct_item", "enum_item", "type_item"):
                 name_node = node.child_by_field_name("name")
                 if name_node:
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    kind = "trait" if node.type == "trait_item" else "struct"
+                    kind = (
+                        "trait"
+                        if node.type == "trait_item"
+                        else ("enum" if node.type == "enum_item" else "struct")
+                    )
                     nodes.append(
                         self._create_node(
                             node_id,
@@ -168,6 +172,30 @@ class RustParser(LanguageParser):
                                             )
                                             fields_dict[fname] = ftype
                         struct_fields[name] = fields_dict
+                    elif node.type == "enum_item":
+                        for c in node.children:
+                            if c.type == "enum_variant_list":
+                                for vc in c.children:
+                                    if vc.type == "enum_variant" and (
+                                        vn := vc.child_by_field_name("name")
+                                    ):
+                                        v_name = self._get_text(vn).strip()
+                                        v_qual = f"{qualified_name}.{v_name}"
+                                        v_id = self._get_id(file_path, v_qual)
+                                        nodes.append(
+                                            self._create_node(
+                                                v_id,
+                                                v_name,
+                                                "variable",
+                                                file_path,
+                                                vc,
+                                                qualified_name=v_qual,
+                                                parent_id=node_id,
+                                            )
+                                        )
+                                        edges.append(
+                                            self._create_edge(node_id, v_id, "defines", node=vc)
+                                        )
 
                     ctx.scope_stack.append(name)
                     pushed_scope = True
