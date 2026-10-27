@@ -232,6 +232,9 @@ class JavaScriptParser(LanguageParser):
                         name = stem or "<anonymous>"
                         visibility = "exported"
 
+                if name == "<anonymous>":
+                    name = f"<anonymous:L{node.start_point[0] + 1}>"
+
                 qualified_name = self._scoped_name(name, ctx.scope_stack)
                 node_id = self._get_id(file_path, qualified_name)
                 kind = "function"

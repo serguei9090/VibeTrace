@@ -46,6 +46,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **36** | Directory Graph & Search Pagination | Directory graph subsystem queries, LSP indentation offset, hybrid search pagination | `tests/test_audit_code_bugs_round36.py` | ✅ Verified |
 | **37** | Routes & Cross-File Receivers | 'routes' references inclusion, Express member handlers, Go cross-file struct receivers | `tests/test_audit_code_bugs_round37.py` | ✅ Verified |
 | **38** | External Imports & Summary Parity | JS external require/import registration, Rust bare crate use declarations, summary decorators schema parity | `tests/test_audit_code_bugs_round38.py` | ✅ Verified |
+| **39** | Anonymous Callback IDs & Router Types | JS line-anchored anonymous callback IDs & inline routes, Python bare imports, typed APIRouter prefixes | `tests/test_audit_code_bugs_round39.py` | ✅ Verified |
 
 ---
 
@@ -340,6 +341,22 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Ensures CLI (`vibetrace summary --json`), MCP (`vibetrace_get_structural_summary`), and REST API (`GET /api/summary`) all consistently return structured `decorators: list[str]` rather than raw JSON strings.
   - Made `format_structural_summary_md()` resilient to both `list` and `str` types.
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `mcp/server.py` (489 LOC), `js_parser.py` (482 LOC), `db_queries.py` (322 LOC), `mcp/formatters.py` (270 LOC), and `rust_parser.py` (249 LOC).
+
+### Round 39: Anonymous Callback Primary Key Uniqueness, Python Bare Imports & Typed Router Prefixes
+* **JavaScript/TypeScript Line-Anchored Anonymous Callback IDs & Inline Route Linking (`parsers/js_parser.py`, `parsers/route_extractor.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `js_parser.py`, when an anonymous function or arrow function lacks a variable name or export, set `name = f"<anonymous:L{line}>"`, eliminating primary key collisions where multiple callbacks in the same file overwrote each other in SQLite.
+  - In `route_extractor.py`, added `elif` handler for inline callbacks (`arrow_function`, `function_expression`), emitting a `routes` edge from `endpoint_id` directly to `get_id_fn(file_path, f"<anonymous:L{h_line}>")`.
+  - Enables end-to-end execution path tracing from Express HTTP endpoints (e.g. `GET /users`) through inline handlers to inner functions (e.g. `fetchUsers`).
+* **Python External Bare `import` Statements Registered in Symbol Map (`parsers/python_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `_handle_import` for `import_statement`, removed conditional guard requiring `resolved` to be non-None, falling back to `target = resolved or "external"`.
+  - Populates `ctx.imported_symbols` for external packages (e.g. `import requests`, `import json as j`), ensuring calls like `requests.get()` and `j.loads()` target `external::get` and `external::loads` rather than phantom local symbols.
+* **Typed FastAPI APIRouter and Flask Blueprint Prefix Extraction (`parsers/route_extractor.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - Updated `API_ROUTER_RE` and `BLUEPRINT_RE` regexes with `(?:\s*:\s*[\w\.]+)?` to support typed router assignments (e.g. `router: APIRouter = APIRouter(prefix="/api/v1")`).
+  - Fixes defect where the type identifier was erroneously captured as group 1, dropping router URL prefixes from endpoint declarations.
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `js_parser.py` (485 LOC), `python_parser.py` (477 LOC), and `route_extractor.py` (267 LOC).
 
 ---
 

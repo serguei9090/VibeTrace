@@ -23,11 +23,11 @@ FLASK_METHODS_RE = re.compile(r"methods\s*=\s*[\[\(](.*?)[\]\)]", re.IGNORECASE 
 
 # Matches APIRouter(prefix="/...") and Blueprint(..., url_prefix="/...")
 API_ROUTER_RE = re.compile(
-    r"(\w+)\s*=\s*(?:fastapi\.)?APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
+    r"(\w+)(?:\s*:\s*[\w\.]+)?\s*=\s*(?:fastapi\.)?APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 BLUEPRINT_RE = re.compile(
-    r"(\w+)\s*=\s*(?:flask\.)?Blueprint\s*\([^)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",
+    r"(\w+)(?:\s*:\s*[\w\.]+)?\s*=\s*(?:flask\.)?Blueprint\s*\([^)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 
@@ -253,6 +253,15 @@ def extract_js_endpoint_route(
         and getattr(h_arg, "type", "") in ("identifier", "member_expression")
         and (h_id := resolve_call_target_fn(get_text_fn(h_arg), ctx))
     ):
+        edges.append(create_edge_fn(endpoint_id, h_id, "routes", node=h_arg))
+        edges.append(create_edge_fn(parent_id, endpoint_id, "defines", node=node))
+    elif h_arg and getattr(h_arg, "type", "") in (
+        "arrow_function",
+        "function_expression",
+        "function",
+    ):
+        h_line = h_arg.start_point[0] + 1
+        h_id = get_id_fn(file_path, f"<anonymous:L{h_line}>")
         edges.append(create_edge_fn(endpoint_id, h_id, "routes", node=h_arg))
         edges.append(create_edge_fn(parent_id, endpoint_id, "defines", node=node))
     else:

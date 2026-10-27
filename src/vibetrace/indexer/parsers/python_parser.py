@@ -403,17 +403,19 @@ class PythonParser(LanguageParser):
             for child in node.children:
                 if child.type == "dotted_name":
                     module_name = self._get_text(child)
-                    if resolved := self._register_imported_module(module_name, ctx, node):
-                        ctx.imported_symbols[module_name] = (resolved, "__module__")
-                        ctx.imported_symbols[module_name.split(".")[-1]] = (resolved, "__module__")
+                    resolved = self._register_imported_module(module_name, ctx, node)
+                    target = resolved or "external"
+                    ctx.imported_symbols[module_name] = (target, "__module__")
+                    ctx.imported_symbols[module_name.split(".")[-1]] = (target, "__module__")
                 elif child.type == "aliased_import":
                     name_node = child.child_by_field_name("name")
                     alias_node = child.child_by_field_name("alias")
                     if name_node:
                         module_name = self._get_text(name_node)
                         alias = self._get_text(alias_node) if alias_node else module_name
-                        if resolved := self._register_imported_module(module_name, ctx, node):
-                            ctx.imported_symbols[alias] = (resolved, "__module__")
+                        resolved = self._register_imported_module(module_name, ctx, node)
+                        target = resolved or "external"
+                        ctx.imported_symbols[alias] = (target, "__module__")
 
         elif node.type == "import_from_statement":
             if not (module_name_node := node.child_by_field_name("module_name")):
