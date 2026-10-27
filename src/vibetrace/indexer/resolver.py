@@ -29,46 +29,78 @@ class ModuleResolver:
         self.project_root = project_root.resolve()
         self.module_map: dict[str, str] = {}
         self.known_files: set[str] = set()
-        self.go_module: str | None = self._detect_go_module()
-        self.cargo_package: str | None = self._detect_cargo_package()
+        self.go_modules: dict[str, str] = self._detect_go_modules()
+        self.cargo_packages: dict[str, str] = self._detect_cargo_packages()
+        self.go_module: str | None = next(iter(self.go_modules.keys()), None)
+        self.cargo_package: str | None = next(iter(self.cargo_packages.keys()), None)
         self._build_map()
 
+    def _detect_go_modules(self) -> dict[str, str]:
+        """Parse module names from root and subproject go.mod files."""
+        modules: dict[str, str] = {}
+        for root, dirs, files in os.walk(self.project_root):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in ("vendor", "node_modules", ".venv")
+            ]
+            if "go.mod" in files:
+                g_path = Path(root) / "go.mod"
+                try:
+                    content = g_path.read_text(encoding="utf-8", errors="replace")
+                    for line in content.splitlines():
+                        stripped = line.strip()
+                        if stripped.startswith("module "):
+                            parts = stripped.split()
+                            if len(parts) >= 2:
+                                mod_name = parts[1].strip("\"'")
+                                rel = str(Path(root).relative_to(self.project_root)).replace(
+                                    "\\", "/"
+                                )
+                                modules[mod_name] = "" if rel == "." else rel
+                                break
+                except Exception:
+                    pass
+        return modules
+
+    def _detect_cargo_packages(self) -> dict[str, str]:
+        """Parse package names from root and subproject Cargo.toml files."""
+        packages: dict[str, str] = {}
+        for root, dirs, files in os.walk(self.project_root):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in ("target", "node_modules", ".venv")
+            ]
+            if "Cargo.toml" in files:
+                c_path = Path(root) / "Cargo.toml"
+                try:
+                    content = c_path.read_text(encoding="utf-8", errors="replace")
+                    in_package = False
+                    for line in content.splitlines():
+                        stripped = line.strip()
+                        if stripped.startswith("[") and stripped.endswith("]"):
+                            in_package = stripped == "[package]"
+                        elif in_package and stripped.startswith("name"):
+                            parts = stripped.split("=", 1)
+                            if len(parts) == 2:
+                                pkg_name = parts[1].strip(" \"'")
+                                rel = str(Path(root).relative_to(self.project_root)).replace(
+                                    "\\", "/"
+                                )
+                                packages[pkg_name] = "" if rel == "." else rel
+                                break
+                except Exception:
+                    pass
+        return packages
+
     def _detect_go_module(self) -> str | None:
-        """Parse module name from go.mod if present in workspace root."""
-        go_mod = self.project_root / "go.mod"
-        if not go_mod.is_file():
-            return None
-        try:
-            content = go_mod.read_text(encoding="utf-8", errors="replace")
-            for line in content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("module "):
-                    parts = stripped.split()
-                    if len(parts) >= 2:
-                        return parts[1].strip("\"'")
-        except Exception:
-            return None
-        return None
+        """Parse module name from root go.mod if present."""
+        return self.go_module
 
     def _detect_cargo_package(self) -> str | None:
-        """Parse package name from Cargo.toml if present in workspace root."""
-        cargo_toml = self.project_root / "Cargo.toml"
-        if not cargo_toml.is_file():
-            return None
-        try:
-            content = cargo_toml.read_text(encoding="utf-8", errors="replace")
-            in_package = False
-            for line in content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("[") and stripped.endswith("]"):
-                    in_package = stripped == "[package]"
-                elif in_package and stripped.startswith("name"):
-                    parts = stripped.split("=", 1)
-                    if len(parts) == 2:
-                        return parts[1].strip(" \"'")
-        except Exception:
-            return None
-        return None
+        """Parse package name from root Cargo.toml if present."""
+        return self.cargo_package
 
     def _build_map(self) -> None:
         """Builds a map of module names to relative file paths."""
@@ -148,33 +180,40 @@ class ModuleResolver:
                 if matched:
                     return matched
 
-        # Go self-module path resolution (e.g. 'github.com/owner/repo/pkg/auth' -> 'pkg/auth')
-        if self.go_module and (
-            module_name == self.go_module or module_name.startswith(f"{self.go_module}/")
-        ):
-            sub = module_name[len(self.go_module) + 1 :] if module_name != self.go_module else ""
-            if sub:
-                matched = self._match_known_file(sub, current_file)
-                if matched:
-                    return matched
-                for kf in sorted(self.known_files):
-                    if kf.startswith(f"{sub}/") and kf.endswith(".go"):
-                        return kf
+        # Go self-module path resolution across root or subproject go.mod
+        for g_mod, g_dir in self.go_modules.items():
+            if module_name == g_mod or module_name.startswith(f"{g_mod}/"):
+                sub = module_name[len(g_mod) + 1 :] if module_name != g_mod else ""
+                target_cand = f"{g_dir}/{sub}".strip("/") if g_dir else sub
+                if target_cand:
+                    matched = self._match_known_file(target_cand, current_file)
+                    if matched:
+                        return matched
+                    for kf in sorted(self.known_files):
+                        if (kf.startswith(f"{target_cand}/") or kf == target_cand) and kf.endswith(
+                            ".go"
+                        ):
+                            return kf
 
-        # Rust crate package name resolution (e.g. 'my_crate::models' -> 'src/models.rs')
-        if self.cargo_package:
+        # Rust crate package name resolution across root or subproject Cargo.toml
+        for c_pkg, c_dir in self.cargo_packages.items():
             norm_mod = module_name.replace("::", "/").replace(".", "/")
-            if norm_mod == self.cargo_package or norm_mod.startswith(f"{self.cargo_package}/"):
-                sub = (
-                    norm_mod[len(self.cargo_package) + 1 :]
-                    if norm_mod != self.cargo_package
-                    else ""
-                )
+            if norm_mod == c_pkg or norm_mod.startswith(f"{c_pkg}/"):
+                sub = norm_mod[len(c_pkg) + 1 :] if norm_mod != c_pkg else ""
                 if sub:
-                    for cand in (f"src/{sub}", sub):
+                    for cand in (
+                        f"{c_dir}/src/{sub}".strip("/"),
+                        f"{c_dir}/{sub}".strip("/"),
+                        f"src/{sub}",
+                        sub,
+                    ):
                         matched = self._match_known_file(cand, current_file)
                         if matched:
                             return matched
+                for lib_cand in (f"{c_dir}/src/lib.rs", "src/lib.rs"):
+                    matched = self._match_known_file(lib_cand, current_file)
+                    if matched:
+                        return matched
 
         if module_name.startswith((".", "crate/", "super/")):
             return self._resolve_relative(module_name, current_file)

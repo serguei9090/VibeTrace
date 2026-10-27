@@ -2,6 +2,7 @@ import hashlib
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from tree_sitter import Language, Node, Parser, Tree
@@ -279,6 +280,8 @@ class LanguageParser(ABC):
             if prefix in ctx.imported_symbols:
                 target_file, target_sym = ctx.imported_symbols[prefix]
                 sym = rest if target_sym == "__module__" else f"{target_sym}.{rest}"
+                if self.language_name == "go" and target_file.endswith(".go") and self.resolver:
+                    target_file = self._find_go_symbol_file(target_file, sym)
                 return self._get_id(target_file, sym)
 
         # 4. Builtin filtering: unresolvable bare call to standard language builtin
@@ -290,8 +293,38 @@ class LanguageParser(ABC):
             target_file, _ = ctx.imported_symbols["*"]
             return self._get_id(target_file, called_name)
 
-        # 6. Default: symbol in the current file
-        return self._get_id(ctx.file_path, called_name)
+        # 6. Default: symbol in the current file (or sibling file in same Go package)
+        target_f = ctx.file_path
+        if (
+            self.language_name == "go"
+            and ctx.file_path.endswith(".go")
+            and called_name not in ctx.defined_symbols
+            and self.resolver
+        ):
+            target_f = self._find_go_symbol_file(ctx.file_path, called_name)
+        return self._get_id(target_f, called_name)
+
+    def _find_go_symbol_file(self, target_file: str, sym: str) -> str:
+        """Find the specific .go file in the package folder where sym is declared."""
+        if not self.resolver or not self.resolver.known_files:
+            return target_file
+        pkg_dir = str(Path(target_file).parent).replace("\\", "/")
+        raw_sym = sym.split(".")[-1]
+        patterns = (
+            f"func {raw_sym}(".encode(),
+            f"type {raw_sym} ".encode(),
+            f"var {raw_sym} ".encode(),
+            f"const {raw_sym} ".encode(),
+        )
+        for kf in self.resolver.known_files:
+            if kf.endswith(".go") and str(Path(kf).parent).replace("\\", "/") == pkg_dir:
+                try:
+                    content = (self.resolver.project_root / kf).read_bytes()
+                    if any(p in content for p in patterns):
+                        return kf
+                except Exception:
+                    pass
+        return target_file
 
     def _create_node(
         self,
