@@ -92,7 +92,7 @@ _DESTRUCTIVE = ToolAnnotations(
 async def vibetrace_get_structural_summary(params: StructuralSummaryInput) -> str:
     """Get a concise structural summary of a file (classes, functions, methods)."""
     try:
-        db, root = _get_context_for_path(params.file_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_path = _normalize_path(params.file_path, root)
         total, rows = db.get_file_structure(norm_path, params.limit, params.offset)
 
@@ -145,7 +145,7 @@ async def vibetrace_get_structural_summary(params: StructuralSummaryInput) -> st
 async def vibetrace_get_call_stack(params: CallStackInput) -> str:
     """Trace function calls up (callers) or down (callees)."""
     try:
-        db, root = _get_context_for_path(params.file_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_file = _normalize_path(params.file_path, root) if params.file_path else None
         found, output, start_nodes = build_call_stack(
             db,
@@ -181,7 +181,7 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
 async def vibetrace_impact_analysis(params: ImpactAnalysisInput) -> str:
     """Analyze what other files/functions break if this file is modified."""
     try:
-        db, root = _get_context_for_path(params.file_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_path = _normalize_path(params.file_path, root)
 
         total_impact, impacts_by_level = compute_impact_analysis(db, norm_path)
@@ -212,7 +212,7 @@ async def vibetrace_impact_analysis(params: ImpactAnalysisInput) -> str:
 async def vibetrace_find_references(params: ReferencesInput) -> str:
     """Find where a specific function or class is called/used."""
     try:
-        db, root = _get_context_for_path(params.file_path or params.scope_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_file = _normalize_path(params.file_path, root) if params.file_path else None
         found, targets, summaries = find_symbol_references(
             db, params.symbol_name, file_path=norm_file, kind=params.kind
@@ -241,7 +241,7 @@ async def vibetrace_find_references(params: ReferencesInput) -> str:
 async def vibetrace_get_dependencies(params: DependenciesInput) -> str:
     """List modules and symbols imported by a specific file."""
     try:
-        db, root = _get_context_for_path(params.file_path)
+        db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_path = _normalize_path(params.file_path, root)
         internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
         if params.response_format == ResponseFormat.JSON:

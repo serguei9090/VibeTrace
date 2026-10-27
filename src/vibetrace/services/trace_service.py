@@ -89,12 +89,20 @@ def _row_to_trace_node(row: dict[str, Any], node_id: str | None = None) -> Trace
     )
 
 
-def _resolve_symbol_candidates(db: IndexerDB, symbol: str) -> list[dict[str, Any]]:
+def _resolve_symbol_candidates(
+    db: IndexerDB, symbol: str, file_path: str | None = None
+) -> list[dict[str, Any]]:
     clean = symbol.strip().removesuffix("()")
-    exact = db.find_nodes_by_name(clean)
+    exact = db.find_nodes_by_name(clean, file_path=file_path)
     if exact:
         return exact
-    return db.search_ast_exact_or_prefix(clean, limit=5)
+    candidates = db.search_ast_exact_or_prefix(clean, limit=10 if file_path else 5)
+    if file_path:
+        norm_file = file_path.replace("\\", "/").removeprefix("./")
+        filtered = [c for c in candidates if c.get("file_path") == norm_file]
+        if filtered:
+            return filtered
+    return candidates[:5]
 
 
 def trace_execution_path(
@@ -103,10 +111,12 @@ def trace_execution_path(
     to_symbol: str,
     max_depth: int = 6,
     engine: str = "bfs",
+    from_file: str | None = None,
+    to_file: str | None = None,
 ) -> TracePathResult:
     """Find shortest execution tracepaths between two symbols using BFS or recursive CTE."""
-    start_rows = _resolve_symbol_candidates(db, from_symbol)
-    target_rows = _resolve_symbol_candidates(db, to_symbol)
+    start_rows = _resolve_symbol_candidates(db, from_symbol, file_path=from_file)
+    target_rows = _resolve_symbol_candidates(db, to_symbol, file_path=to_file)
 
     if not start_rows or not target_rows:
         return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)

@@ -31,6 +31,10 @@ class StructuralSummaryInput(BaseModel):
         description="Path to the file to analyze (e.g., 'src/parser.py')",
         min_length=1,
     )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
     limit: int = Field(
         default=100,
         description="Maximum number of nodes to return",
@@ -72,6 +76,10 @@ class CallStackInput(BaseModel):
         ge=1,
         le=10,
     )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
@@ -87,6 +95,10 @@ class ImpactAnalysisInput(BaseModel):
         ...,
         description="Path to the file to analyze for impact (e.g., 'src/db.py')",
         min_length=1,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
@@ -160,6 +172,10 @@ class DependenciesInput(BaseModel):
         ...,
         description="Path to the file to check for outgoing dependencies",
         min_length=1,
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context (defaults to CWD)",
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,

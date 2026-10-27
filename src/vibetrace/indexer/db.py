@@ -125,6 +125,7 @@ class IndexerDB(DBQueriesMixin):
         """Insert or replace a node and update FTS5 search index."""
         qualified = node.qualified_name or node.name
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """
                 INSERT OR REPLACE INTO nodes (
@@ -175,6 +176,7 @@ class IndexerDB(DBQueriesMixin):
             "VALUES (?, ?, ?, ?)"
         )
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 sql,
                 (edge.from_node_id, edge.to_node_id, edge.relation_type, edge.call_line),
@@ -235,6 +237,7 @@ class IndexerDB(DBQueriesMixin):
         )
 
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             # Detect symbols deleted from this file to cleanly prune orphaned inbound edges
             old_node_ids = {
                 r[0]
@@ -327,6 +330,7 @@ class IndexerDB(DBQueriesMixin):
         """Remove all nodes, edges (inbound & outbound), FTS5, and file metadata."""
         file_path = _clean_path(file_path)
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """
                 DELETE FROM edges 
@@ -380,6 +384,7 @@ class IndexerDB(DBQueriesMixin):
             "VALUES (?, ?, ?)"
         )
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(sql, (file_path, content_hash, updated_at))
             conn.commit()
 
@@ -397,6 +402,7 @@ class IndexerDB(DBQueriesMixin):
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP"
         )
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(sql, (key, value))
             conn.commit()
 
@@ -460,6 +466,7 @@ class IndexerDB(DBQueriesMixin):
         WHERE nodes.id = n.id AND nodes.centrality != COALESCE(edge_counts.score, 0.0);
         """
         with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(sql)
             conn.commit()
             cursor = conn.execute("SELECT id, centrality FROM nodes WHERE centrality > 0")

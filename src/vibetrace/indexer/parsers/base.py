@@ -154,10 +154,10 @@ class LanguageParser(ABC):
             ctx.local_types[target_name] = ctx.local_types[r_name]
 
     def _get_text(self, node: Node | None) -> str:
-        """Extract text from a tree-sitter node."""
+        """Extract text from a tree-sitter node with fallback for malformed bytes."""
         if node is None or node.text is None:
             return ""
-        return node.text.decode("utf-8")
+        return node.text.decode("utf-8", errors="replace")
 
     def _get_id(self, file_path: str, qualified_name: str, kind: str | None = None) -> str:
         """Generate a unique deterministic ID for a node using its scoped qualified_name."""

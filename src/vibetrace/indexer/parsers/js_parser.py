@@ -19,6 +19,8 @@ _SYM_TYPES = {
     "interface_declaration",
     "enum_declaration",
     "type_alias_declaration",
+    "internal_module",
+    "module",
 }
 
 
@@ -387,6 +389,8 @@ class JavaScriptParser(LanguageParser):
                 "interface_declaration",
                 "enum_declaration",
                 "type_alias_declaration",
+                "internal_module",
+                "module",
             ):
                 name_node = node.child_by_field_name("name")
                 name = self._get_text(name_node) if name_node else None
@@ -403,11 +407,14 @@ class JavaScriptParser(LanguageParser):
                 if name:
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    kind = (
-                        "interface"
-                        if node.type in ("interface_declaration", "type_alias_declaration")
-                        else ("enum" if node.type == "enum_declaration" else "class")
-                    )
+                    if node.type in ("internal_module", "module"):
+                        kind = "module"
+                    elif node.type in ("interface_declaration", "type_alias_declaration"):
+                        kind = "interface"
+                    elif node.type == "enum_declaration":
+                        kind = "enum"
+                    else:
+                        kind = "class"
 
                     self._add_node(
                         ctx,

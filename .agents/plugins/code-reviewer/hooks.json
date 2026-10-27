@@ -1,0 +1,12 @@
+{
+  "gemini-code-reviewer": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "uv run python scripts/review.py",
+        "timeout": 60
+      }
+    ]
+  }
+}

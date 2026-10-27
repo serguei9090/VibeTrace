@@ -129,6 +129,27 @@ class RustParser(LanguageParser):
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
+            elif node.type == "const_item":
+                if cn := node.child_by_field_name("name"):
+                    c_name = self._get_text(cn).strip()
+                    c_qual = self._scoped_name(c_name, ctx.scope_stack)
+                    c_id = self._get_id(file_path, c_qual)
+                    c_sig = self._get_text(node).split("=")[0].strip()
+                    nodes.append(
+                        self._create_node(
+                            c_id,
+                            c_name,
+                            "variable",
+                            file_path,
+                            node,
+                            signature=c_sig,
+                            qualified_name=c_qual,
+                            parent_id=parent_id,
+                        )
+                    )
+                    if parent_id:
+                        edges.append(self._create_edge(parent_id, c_id, "defines", node=node))
+
             elif node.type in ("trait_item", "struct_item", "enum_item", "type_item"):
                 name_node = node.child_by_field_name("name")
                 if name_node:

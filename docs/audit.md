@@ -50,6 +50,11 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **40** | Polyglot Usings & Query Determinism | C# using directives & C++ external headers in GenericParser, Go dot-import wildcard binding, DB query ordering | `tests/test_audit_code_bugs_round40.py` | ✅ Verified |
 | **41** | JS Aliased Exports & Enums | JS named aliased exports, fetch method parsing, Rust/Java/C# enums, DB & search ranking determinism | `tests/test_audit_code_bugs_round41.py` | ✅ Verified |
 | **42** | Python PEP 695, Enums & Go Vars | Python 3.12 PEP 695 type aliases, Python Enum variant extraction, Go consts & vars, custom router names | `tests/test_audit_code_bugs_round42.py` | ✅ Verified |
+| **43** | Surface Parity & Scope Paths | REST Git hooks management endpoints, `/api/search?hybrid=true` flag, MCP `scope_path` parameter parity | `tests/test_audit_code_bugs_round43.py` | ✅ Verified |
+| **44** | Polyglot AST Edge Cases | Python match-case pattern references, Rust const/impl extraction, TS namespace/module, C++ member init calls | `tests/test_audit_code_bugs_round44.py` | ✅ Verified |
+| **45** | SQLite Concurrency & Atomicity | `BEGIN IMMEDIATE` write locks, `DatabaseError` retry backoff, multi-threaded burst indexing stress | `tests/test_audit_code_bugs_round45.py` | ✅ Verified |
+| **46** | Graph Invariants & Disambiguation | File-scoped tracepath disambiguation (`from_file`, `to_file`), mutual recursion cycle boundaries, leaf-node blast radius | `tests/test_audit_code_bugs_round46.py` | ✅ Verified |
+| **47** | AST Fuzzing & Malformed Byte Resilience | Tree-sitter byte decoding error fallback (`errors="replace"`), zero-crash binary fuzzing, deeply nested trees (120+), Unicode/RTL | `tests/test_audit_code_bugs_round47.py` | ✅ Verified |
 
 ---
 
@@ -427,6 +432,82 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - `[Severity: Low] [Maintainability: High]`
   - Added `ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC` to `get_nodes_missing_embeddings()` to guarantee deterministic batch chunking across platforms and SQLite VACUUM states.
 * **Buffer Ceiling & Formatting Policy**: All touched files reside comfortably within limits: `python_parser.py` (591 LOC, within 500–600 buffer), `go_parser.py` (418 LOC), `route_extractor.py` (284 LOC), and `db_queries.py` (331 LOC), with natural, uncompressed formatting.
+
+### Round 43: Surface Parity Across CLI, REST API & MCP Server
+* **REST API Git Hooks Management Endpoints (`server_api.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `GET /api/hooks` (retrieving hook configuration status) and `POST /api/hooks?action=install|uninstall&provider=auto|lefthook|git`.
+  - Bridges the capability gap where Git hook management was available via CLI (`vibetrace hooks`) but entirely absent from the REST API for web visualizers or remote orchestration.
+* **REST API Hybrid Search Parameter Parity (`server_api.py`)**:
+  - `[Severity: Medium] [Maintainability: High]`
+  - Added `hybrid: bool = Query(default=False)` parameter to `GET /api/search`.
+  - When enabled, invokes `hybrid_search()` using 4-stream Reciprocal Rank Fusion (AST + lexical + 256d vector embeddings + PageRank centrality), matching `vibetrace search` CLI and `vibetrace_semantic_search` MCP tool.
+* **MCP Schema Scope Path Parity Across All Inspection Tools (`mcp/schemas.py`, `mcp/server.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `scope_path: str = Field(default=".")` to `StructuralSummaryInput`, `CallStackInput`, `ImpactAnalysisInput`, and `DependenciesInput`.
+  - Updated tool handlers in `mcp/server.py` to resolve context using `params.scope_path or params.file_path`, allowing AI agents to query symbols and file paths scoped to external workspaces or custom project roots without relying on server process CWD.
+* **Buffer Ceiling & Formatting Policy**: All touched files reside strictly within line limits: `server_api.py` (440 LOC), `mcp/server.py` (430 LOC), and `mcp/schemas.py` (320 LOC), passing all strict static typing and ruff linter checks.
+
+### Round 44: Polyglot AST Edge Cases Across Python, Rust, TypeScript & C++
+* **Python Match-Case Pattern Reference Extraction (`parsers/python_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added recursive inspection of `case_pattern` children in `case_clause` nodes.
+  - Resolves target classes in `class_pattern` (e.g. `case Point(x, y):`) and dotted enum attributes in `dotted_name` (e.g. `case Status.OK:`), emitting `references` edges from the enclosing function to the matched symbols.
+* **Rust Top-Level & Impl Constant Extraction (`parsers/rust_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added handler for `const_item` AST nodes, extracting both file-level constants (`pub const MAX: usize = 100`) and associated constants within `impl` blocks (`pub const DEFAULT_TTL: u64 = 300`).
+  - Classifies nodes as `kind="variable"`, computes signatures, and emits `defines` edges from the parent struct/module.
+* **TypeScript Namespace & Internal Module AST Extraction (`parsers/js_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `"internal_module"` and `"module"` to class/type definitions and `_SYM_TYPES` set.
+  - Maps `namespace Foo { ... }` declarations to `kind="module"` nodes and maintains hierarchical scoping so nested interfaces and functions register `defines` edges from the parent namespace.
+* **C++ Constructor Member Initializer Call Edges (`parsers/generic_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added handler for `field_initializer` nodes in C++ constructor definitions (e.g. `Worker(int x) : id(x), svc(createService())`).
+  - Traverses `argument_list` call expressions to resolve called functions and emits `calls` edges from the constructor to the initialization factory.
+* **Buffer Ceiling & Formatting Policy**: All modified parsers stay well within limits: `python_parser.py` (547 LOC, within 500–600 buffer), `generic_parser.py` (462 LOC), `js_parser.py` (468 LOC), and `rust_parser.py` (268 LOC), passing all strict static typing (`pyright`) and linting (`ruff`).
+
+### Round 45: Storage & Concurrency Hardening (BEGIN IMMEDIATE & Locked-Retry Backoff)
+* **SQLite Immediate Write Transaction Locking (`indexer/db.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added explicit `BEGIN IMMEDIATE` transaction acquisition to `batch_save_file_index`, `upsert_node`, `upsert_edge`, `clear_file`, `update_file_hash`, `set_meta`, and `update_centrality_scores`.
+  - Upgrades write transactions immediately at start time, eliminating SQLite's standard deferred transaction upgrade race condition where concurrent readers upgrade to writers mid-stream and crash with deadlocked `sqlite3.OperationalError: database is locked`.
+* **Expanded DatabaseError & Transaction Retry Coverage (`indexer/db_retry.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - Extended `@with_write_retry` exception handling to catch both `sqlite3.OperationalError` and `sqlite3.DatabaseError` when encountering `"locked"`, `"busy"`, or `"cannot start a transaction within a transaction"`.
+  - Applies exponential backoff with random jitter to gracefully unblock threads under simultaneous watcher bursts and query executions.
+* **Batch Save Atomic Rollback Verification (`indexer/db.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Ensured all writes within `batch_save_file_index` execute inside an atomic context block; any failure mid-index automatically triggers a clean `ROLLBACK` of all node inserts, FTS5 updates, edge links, and file hash metadata.
+* **Buffer Ceiling & Formatting Policy**: All touched files remain strictly within limits: `db.py` (451 LOC) and `db_retry.py` (40 LOC), passing all static checks and formatting tests.
+
+### Round 46: Graph Invariants, Disambiguation & Mutual Recursion Cycle Handling
+* **Tracepath File-Scoped Symbol Disambiguation (`services/trace_service.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Extended `trace_execution_path` with `from_file: str | None = None` and `to_file: str | None = None` parameters.
+  - Updated `_resolve_symbol_candidates` to filter candidate start and target nodes by `file_path`, eliminating ambiguous cross-file trace jumps when multiple classes or files share common function names (e.g. `Worker.run`, `save`).
+* **Mutual Recursion Cycle Termination Verification (`services/call_tree_service.py`, `services/graph_service.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Verified that mutual recursion (`A -> B -> A`) cleanly flags the cycle node with `is_cycle=True` and halts recursive expansion without creating cyclic or infinite structures.
+  - Confirmed `build_call_stack` inserts `[CYCLE DETECTED]` and prevents infinite loop traversals across bidirectional traces.
+* **Leaf-Node & Non-Code Blast Radius Safety (`services/graph_service.py`)**:
+  - `[Severity: Medium] [Maintainability: High]`
+  - Verified that `compute_impact_analysis` returns an empty impact dictionary (`{1: [], 2: [], 3: []}`) without error for leaf nodes with no incoming callers, unindexed files, and non-code files.
+* **Buffer Ceiling & Formatting Policy**: All modified files stay well within limits: `trace_service.py` (437 LOC), `call_tree_service.py` (186 LOC), and `graph_service.py` (359 LOC), passing all strict static typing and linting checks.
+
+### Round 47: AST Fuzzing, Binary Chaos & Malformed Byte Resilience
+* **Tree-Sitter Byte Decoding Error Fallback (`indexer/parsers/base.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - In `BaseParser._get_text()`, updated byte decoding from strict `node.text.decode("utf-8")` to `node.text.decode("utf-8", errors="replace")`.
+  - Discovered via random binary fuzzing: files containing corrupt encodings, binary payloads (e.g. `\xff`, null bytes), or truncated multi-byte sequences previously triggered unhandled `UnicodeDecodeError` crashes during AST traversal.
+* **10-Language AST Stress Fuzzing Suite (`tests/test_audit_code_bugs_round47.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added randomized binary fuzz testing across all 10 language parsers (Python, JS, TS, Go, Rust, Java, C++, C#, Ruby, PHP) verifying zero unhandled exceptions.
+  - Validated resilience against deeply nested syntax trees (nesting depth 120+), Unicode/RTL identifiers, and unterminated language constructs (unclosed quotes, multiline comments).
+* **Cross-Platform Path Normalization Invariant Fuzzing (`tests/test_audit_code_bugs_round47.py`)**:
+  - `[Severity: Medium] [Maintainability: High]`
+  - Added randomized combinatorial path fuzzing verifying `_clean_path()` invariants (zero backslashes, no leading redundant `./`) across mixed Windows and POSIX separators.
+* **Buffer Ceiling & Formatting Policy**: `base.py` remains comfortably within limits at **349 LOC**, passing all static checks and formatting tests.
 
 ---
 

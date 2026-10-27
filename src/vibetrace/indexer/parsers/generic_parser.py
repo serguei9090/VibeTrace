@@ -422,6 +422,26 @@ class GenericParser(LanguageParser):
                                 self._create_edge(parent_id, target_id, "calls", node=node)
                             )
 
+            elif parent_id and node.type == "field_initializer":
+                # C++ constructor member initializer: : x(a), helper(initHelper())
+                args_node = None
+                for c in node.children:
+                    if c.type == "argument_list":
+                        args_node = c
+                        break
+                if args_node:
+                    for arg in args_node.children:
+                        if arg.type == "call_expression":
+                            f_node = arg.child_by_field_name("function")
+                            if f_node:
+                                c_name = (
+                                    self._get_text(f_node).replace("::", ".").replace("->", ".")
+                                )
+                                if t_id := self._resolve_call_target(c_name, ctx):
+                                    edges.append(
+                                        self._create_edge(parent_id, t_id, "calls", node=arg)
+                                    )
+
             elif parent_id and node.type in (
                 "call_expression",
                 "method_invocation",

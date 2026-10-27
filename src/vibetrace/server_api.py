@@ -120,6 +120,32 @@ app.add_middleware(
 )
 
 
+@app.get("/api/hooks")
+def get_hooks_endpoint():
+    """Inspect current git hook installation status."""
+    from vibetrace.indexer.hooks import get_hooks_status
+
+    return get_hooks_status(Path(project_root))
+
+
+@app.post("/api/hooks")
+def post_hooks_endpoint(
+    action: Literal["install", "uninstall"] = Query(default="install"),
+    provider: Literal["auto", "lefthook", "git"] = Query(default="auto"),
+):
+    """Install or uninstall automated git hooks for the project."""
+    from vibetrace.indexer.hooks import install_hooks, uninstall_hooks
+
+    if action == "install":
+        ok, msg = install_hooks(Path(project_root), provider=provider)
+    else:
+        ok, msg = uninstall_hooks(Path(project_root))
+
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "action": action, "message": msg}
+
+
 @app.get("/graph")
 @app.get("/api/graph")
 def get_graph(file_path: str | None = None):
@@ -222,8 +248,25 @@ def search_nodes_endpoint(
     kind: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    hybrid: bool = Query(default=False, description="Use 4-stream hybrid RRF search"),
 ):
     """Search code symbols and endpoints by name, qualified name, or lexical query."""
+    if hybrid:
+        from vibetrace.indexer.embeddings import EmbeddingEngine
+        from vibetrace.services.hybrid_search import hybrid_search
+
+        engine = EmbeddingEngine(project_root=Path(project_root))
+        results = hybrid_search(
+            db,
+            q,
+            limit=limit,
+            offset=offset,
+            embedding_engine=engine,
+        )
+        if kind:
+            results = [r for r in results if r.kind == kind]
+        return [r.model_dump() for r in results]
+
     fetch_limit = (limit + offset) if not kind else max((limit + offset) * 5, 50)
     ast_results = db.search_ast_exact_or_prefix(q, limit=fetch_limit)
     if kind:

@@ -17,18 +17,13 @@ class PythonParser(LanguageParser):
         super().__init__("python", resolver)
 
     def _extract_docstring(self, node: Node) -> str | None:
-        body_node = node.child_by_field_name("body")
-        if not body_node:
+        if not (body_node := node.child_by_field_name("body")):
             return None
-
         for child in body_node.children:
-            if child.type == "expression_statement":
-                first_child = child.children[0]
-                if first_child.type == "string":
-                    return self._get_text(first_child).strip("\"'")
-            elif child.type == "comment":
-                continue
-            else:
+            if child.type == "expression_statement" and child.children:
+                if child.children[0].type == "string":
+                    return self._get_text(child.children[0]).strip("\"'")
+            elif child.type != "comment":
                 break
         return None
 
@@ -37,18 +32,12 @@ class PythonParser(LanguageParser):
         if not node.named_children:
             return None
         first = node.named_children[0]
-        id_node = next(
-            (
-                c
-                for c in (
-                    [first]
-                    + list(first.children)
-                    + (list(first.children[0].children) if first.children else [])
-                )
-                if c.type == "identifier"
-            ),
-            None,
+        candidates = (
+            [first]
+            + list(first.children)
+            + (list(first.children[0].children) if first.children else [])
         )
+        id_node = next((c for c in candidates if c.type == "identifier"), None)
         return self._get_text(id_node).strip() if id_node else None
 
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
@@ -141,9 +130,7 @@ class PythonParser(LanguageParser):
         """Extract clean type identifier from type annotation node."""
         if not type_node:
             return None
-        text = self._get_text(type_node).strip()
-        if text.startswith("typing."):
-            text = text[7:]
+        text = self._get_text(type_node).strip().removeprefix("typing.")
         if text.startswith("Optional[") and text.endswith("]"):
             text = text[9:-1].strip()
         elif text.startswith("Union[") and text.endswith("]"):
@@ -282,6 +269,12 @@ class PythonParser(LanguageParser):
                     ctx.edges.append(
                         self._create_edge(parent_id, target_id, "references", node=node)
                     )
+
+        # 9. Match case pattern references (e.g. case Point(x, y): or case Status.OK:)
+        elif parent_id and node.type == "case_clause":
+            for ch in node.children:
+                if ch.type == "case_pattern":
+                    self._extract_pattern_references(ch, parent_id, ctx)
 
         # Recurse
         current_scope_id = node_id if node_id else parent_id
@@ -474,41 +467,46 @@ class PythonParser(LanguageParser):
 
         called_name = self._get_text(func_node)
 
-        # Dynamic heuristic 1: getattr(obj, "method")
-        if called_name == "getattr":
-            args_node = node.child_by_field_name("arguments")
-            if args_node:
-                args = [c for c in args_node.children if c.type not in ("(", ")", ",")]
-                if len(args) >= 2 and args[1].type == "string":
-                    attr_name = self._get_text(args[1]).strip("'\"")
-                    obj_name = self._get_text(args[0])
-                    target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
-                    if target_id:
-                        ctx.edges.append(
-                            self._create_edge(parent_id, target_id, "calls", node=node)
-                        )
-                    return
-
-        # Dynamic heuristic 2: getattr(obj, "method")()
-        if func_node.type == "call":
-            sub_func = func_node.child_by_field_name("function")
-            if sub_func and self._get_text(sub_func) == "getattr":
-                sub_args = func_node.child_by_field_name("arguments")
-                if sub_args:
-                    args = [c for c in sub_args.children if c.type not in ("(", ")", ",")]
-                    if len(args) >= 2 and args[1].type == "string":
-                        attr_name = self._get_text(args[1]).strip("'\"")
-                        obj_name = self._get_text(args[0])
-                        target_id = self._resolve_call_target(f"{obj_name}.{attr_name}", ctx)
-                        if target_id:
-                            ctx.edges.append(
-                                self._create_edge(parent_id, target_id, "calls", node=node)
-                            )
-                        return
+        # Dynamic heuristic: getattr(obj, "method") or getattr(obj, "method")()
+        g_call = (
+            node
+            if called_name == "getattr"
+            else (
+                func_node
+                if func_node.type == "call"
+                and (sf := func_node.child_by_field_name("function"))
+                and self._get_text(sf) == "getattr"
+                else None
+            )
+        )
+        if g_call and (s_args := g_call.child_by_field_name("arguments")):
+            args = [c for c in s_args.children if c.type not in ("(", ")", ",")]
+            if len(args) >= 2 and args[1].type == "string":
+                attr_name = self._get_text(args[1]).strip("'\"")
+                obj_name = self._get_text(args[0])
+                if target_id := self._resolve_call_target(f"{obj_name}.{attr_name}", ctx):
+                    ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+                return
 
         target_id = self._resolve_call_target(called_name, ctx)
         if target_id:
             ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+
+    def _extract_pattern_references(self, pat: Node, parent_id: str, ctx: ParserContext) -> None:
+        """Extract type and attribute references from Python match-case patterns."""
+        for ch in pat.children:
+            if ch.type == "class_pattern":
+                if cls_name_node := ch.children[0] if ch.children else None:
+                    cls_name = self._get_text(cls_name_node).strip()
+                    if t_id := self._resolve_call_target(cls_name, ctx):
+                        ctx.edges.append(
+                            self._create_edge(parent_id, t_id, "references", node=cls_name_node)
+                        )
+            elif ch.type == "dotted_name" and "." in self._get_text(ch):
+                dot_text = self._get_text(ch).strip()
+                if t_id := self._resolve_call_target(dot_text, ctx):
+                    ctx.edges.append(self._create_edge(parent_id, t_id, "references", node=ch))
+            self._extract_pattern_references(ch, parent_id, ctx)
 
     def _handle_import(self, node: Node, ctx: ParserContext) -> None:
         if node.type == "import_statement":
