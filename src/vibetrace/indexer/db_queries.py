@@ -323,7 +323,8 @@ class DBQueriesMixin:
         sql = (
             "SELECT n.* FROM nodes n "
             "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
-            "WHERE e.node_id IS NULL"
+            "WHERE e.node_id IS NULL "
+            "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
         )
         with self._get_conn() as conn:
             cursor = conn.execute(sql, (model_id,))

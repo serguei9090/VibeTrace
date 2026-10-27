@@ -62,6 +62,12 @@ class GoParser(LanguageParser):
                 for sp in child.children:
                     if sp.type == "type_spec" and (sn := sp.child_by_field_name("name")):
                         ctx.defined_symbols.add(self._get_text(sn))
+            elif child.type in ("const_declaration", "var_declaration"):
+                for sp in child.children:
+                    if sp.type in ("const_spec", "var_spec"):
+                        for sc in sp.children:
+                            if sc.type == "identifier":
+                                ctx.defined_symbols.add(self._get_text(sc))
 
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
@@ -271,6 +277,36 @@ class GoParser(LanguageParser):
                                                 )
                                             )
 
+            elif node.type == "const_declaration":
+                for child in node.children:
+                    if child.type == "const_spec":
+                        var_names = [
+                            self._get_text(c).strip()
+                            for c in child.children
+                            if c.type == "identifier"
+                        ]
+                        if parent_id == file_module_id:
+                            for vname in var_names:
+                                v_id = self._get_id(file_path, vname)
+                                vis = "public" if vname[0].isupper() else "private"
+                                nodes.append(
+                                    self._create_node(
+                                        v_id,
+                                        vname,
+                                        "variable",
+                                        file_path,
+                                        child,
+                                        signature=self._get_text(child).strip(),
+                                        visibility=vis,
+                                        qualified_name=vname,
+                                        parent_id=parent_id,
+                                    )
+                                )
+                                edges.append(
+                                    self._create_edge(file_module_id, v_id, "defines", node=child)
+                                )
+                                ctx.defined_symbols.add(vname)
+
             elif node.type == "var_declaration":
                 for child in node.children:
                     if child.type == "var_spec":
@@ -281,6 +317,27 @@ class GoParser(LanguageParser):
                             for c in child.children
                             if c.type == "identifier"
                         ]
+                        if parent_id == file_module_id:
+                            for vname in var_names:
+                                v_id = self._get_id(file_path, vname)
+                                vis = "public" if vname[0].isupper() else "private"
+                                nodes.append(
+                                    self._create_node(
+                                        v_id,
+                                        vname,
+                                        "variable",
+                                        file_path,
+                                        child,
+                                        signature=self._get_text(child).strip(),
+                                        visibility=vis,
+                                        qualified_name=vname,
+                                        parent_id=parent_id,
+                                    )
+                                )
+                                edges.append(
+                                    self._create_edge(file_module_id, v_id, "defines", node=child)
+                                )
+                                ctx.defined_symbols.add(vname)
                         if type_node:
                             t_str = self._get_text(type_node).lstrip("*").split("[")[0].strip()
                             for vname in var_names:

@@ -32,6 +32,25 @@ class PythonParser(LanguageParser):
                 break
         return None
 
+    def _extract_type_alias_name(self, node: Node) -> str | None:
+        """Extract symbol identifier from a Python 3.12 PEP 695 type_alias_statement."""
+        if not node.named_children:
+            return None
+        first = node.named_children[0]
+        id_node = next(
+            (
+                c
+                for c in (
+                    [first]
+                    + list(first.children)
+                    + (list(first.children[0].children) if first.children else [])
+                )
+                if c.type == "identifier"
+            ),
+            None,
+        )
+        return self._get_text(id_node).strip() if id_node else None
+
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():
             return [], []
@@ -70,6 +89,10 @@ class PythonParser(LanguageParser):
                 name_node = target.child_by_field_name("name")
                 if name_node:
                     ctx.defined_symbols.add(self._get_text(name_node))
+            elif target.type == "type_alias_statement":
+                alias_name = self._extract_type_alias_name(target)
+                if alias_name:
+                    ctx.defined_symbols.add(alias_name)
 
         self._traverse(tree.root_node, file_module_id, ctx)
 
@@ -226,25 +249,39 @@ class PythonParser(LanguageParser):
                 ctx.scope_stack.append(def_name)
                 pushed_scope = True
 
-        # 2. Calls
+        # 2. PEP 695 Type Aliases
+        elif node.type == "type_alias_statement":
+            self._handle_type_alias(node, parent_id, ctx)
+
+        # 3. Calls
         elif parent_id and node.type == "call":
             self._handle_call(node, parent_id, ctx)
 
-        # 3. Imports
+        # 4. Imports
         elif node.type in ("import_statement", "import_from_statement"):
             self._handle_import(node, ctx)
 
-        # 4. Dispatch maps: dictionary with symbol references
+        # 5. Dispatch maps: dictionary with symbol references
         elif parent_id and node.type == "dictionary":
             self._handle_dictionary(node, parent_id, ctx)
 
-        # 5. Assignments (constructor instantiation, walrus := & type annotations)
+        # 6. Assignments (constructor instantiation, walrus := & type annotations)
         elif node.type in ("assignment", "named_expression"):
             self._handle_assignment(node, ctx)
 
-        # 6. Context managers
+        # 7. Context managers
         elif node.type == "with_statement":
             self._handle_with_statement(node, ctx)
+
+        # 8. Attribute symbol references (e.g. Color.RED)
+        elif parent_id and node.type == "attribute":
+            attr_text = self._get_text(node).strip()
+            if attr_text in ctx.defined_symbols:
+                target_id = self._resolve_call_target(attr_text, ctx)
+                if target_id and not (node.parent and node.parent.type in ("call", "attribute")):
+                    ctx.edges.append(
+                        self._create_edge(parent_id, target_id, "references", node=node)
+                    )
 
         # Recurse
         current_scope_id = node_id if node_id else parent_id
@@ -293,7 +330,27 @@ class PythonParser(LanguageParser):
         name = self._get_text(name_node)
         qualified_name = self._scoped_name(name, ctx.scope_stack)
         node_id = self._get_id(ctx.file_path, qualified_name)
-        kind = "function" if node.type == "function_definition" else "class"
+
+        is_enum = False
+        if node.type == "class_definition":
+            if sc := node.child_by_field_name("superclasses"):
+                for arg in sc.children:
+                    if arg.type in ("identifier", "attribute"):
+                        base_name = self._get_text(arg).split(".")[-1]
+                        if base_name in (
+                            "Enum",
+                            "IntEnum",
+                            "StrEnum",
+                            "Flag",
+                            "IntFlag",
+                            "ReprEnum",
+                        ):
+                            is_enum = True
+                            break
+
+        kind = (
+            "function" if node.type == "function_definition" else ("enum" if is_enum else "class")
+        )
 
         params_node = node.child_by_field_name("parameters")
         if params_node:
@@ -322,6 +379,37 @@ class PythonParser(LanguageParser):
             parent_id=parent_id,
         )
         ctx.nodes.append(new_node)
+
+        if is_enum and (body_node := node.child_by_field_name("body")):
+            for stmt in body_node.children:
+                if stmt.type == "expression_statement":
+                    for asgn in stmt.children:
+                        if asgn.type == "assignment":
+                            left = asgn.child_by_field_name("left") or (
+                                asgn.children[0] if asgn.children else None
+                            )
+                            if left and left.type == "identifier":
+                                var_name = self._get_text(left).strip()
+                                var_qual = f"{qualified_name}.{var_name}"
+                                var_id = self._get_id(ctx.file_path, var_qual)
+                                ctx.nodes.append(
+                                    self._create_node(
+                                        var_id,
+                                        var_name,
+                                        "variable",
+                                        ctx.file_path,
+                                        asgn,
+                                        signature=self._get_text(asgn).strip(),
+                                        visibility="public",
+                                        qualified_name=var_qual,
+                                        parent_id=node_id,
+                                    )
+                                )
+                                ctx.edges.append(
+                                    self._create_edge(node_id, var_id, "defines", node=asgn)
+                                )
+                                ctx.defined_symbols.add(var_name)
+                                ctx.defined_symbols.add(var_qual)
 
         if decorators:
             endpoint_nodes, route_edges = extract_python_routes(
@@ -354,6 +442,30 @@ class PythonParser(LanguageParser):
                             )
 
         return node_id, name
+
+    def _handle_type_alias(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
+        name = self._extract_type_alias_name(node)
+        if not name:
+            return
+        qualified_name = self._scoped_name(name, ctx.scope_stack)
+        node_id = self._get_id(ctx.file_path, qualified_name)
+        signature = self._get_text(node).strip()
+        visibility = "private" if name.startswith("_") and not name.startswith("__") else "public"
+        new_node = self._create_node(
+            node_id,
+            name,
+            "interface",
+            ctx.file_path,
+            node,
+            signature=signature,
+            visibility=visibility,
+            qualified_name=qualified_name,
+            parent_id=parent_id,
+        )
+        ctx.nodes.append(new_node)
+        ctx.defined_symbols.add(name)
+        if parent_id:
+            ctx.edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
 
     def _handle_call(self, node: Node, parent_id: str, ctx: ParserContext) -> None:
         func_node = node.child_by_field_name("function")

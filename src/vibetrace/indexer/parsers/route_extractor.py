@@ -254,10 +254,12 @@ def extract_js_endpoint_route(
                 parent_id=file_module_id,
             )
         )
+    var_part = called_name.split(".")[0].lower()
     is_b_route = (
-        any(called_name.startswith(p) for p in ("app.", "router.", "server.", "api."))
-        and len(args) >= 2
-    )
+        var_part in ("app", "router", "server", "api")
+        or "router" in var_part
+        or "route" in var_part
+    ) and len(args) >= 2
     h_arg = args[-1] if is_b_route else None
     if (
         h_arg

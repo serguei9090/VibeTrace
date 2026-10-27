@@ -48,6 +48,8 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **38** | External Imports & Summary Parity | JS external require/import registration, Rust bare crate use declarations, summary decorators schema parity | `tests/test_audit_code_bugs_round38.py` | ✅ Verified |
 | **39** | Anonymous Callback IDs & Router Types | JS line-anchored anonymous callback IDs & inline routes, Python bare imports, typed APIRouter prefixes | `tests/test_audit_code_bugs_round39.py` | ✅ Verified |
 | **40** | Polyglot Usings & Query Determinism | C# using directives & C++ external headers in GenericParser, Go dot-import wildcard binding, DB query ordering | `tests/test_audit_code_bugs_round40.py` | ✅ Verified |
+| **41** | JS Aliased Exports & Enums | JS named aliased exports, fetch method parsing, Rust/Java/C# enums, DB & search ranking determinism | `tests/test_audit_code_bugs_round41.py` | ✅ Verified |
+| **42** | Python PEP 695, Enums & Go Vars | Python 3.12 PEP 695 type aliases, Python Enum variant extraction, Go consts & vars, custom router names | `tests/test_audit_code_bugs_round42.py` | ✅ Verified |
 
 ---
 
@@ -402,6 +404,29 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Added multi-key tie-breaker `_rank_key` in `hybrid_search()` (`-score`, `-centrality`, `file_path`, `start_line`, `name`).
   - Prevents pagination drift and unstable result ordering when multiple candidates have identical RRF scores across page boundaries.
 * **Buffer Ceiling & Formatting Policy**: All modified files comfortably reside within the 500–600 line range without artificial formatting compression: `js_parser.py` (508 LOC), `generic_parser.py` (476 LOC), `db_queries.py` (330 LOC), `rust_parser.py` (277 LOC), `route_extractor.py` (278 LOC), and `hybrid_search.py` (159 LOC).
+
+### Round 42: Python 3.12 PEP 695 Type Aliases, Enum Variants, Go Consts/Vars & Route Extraction
+* **Python 3.12 PEP 695 Type Alias Support (`parsers/python_parser.py`)**:
+  - `[Severity: Medium] [Maintainability: High]`
+  - Added support for `type_alias_statement` (e.g. `type Point = tuple[float, float]`, `type ListOrSet[T] = list[T] | set[T]`).
+  - Emits an `interface` node with signature and visibility, records a `defines` edge from the parent/module, and pre-populates `defined_symbols`.
+* **Python `Enum` Detection & Member Variant Extraction (`parsers/python_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Inspects `superclasses` of class definitions. If inheriting from `Enum`, `IntEnum`, `StrEnum`, `Flag`, `IntFlag`, or `ReprEnum`, classifies the node as `kind="enum"`.
+  - Iterates through the enum body block and extracts class-level assignments as `variable` nodes (`qualified_name=f"{EnumName}.{VarName}"`) with `defines` edges from the enum node to its variants.
+  - Added attribute reference resolution so calls/expressions referencing `EnumName.VAR` link via `references` edges.
+* **Go Constants (`const`) & Top-Level Variables (`var`) Extraction (`parsers/go_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added handler for `const_declaration` (both single-line and parenthesized `const ( ... )` blocks) and package-level `var_declaration` when `parent_id == file_module_id`.
+  - Extracts constants and variables as `kind="variable"` nodes with appropriate public/private visibility based on Go identifier capitalization, and emits `defines` edges from the package module.
+* **Express/Koa Custom Router Variable Names Matching (`parsers/route_extractor.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Generalized `is_b_route` variable name checking in `extract_js_endpoint_route()` so that identifiers containing `"router"` or `"route"` (e.g. `authRouter.post()`, `userRoutes.get()`, `apiRouter.delete()`) or in `("app", "server", "api")` are properly matched as backend route definitions.
+  - Links endpoints to handler callbacks via `routes` edges rather than mistreating them as client-side HTTP calls.
+* **SQLite Missing-Embeddings Query Sorting Determinism (`indexer/db_queries.py`)**:
+  - `[Severity: Low] [Maintainability: High]`
+  - Added `ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC` to `get_nodes_missing_embeddings()` to guarantee deterministic batch chunking across platforms and SQLite VACUUM states.
+* **Buffer Ceiling & Formatting Policy**: All touched files reside comfortably within limits: `python_parser.py` (591 LOC, within 500–600 buffer), `go_parser.py` (418 LOC), `route_extractor.py` (284 LOC), and `db_queries.py` (331 LOC), with natural, uncompressed formatting.
 
 ---
 
