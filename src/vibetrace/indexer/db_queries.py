@@ -209,6 +209,7 @@ class DBQueriesMixin:
             if file_path:
                 query += " AND file_path = ?"
                 params.append(_clean_path(file_path))
+            query += " ORDER BY file_path ASC, start_line ASC"
             cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
@@ -223,6 +224,7 @@ class DBQueriesMixin:
                     FROM edges e
                     JOIN nodes n ON e.from_node_id = n.id
                     WHERE e.to_node_id = ?
+                    ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
                 """
             else:
                 query = """
@@ -232,6 +234,7 @@ class DBQueriesMixin:
                     FROM edges e
                     JOIN nodes n ON e.to_node_id = n.id
                     WHERE e.from_node_id = ?
+                    ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
                 """
             cursor = conn.execute(query, (node_id,))
             return [dict(r) for r in cursor.fetchall()]
@@ -267,6 +270,7 @@ class DBQueriesMixin:
                 JOIN nodes n ON e.from_node_id = n.id
                 WHERE e.to_node_id = ?
                   AND e.relation_type IN ('calls', 'references', 'inherits', 'implements', 'routes')
+                ORDER BY n.file_path ASC, e.call_line ASC, n.name ASC
             """
             cursor = conn.execute(query, (node_id,))
             return [dict(r) for r in cursor.fetchall()]

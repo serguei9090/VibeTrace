@@ -99,6 +99,13 @@ class GenericParser(LanguageParser):
 
         collect_defined_symbols(tree.root_node)
 
+        def _link_import(sym: str, target: str, n: Node) -> None:
+            ctx.imported_symbols[sym] = (target, sym)
+            m_id = self._get_id(target, sym, kind="module")
+            if not any(x.id == m_id for x in ctx.nodes):
+                ctx.nodes.append(self._create_node(m_id, sym, "module", target, n))
+            ctx.edges.append(self._create_edge(file_module_id, m_id, "imports", node=n))
+
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None
             pushed_scope = False
@@ -113,14 +120,29 @@ class GenericParser(LanguageParser):
                     sym_name = raw_imp.split(".")[-1]
                     res_path = self.resolver.resolve(raw_imp, file_path) if self.resolver else None
                     if not res_path and self.resolver:
-                        # Try resolving by class name
                         res_path = self.resolver.resolve(sym_name, file_path)
-                    m_path = res_path or "external"
-                    ctx.imported_symbols[sym_name] = (m_path, sym_name)
-                    m_id = self._get_id(m_path, sym_name, kind="module")
-                    if not any(x.id == m_id for x in ctx.nodes):
-                        ctx.nodes.append(self._create_node(m_id, sym_name, "module", m_path, node))
-                    ctx.edges.append(self._create_edge(file_module_id, m_id, "imports", node=node))
+                    _link_import(sym_name, res_path or "external", node)
+                return
+
+            # C# using directive: using System.Collections.Generic; using Proj = MyProject;
+            if node.type == "using_directive":
+                raw_u = (
+                    self._get_text(node).replace("using", "").replace("static", "").strip("; \r\n")
+                )
+                if raw_u:
+                    alias, orig = None, raw_u
+                    if "=" in raw_u:
+                        parts = raw_u.split("=", 1)
+                        alias, orig = parts[0].strip(), parts[1].strip()
+                    sym_name = alias or orig.split(".")[-1]
+                    res_path = (
+                        self.resolver.resolve(orig.replace(".", "/"), file_path)
+                        if self.resolver
+                        else None
+                    )
+                    if not res_path and self.resolver:
+                        res_path = self.resolver.resolve(sym_name, file_path)
+                    _link_import(sym_name, res_path or "external", node)
                 return
 
             # PHP use extraction: use App\Services\PaymentService;
@@ -143,16 +165,7 @@ class GenericParser(LanguageParser):
                             )
                             if not res_path and self.resolver:
                                 res_path = self.resolver.resolve(sym_name, file_path)
-                            m_path = res_path or "external"
-                            ctx.imported_symbols[sym_name] = (m_path, sym_name)
-                            m_id = self._get_id(m_path, sym_name, kind="module")
-                            if not any(x.id == m_id for x in ctx.nodes):
-                                ctx.nodes.append(
-                                    self._create_node(m_id, sym_name, "module", m_path, node)
-                                )
-                            ctx.edges.append(
-                                self._create_edge(file_module_id, m_id, "imports", node=node)
-                            )
+                            _link_import(sym_name, res_path or "external", node)
                 return
 
             # C/C++ #include extraction
@@ -161,27 +174,16 @@ class GenericParser(LanguageParser):
                 if path_node:
                     raw_p = self._get_text(path_node).strip('"<> ')
                     res_path = self.resolver.resolve(raw_p, file_path) if self.resolver else None
-                    if res_path:
-                        # Prefer implementation file (.cpp) over header (.hpp) if present
-                        target_path = res_path
-                        if res_path.endswith((".hpp", ".h")) and self.resolver:
-                            impl_cand = res_path.rsplit(".", 1)[0] + ".cpp"
-                            if impl_cand in self.resolver.known_files:
-                                target_path = impl_cand
+                    target_path = res_path or "external"
+                    if res_path and res_path.endswith((".hpp", ".h")) and self.resolver:
+                        impl_cand = res_path.rsplit(".", 1)[0] + ".cpp"
+                        if impl_cand in self.resolver.known_files:
+                            target_path = impl_cand
 
-                        mod_sym = Path(res_path).stem
-                        ctx.imported_symbols[mod_sym] = (target_path, mod_sym)
-                        cap_sym = mod_sym[0].upper() + mod_sym[1:] if mod_sym else mod_sym
-                        ctx.imported_symbols[cap_sym] = (target_path, cap_sym)
-
-                        m_id = self._get_id(target_path, mod_sym, kind="module")
-                        if not any(x.id == m_id for x in ctx.nodes):
-                            ctx.nodes.append(
-                                self._create_node(m_id, mod_sym, "module", target_path, node)
-                            )
-                        ctx.edges.append(
-                            self._create_edge(file_module_id, m_id, "imports", node=node)
-                        )
+                    mod_sym = Path(raw_p).stem
+                    _link_import(mod_sym, target_path, node)
+                    cap_sym = mod_sym[0].upper() + mod_sym[1:] if mod_sym else mod_sym
+                    ctx.imported_symbols[cap_sym] = (target_path, cap_sym)
                 return
 
             if node.type in function_types or node.type in class_types:
@@ -398,19 +400,7 @@ class GenericParser(LanguageParser):
                                         if self.resolver
                                         else None
                                     )
-                                    m_path = res_p or "external"
-                                    mod_sym = Path(raw_p).stem
-                                    ctx.imported_symbols[mod_sym] = (m_path, mod_sym)
-                                    m_id = self._get_id(m_path, mod_sym, kind="module")
-                                    if not any(x.id == m_id for x in ctx.nodes):
-                                        ctx.nodes.append(
-                                            self._create_node(m_id, mod_sym, "module", m_path, node)
-                                        )
-                                    ctx.edges.append(
-                                        self._create_edge(
-                                            file_module_id, m_id, "imports", node=node
-                                        )
-                                    )
+                                    _link_import(Path(raw_p).stem, res_p or "external", node)
                         return
                     elif parent_id:
                         called_name = (

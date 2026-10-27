@@ -76,14 +76,15 @@ class GoParser(LanguageParser):
                         ):
                             raw_p = self._get_text(p_node).strip('"')
                             n_node = spec.child_by_field_name("name")
-                            alias = (
-                                self._get_text(n_node).strip() if n_node else raw_p.split("/")[-1]
-                            )
+                            raw_alias = self._get_text(n_node).strip() if n_node else None
+                            alias = raw_alias if raw_alias else raw_p.split("/")[-1]
                             res_path = (
                                 self.resolver.resolve(raw_p, file_path) if self.resolver else None
                             )
                             m_path = res_path or "external"
                             ctx.imported_symbols[alias] = (m_path, "__module__")
+                            if raw_alias == ".":
+                                ctx.imported_symbols["*"] = (m_path, "__module__")
                             m_id = self._get_id(m_path, alias, kind="module")
                             if not any(n.id == m_id for n in ctx.nodes):
                                 ctx.nodes.append(

@@ -47,6 +47,7 @@ This document tracks all strict critique audit rounds, identified root causes, f
 | **37** | Routes & Cross-File Receivers | 'routes' references inclusion, Express member handlers, Go cross-file struct receivers | `tests/test_audit_code_bugs_round37.py` | ✅ Verified |
 | **38** | External Imports & Summary Parity | JS external require/import registration, Rust bare crate use declarations, summary decorators schema parity | `tests/test_audit_code_bugs_round38.py` | ✅ Verified |
 | **39** | Anonymous Callback IDs & Router Types | JS line-anchored anonymous callback IDs & inline routes, Python bare imports, typed APIRouter prefixes | `tests/test_audit_code_bugs_round39.py` | ✅ Verified |
+| **40** | Polyglot Usings & Query Determinism | C# using directives & C++ external headers in GenericParser, Go dot-import wildcard binding, DB query ordering | `tests/test_audit_code_bugs_round40.py` | ✅ Verified |
 
 ---
 
@@ -357,6 +358,22 @@ This document tracks all strict critique audit rounds, identified root causes, f
   - Updated `API_ROUTER_RE` and `BLUEPRINT_RE` regexes with `(?:\s*:\s*[\w\.]+)?` to support typed router assignments (e.g. `router: APIRouter = APIRouter(prefix="/api/v1")`).
   - Fixes defect where the type identifier was erroneously captured as group 1, dropping router URL prefixes from endpoint declarations.
 * **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `js_parser.py` (485 LOC), `python_parser.py` (477 LOC), and `route_extractor.py` (267 LOC).
+
+### Round 40: Polyglot Usings, Go Dot-Imports & Graph Query Determinism
+* **C# Using Directives & C/C++ External Header Capture (`parsers/generic_parser.py`)**:
+  - `[Severity: High] [Maintainability: High]`
+  - Added `using_directive` support in `generic_parser.py`, registering C# namespaces and aliased imports (`using Proj = MyProject;`) as module nodes with `imports` edges.
+  - Updated C/C++ `#include` to fall back to `target_path = res_path or "external"`, ensuring external/standard library headers (`<vector>`, `<iostream>`, `<memory>`) create module nodes and populate `ctx.imported_symbols`.
+  - Deduplicated import linking across Java, PHP, C/C++, C#, and Ruby with reusable `_link_import()` helper.
+* **Go Dot-Import Wildcard Symbol Resolution (`parsers/go_parser.py`)**:
+  - `[Severity: High] [Maintainability: Medium]`
+  - In `go_parser.py`, when `raw_alias == "."` (e.g. `import . "fmt"`), mapped `ctx.imported_symbols["*"] = (m_path, "__module__")`.
+  - Enables `_resolve_call_target` in `base.py` to resolve bare calls (e.g. `Println("hello")`) to the imported module without requiring explicit package prefix.
+* **Deterministic Result Ordering Across SQLite Graph Queries (`indexer/db_queries.py`)**:
+  - `[Severity: Medium] [Maintainability: Medium]`
+  - Added explicit `ORDER BY` clauses to `find_nodes_by_name` (`ORDER BY file_path ASC, start_line ASC`), `get_symbol_references` (`ORDER BY n.file_path ASC, e.call_line ASC, n.name ASC`), and `get_neighbors` (`ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC`).
+  - Guarantees deterministic output across platforms and SQLite versions for CLI (`references`), FastMCP (`vibetrace_find_references`), and REST API (`/api/references`).
+* **Strict LOC Ceiling Compliance**: All modified files remain strictly $< 500$ LOC: `generic_parser.py` (466 LOC), `go_parser.py` (361 LOC), and `db_queries.py` (326 LOC).
 
 ---
 
