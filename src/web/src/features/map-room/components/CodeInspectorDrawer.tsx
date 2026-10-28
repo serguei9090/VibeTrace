@@ -4,6 +4,8 @@ import { Code2, FileCode, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { RawGraphEdge, RawGraphNode, SelectedElement } from "../types";
+import { CallerGuardBadge } from "./CallerGuardBadge";
+import { VibeBundleButton } from "./VibeBundleButton";
 
 interface CodeInspectorDrawerProps {
   apiUrl: string;
@@ -154,6 +156,17 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
         >
           <X size={15} />
         </button>
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div style={{ flex: 1 }}>
+          <CallerGuardBadge
+            apiUrl={apiUrl}
+            symbolName={targetNode.name}
+            filePath={targetNode.file_path}
+          />
+        </div>
+        <VibeBundleButton apiUrl={apiUrl} symbolName={targetNode.name} />
       </div>
 
       {selectedEdge && calleeNode && (
