@@ -23,6 +23,7 @@ Get everything needed for a task—relevant architecture specs, target code impl
 **Rule 1 Requirement:** Never modify a function or method signature without inspecting all incoming callers first. The Caller Guard checks every caller in the AST graph, highlights exact call lines, and computes an active blast-radius advisory:
 
 - **MCP Tool:** `vibetrace_check_caller_guard(symbol_name="upsert_node")`
+- **MCP Staged Check:** `vibetrace_check_caller_guard(staged=True)`
 - **CLI:** `uv run vibetrace guard upsert_node`
 
 ### 3. Git Pre-Commit Blast-Radius Gate (`guard --staged`)
@@ -84,12 +85,16 @@ Before modifying a function or debugging a multi-hop flow, trace the exact hop-b
 
 ### Via MCP Tool
 - `vibetrace_trace_path(from_symbol="<entry_point>", to_symbol="<target_symbol>", max_depth=6)`
+- `vibetrace_get_call_stack(node_name="<symbol>", direction="both", depth=3)`
+- `vibetrace_get_dependencies(file_path="<path/to/file.py>", reverse=False)`
 - `vibetrace_impact_analysis(file_path="<path/to/file.py>")`
 - `vibetrace_find_references(symbol_name="<ClassName.method_name>")`
 
 ### Via CLI
 ```bash
 uv run vibetrace trace vibetrace_get_structural_summary get_file_structure
+uv run vibetrace call-stack DocIndexService.index_catalog
+uv run vibetrace dependencies src/vibetrace/docs/service.py --reverse
 uv run vibetrace impact src/vibetrace/indexer/db.py
 ```
 

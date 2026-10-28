@@ -76,6 +76,10 @@ class CallStackInput(BaseModel):
         ge=1,
         le=10,
     )
+    all_relations: bool = Field(
+        default=False,
+        description="Include non-executable AST relations (defines, imports, references)",
+    )
     scope_path: str = Field(
         default=".",
         description="Project root or relevant path to scope the search context (defaults to CWD)",
@@ -172,6 +176,10 @@ class DependenciesInput(BaseModel):
         ...,
         description="Path to the file to check for outgoing dependencies",
         min_length=1,
+    )
+    reverse: bool = Field(
+        default=False,
+        description="Show only inbound dependents (files that import this file)",
     )
     scope_path: str = Field(
         default=".",
@@ -443,9 +451,16 @@ class CallerGuardInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
 
     symbol_name: str = Field(
-        ...,
-        description="Target symbol name to inspect callers of before editing code",
-        min_length=1,
+        default="",
+        description="Target symbol name to inspect callers of (optional if staged=True)",
+    )
+    staged: bool = Field(
+        default=False,
+        description="Inspect modified symbol definitions in staged git diff",
+    )
+    strict: bool = Field(
+        default=False,
+        description="In staged mode, raise warning alert if any caller exists",
     )
     file_path: str | None = Field(
         default=None,

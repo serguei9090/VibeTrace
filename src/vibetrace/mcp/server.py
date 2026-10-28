@@ -54,9 +54,9 @@ from vibetrace.mcp.schemas import (
     TraceDirection as TraceDirection,
 )
 from vibetrace.services.graph_service import (
+    analyze_file_dependencies,
     build_call_stack,
     build_call_tree,
-    categorize_file_dependencies,
     compute_impact_analysis,
     find_symbol_references,
     format_call_tree_md,
@@ -155,12 +155,14 @@ async def vibetrace_get_call_stack(params: CallStackInput) -> str:
     try:
         db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_file = _normalize_path(params.file_path, root) if params.file_path else None
+        rel_types = None if params.all_relations else ("calls", "routes")
         found, output, start_nodes = build_call_stack(
             db,
             params.node_name,
             direction=params.direction.value,
             max_depth=params.depth,
             file_path=norm_file,
+            relation_types=rel_types,
         )
         if not found:
             return f"Node '{params.node_name}' not found. Is the file indexed?"
@@ -251,22 +253,34 @@ async def vibetrace_get_dependencies(params: DependenciesInput) -> str:
     try:
         db, root = _get_context_for_path(params.scope_path or params.file_path)
         norm_path = _normalize_path(params.file_path, root)
-        internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+        analysis = analyze_file_dependencies(db, norm_path)
         if params.response_format == ResponseFormat.JSON:
             payload = {
                 "file_path": norm_path,
                 "counts": {
-                    "internal": len(internal),
-                    "third_party": len(third_party),
-                    "stdlib": len(stdlib),
-                    "total": len(internal) + len(third_party) + len(stdlib),
+                    "internal": len(analysis["internal"]),
+                    "third_party": len(analysis["third_party"]),
+                    "stdlib": len(analysis["stdlib"]),
+                    "dependents": len(analysis["dependents"]),
+                    "circular": len(analysis["circular"]),
+                    "total_imports": (
+                        len(analysis["internal"])
+                        + len(analysis["third_party"])
+                        + len(analysis["stdlib"])
+                    ),
                 },
-                "internal": internal,
-                "third_party": third_party,
-                "stdlib": stdlib,
+                **analysis,
             }
             return json.dumps(payload, indent=2)
-        return format_dependencies_md(norm_path, internal, third_party, stdlib)
+        return format_dependencies_md(
+            norm_path,
+            analysis["internal"],
+            analysis["third_party"],
+            analysis["stdlib"],
+            dependents=analysis["dependents"],
+            circular=analysis["circular"],
+            reverse_only=params.reverse,
+        )
     except Exception as e:
         return handle_error(e, f"getting dependencies for {params.file_path}")
 
@@ -553,12 +567,23 @@ async def vibetrace_list_doc_catalogs(params: DocCatalogsInput) -> str:
 async def vibetrace_check_caller_guard(params: CallerGuardInput) -> str:
     """
     Pre-flight blast-radius guard: inspect all incoming callers, signatures, and call
-    sites of a symbol before modifying its implementation or contract.
+    sites of a symbol before modifying its implementation or contract. Supports staged changes.
     """
     try:
         from vibetrace.services.caller_guard import CallerGuardService
 
         db, root = get_context_for_path(params.scope_path)
+        if params.staged:
+            reports = CallerGuardService.get_staged_caller_guard(db, root)
+            if params.response_format == ResponseFormat.JSON:
+                return json.dumps([r.model_dump() for r in reports], indent=2)
+            if not reports:
+                return (
+                    "## 🛡️ Pre-Commit Caller Guard Check\n\n"
+                    "No modified symbol definitions detected in staged changes."
+                )
+            return "\n\n".join(format_caller_guard_markdown(r) for r in reports)
+
         report = CallerGuardService.get_caller_guard(
             db, root, symbol_name=params.symbol_name, file_path=params.file_path
         )

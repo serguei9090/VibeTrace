@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.server_api_docs import docs_router
 from vibetrace.services.graph_service import (
+    analyze_file_dependencies,
     build_call_stack,
     build_call_tree,
-    categorize_file_dependencies,
     compute_impact_analysis,
     find_symbol_references,
     get_code_slice,
@@ -195,15 +195,18 @@ def get_call_stack_endpoint(
     direction: Literal["up", "down", "both"] = Query(default="both"),
     depth: int = Query(default=3, ge=1, le=10),
     file_path: str | None = Query(default=None),
+    all_relations: bool = Query(default=False),
 ):
     """Explore bidirectional execution call stack (callers up, callees down, or both)."""
     norm_file = normalize_path(file_path, Path(project_root)) if file_path else None
+    rel_types = None if all_relations else ("calls", "routes")
     found, output, start_nodes = build_call_stack(
         db,
         symbol,
         direction=direction,
         max_depth=depth,
         file_path=norm_file,
+        relation_types=rel_types,
     )
     if not found:
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in index")
@@ -441,13 +444,23 @@ def get_references_endpoint(
 
 @app.get("/api/vibe/guard")
 def get_vibe_guard_endpoint(
-    symbol: str = Query(..., min_length=1),
+    symbol: str = Query(default=""),
     file_path: str | None = Query(default=None),
+    staged: bool = Query(default=False),
 ):
     """Pre-flight caller inspection to verify blast radius before editing code."""
     from vibetrace.services.caller_guard import CallerGuardService
 
     active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root))
+    if staged:
+        reports = CallerGuardService.get_staged_caller_guard(db, active_root)
+        return [r.model_dump() for r in reports]
+
+    if not symbol:
+        raise HTTPException(
+            status_code=422, detail="Symbol parameter is required when staged=False"
+        )
+
     norm_file = normalize_path(file_path, active_root) if file_path else None
     report = CallerGuardService.get_caller_guard(
         db, active_root, symbol_name=symbol, file_path=norm_file
@@ -483,18 +496,20 @@ def get_dependencies_endpoint(file_path: str = Query(..., min_length=1)):
     norm_path = normalize_path(file_path, Path(project_root))
     if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
         raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
-    internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+    analysis = analyze_file_dependencies(db, norm_path)
     return {
         "file_path": norm_path,
         "counts": {
-            "internal": len(internal),
-            "third_party": len(third_party),
-            "stdlib": len(stdlib),
-            "total": len(internal) + len(third_party) + len(stdlib),
+            "internal": len(analysis["internal"]),
+            "third_party": len(analysis["third_party"]),
+            "stdlib": len(analysis["stdlib"]),
+            "dependents": len(analysis["dependents"]),
+            "circular": len(analysis["circular"]),
+            "total": (
+                len(analysis["internal"]) + len(analysis["third_party"]) + len(analysis["stdlib"])
+            ),
         },
-        "internal": internal,
-        "third_party": third_party,
-        "stdlib": stdlib,
+        **analysis,
     }
 
 
