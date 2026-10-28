@@ -37,6 +37,6 @@ class DocSearchQuery(BaseModel):
 
     query: str
     catalog: str | None = None
-    scope: Literal["all", "local", "global"] = "all"
+    scope: Literal["local", "global", "all"] = "local"
     limit: int = 5
     file_pattern: str | None = None

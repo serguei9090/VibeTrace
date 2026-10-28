@@ -1,13 +1,41 @@
 ---
 name: vibetrace-navigator
-description: Surgical codebase discovery, execution tracepath analysis, blast-radius verification, and token-efficient source slicing via VibeTrace CLI and MCP tools. Use this skill whenever exploring a repository, tracing how an entry point reaches a target function, checking callers before refactoring, or reading specific symbol definitions without loading entire files.
+description: Surgical codebase discovery, execution tracepath analysis, blast-radius verification, token-efficient source slicing, and documentation RAG via VibeTrace CLI and MCP tools. Use this skill whenever exploring a repository, consulting project or master documentation, tracing how an entry point reaches a target function, checking callers before refactoring, or reading specific symbol definitions without loading entire files.
 ---
 
 # VibeTrace Navigator Skill
 
-VibeTrace indexes the repository's Tree-sitter AST, call/inheritance graph (with exact 1-indexed `call_line` numbers), SQLite FTS5 BM25 lexical index, and optional local `EmbeddingGemma 2` (256d Matryoshka) vectors in a single `vibetrace.db` file.
+VibeTrace indexes the repository's Tree-sitter AST, call/inheritance graph (with exact 1-indexed `call_line` numbers), SQLite FTS5 BM25 lexical index, documentation RAG catalogs (.md, .txt, .pdf), and optional local `EmbeddingGemma 2` (256d Matryoshka) vectors in SQLite databases.
 
-Always follow the **3-Step Surgical Workflow** (`Locate -> Trace/Impact -> Slice`) instead of blind regex grepping or reading entire 500-line files.
+Always follow the **4-Step Surgical Workflow** (`Docs -> Locate -> Trace/Impact -> Slice`) instead of blind regex grepping or reading entire 500-line files.
+
+---
+
+## Step 0: Consult Project & Master Docs (`docs`)
+
+Before modifying code or planning architecture, consult project-specific requirements, design specs, or global master tech-stack guidelines:
+
+### Scoping & Cross-Contamination Guardrails
+- **Default (`scope="local"`):** Searches **only** the current project's documentation catalogs defined in `.vibetrace.toml`. This prevents global generalities from contaminating project-specific truths.
+- **Master Stack (`scope="global"`):** Explicitly queries your personal master documentation catalogs in `~/.vibetrace/config.toml` for standard stack playbooks.
+- **Combined (`scope="all"`):** Searches both local and global documentation simultaneously using 2-stream hybrid Reciprocal Rank Fusion (RRF).
+- **Answer Scope Tags:** Each returned chunk is tagged with `[LOCAL:catalog]` or `[GLOBAL:catalog]` so you always know the provenance of every document snippet.
+
+### Via MCP Tool
+- `vibetrace_search_docs(query="<architecture, API contract, or standard>", scope="local", limit=5)`
+- `vibetrace_list_doc_catalogs()`
+
+### Via CLI
+```bash
+# Add folders to local project catalog and index
+uv run vibetrace docs catalog add core docs/
+uv run vibetrace docs index
+
+# Search documentation (defaults to local project docs)
+uv run vibetrace docs search "authentication flow"
+# Search master stack documentation
+uv run vibetrace docs search "rust error handling pattern" --scope global
+```
 
 ---
 

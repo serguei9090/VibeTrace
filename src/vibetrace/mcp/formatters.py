@@ -271,12 +271,13 @@ def format_saved_traces_md(traces: list[Any]) -> str:
 
 
 def format_doc_search_md(query: str, items: list[Any]) -> str:
-    """Format documentation search chunks as Markdown."""
+    """Format documentation search chunks as Markdown with explicit scope tags."""
     if not items:
         return f"No documentation matches found for `{query}`."
     lines = [f"## Documentation Search Results for `{query}`", ""]
     for idx, it in enumerate(items, start=1):
-        scope = getattr(it, "scope", "")
+        scope = getattr(it, "scope", "local")
+        scope_upper = str(scope).upper()
         cat = getattr(it, "catalog", "")
         fpath = getattr(it, "file_path", "")
         hpath = getattr(it, "heading_path", "")
@@ -284,8 +285,12 @@ def format_doc_search_md(query: str, items: list[Any]) -> str:
         e_line = getattr(it, "end_line", 1)
         score = getattr(it, "score", 0.0)
         content = getattr(it, "content", "").strip()
-        lines.append(f"### {idx}. [{scope}:{cat}] {fpath} (Lines {s_line}-{e_line})")
-        lines.append(f"**Section:** `{hpath}` | **Score:** {score:.4f}")
+        lines.append(f"### {idx}. [{scope_upper}:{cat}] {fpath} (Lines {s_line}-{e_line})")
+        meta = (
+            f"**Tag:** `[{scope_upper}]` | **Catalog:** `{cat}` | "
+            f"**Section:** `{hpath}` | **Score:** {score:.4f}"
+        )
+        lines.append(meta)
         lines.append("")
         lines.append(content)
         lines.append("")

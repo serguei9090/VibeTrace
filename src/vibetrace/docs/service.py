@@ -261,7 +261,7 @@ class DocSearchService:
         cls,
         query: str,
         catalog: str | None = None,
-        scope: Literal["all", "local", "global"] = "all",
+        scope: Literal["local", "global", "all"] = "local",
         project_root: Path | None = None,
         limit: int = 5,
     ) -> list[DocChunkItem]:

@@ -142,9 +142,9 @@ def _cmd_docs_search(args: argparse.Namespace) -> int:
         return 1
 
     catalog = getattr(args, "catalog", None)
-    raw_scope = getattr(args, "scope", "all")
+    raw_scope = getattr(args, "scope", "local")
     scope: Literal["all", "local", "global"] = (
-        raw_scope if raw_scope in ("all", "local", "global") else "all"
+        raw_scope if raw_scope in ("all", "local", "global") else "local"
     )
     limit = getattr(args, "limit", 5)
 
@@ -161,13 +161,14 @@ def _cmd_docs_search(args: argparse.Namespace) -> int:
         print(json.dumps([it.model_dump() for it in items], indent=2))
     else:
         if not items:
-            print(f"No documentation matches found for '{query}'.")
+            hint = " (scope: local). Try --scope global or --scope all." if scope == "local" else ""
+            print(f"No documentation matches found for '{query}'{hint}")
             return 0
         print(f"Found {len(items)} documentation results for '{query}':\n")
         for idx, it in enumerate(items, start=1):
             sources = ", ".join(it.match_sources)
             header = (
-                f"{idx}. [{it.scope}:{it.catalog}] {it.file_path} "
+                f"{idx}. [{it.scope.upper()}:{it.catalog}] {it.file_path} "
                 f"(L{it.start_line}-L{it.end_line}) | {it.heading_path}"
             )
             print(header)

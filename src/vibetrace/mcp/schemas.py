@@ -398,9 +398,9 @@ class DocSearchInput(BaseModel):
         default=None,
         description="Optional specific catalog name to filter search",
     )
-    scope: Literal["all", "local", "global"] = Field(
-        default="all",
-        description="Catalog search scope: 'all', 'local', or 'global' (default: all)",
+    scope: Literal["local", "global", "all"] = Field(
+        default="local",
+        description="Catalog search scope: 'local' (default), 'global', or 'all'",
     )
     scope_path: str = Field(
         default=".",

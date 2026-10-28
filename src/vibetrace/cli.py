@@ -491,9 +491,9 @@ examples:
     )
     p_doc_search.add_argument(
         "--scope",
-        choices=["all", "local", "global"],
-        default="all",
-        help="Catalog search scope (default: all)",
+        choices=["local", "global", "all"],
+        default="local",
+        help="Catalog search scope (default: local)",
     )
     p_doc_search.add_argument(
         "--limit",

@@ -140,11 +140,10 @@ def test_indexing_and_hybrid_search(doc_workspace):
     )
     assert res_global["files"] >= 1
 
-    # Search local
+    # Search local by default (scope="local")
     items = DocSearchService.search(
         query="BEGIN IMMEDIATE SQLite",
         project_root=proj_root,
-        scope="all",
         limit=5,
     )
     assert len(items) >= 1
@@ -153,11 +152,19 @@ def test_indexing_and_hybrid_search(doc_workspace):
     assert top.catalog == "core"
     assert top.scope == "local"
 
-    # Search global
+    # Default scope="local" isolates search: global "Parsimony ladder" is NOT returned
+    local_only_items = DocSearchService.search(
+        query="Parsimony ladder",
+        project_root=proj_root,
+        limit=5,
+    )
+    assert len(local_only_items) == 0
+
+    # Search global explicitly (scope="global")
     global_items = DocSearchService.search(
         query="Parsimony ladder",
         project_root=proj_root,
-        scope="all",
+        scope="global",
         limit=5,
     )
     assert len(global_items) >= 1
@@ -246,7 +253,7 @@ async def test_mcp_docs_tools(doc_workspace):
     cats_data = json.loads(cat_res)
     assert any(c["name"] == "mcp_cat" for c in cats_data)
 
-    # 2. Search docs via MCP
+    # 2. Search docs via MCP (JSON format)
     search_res = await vibetrace_search_docs(
         DocSearchInput(
             query="Architecture",
@@ -257,3 +264,14 @@ async def test_mcp_docs_tools(doc_workspace):
     search_data = json.loads(search_res)
     assert len(search_data) >= 1
     assert "System Architecture" in search_data[0]["heading_path"]
+
+    # 3. Search docs via MCP (Markdown format with tag)
+    md_res = await vibetrace_search_docs(
+        DocSearchInput(
+            query="Architecture",
+            scope_path=str(proj_root),
+            response_format=ResponseFormat.MARKDOWN,
+        )
+    )
+    assert "[LOCAL:mcp_cat]" in md_res
+    assert "**Tag:** `[LOCAL]`" in md_res
