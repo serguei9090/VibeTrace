@@ -310,7 +310,7 @@ def format_doc_catalogs_md(catalogs: list[Any]) -> str:
         d_cnt = getattr(c, "doc_count", 0)
         c_cnt = getattr(c, "chunk_count", 0)
         paths = getattr(c, "paths", [])
-        lines.append(f"- **{name}** (`{scope}` scope) — {d_cnt} docs, {c_cnt} chunks")
+        lines.append(f"- **{name}** (`{scope}` scope) - {d_cnt} docs, {c_cnt} chunks")
         for p in paths:
             lines.append(f"  - `{p}`")
     return "\n".join(lines).strip()

@@ -525,6 +525,16 @@ async def vibetrace_list_doc_catalogs(params: DocCatalogsInput) -> str:
 
 def main() -> None:
     """Entry point for the vibetrace-mcp console script."""
+    if sys.platform == "win32":
+        try:
+            reconfig_out = getattr(sys.stdout, "reconfigure", None)
+            if callable(reconfig_out):
+                reconfig_out(encoding="utf-8")
+            reconfig_err = getattr(sys.stderr, "reconfigure", None)
+            if callable(reconfig_err):
+                reconfig_err(encoding="utf-8")
+        except Exception:
+            pass
     mcp.run()
 
 
