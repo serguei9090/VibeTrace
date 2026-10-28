@@ -287,6 +287,10 @@ class SemanticSearchInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+    include_docs: bool = Field(
+        default=False,
+        description="Whether to include relevant documentation chunks alongside code symbols",
+    )
 
 
 class TracePathInput(BaseModel):

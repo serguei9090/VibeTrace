@@ -296,6 +296,20 @@ async def vibetrace_semantic_search(params: SemanticSearchInput) -> str:
             embedding_engine=engine,
         )
 
+        doc_chunks = None
+        if params.include_docs:
+            try:
+                from vibetrace.docs.service import DocSearchService
+
+                doc_chunks = DocSearchService.search(
+                    query=params.query,
+                    project_root=root,
+                    scope="local",
+                    limit=3,
+                )
+            except Exception:
+                doc_chunks = None
+
         notify_ui_focus(
             "semantic_search",
             [r.node_id for r in results[:5]],
@@ -303,8 +317,16 @@ async def vibetrace_semantic_search(params: SemanticSearchInput) -> str:
         )
 
         if params.response_format == ResponseFormat.JSON:
+            if params.include_docs:
+                return json.dumps(
+                    {
+                        "code_symbols": [r.model_dump() for r in results],
+                        "doc_chunks": [d.model_dump() for d in doc_chunks] if doc_chunks else [],
+                    },
+                    indent=2,
+                )
             return json.dumps([r.model_dump() for r in results], indent=2)
-        return format_semantic_search_md(params.query, results)
+        return format_semantic_search_md(params.query, results, doc_chunks=doc_chunks)
     except Exception as e:
         return handle_error(e, f"hybrid search for {params.query}")
 

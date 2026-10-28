@@ -117,10 +117,32 @@ def cmd_search(args: argparse.Namespace) -> int:
         [r.node_id for r in results[:5]],
         summary=f"CLI search '{args.query}'",
     )
+
+    doc_chunks = None
+    if getattr(args, "with_docs", False):
+        try:
+            from vibetrace.docs.service import DocSearchService
+
+            doc_chunks = DocSearchService.search(
+                query=args.query,
+                project_root=root,
+                scope="local",
+                limit=3,
+            )
+        except Exception:
+            doc_chunks = None
+
     if args.json:
-        print(json.dumps([r.model_dump() for r in results], indent=2))
+        if getattr(args, "with_docs", False):
+            payload = {
+                "code": [r.model_dump() for r in results],
+                "docs": [d.model_dump() for d in doc_chunks] if doc_chunks else [],
+            }
+            print(json.dumps(payload, indent=2))
+        else:
+            print(json.dumps([r.model_dump() for r in results], indent=2))
     else:
-        print(safe_str(format_semantic_search_md(args.query, results)))
+        print(safe_str(format_semantic_search_md(args.query, results, doc_chunks=doc_chunks)))
     return 0
 
 

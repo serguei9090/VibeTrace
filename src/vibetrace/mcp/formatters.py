@@ -82,8 +82,34 @@ def format_structural_summary_md(
     return "\n".join(summary)
 
 
-def format_semantic_search_md(query: str, results: list[SearchResult]) -> str:
-    lines = [f"## Hybrid RRF Search: `{query}`"]
+def format_semantic_search_md(
+    query: str, results: list[SearchResult], doc_chunks: list[Any] | None = None
+) -> str:
+    if doc_chunks:
+        title = f"## Unified Search Results: `{query}`"
+    else:
+        title = f"## Hybrid RRF Search: `{query}`"
+    lines = [title]
+
+    if doc_chunks:
+        lines.append("")
+        lines.append("### 📚 Documentation Context")
+        for idx, dc in enumerate(doc_chunks, start=1):
+            scope = getattr(dc, "scope", "local").upper()
+            cat = getattr(dc, "catalog", "")
+            fpath = getattr(dc, "file_path", "")
+            hpath = getattr(dc, "heading_path", "")
+            s_line = getattr(dc, "start_line", 1)
+            e_line = getattr(dc, "end_line", 1)
+            lines.append(f"{idx}. **[{scope}:{cat}]** `{fpath}` (L{s_line}-L{e_line}) | `{hpath}`")
+            first_content = next(
+                (ln.strip() for ln in getattr(dc, "content", "").splitlines() if ln.strip()), ""
+            )
+            if first_content:
+                lines.append(f"   - {first_content[:140]}")
+        lines.append("")
+        lines.append("### 💻 Code Symbols")
+
     if not results:
         lines.append("No matching symbols found.")
         return "\n".join(lines)
@@ -94,7 +120,7 @@ def format_semantic_search_md(query: str, results: list[SearchResult]) -> str:
         streams = ", ".join(hit.match_sources)
         cent_str = f" | cent={hit.centrality:.2f}" if hit.centrality > 0 else ""
         lines.append(
-            f"{idx}. **`{hit.qualified_name}`** ({hit.kind}){sig} — "
+            f"{idx}. **`{hit.qualified_name}`** ({hit.kind}){sig} - "
             f"`{hit.file_path}{span}` `[RRF={hit.rrf_score:.4f} | {streams}{cent_str}]`"
         )
         # Whitespace-only docstrings are truthy but have no lines to show.

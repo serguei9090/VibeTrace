@@ -14,7 +14,7 @@ __all__ = ["Edge", "IndexerDB", "Node", "_clean_path", "with_write_retry"]
 
 
 class IndexerDB(DBQueriesMixin):
-    def __init__(self, db_path: str | None = None, vector_store: Any | None = None):
+    def __init__(self, db_path: str | Path | None = None, vector_store: Any | None = None):
         if db_path is None:
             pkg_root = Path(__file__).resolve().parent.parent.parent.parent
             if (pkg_root / ".vibetrace").exists():
@@ -24,7 +24,9 @@ class IndexerDB(DBQueriesMixin):
             context_dir.mkdir(exist_ok=True)
             self.db_path = str(context_dir / "vibetrace.db")
         else:
-            self.db_path = db_path
+            self.db_path = str(db_path)
+            if self.db_path != ":memory:":
+                Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 
         self._is_memory = self.db_path == ":memory:" or (
             isinstance(self.db_path, str) and "mode=memory" in self.db_path

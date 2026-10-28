@@ -252,8 +252,29 @@ def search_nodes_endpoint(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     hybrid: bool = Query(default=False, description="Use 4-stream hybrid RRF search"),
+    with_docs: bool = Query(default=False, description="Include matching documentation chunks"),
 ):
     """Search code symbols and endpoints by name, qualified name, or lexical query."""
+    doc_payload: list[dict[str, Any]] = []
+    active_root = (
+        Path(os.environ["VIBETRACE_PROJECT_ROOT"]).resolve()
+        if os.environ.get("VIBETRACE_PROJECT_ROOT")
+        else Path(project_root)
+    )
+    if with_docs:
+        try:
+            from vibetrace.docs.service import DocSearchService
+
+            doc_hits = DocSearchService.search(
+                query=q,
+                project_root=active_root,
+                scope="local",
+                limit=5,
+            )
+            doc_payload = [d.model_dump() for d in doc_hits]
+        except Exception:
+            doc_payload = []
+
     if hybrid:
         from vibetrace.indexer.embeddings import EmbeddingEngine
         from vibetrace.services.hybrid_search import hybrid_search
@@ -268,7 +289,10 @@ def search_nodes_endpoint(
         )
         if kind:
             results = [r for r in results if r.kind == kind]
-        return [r.model_dump() for r in results]
+        code_data = [r.model_dump() for r in results]
+        if with_docs:
+            return {"code": code_data, "docs": doc_payload}
+        return code_data
 
     fetch_limit = (limit + offset) if not kind else max((limit + offset) * 5, 50)
     ast_results = db.search_ast_exact_or_prefix(q, limit=fetch_limit)
@@ -286,7 +310,10 @@ def search_nodes_endpoint(
             seen_ids.add(r["id"])
             combined.append(r)
 
-    return combined[offset : offset + limit]
+    code_slice = combined[offset : offset + limit]
+    if with_docs:
+        return {"code": code_slice, "docs": doc_payload}
+    return code_slice
 
 
 @app.get("/api/search/signature")

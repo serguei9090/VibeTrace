@@ -134,6 +134,14 @@ examples:
         default=False,
         help="Search function signatures by SQL pattern or substring",
     )
+    p_search.add_argument(
+        "--with-docs",
+        "--docs",
+        dest="with_docs",
+        action="store_true",
+        default=False,
+        help="Include relevant documentation chunks alongside code symbols",
+    )
     p_search.add_argument("--path", default=".", help="Project root directory path")
     p_search.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_search.set_defaults(func=_cmd_search)
