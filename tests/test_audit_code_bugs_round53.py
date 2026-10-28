@@ -28,7 +28,8 @@ from vibetrace.services.vibe_bundle import (
 @pytest.fixture
 def sample_db(tmp_path: Path) -> tuple[IndexerDB, Path]:
     """Create a temporary populated DB with nodes, edges, and test files."""
-    db_file = tmp_path / "test_vibetrace.db"
+    db_file = tmp_path / ".vibetrace" / "vibetrace.db"
+    db_file.parent.mkdir(parents=True, exist_ok=True)
     db = IndexerDB(db_path=str(db_file))
 
     # Target node: calculate_tax in src/billing.py

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +36,7 @@ class CallerGuardReport(BaseModel):
     target_signature: str | None = None
     total_callers: int = 0
     callers: list[CallerSite] = Field(default_factory=list)
+    alternative_candidates: list[str] = Field(default_factory=list)
     safety_advisory: str = ""
 
 
@@ -71,7 +73,30 @@ class CallerGuardService:
                 safety_advisory=f"Symbol '{symbol_name}' was not found in the AST graph.",
             )
 
-        target = matches[0]
+        # Disambiguation: if multiple candidates match, rank by incoming caller count / centrality
+        alt_candidates: list[str] = []
+        if len(matches) > 1 and not norm_file:
+            candidates_with_score: list[tuple[int, dict[str, Any]]] = []
+            for m in matches:
+                c_count = len(
+                    [
+                        e
+                        for e in db.get_neighbors(m["id"], "up")
+                        if e.get("relation_type") in ("calls", "routes")
+                    ]
+                )
+                candidates_with_score.append((c_count, m))
+            candidates_with_score.sort(
+                key=lambda x: (x[0], x[1].get("centrality", 0.0)), reverse=True
+            )
+            target = candidates_with_score[0][1]
+            alt_candidates = [
+                f"{c[1]['file_path']}:L{c[1].get('start_line', 1)} ({c[0]} callers)"
+                for c in candidates_with_score[1:]
+            ]
+        else:
+            target = matches[0]
+
         nid = target["id"]
         rel_file = target["file_path"]
         s_line = target.get("start_line")
@@ -129,6 +154,12 @@ class CallerGuardService:
                 "Safe for local modifications or entry-point refactoring."
             )
 
+        if alt_candidates:
+            advisory += (
+                f" [Disambiguation: Selected '{rel_file}'. {len(alt_candidates)} alternate "
+                f"symbol(s) found: {', '.join(alt_candidates)}]"
+            )
+
         return CallerGuardReport(
             found=True,
             symbol=clean_name,
@@ -137,6 +168,7 @@ class CallerGuardService:
             target_signature=sig,
             total_callers=len(caller_sites),
             callers=caller_sites,
+            alternative_candidates=alt_candidates,
             safety_advisory=advisory,
         )
 
@@ -163,4 +195,11 @@ def format_caller_guard_md(report: CallerGuardReport) -> str:
         lines.append(f"{idx}. **`{c.caller_name}`** in `{c.caller_file}{ln_str}`")
         if c.call_snippet:
             lines.append(f"   ```text\n   {c.call_snippet}\n   ```")
+
+    if report.alternative_candidates:
+        lines.append("")
+        lines.append(f"### Alternate Symbols Named `{report.symbol}`:")
+        for alt in report.alternative_candidates:
+            lines.append(f"- `{alt}`")
+
     return "\n".join(lines)

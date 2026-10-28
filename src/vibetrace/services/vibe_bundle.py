@@ -18,6 +18,35 @@ from vibetrace.services.caller_guard import CallerGuardReport, CallerGuardServic
 from vibetrace.services.hybrid_search import hybrid_search
 from vibetrace.services.trace_service import CodeSliceResult, get_code_slice, read_file_lines
 
+_EXT_LANG_MAP: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".js": "javascript",
+    ".jsx": "jsx",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".php": "php",
+    ".sql": "sql",
+    ".html": "html",
+    ".css": "css",
+    ".json": "json",
+    ".md": "markdown",
+}
+
+
+def _get_lang_for_file(file_path: str | None) -> str:
+    """Resolve markdown code fence language identifier from file extension."""
+    if not file_path:
+        return "text"
+    suffix = Path(file_path).suffix.lower()
+    return _EXT_LANG_MAP.get(suffix, "text")
+
 
 def estimate_tokens(text: str) -> int:
     """Rough token estimation (approx 3.8 - 4.0 chars per token for code/prose)."""
@@ -215,22 +244,66 @@ class VibeBundleService:
                         except Exception:
                             pass
 
-        # Strategy B: Find matching test file by naming convention
+        # Strategy B: Find matching test file by naming convention across polyglot ecosystems
         if target_file:
-            stem = Path(target_file).stem
-            candidates = [
-                f"tests/test_{stem}.py",
-                f"tests/unit/test_{stem}.py",
-                f"tests/{stem}_test.py",
-            ]
+            tf = Path(target_file)
+            stem = tf.stem
+            suffix = tf.suffix.lower()
+            parent_rel = tf.parent.as_posix()
+            if parent_rel == ".":
+                parent_rel = ""
+
+            candidates: list[str] = []
+            test_patterns: list[tuple[str, str]] = []
+
+            if suffix == ".py":
+                candidates = [
+                    f"tests/test_{stem}.py",
+                    f"tests/unit/test_{stem}.py",
+                    f"tests/{stem}_test.py",
+                    f"test_{stem}.py",
+                ]
+                test_patterns = [(r"^def (test_[a-zA-Z0-9_]+)", "test_suite")]
+            elif suffix in (".ts", ".tsx", ".js", ".jsx"):
+                candidates = [
+                    f"{parent_rel}/{stem}.test{suffix}" if parent_rel else f"{stem}.test{suffix}",
+                    f"{parent_rel}/{stem}.spec{suffix}" if parent_rel else f"{stem}.spec{suffix}",
+                    f"tests/{stem}.test{suffix}",
+                    f"tests/{stem}.spec{suffix}",
+                    f"tests/{stem}.test.ts",
+                    f"tests/{stem}.spec.ts",
+                    f"__tests__/{stem}.test{suffix}",
+                ]
+                test_patterns = [
+                    (r"(?:it|test)\s*\(\s*['\"]([^'\"]+)['\"]", "it_block"),
+                    (r"describe\s*\(\s*['\"]([^'\"]+)['\"]", "describe_block"),
+                ]
+            elif suffix == ".go":
+                candidates = [
+                    f"{parent_rel}/{stem}_test.go" if parent_rel else f"{stem}_test.go",
+                    f"{stem}_test.go",
+                ]
+                test_patterns = [(r"^func (Test[a-zA-Z0-9_]+)", "TestFunc")]
+            elif suffix == ".rs":
+                candidates = [
+                    f"tests/{stem}_test.rs",
+                    f"tests/{stem}.rs",
+                    f"tests/test_{stem}.rs",
+                ]
+                test_patterns = [(r"fn (test_[a-zA-Z0-9_]+)", "test_func")]
+
             for cand in candidates:
                 cand_path = root / cand
                 if cand_path.is_file():
                     try:
                         content = cand_path.read_text(encoding="utf-8", errors="replace")
-                        # Find first test function
-                        m = re.search(r"^def (test_[a-zA-Z0-9_]+)", content, flags=re.MULTILINE)
-                        t_func = m.group(1) if m else "test_suite"
+                        t_func = "test_suite"
+                        for pattern, default_name in test_patterns:
+                            m = re.search(pattern, content, flags=re.MULTILINE)
+                            if m:
+                                t_func = m.group(1)
+                                break
+                            t_func = default_name
                         snip_trunc = truncate_to_tokens(content[:1500], test_budget)
                         return SiblingTestContext(
                             found=True,
@@ -280,7 +353,8 @@ class VibeBundleService:
             sections.append(f"**Symbol:** `{code_slice.name}` ({loc})")
             if code_slice.signature:
                 sections.append(f"**Signature:** `{code_slice.signature}`")
-            sections.append("```python")
+            code_lang = _get_lang_for_file(code_slice.file_path)
+            sections.append(f"```{code_lang}")
             sections.append(code_slice.source_code.strip())
             sections.append("```")
             if code_slice.callees:
@@ -303,7 +377,8 @@ class VibeBundleService:
             sections.append("## 🧪 Sibling Test Pattern (Runnable Verification)")
             ref_str = f"**Test Reference:** `{test_ctx.test_file}` (`{test_ctx.test_function}`)"
             sections.append(ref_str)
-            sections.append("```python")
+            test_lang = _get_lang_for_file(test_ctx.test_file)
+            sections.append(f"```{test_lang}")
             sections.append(test_ctx.snippet.strip())
             sections.append("```")
             sections.append("")
