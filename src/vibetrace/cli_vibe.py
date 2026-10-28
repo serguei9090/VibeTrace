@@ -16,7 +16,10 @@ from vibetrace.services.vibe_bundle import VibeBundleService
 
 
 def cmd_guard(args: argparse.Namespace) -> int:
-    """Pre-flight refactoring caller guard to verify blast radius before editing code."""
+    """Pre-flight refactoring caller guard to verify blast radius before editing code.
+
+    Supports single symbol query or workspace-wide staged diff audit via --staged.
+    """
     auto_sync = not getattr(args, "no_sync", False)
     root_override = getattr(args, "root", None)
     file_hint = getattr(args, "file", None) or getattr(args, "path", ".")
