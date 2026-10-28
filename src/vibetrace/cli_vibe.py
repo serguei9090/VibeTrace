@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 
 from vibetrace.cli_commands import get_context_for_path, notify_ui_focus, safe_str
-from vibetrace.services.caller_guard import CallerGuardService, format_caller_guard_md
+from vibetrace.services.caller_guard import (
+    CallerGuardService,
+    format_caller_guard_md,
+    format_staged_guard_md,
+)
 from vibetrace.services.vibe_bundle import VibeBundleService
 
 
@@ -17,9 +23,24 @@ def cmd_guard(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(file_hint, auto_sync=auto_sync, root_override=root_override)
 
-    symbol = getattr(args, "symbol", "")
-    file_path = getattr(args, "file", None)
+    # Staged changes verification
+    if getattr(args, "staged", False):
+        reports = CallerGuardService.get_staged_caller_guard(db, root)
+        if getattr(args, "json", False):
+            print(json.dumps([r.model_dump() for r in reports], indent=2))
+        else:
+            print(safe_str(format_staged_guard_md(reports)))
 
+        if getattr(args, "strict", False) and any(r.total_callers > 0 for r in reports):
+            return 1
+        return 0
+
+    symbol = getattr(args, "symbol", "")
+    if not symbol:
+        print("Error: 'symbol' is required unless using --staged", file=sys.stderr)
+        return 1
+
+    file_path = getattr(args, "file", None)
     report = CallerGuardService.get_caller_guard(db, root, symbol_name=symbol, file_path=file_path)
 
     if report.found and report.file_path:

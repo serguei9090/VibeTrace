@@ -25,6 +25,11 @@ Get everything needed for a task—relevant architecture specs, target code impl
 - **MCP Tool:** `vibetrace_check_caller_guard(symbol_name="upsert_node")`
 - **CLI:** `uv run vibetrace guard upsert_node`
 
+### 3. Git Pre-Commit Blast-Radius Gate (`guard --staged`)
+Verify that modified function signatures across all staged git changes do not break or orphan incoming callers:
+- **CLI (Advisory Check):** `uv run vibetrace guard --staged`
+- **CLI (Strict Pre-Commit Gate):** `uv run vibetrace guard --staged --strict`
+
 ---
 
 ## Standard 4-Step Surgical Workflow (`Docs -> Locate -> Trace/Impact -> Slice`)

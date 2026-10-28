@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -171,6 +172,113 @@ class CallerGuardService:
             alternative_candidates=alt_candidates,
             safety_advisory=advisory,
         )
+
+    @classmethod
+    def get_staged_caller_guard(
+        cls,
+        db: IndexerDB,
+        root: Path,
+        diff_text: str | None = None,
+    ) -> list[CallerGuardReport]:
+        """Inspect all symbol definitions modified in staged git diff."""
+        if diff_text is None:
+            import subprocess
+
+            try:
+                proc = subprocess.run(
+                    ["git", "diff", "--cached", "-U0"],
+                    cwd=str(root),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                diff_text = proc.stdout
+            except Exception:
+                diff_text = ""
+
+        if not diff_text or not diff_text.strip():
+            return []
+
+        file_ranges = parse_git_diff_line_ranges(diff_text)
+        reports: list[CallerGuardReport] = []
+        seen_nodes: set[str] = set()
+
+        for file_path, ranges in file_ranges.items():
+            norm_file = file_path.replace("\\", "/")
+            nodes = db.get_nodes_in_file(norm_file)
+            for n in nodes:
+                nid = n["id"]
+                if nid in seen_nodes or n.get("kind") in ("module", "file"):
+                    continue
+                s_line = n.get("start_line") or 1
+                e_line = n.get("end_line") or s_line
+                overlaps = any(s_line <= r_end and e_line >= r_start for r_start, r_end in ranges)
+                if overlaps:
+                    seen_nodes.add(nid)
+                    report = cls.get_caller_guard(
+                        db, root, symbol_name=n["name"], file_path=norm_file
+                    )
+                    if report.found:
+                        reports.append(report)
+
+        return reports
+
+
+def parse_git_diff_line_ranges(diff_text: str) -> dict[str, list[tuple[int, int]]]:
+    """Parse unified git diff output into modified line ranges per file."""
+    file_ranges: dict[str, list[tuple[int, int]]] = {}
+    current_file: str | None = None
+
+    for raw_line in diff_text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("diff --git a/"):
+            parts = line.split(" b/", 1)
+            if len(parts) == 2:
+                current_file = parts[1].strip()
+        elif line.startswith("@@ ") and current_file:
+            m = re.search(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
+            if m:
+                start = int(m.group(1))
+                count = int(m.group(2)) if m.group(2) else 1
+                end = start + max(1, count) - 1
+                file_ranges.setdefault(current_file, []).append((start, end))
+
+    return file_ranges
+
+
+def format_staged_guard_md(reports: list[CallerGuardReport]) -> str:
+    """Format staged caller guard reports as markdown for git pre-commit."""
+    if not reports:
+        return (
+            "## 🛡️ Pre-Commit Caller Guard Check\n\n"
+            "No modified symbol definitions detected in staged changes."
+        )
+
+    total_callers = sum(r.total_callers for r in reports)
+    files_affected = len({c.caller_file for r in reports for c in r.callers})
+    lines = [
+        "## 🛡️ Pre-Commit Caller Guard Check",
+        (
+            f"Inspected {len(reports)} modified symbol definition(s). "
+            f"Total incoming callers affected: {total_callers} across {files_affected} file(s)."
+        ),
+        "",
+    ]
+
+    for r in reports:
+        loc = f"`{r.file_path}:L{r.target_line}`" if r.file_path else ""
+        icon = "⚠️" if r.total_callers > 0 else "✅"
+        lines.append(f"### {icon} `{r.symbol}` ({loc})")
+        lines.append(f"**Status:** {r.safety_advisory}")
+        if r.callers:
+            lines.append(f"**Incoming Callers ({r.total_callers}):**")
+            for c in r.callers[:5]:
+                ln_str = f":L{c.call_line}" if c.call_line else ""
+                lines.append(f"- `{c.caller_name}` ({c.caller_file}{ln_str})")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
 
 
 def format_caller_guard_md(report: CallerGuardReport) -> str:

@@ -240,11 +240,12 @@ class DBQueriesMixin:
             return [dict(r) for r in cursor.fetchall()]
 
     def get_nodes_in_file(self, file_path: str) -> list[dict[str, Any]]:
-        """Get all node IDs and names in a file."""
+        """Get all nodes in a file ordered by line number."""
         norm_path = _clean_path(file_path)
         with self._get_conn() as conn:
             query = (
-                "SELECT id, name, qualified_name FROM nodes "
+                "SELECT id, name, qualified_name, kind, file_path, "
+                "start_line, end_line, signature, docstring FROM nodes "
                 "WHERE file_path = ? ORDER BY start_line ASC, name ASC"
             )
             cursor = conn.execute(query, (norm_path,))

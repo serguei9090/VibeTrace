@@ -526,7 +526,22 @@ examples:
             "to prevent breaking callers."
         ),
     )
-    p_guard.add_argument("symbol", help="Target symbol name to inspect before editing")
+    p_guard.add_argument(
+        "symbol",
+        nargs="?",
+        default="",
+        help="Target symbol name to inspect before editing",
+    )
+    p_guard.add_argument(
+        "--staged",
+        action="store_true",
+        help="Inspect all symbol definitions modified in staged git diff",
+    )
+    p_guard.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit with code 1 if any staged symbol modification affects callers",
+    )
     p_guard.add_argument("--file", default=None, help="File path defining the target symbol")
     p_guard.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
