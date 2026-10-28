@@ -13,6 +13,24 @@ from typing import Any
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import reindex_all
 
+
+def detect_project_ecosystems(project_root: Path) -> list[str]:
+    """Detect active project ecosystems and runtime toolchains."""
+    ecosystems: list[str] = []
+    root = project_root.resolve()
+    if (root / "pyproject.toml").exists() or (root / "requirements.txt").exists():
+        uv_hint = " (uv)" if (root / "uv.lock").exists() else ""
+        ecosystems.append(f"Python{uv_hint}")
+    if (root / "package.json").exists():
+        bun_hint = " (bun)" if (root / "bun.lock").exists() or (root / "bun.lockb").exists() else ""
+        ecosystems.append(f"JavaScript/TypeScript{bun_hint}")
+    if (root / "Cargo.toml").exists():
+        ecosystems.append("Rust (cargo)")
+    if (root / "go.mod").exists():
+        ecosystems.append("Go (modules)")
+    return ecosystems
+
+
 VIBETRACE_IGNORE_PATTERNS = [
     "vibetrace.db",
     "vibetrace.db-wal",
@@ -115,6 +133,7 @@ def initialize_workspace(
     project_root: Path | str,
     no_index: bool = False,
     global_skill: bool = False,
+    configure_hooks: bool = False,
 ) -> dict[str, Any]:
     """Execute complete 1-click workspace initialization for VibeTrace."""
     root = Path(project_root).resolve()
@@ -135,10 +154,43 @@ def initialize_workspace(
     vibetrace_dir = root / ".vibetrace"
     vibetrace_dir.mkdir(exist_ok=True)
 
-    # 5. Run initial indexing if requested
+    # 5. Ecosystem & toolchain detection
+    detected_ecosystems = detect_project_ecosystems(root)
+
+    # 6. Auto-register docs catalog if docs/ directory exists
+    doc_catalog_registered = False
+    doc_chunks_indexed = 0
+    db_path = vibetrace_dir / "vibetrace.db"
+    docs_dir = root / "docs"
+    if docs_dir.is_dir():
+        try:
+            from vibetrace.docs.db import DocDB
+            from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+            DocCatalogManager.add_path("core", "docs", project_root=root)
+            doc_catalog_registered = True
+            if not no_index:
+                doc_db = DocDB(db_path)
+                res_docs = DocIndexService.index_catalog("core", ["docs"], doc_db, root)
+                doc_chunks_indexed = res_docs.get("chunks", 0)
+        except Exception:
+            doc_catalog_registered = False
+
+    # 7. Configure Git / Lefthook hooks if requested
+    hooks_installed = False
+    hooks_message = ""
+    if configure_hooks:
+        try:
+            from vibetrace.indexer.hooks import install_hooks
+
+            hooks_installed, hooks_message = install_hooks(root, provider="auto")
+        except Exception as e:
+            hooks_installed = False
+            hooks_message = str(e)
+
+    # 8. Run initial indexing if requested
     indexed_nodes = 0
     indexed_edges = 0
-    db_path = vibetrace_dir / "vibetrace.db"
 
     if not no_index:
         db = IndexerDB(str(db_path))
@@ -155,6 +207,11 @@ def initialize_workspace(
         "gitignore_updated": bool(added_ignores),
         "added_ignores": added_ignores,
         "installed_skills": [str(p) for p in installed_skills],
+        "ecosystems": detected_ecosystems,
+        "doc_catalog_registered": doc_catalog_registered,
+        "doc_chunks_indexed": doc_chunks_indexed,
+        "hooks_installed": hooks_installed,
+        "hooks_message": hooks_message,
         "indexed": not no_index,
         "node_count": indexed_nodes,
         "edge_count": indexed_edges,

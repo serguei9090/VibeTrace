@@ -260,6 +260,12 @@ examples:
     p_stack.add_argument(
         "--file", default=None, help="Optional relative file path to disambiguate symbol"
     )
+    p_stack.add_argument(
+        "--all-relations",
+        action="store_true",
+        default=False,
+        help="Include non-executable AST relations (defines, imports, references)",
+    )
     p_stack.add_argument("--path", default=".", help="Project root directory path")
     p_stack.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_stack.set_defaults(func=_cmd_call_stack)
@@ -324,6 +330,14 @@ examples:
         ),
     )
     p_deps.add_argument("file_path", help="Relative or absolute file path to analyze")
+    p_deps.add_argument(
+        "--reverse",
+        "--dependents",
+        dest="reverse",
+        action="store_true",
+        default=False,
+        help="Show only inbound dependents (files that import this file)",
+    )
     p_deps.add_argument("--path", default=".", help="Project root directory path")
     p_deps.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_deps.set_defaults(func=_cmd_dependencies)
@@ -399,6 +413,12 @@ examples:
         dest="global_skill",
         action="store_true",
         help="Also install skill into user global agent skills directory",
+    )
+    p_init.add_argument(
+        "--hooks",
+        action="store_true",
+        default=False,
+        help="Automatically install Git/Lefthook pre-commit guard hooks",
     )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=_cmd_init)

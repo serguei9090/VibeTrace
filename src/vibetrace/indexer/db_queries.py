@@ -213,30 +213,42 @@ class DBQueriesMixin:
             cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
-    def get_neighbors(self, node_id: str, direction: Literal["up", "down"]) -> list[dict[str, Any]]:
-        """Get callers (up) or callees (down) for a node."""
+    def get_neighbors(
+        self,
+        node_id: str,
+        direction: Literal["up", "down"],
+        relation_types: tuple[str, ...] | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get callers (up) or callees (down) for a node, optionally filtered by relation types."""
         with self._get_conn() as conn:
+            filter_clause = ""
+            params: list[Any] = [node_id]
+            if relation_types:
+                placeholders = ",".join("?" for _ in relation_types)
+                filter_clause = f"AND e.relation_type IN ({placeholders})"
+                params.extend(relation_types)
+
             if direction == "up":
-                query = """
+                query = f"""
                     SELECT e.from_node_id as neighbor_id, e.relation_type, e.call_line,
                            n.name, n.qualified_name, n.file_path, n.kind,
                            n.start_line, n.end_line, n.signature
                     FROM edges e
                     JOIN nodes n ON e.from_node_id = n.id
-                    WHERE e.to_node_id = ?
+                    WHERE e.to_node_id = ? {filter_clause}
                     ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
                 """
             else:
-                query = """
+                query = f"""
                     SELECT e.to_node_id as neighbor_id, e.relation_type, e.call_line,
                            n.name, n.qualified_name, n.file_path, n.kind,
                            n.start_line, n.end_line, n.signature
                     FROM edges e
                     JOIN nodes n ON e.to_node_id = n.id
-                    WHERE e.from_node_id = ?
+                    WHERE e.from_node_id = ? {filter_clause}
                     ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
                 """
-            cursor = conn.execute(query, (node_id,))
+            cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
     def get_nodes_in_file(self, file_path: str) -> list[dict[str, Any]]:
@@ -292,6 +304,23 @@ class DBQueriesMixin:
                 ORDER BY n_to.file_path ASC, n_to.name ASC
             """
             cursor = conn.execute(query, (norm_path,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    def get_file_dependents(self, file_path: str) -> list[dict[str, Any]]:
+        """Find all project files and symbols that import from the given file."""
+        norm_path = _clean_path(file_path)
+        with self._get_conn() as conn:
+            query = """
+                SELECT DISTINCT n_from.file_path as dependent_file,
+                                n_from.name as dependent_name,
+                                n_to.name as imported_symbol
+                FROM nodes n_to
+                JOIN edges e ON n_to.id = e.to_node_id
+                JOIN nodes n_from ON e.from_node_id = n_from.id
+                WHERE n_to.file_path = ? AND e.relation_type = 'imports' AND n_from.file_path != ?
+                ORDER BY n_from.file_path ASC, n_to.name ASC
+            """
+            cursor = conn.execute(query, (norm_path, norm_path))
             return [dict(r) for r in cursor.fetchall()]
 
     @with_write_retry()

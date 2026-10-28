@@ -217,23 +217,42 @@ def format_dependencies_md(
     internal: list[dict[str, Any]],
     third_party: list[dict[str, Any]],
     stdlib: list[dict[str, Any]],
+    dependents: list[dict[str, Any]] | None = None,
+    circular: list[dict[str, Any]] | None = None,
+    reverse_only: bool = False,
 ) -> str:
     lines = [f"## Dependencies for `{norm_path}`"]
-    if not (internal or third_party or stdlib):
-        lines.append("No imports detected or file not indexed.")
-        return "\n".join(lines)
-    for group, title in (
-        (internal, "Internal Project Modules"),
-        (third_party, "Third-Party Dependencies"),
-        (stdlib, "Standard Library"),
-    ):
-        if group:
-            lines.append(f"\n### {title} ({len(group)})")
-            lines.extend(
-                f"- `{dep['name']}`"
-                + (f" ({dep['file_path']})" if title.startswith("Internal") else "")
-                for dep in group
-            )
+
+    if circular:
+        lines.append(f"\n### ⚠️ Circular Dependency Alert ({len(circular)})")
+        for c in circular:
+            lines.append(f"- {c['message']}")
+
+    if not reverse_only:
+        if not (internal or third_party or stdlib):
+            lines.append("No outbound imports detected or file not indexed.")
+        for group, title in (
+            (internal, "Internal Project Modules"),
+            (third_party, "Third-Party Dependencies"),
+            (stdlib, "Standard Library"),
+        ):
+            if group:
+                lines.append(f"\n### {title} ({len(group)})")
+                lines.extend(
+                    f"- `{dep['name']}`"
+                    + (f" ({dep['file_path']})" if title.startswith("Internal") else "")
+                    for dep in group
+                )
+
+    if dependents is not None:
+        lines.append(f"\n### Inbound Dependents ({len(dependents)} files import this module)")
+        if not dependents:
+            lines.append("  (no project files import this module)")
+        else:
+            for dep in dependents:
+                syms_str = f" [imports: {', '.join(dep['symbols'])}]" if dep.get("symbols") else ""
+                lines.append(f"- `{dep['file_path']}`{syms_str}")
+
     return "\n".join(lines)
 
 

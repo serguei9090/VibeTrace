@@ -26,9 +26,9 @@ from vibetrace.mcp.formatters import (
     format_trace_path_md,
 )
 from vibetrace.services.graph_service import (
+    analyze_file_dependencies,
     build_call_stack,
     build_call_tree,
-    categorize_file_dependencies,
     compute_impact_analysis,
     find_symbol_references,
     format_call_tree_md,
@@ -301,8 +301,15 @@ def cmd_call_stack(args: argparse.Namespace) -> int:
     direction = raw_dir if raw_dir in ("up", "down") else "both"
     depth = getattr(args, "depth", 3)
     file_path = getattr(args, "file", None)
+    all_relations = getattr(args, "all_relations", False)
+    rel_types = None if all_relations else ("calls", "routes")
     found, output, start_nodes = build_call_stack(
-        db, args.symbol, direction=direction, max_depth=depth, file_path=file_path
+        db,
+        args.symbol,
+        direction=direction,
+        max_depth=depth,
+        file_path=file_path,
+        relation_types=rel_types,
     )
     if found and start_nodes:
         notify_ui_focus(
@@ -397,8 +404,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     root = Path(getattr(args, "path", ".") or ".").resolve()
     no_index = getattr(args, "no_index", False)
     global_skill = getattr(args, "global_skill", False)
+    configure_hooks = getattr(args, "hooks", False)
 
-    res = initialize_workspace(root, no_index=no_index, global_skill=global_skill)
+    res = initialize_workspace(
+        root,
+        no_index=no_index,
+        global_skill=global_skill,
+        configure_hooks=configure_hooks,
+    )
 
     if getattr(args, "json", False):
         print(json.dumps(res, indent=2))
@@ -416,13 +429,28 @@ def cmd_init(args: argparse.Namespace) -> int:
         f"- **Local Database**: `{res['db_path']}` (isolated per-project)",
         f"- **.gitignore**: {gi_msg}",
     ]
+    if res.get("ecosystems"):
+        lines.append(f"- **Detected Ecosystems**: {', '.join(res['ecosystems'])}")
+    if res.get("doc_catalog_registered"):
+        chunks_count = res.get("doc_chunks_indexed", 0)
+        lines.append(f"- **Docs Catalog**: 'core' (docs/) [{chunks_count} chunks indexed]")
+    if res.get("hooks_installed"):
+        lines.append(f"- **Git Pre-Commit Guard**: {res.get('hooks_message', 'configured')}")
     if res["installed_skills"]:
         lines.append(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
     if res["indexed"]:
         lines.append(
             f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"
         )
-    lines.extend(["\nNext steps:", '  vibetrace search "<query>"', "  vibetrace serve"])
+    lines.extend(
+        [
+            "\nNext steps:",
+            '  vibetrace search "<query>"',
+            "  vibetrace bundle <symbol>",
+            "  vibetrace guard --staged",
+            "  vibetrace serve",
+        ]
+    )
     print("\n".join(lines))
     return 0
 
@@ -495,27 +523,43 @@ def cmd_dependencies(args: argparse.Namespace) -> int:
         args.file_path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
     )
     norm_path = normalize_path(args.file_path, root)
-    internal, third_party, stdlib = categorize_file_dependencies(db, norm_path)
+    analysis = analyze_file_dependencies(db, norm_path)
     file_nodes = db.get_nodes_in_file(norm_path)
     notify_ui_focus(
         "dependencies", [n["id"] for n in file_nodes], summary=f"CLI dependencies {norm_path}"
     )
 
+    reverse_only = getattr(args, "reverse", False) or getattr(args, "dependents", False)
+
     if args.json:
         counts = {
-            "internal": len(internal),
-            "third_party": len(third_party),
-            "stdlib": len(stdlib),
-            "total": len(internal) + len(third_party) + len(stdlib),
+            "internal": len(analysis["internal"]),
+            "third_party": len(analysis["third_party"]),
+            "stdlib": len(analysis["stdlib"]),
+            "dependents": len(analysis["dependents"]),
+            "circular": len(analysis["circular"]),
+            "total_imports": len(analysis["internal"])
+            + len(analysis["third_party"])
+            + len(analysis["stdlib"]),
         }
         payload = {
             "file_path": norm_path,
             "counts": counts,
-            "internal": internal,
-            "third_party": third_party,
-            "stdlib": stdlib,
+            **analysis,
         }
         print(json.dumps(payload, indent=2))
     else:
-        print(safe_str(format_dependencies_md(norm_path, internal, third_party, stdlib)))
+        print(
+            safe_str(
+                format_dependencies_md(
+                    norm_path,
+                    analysis["internal"],
+                    analysis["third_party"],
+                    analysis["stdlib"],
+                    dependents=analysis["dependents"],
+                    circular=analysis["circular"],
+                    reverse_only=reverse_only,
+                )
+            )
+        )
     return 0

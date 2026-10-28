@@ -226,8 +226,13 @@ def handle_error(e: Exception, context: str = "") -> str:
 class GraphTraverser:
     """Traverses the call graph and builds formatted trace lines."""
 
-    def __init__(self, db: IndexerDB):
+    def __init__(
+        self,
+        db: IndexerDB,
+        relation_types: tuple[str, ...] | list[str] | None = None,
+    ):
         self.db = db
+        self.relation_types = relation_types
         self.visited: set[str] = set()
         self.output: list[str] = []
 
@@ -264,15 +269,17 @@ class GraphTraverser:
         next_ancestors = ancestor_ids | {current_id}
 
         prefix = safe_str("← called by") if direction == "up" else safe_str("→ calls")
-        neighbors = self.db.get_neighbors(current_id, direction)
+        neighbors = self.db.get_neighbors(current_id, direction, relation_types=self.relation_types)
 
         for n in neighbors:
             current_path = [*path_stack, n["name"]]
             breadcrumb = " > ".join(current_path)
+            call_line = n.get("call_line")
+            loc_suffix = f":L{call_line}" if call_line else ""
 
             line = (
                 f"{'  ' * indent}- {prefix} `{breadcrumb}` ({n['relation_type']}) "
-                f"in `{n['file_path']}`"
+                f"in `{n['file_path']}{loc_suffix}`"
             )
             self.output.append(line)
             self.traverse(
@@ -292,6 +299,7 @@ def build_call_stack(
     direction: Literal["up", "down", "both"] = "both",
     max_depth: int = 3,
     file_path: str | None = None,
+    relation_types: tuple[str, ...] | list[str] | None = ("calls", "routes"),
 ) -> tuple[bool, list[str], list[dict[str, Any]]]:
     """Build call stack tracing incoming callers (up), outgoing callees (down), or both."""
     clean_sym = symbol_name.strip().removesuffix("()")
@@ -299,7 +307,7 @@ def build_call_stack(
     if not start_nodes:
         return False, [f"Node '{symbol_name}' not found in index."], []
 
-    traverser = GraphTraverser(db)
+    traverser = GraphTraverser(db, relation_types=relation_types)
     for start_node in start_nodes:
         name, kind, fp = start_node["name"], start_node["kind"], start_node["file_path"]
         traverser.output.append(f"### Trace for `{name}` ({kind}) in `{fp}`")
@@ -423,3 +431,45 @@ def categorize_file_dependencies(
                 third_party.append(dep)
 
     return internal, third_party, stdlib
+
+
+def analyze_file_dependencies(db: IndexerDB, normalized_path: str) -> dict[str, Any]:
+    """Comprehensive dependency analysis: imports, dependents, and circular import loops."""
+    norm_p = _clean_path(normalized_path)
+    internal, third_party, stdlib = categorize_file_dependencies(db, norm_p)
+
+    raw_dependents = db.get_file_dependents(norm_p)
+    dependents_by_file: dict[str, set[str]] = {}
+    for d in raw_dependents:
+        dep_file = d["dependent_file"]
+        sym = d.get("imported_symbol")
+        if dep_file not in dependents_by_file:
+            dependents_by_file[dep_file] = set()
+        if sym:
+            dependents_by_file[dep_file].add(sym)
+
+    dependents: list[dict[str, Any]] = [
+        {"file_path": f, "symbols": sorted(syms)} for f, syms in sorted(dependents_by_file.items())
+    ]
+
+    # Circular import detection: check if any internal dependency imports norm_p
+    circular: list[dict[str, Any]] = []
+    internal_files = {dep["file_path"] for dep in internal if dep["file_path"] != "external"}
+    for int_f in sorted(internal_files):
+        int_f_imports = db.get_file_imports(int_f)
+        if any(imp["file_path"] == norm_p for imp in int_f_imports):
+            circular.append(
+                {
+                    "target_file": int_f,
+                    "message": f"Mutual import loop: `{norm_p}` <-> `{int_f}`",
+                }
+            )
+
+    return {
+        "file_path": norm_p,
+        "internal": internal,
+        "third_party": third_party,
+        "stdlib": stdlib,
+        "dependents": dependents,
+        "circular": circular,
+    }
