@@ -280,7 +280,6 @@ def format_staged_guard_md(reports: list[CallerGuardReport]) -> str:
     return "\n".join(lines).strip()
 
 
-
 def format_caller_guard_md(report: CallerGuardReport) -> str:
     """Format CallerGuardReport as structured markdown for AI agents."""
     if not report.found:
