@@ -268,3 +268,45 @@ def format_saved_traces_md(traces: list[Any]) -> str:
         desc_str = f" — {desc}" if desc else ""
         lines.append(f"- **{name}**: `{from_sym}` -> `{to_sym}` (depth {depth}){desc_str}")
     return "\n".join(lines)
+
+
+def format_doc_search_md(query: str, items: list[Any]) -> str:
+    """Format documentation search chunks as Markdown."""
+    if not items:
+        return f"No documentation matches found for `{query}`."
+    lines = [f"## Documentation Search Results for `{query}`", ""]
+    for idx, it in enumerate(items, start=1):
+        scope = getattr(it, "scope", "")
+        cat = getattr(it, "catalog", "")
+        fpath = getattr(it, "file_path", "")
+        hpath = getattr(it, "heading_path", "")
+        s_line = getattr(it, "start_line", 1)
+        e_line = getattr(it, "end_line", 1)
+        score = getattr(it, "score", 0.0)
+        content = getattr(it, "content", "").strip()
+        lines.append(f"### {idx}. [{scope}:{cat}] {fpath} (Lines {s_line}-{e_line})")
+        lines.append(f"**Section:** `{hpath}` | **Score:** {score:.4f}")
+        lines.append("")
+        lines.append(content)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def format_doc_catalogs_md(catalogs: list[Any]) -> str:
+    """Format catalog list as Markdown."""
+    if not catalogs:
+        return (
+            "No documentation catalogs configured. "
+            "Use `vibetrace docs catalog add <name> <path>`."
+        )
+    lines = ["## Documentation Catalogs", ""]
+    for c in catalogs:
+        name = getattr(c, "name", "")
+        scope = getattr(c, "scope", "")
+        d_cnt = getattr(c, "doc_count", 0)
+        c_cnt = getattr(c, "chunk_count", 0)
+        paths = getattr(c, "paths", [])
+        lines.append(f"- **{name}** (`{scope}` scope) — {d_cnt} docs, {c_cnt} chunks")
+        for p in paths:
+            lines.append(f"  - `{p}`")
+    return "\n".join(lines).strip()

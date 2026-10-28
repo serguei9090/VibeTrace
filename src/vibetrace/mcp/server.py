@@ -17,6 +17,8 @@ from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
     format_dependencies_md,
+    format_doc_catalogs_md,
+    format_doc_search_md,
     format_impact_analysis_md,
     format_references_md,
     format_saved_traces_md,
@@ -31,6 +33,8 @@ from vibetrace.mcp.schemas import (
     CodeSliceInput,
     DeleteSavedTraceInput,
     DependenciesInput,
+    DocCatalogsInput,
+    DocSearchInput,
     ImpactAnalysisInput,
     ListSavedTracesInput,
     ReferencesInput,
@@ -478,6 +482,45 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
         return safe_str(msg)
     except Exception as e:
         return handle_error(e, f"reindexing {params.path}")
+
+
+@mcp.tool()
+async def vibetrace_search_docs(params: DocSearchInput) -> str:
+    """
+    Search documentation files (.md, .txt, .pdf) across local and global catalogs
+    using hybrid RRF (BM25 + vector similarity).
+    """
+    try:
+        from vibetrace.docs.service import DocSearchService
+
+        _, root = get_context_for_path(params.scope_path)
+        items = DocSearchService.search(
+            query=params.query,
+            catalog=params.catalog,
+            scope=params.scope,
+            project_root=root,
+            limit=params.limit,
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps([it.model_dump() for it in items], indent=2)
+        return format_doc_search_md(params.query, items)
+    except Exception as e:
+        return handle_error(e, f"searching documentation for '{params.query}'")
+
+
+@mcp.tool()
+async def vibetrace_list_doc_catalogs(params: DocCatalogsInput) -> str:
+    """List available local and global documentation catalogs with folder paths and chunk counts."""
+    try:
+        from vibetrace.docs.service import DocCatalogManager
+
+        _, root = get_context_for_path(params.scope_path)
+        catalogs = DocCatalogManager.list_catalogs(project_root=root)
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps([c.model_dump() for c in catalogs], indent=2)
+        return format_doc_catalogs_md(catalogs)
+    except Exception as e:
+        return handle_error(e, "listing documentation catalogs")
 
 
 def main() -> None:

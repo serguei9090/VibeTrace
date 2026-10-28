@@ -8,6 +8,9 @@ import os
 import sys
 from pathlib import Path
 
+from vibetrace.cli_docs import cmd_docs
+
+__all__ = ["cmd_docs"]
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
 from vibetrace.indexer.main import reindex_all

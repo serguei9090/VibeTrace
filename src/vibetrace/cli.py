@@ -9,6 +9,7 @@ from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
     cmd_dependencies,
+    cmd_docs,
     cmd_hooks,
     cmd_impact,
     cmd_index,
@@ -39,6 +40,7 @@ _cmd_serve = cmd_serve
 _cmd_init = cmd_init
 _cmd_skill = cmd_skill
 _cmd_mcp = cmd_mcp
+_cmd_docs = cmd_docs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -424,12 +426,102 @@ examples:
     )
     p_mcp.set_defaults(func=_cmd_mcp)
 
+    # docs
+    p_docs = sub.add_parser(
+        "docs",
+        help="Manage and search documentation catalogs (.md, .txt, .pdf)",
+        description="Index and search multi-catalog documentation with hybrid RRF.",
+    )
+    docs_sub = p_docs.add_subparsers(dest="docs_action", required=True)
+
+    # docs catalog
+    p_cat = docs_sub.add_parser("catalog", help="Manage documentation catalogs")
+    cat_sub = p_cat.add_subparsers(dest="catalog_action", required=True)
+
+    p_cat_add = cat_sub.add_parser("add", help="Add path to a documentation catalog")
+    p_cat_add.add_argument("name", help="Catalog name (e.g. 'default', 'specs', 'master_stack')")
+    p_cat_add.add_argument("path", help="Folder or file path to add")
+    p_cat_add.add_argument(
+        "--global",
+        dest="global_scope",
+        action="store_true",
+        help="Add to global config (~/.vibetrace/config.toml)",
+    )
+
+    cat_sub.add_parser("list", help="List all documentation catalogs")
+
+    p_cat_rm = cat_sub.add_parser("remove", help="Remove a documentation catalog")
+    p_cat_rm.add_argument("name", help="Catalog name to remove")
+    p_cat_rm.add_argument(
+        "--global",
+        dest="global_scope",
+        action="store_true",
+        help="Remove from global config",
+    )
+
+    # docs index
+    p_doc_idx = docs_sub.add_parser("index", help="Index documentation catalogs")
+    p_doc_idx.add_argument(
+        "catalog",
+        nargs="?",
+        default=None,
+        help="Specific catalog name to index (default: all)",
+    )
+    p_doc_idx.add_argument(
+        "--global",
+        dest="global_scope",
+        action="store_true",
+        help="Index global catalogs only",
+    )
+    p_doc_idx.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-indexing without mtime check",
+    )
+
+    # docs search
+    p_doc_search = docs_sub.add_parser(
+        "search", help="Search documentation catalogs with hybrid RRF"
+    )
+    p_doc_search.add_argument("query", help="Search query string")
+    p_doc_search.add_argument(
+        "--catalog",
+        default=None,
+        help="Scope search to specific catalog",
+    )
+    p_doc_search.add_argument(
+        "--scope",
+        choices=["all", "local", "global"],
+        default="all",
+        help="Catalog search scope (default: all)",
+    )
+    p_doc_search.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Maximum number of chunks to return",
+    )
+
+    p_docs.set_defaults(func=_cmd_docs)
+
     # Accept global flags after the subcommand too; SUPPRESS keeps root-level values intact.
+    def _add_common_flags(parser_obj: argparse.ArgumentParser) -> None:
+        if not any("--root" in a.option_strings for a in parser_obj._actions):
+            parser_obj.add_argument(
+                "--root", default=argparse.SUPPRESS, help="Project root path override"
+            )
+        if not any("--no-sync" in a.option_strings for a in parser_obj._actions):
+            parser_obj.add_argument("--no-sync", action="store_true", default=argparse.SUPPRESS)
+        if not any("--json" in a.option_strings for a in parser_obj._actions):
+            parser_obj.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+
+        for act in parser_obj._actions:
+            if isinstance(act, argparse._SubParsersAction):
+                for child_p in act.choices.values():
+                    _add_common_flags(child_p)
+
     for sp in sub.choices.values():
-        sp.add_argument("--root", default=argparse.SUPPRESS, help="Project root path override")
-        sp.add_argument("--no-sync", action="store_true", default=argparse.SUPPRESS)
-        if not any("--json" in a.option_strings for a in sp._actions):
-            sp.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+        _add_common_flags(sp)
 
     return parser
 

@@ -382,3 +382,52 @@ class CallTreeInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class DocSearchInput(BaseModel):
+    """Input model for searching across documentation catalogs."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    query: str = Field(
+        ...,
+        description="Search query string to search documentation with hybrid RRF",
+        min_length=1,
+    )
+    catalog: str | None = Field(
+        default=None,
+        description="Optional specific catalog name to filter search",
+    )
+    scope: Literal["all", "local", "global"] = Field(
+        default="all",
+        description="Catalog search scope: 'all', 'local', or 'global' (default: all)",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the search context",
+    )
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Maximum number of documentation chunks to return",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class DocCatalogsInput(BaseModel):
+    """Input model for listing documentation catalogs."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

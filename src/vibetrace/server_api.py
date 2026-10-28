@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.watcher import start_observer, stop_observer
+from vibetrace.server_api_docs import docs_router
 from vibetrace.services.graph_service import (
     build_call_stack,
     build_call_tree,
@@ -118,6 +119,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(docs_router)
 
 
 @app.get("/api/hooks")
