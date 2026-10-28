@@ -296,8 +296,7 @@ def format_doc_catalogs_md(catalogs: list[Any]) -> str:
     """Format catalog list as Markdown."""
     if not catalogs:
         return (
-            "No documentation catalogs configured. "
-            "Use `vibetrace docs catalog add <name> <path>`."
+            "No documentation catalogs configured. Use `vibetrace docs catalog add <name> <path>`."
         )
     lines = ["## Documentation Catalogs", ""]
     for c in catalogs:
