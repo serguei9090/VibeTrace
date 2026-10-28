@@ -2,6 +2,8 @@ import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./App.css";
 
+import { useState } from "react";
+import { DocsExplorerDrawer } from "./features/docs/components/DocsExplorerDrawer";
 import { CanvasAutoFitter } from "./features/map-room/components/CanvasAutoFitter";
 import { CodeInspectorDrawer } from "./features/map-room/components/CodeInspectorDrawer";
 import { FilterPanel } from "./features/map-room/components/FilterPanel";
@@ -56,6 +58,7 @@ export default function App() {
     rawData,
     fetchGraph,
   } = useMapRoomState();
+  const [docsDrawerOpen, setDocsDrawerOpen] = useState(false);
 
   return (
     <div className="graph-container">
@@ -76,6 +79,8 @@ export default function App() {
         followAgent={followAgent}
         onToggleFollowAgent={setFollowAgent}
         lastAgentEvent={lastAgentEvent}
+        onToggleDocs={() => setDocsDrawerOpen((prev) => !prev)}
+        isDocsOpen={docsDrawerOpen}
       />
 
       <ReactFlow
@@ -129,6 +134,12 @@ export default function App() {
           rawNodes={rawData.current.nodes}
           rawEdges={rawData.current.edges}
           onClose={() => setSelectedElement(null)}
+        />
+
+        <DocsExplorerDrawer
+          isOpen={docsDrawerOpen}
+          onClose={() => setDocsDrawerOpen(false)}
+          apiUrl={API_URL}
         />
 
         <FilterPanel

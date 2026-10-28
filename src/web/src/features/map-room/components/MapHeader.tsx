@@ -1,4 +1,4 @@
-import { Activity, Code, Layers, RefreshCw, Search, X } from "lucide-react";
+import { Activity, BookOpen, Code, Layers, RefreshCw, Search, X } from "lucide-react";
 import type React from "react";
 import type { AgentFocusEvent, LayoutMode, TracePathResponse } from "../types";
 import { AgentRadarBadge } from "./AgentRadarBadge";
@@ -18,6 +18,8 @@ interface MapHeaderProps {
   followAgent: boolean;
   onToggleFollowAgent: (enabled: boolean) => void;
   lastAgentEvent: AgentFocusEvent | null;
+  onToggleDocs?: () => void;
+  isDocsOpen?: boolean;
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
@@ -35,6 +37,8 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   followAgent,
   onToggleFollowAgent,
   lastAgentEvent,
+  onToggleDocs,
+  isDocsOpen,
 }) => {
   return (
     <div className="vibe-header glass-panel">
@@ -94,6 +98,22 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
         <RefreshCw size={16} className={loading ? "spin" : ""} />
         {loading ? "Syncing..." : "Sync Graph"}
       </button>
+
+      {onToggleDocs && (
+        <button
+          type="button"
+          className="vibe-button"
+          onClick={onToggleDocs}
+          style={{
+            background: isDocsOpen ? "rgba(99, 102, 241, 0.3)" : undefined,
+            borderColor: isDocsOpen ? "#6366f1" : undefined,
+            color: isDocsOpen ? "#fff" : undefined,
+          }}
+        >
+          <BookOpen size={16} color={isDocsOpen ? "#a5b4fc" : undefined} />
+          Docs
+        </button>
+      )}
 
       {activeTrace?.found && (
         <div

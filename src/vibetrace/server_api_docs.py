@@ -103,7 +103,7 @@ def index_documentation(body: IndexCatalogRequest) -> dict[str, Any]:
 def search_documentation(
     q: str = Query(..., min_length=1, description="Search query string"),
     catalog: str | None = Query(None, description="Scope search to specific catalog"),
-    scope: Literal["all", "local", "global"] = Query("all", description="Search scope"),
+    scope: Literal["all", "local", "global"] = Query("local", description="Search scope"),
     limit: int = Query(5, ge=1, le=50, description="Maximum chunks to return"),
 ) -> list[DocChunkItem]:
     """Execute hybrid RRF search over documentation chunks."""
