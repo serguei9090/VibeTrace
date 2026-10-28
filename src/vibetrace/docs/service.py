@@ -175,6 +175,7 @@ class DocIndexService:
     """Indexes files in documentation catalogs into SQLite FTS5 and vector tables."""
 
     SUPPORTED_DOC_EXTS = (".md", ".markdown", ".txt", ".pdf")
+    MAX_DOC_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB ceiling to prevent runaway OOM
 
     @classmethod
     def index_catalog(
@@ -190,6 +191,7 @@ class DocIndexService:
         total_chunks = 0
         engine = EmbeddingEngine(project_root=base_dir)
         has_embed = engine.is_available()
+        seen_resolved: set[str] = set()
 
         for p_str in paths:
             target_p = Path(p_str)
@@ -203,19 +205,36 @@ class DocIndexService:
                 if target_p.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
                     files_to_index.append(target_p)
             else:
-                for root, _, files in os.walk(target_p):
+                for root, _, files in os.walk(target_p, followlinks=False):
                     for f in files:
                         p_file = Path(root) / f
                         if p_file.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
                             files_to_index.append(p_file)
 
             for fpath in files_to_index:
+                try:
+                    resolved_str = str(fpath.resolve())
+                except Exception:
+                    resolved_str = str(fpath)
+
+                if resolved_str in seen_resolved:
+                    continue
+                seen_resolved.add(resolved_str)
+
+                try:
+                    st = fpath.stat()
+                except OSError:
+                    continue
+
+                if st.st_size > cls.MAX_DOC_FILE_SIZE:
+                    continue
+
                 rel_file = (
                     str(fpath.relative_to(base_dir)).replace("\\", "/")
                     if fpath.is_relative_to(base_dir)
                     else str(fpath).replace("\\", "/")
                 )
-                mtime = fpath.stat().st_mtime
+                mtime = st.st_mtime
                 prev_mtime = db.get_file_mtime(catalog_name, rel_file)
 
                 if not force and prev_mtime is not None and abs(prev_mtime - mtime) < 1e-4:
@@ -242,15 +261,18 @@ class DocIndexService:
 
     @classmethod
     def _extract_chunks(cls, fpath: Path) -> list[HeadingChunk]:
-        ext = fpath.suffix.lower()
-        if ext in (".md", ".markdown"):
-            content = fpath.read_text(encoding="utf-8", errors="replace")
-            return chunk_markdown(content)
-        elif ext == ".pdf":
-            return chunk_pdf(fpath)
-        else:
-            content = fpath.read_text(encoding="utf-8", errors="replace")
-            return chunk_text(content)
+        try:
+            ext = fpath.suffix.lower()
+            if ext in (".md", ".markdown"):
+                content = fpath.read_text(encoding="utf-8", errors="replace")
+                return chunk_markdown(content)
+            elif ext == ".pdf":
+                return chunk_pdf(fpath)
+            else:
+                content = fpath.read_text(encoding="utf-8", errors="replace")
+                return chunk_text(content)
+        except Exception:
+            return []
 
 
 class DocSearchService:

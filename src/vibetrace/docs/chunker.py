@@ -31,9 +31,14 @@ def chunk_markdown(content: str, max_chars: int = 1500) -> list[HeadingChunk]:
     current_start = 1
     current_lines: list[str] = []
     stack: list[tuple[int, str]] = []  # [(level, title)]
+    in_code_block = False
 
     for idx, line in enumerate(lines, start=1):
-        match = heading_re.match(line.strip())
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code_block = not in_code_block
+
+        match = heading_re.match(stripped) if not in_code_block else None
         if match:
             # Save previous section if it has content
             if current_lines:
@@ -138,40 +143,51 @@ def chunk_text(content: str, max_chars: int = 1200, overlap_lines: int = 4) -> l
     if not lines:
         return []
 
+    # Flatten oversized individual lines into bounded slices
+    norm_lines: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines, start=1):
+        if len(line) <= max_chars:
+            norm_lines.append((idx, line))
+        else:
+            for part in [line[i : i + max_chars] for i in range(0, len(line), max_chars)]:
+                norm_lines.append((idx, part))
+
     chunks: list[HeadingChunk] = []
     buf: list[str] = []
-    chunk_start = 1
+    chunk_start = norm_lines[0][0]
     cur_len = 0
 
-    for idx, line in enumerate(lines, start=1):
-        line_len = len(line) + 1
+    for l_idx, (orig_line, line_text) in enumerate(norm_lines):
+        line_len = len(line_text) + 1
         if cur_len + line_len > max_chars and buf:
-            chunk_end = idx - 1
+            prev_orig_line = norm_lines[l_idx - 1][0]
             chunks.append(
                 HeadingChunk(
-                    title=f"Lines {chunk_start}-{chunk_end}",
-                    heading_path=f"Text Section {chunk_start}-{chunk_end}",
+                    title=f"Lines {chunk_start}-{prev_orig_line}",
+                    heading_path=f"Text Section {chunk_start}-{prev_orig_line}",
                     start_line=chunk_start,
-                    end_line=chunk_end,
+                    end_line=prev_orig_line,
                     content="\n".join(buf).strip(),
                 )
             )
             overlap = buf[-overlap_lines:] if len(buf) > overlap_lines else []
             buf = list(overlap)
             cur_len = sum(len(line_item) + 1 for line_item in buf)
-            chunk_start = idx - len(overlap)
+            chunk_start = (
+                norm_lines[max(0, l_idx - len(overlap))][0] if overlap else orig_line
+            )
 
-        buf.append(line)
+        buf.append(line_text)
         cur_len += line_len
 
     if buf:
-        chunk_end = len(lines)
+        last_orig_line = norm_lines[-1][0]
         chunks.append(
             HeadingChunk(
-                title=f"Lines {chunk_start}-{chunk_end}",
-                heading_path=f"Text Section {chunk_start}-{chunk_end}",
+                title=f"Lines {chunk_start}-{last_orig_line}",
+                heading_path=f"Text Section {chunk_start}-{last_orig_line}",
                 start_line=chunk_start,
-                end_line=chunk_end,
+                end_line=last_orig_line,
                 content="\n".join(buf).strip(),
             )
         )
@@ -187,16 +203,24 @@ def chunk_pdf(pdf_path: Path, max_chars: int = 1500) -> list[HeadingChunk]:
 
     try:
         reader = PdfReader(str(pdf_path))
+        if getattr(reader, "is_encrypted", False):
+            try:
+                dec_res = reader.decrypt("")
+                # If decrypt returns 0, password was required and empty pass failed
+                if dec_res == 0:
+                    return []
+            except Exception:
+                return []
+        pages = list(reader.pages)
     except Exception:
         return []
 
     chunks: list[HeadingChunk] = []
-    for page_num, page in enumerate(reader.pages, start=1):
+    for page_num, page in enumerate(pages, start=1):
         try:
-            text = page.extract_text() or ""
+            text = (page.extract_text() or "").replace("\x00", "").strip()
         except Exception:
             text = ""
-        text = text.strip()
         if not text:
             continue
 
