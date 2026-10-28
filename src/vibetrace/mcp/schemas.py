@@ -435,3 +435,57 @@ class DocCatalogsInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class CallerGuardInput(BaseModel):
+    """Input model for pre-flight caller blast-radius guard."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol_name: str = Field(
+        ...,
+        description="Target symbol name to inspect callers of before editing code",
+        min_length=1,
+    )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file path containing the symbol to disambiguate identical names",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class VibeBundleInput(BaseModel):
+    """Input model for one-shot task context bundle."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    intent: str = Field(
+        ...,
+        description="Natural language task description or query (e.g. 'add auth token')",
+        min_length=1,
+    )
+    target_symbol: str | None = Field(
+        default=None,
+        description="Optional explicit symbol override to focus code slice and caller guard",
+    )
+    token_budget: int = Field(
+        default=1500,
+        ge=200,
+        le=8000,
+        description="Maximum token budget for context bundle (default: 1500)",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

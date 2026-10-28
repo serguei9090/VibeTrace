@@ -439,6 +439,44 @@ def get_references_endpoint(
     }
 
 
+@app.get("/api/vibe/guard")
+def get_vibe_guard_endpoint(
+    symbol: str = Query(..., min_length=1),
+    file_path: str | None = Query(default=None),
+):
+    """Pre-flight caller inspection to verify blast radius before editing code."""
+    from vibetrace.services.caller_guard import CallerGuardService
+
+    active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root))
+    norm_file = normalize_path(file_path, active_root) if file_path else None
+    report = CallerGuardService.get_caller_guard(
+        db, active_root, symbol_name=symbol, file_path=norm_file
+    )
+    if not report.found:
+        raise HTTPException(status_code=404, detail=report.safety_advisory)
+    return report.model_dump()
+
+
+@app.get("/api/vibe/bundle")
+def get_vibe_bundle_endpoint(
+    intent: str = Query(..., min_length=1),
+    symbol: str | None = Query(default=None),
+    budget: int = Query(default=1500, ge=200, le=8000),
+):
+    """Assemble one-shot task context packed with docs, code slice, caller guard, and tests."""
+    from vibetrace.services.vibe_bundle import VibeBundleService
+
+    active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root))
+    bundle = VibeBundleService.assemble_bundle(
+        db=db,
+        root=active_root,
+        intent=intent,
+        target_symbol=symbol,
+        token_budget=budget,
+    )
+    return bundle.model_dump()
+
+
 @app.get("/api/dependencies")
 def get_dependencies_endpoint(file_path: str = Query(..., min_length=1)):
     """Categorize file dependencies into internal, third-party, and standard library."""

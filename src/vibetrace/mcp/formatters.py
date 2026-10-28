@@ -340,3 +340,16 @@ def format_doc_catalogs_md(catalogs: list[Any]) -> str:
         for p in paths:
             lines.append(f"  - `{p}`")
     return "\n".join(lines).strip()
+
+
+def format_caller_guard_markdown(report: Any) -> str:
+    """Format caller guard report for MCP responses."""
+    from vibetrace.services.caller_guard import format_caller_guard_md
+
+    return format_caller_guard_md(report)
+
+
+def format_vibe_bundle_markdown(bundle: Any) -> str:
+    """Format vibe bundle for MCP responses."""
+    return getattr(bundle, "formatted_prompt", "")
+

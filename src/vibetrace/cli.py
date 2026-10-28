@@ -23,6 +23,7 @@ from vibetrace.cli_commands import (
     cmd_summary,
     cmd_trace,
 )
+from vibetrace.cli_vibe import cmd_bundle, cmd_guard
 
 # Aliases for backward compatibility
 _cmd_index = cmd_index
@@ -41,6 +42,8 @@ _cmd_init = cmd_init
 _cmd_skill = cmd_skill
 _cmd_mcp = cmd_mcp
 _cmd_docs = cmd_docs
+_cmd_guard = cmd_guard
+_cmd_bundle = cmd_bundle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
 examples:
   vibetrace index . --embed             # Full index with AST, FTS5, and 256d vectors
   vibetrace index . --lsp               # Index with dynamic LSP type inference
+  vibetrace guard upsert_node           # Pre-flight caller check before editing code
+  vibetrace bundle "add auth token"     # One-shot context packing (docs+code+guard+tests)
   vibetrace search "upsert_node"        # 4-stream hybrid search (AST + BM25 + Vector + PageRank)
   vibetrace trace "GET /graph" get_graph  # Bidirectional BFS trace from route to handler
   vibetrace trace "GET /graph" get_graph --save-as "GraphFlow"  # Save trace bookmark
@@ -511,6 +516,43 @@ examples:
     )
 
     p_docs.set_defaults(func=_cmd_docs)
+
+    # guard
+    p_guard = sub.add_parser(
+        "guard",
+        help="Pre-flight caller inspection to verify blast radius before editing code",
+        description=(
+            "Find all incoming callers, signatures, and call sites of a symbol "
+            "to prevent breaking callers."
+        ),
+    )
+    p_guard.add_argument("symbol", help="Target symbol name to inspect before editing")
+    p_guard.add_argument("--file", default=None, help="File path defining the target symbol")
+    p_guard.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_guard.set_defaults(func=_cmd_guard)
+
+    # bundle
+    p_bundle = sub.add_parser(
+        "bundle",
+        help="Assemble one-shot task context packed with docs, code slice, caller guard, and tests",
+        description=(
+            "One-shot token-bounded task context bundle for AI pair programming (<= 1,500 tokens)."
+        ),
+    )
+    p_bundle.add_argument("intent", help="Natural language task intent or query")
+    p_bundle.add_argument("--symbol", default=None, help="Explicit target symbol override")
+    p_bundle.add_argument(
+        "--budget",
+        type=int,
+        default=1500,
+        help="Maximum token budget for context bundle (default: 1500)",
+    )
+    p_bundle.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_bundle.set_defaults(func=_cmd_bundle)
 
     # Accept global flags after the subcommand too; SUPPRESS keeps root-level values intact.
     def _add_common_flags(parser_obj: argparse.ArgumentParser) -> None:

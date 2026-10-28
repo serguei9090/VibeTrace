@@ -15,6 +15,7 @@ from mcp.types import ToolAnnotations
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
+    format_caller_guard_markdown,
     format_code_slice_md,
     format_dependencies_md,
     format_doc_catalogs_md,
@@ -26,8 +27,10 @@ from vibetrace.mcp.formatters import (
     format_signature_search_md,
     format_structural_summary_md,
     format_trace_path_md,
+    format_vibe_bundle_markdown,
 )
 from vibetrace.mcp.schemas import (
+    CallerGuardInput,
     CallStackInput,
     CallTreeInput,
     CodeSliceInput,
@@ -45,6 +48,7 @@ from vibetrace.mcp.schemas import (
     SemanticSearchInput,
     StructuralSummaryInput,
     TracePathInput,
+    VibeBundleInput,
 )
 from vibetrace.mcp.schemas import (
     TraceDirection as TraceDirection,
@@ -543,6 +547,50 @@ async def vibetrace_list_doc_catalogs(params: DocCatalogsInput) -> str:
         return format_doc_catalogs_md(catalogs)
     except Exception as e:
         return handle_error(e, "listing documentation catalogs")
+
+
+@mcp.tool()
+async def vibetrace_check_caller_guard(params: CallerGuardInput) -> str:
+    """
+    Pre-flight blast-radius guard: inspect all incoming callers, signatures, and call
+    sites of a symbol before modifying its implementation or contract.
+    """
+    try:
+        from vibetrace.services.caller_guard import CallerGuardService
+
+        db, root = get_context_for_path(params.scope_path)
+        report = CallerGuardService.get_caller_guard(
+            db, root, symbol_name=params.symbol_name, file_path=params.file_path
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+        return format_caller_guard_markdown(report)
+    except Exception as e:
+        return handle_error(e, f"inspecting callers for '{params.symbol_name}'")
+
+
+@mcp.tool()
+async def vibetrace_get_vibe_bundle(params: VibeBundleInput) -> str:
+    """
+    One-shot task context bundle: pack relevant docs, target code slice, callee
+    contracts, caller guard, and sibling test patterns into a token-budgeted payload.
+    """
+    try:
+        from vibetrace.services.vibe_bundle import VibeBundleService
+
+        db, root = get_context_for_path(params.scope_path)
+        bundle = VibeBundleService.assemble_bundle(
+            db=db,
+            root=root,
+            intent=params.intent,
+            target_symbol=params.target_symbol,
+            token_budget=params.token_budget,
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return bundle.model_dump_json(indent=2)
+        return format_vibe_bundle_markdown(bundle)
+    except Exception as e:
+        return handle_error(e, f"assembling vibe bundle for '{params.intent}'")
 
 
 def main() -> None:

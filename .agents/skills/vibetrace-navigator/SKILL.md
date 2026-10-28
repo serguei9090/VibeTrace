@@ -7,9 +7,27 @@ description: Surgical codebase discovery, execution tracepath analysis, blast-ra
 
 VibeTrace indexes the repository's Tree-sitter AST, call/inheritance graph (with exact 1-indexed `call_line` numbers), SQLite FTS5 BM25 lexical index, documentation RAG catalogs (.md, .txt, .pdf), and optional local `EmbeddingGemma 2` (256d Matryoshka) vectors in SQLite databases.
 
-Always follow the **4-Step Surgical Workflow** (`Docs -> Locate -> Trace/Impact -> Slice`) instead of blind regex grepping or reading entire 500-line files.
+---
+
+## ⚡ Supercharged 100% Vibecoding Workflow
+
+When starting a coding task or refactoring, use the dedicated Vibecoding superpowers to complete tasks in one shot with zero broken callers:
+
+### 1. One-Shot Task Bundle (`bundle`)
+Get everything needed for a task—relevant architecture specs, target code implementation, callee contracts, caller blast radius, and sibling test fixtures—in a single token-budgeted payload (<= 1,500 tokens):
+
+- **MCP Tool:** `vibetrace_get_vibe_bundle(intent="add auth token to middleware", token_budget=1500)`
+- **CLI:** `uv run vibetrace bundle "add auth token to middleware" --budget 1500`
+
+### 2. Pre-Flight Caller Guard (`guard`)
+**Rule 1 Requirement:** Never modify a function or method signature without inspecting all incoming callers first. The Caller Guard checks every caller in the AST graph, highlights exact call lines, and computes an active blast-radius advisory:
+
+- **MCP Tool:** `vibetrace_check_caller_guard(symbol_name="upsert_node")`
+- **CLI:** `uv run vibetrace guard upsert_node`
 
 ---
+
+## Standard 4-Step Surgical Workflow (`Docs -> Locate -> Trace/Impact -> Slice`)
 
 ## Step 0: Consult Project & Master Docs (`docs`)
 
