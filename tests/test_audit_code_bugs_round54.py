@@ -175,8 +175,8 @@ def test_vibe_bundle_polyglot_go(tmp_path: Path) -> None:
 
     go_test = tmp_path / "pkg" / "hash_test.go"
     go_test.write_text(
-        "package pkg\n\nimport \"testing\"\n\n"
-        "func TestHashSum(t *testing.T) {\n    _ = HashSum(\"abc\")\n}\n",
+        'package pkg\n\nimport "testing"\n\n'
+        'func TestHashSum(t *testing.T) {\n    _ = HashSum("abc")\n}\n',
         encoding="utf-8",
     )
 
