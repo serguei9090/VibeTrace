@@ -114,9 +114,7 @@ class VibeBundleService:
             )
 
         if code_slice_res and code_slice_res.found and code_slice_res.source_code:
-            code_slice_res.source_code = truncate_to_tokens(
-                code_slice_res.source_code, code_budget
-            )
+            code_slice_res.source_code = truncate_to_tokens(code_slice_res.source_code, code_budget)
 
         # 2. Caller Guard (~15% of budget)
         caller_guard_res: CallerGuardReport | None = None
@@ -148,9 +146,7 @@ class VibeBundleService:
 
         # 4. Sibling Test Context (~20% of budget)
         test_budget = int(budget * 0.20)
-        test_ctx = cls._find_sibling_test(
-            db, root, resolved_symbol, target_f, test_budget
-        )
+        test_ctx = cls._find_sibling_test(db, root, resolved_symbol, target_f, test_budget)
 
         # 5. Format unified markdown and enforce global budget
         formatted_md = cls._format_bundle_prompt(

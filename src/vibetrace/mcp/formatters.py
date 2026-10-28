@@ -352,4 +352,3 @@ def format_caller_guard_markdown(report: Any) -> str:
 def format_vibe_bundle_markdown(bundle: Any) -> str:
     """Format vibe bundle for MCP responses."""
     return getattr(bundle, "formatted_prompt", "")
-

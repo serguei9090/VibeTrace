@@ -15,16 +15,12 @@ def cmd_guard(args: argparse.Namespace) -> int:
     root_override = getattr(args, "root", None)
     file_hint = getattr(args, "file", None) or getattr(args, "path", ".")
 
-    db, root = get_context_for_path(
-        file_hint, auto_sync=auto_sync, root_override=root_override
-    )
+    db, root = get_context_for_path(file_hint, auto_sync=auto_sync, root_override=root_override)
 
     symbol = getattr(args, "symbol", "")
     file_path = getattr(args, "file", None)
 
-    report = CallerGuardService.get_caller_guard(
-        db, root, symbol_name=symbol, file_path=file_path
-    )
+    report = CallerGuardService.get_caller_guard(db, root, symbol_name=symbol, file_path=file_path)
 
     if report.found and report.file_path:
         # Highlight target in UI if running
@@ -46,9 +42,7 @@ def cmd_bundle(args: argparse.Namespace) -> int:
     root_override = getattr(args, "root", None)
     path_hint = getattr(args, "path", ".")
 
-    db, root = get_context_for_path(
-        path_hint, auto_sync=auto_sync, root_override=root_override
-    )
+    db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
 
     intent = getattr(args, "intent", "")
     target_symbol = getattr(args, "symbol", None)

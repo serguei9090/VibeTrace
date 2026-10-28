@@ -35,8 +35,7 @@ def sample_db(tmp_path: Path) -> tuple[IndexerDB, Path]:
     src_file = tmp_path / "src" / "billing.py"
     src_file.parent.mkdir(parents=True, exist_ok=True)
     src_file.write_text(
-        "def calculate_tax(amount: float, rate: float = 0.2) -> float:\n"
-        "    return amount * rate\n",
+        "def calculate_tax(amount: float, rate: float = 0.2) -> float:\n    return amount * rate\n",
         encoding="utf-8",
     )
 
@@ -300,4 +299,3 @@ def test_cli_guard_and_bundle(
     bundle_data = json.loads(out_bundle_json)
     assert bundle_data["token_budget"] == 1200
     assert bundle_data["caller_guard"]["found"] is True
-
