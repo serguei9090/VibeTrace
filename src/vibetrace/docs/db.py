@@ -41,6 +41,13 @@ class DocDB:
 
     def _init_schema(self) -> None:
         with self._get_conn() as conn:
+            # Fast check if schema already initialized (avoid write lock on read paths)
+            row = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='doc_chunks'"
+            ).fetchone()
+            if row is not None:
+                return
+
             conn.execute("BEGIN IMMEDIATE")
             try:
                 conn.execute(
@@ -118,13 +125,25 @@ class DocDB:
         chunks: list[HeadingChunk],
         embeddings: list[list[float]] | None = None,
     ) -> int:
-        self.delete_file_chunks(catalog, file_path)
         if not chunks:
+            self.delete_file_chunks(catalog, file_path)
             return 0
 
         with self._get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
+                # 1. Clean previous chunks for this file atomically within the same transaction
+                conn.execute(
+                    "DELETE FROM doc_chunks_fts WHERE id IN ("
+                    "SELECT id FROM doc_chunks WHERE catalog = ? AND file_path = ?)",
+                    (catalog, file_path),
+                )
+                conn.execute(
+                    "DELETE FROM doc_chunks WHERE catalog = ? AND file_path = ?",
+                    (catalog, file_path),
+                )
+
+                # 2. Insert new chunks
                 for idx, chunk in enumerate(chunks):
                     chunk_key = f"{catalog}:{file_path}:{chunk.start_line}:{chunk.end_line}:{idx}"
                     chunk_id = hashlib.sha256(chunk_key.encode("utf-8")).hexdigest()[:24]
@@ -268,13 +287,22 @@ def re_clean_query(query: str) -> list[str]:
     return [w.strip() for w in re.findall(r"\w+", query) if len(w.strip()) > 1]
 
 
+_DOC_DB_CACHE: dict[str, DocDB] = {}
+
+
 def get_global_doc_db() -> DocDB:
     """Return database handle to global user docs store (~/.vibetrace/docs.db)."""
     env_global = os.environ.get("VIBETRACE_GLOBAL_ROOT")
     user_home = Path(env_global) if env_global else Path.home() / ".vibetrace"
-    return DocDB(user_home / "docs.db")
+    key = str((user_home / "docs.db").resolve())
+    if key not in _DOC_DB_CACHE:
+        _DOC_DB_CACHE[key] = DocDB(user_home / "docs.db")
+    return _DOC_DB_CACHE[key]
 
 
 def get_local_doc_db(project_root: Path) -> DocDB:
     """Return database handle to project-local docs store (.vibetrace/vibetrace.db)."""
-    return DocDB(project_root / ".vibetrace" / "vibetrace.db")
+    key = str((project_root / ".vibetrace" / "vibetrace.db").resolve())
+    if key not in _DOC_DB_CACHE:
+        _DOC_DB_CACHE[key] = DocDB(project_root / ".vibetrace" / "vibetrace.db")
+    return _DOC_DB_CACHE[key]

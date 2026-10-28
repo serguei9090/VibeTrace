@@ -173,9 +173,7 @@ def chunk_text(content: str, max_chars: int = 1200, overlap_lines: int = 4) -> l
             overlap = buf[-overlap_lines:] if len(buf) > overlap_lines else []
             buf = list(overlap)
             cur_len = sum(len(line_item) + 1 for line_item in buf)
-            chunk_start = (
-                norm_lines[max(0, l_idx - len(overlap))][0] if overlap else orig_line
-            )
+            chunk_start = norm_lines[max(0, l_idx - len(overlap))][0] if overlap else orig_line
 
         buf.append(line_text)
         cur_len += line_len

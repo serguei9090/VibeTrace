@@ -111,9 +111,7 @@ def test_duplicate_catalog_paths_deduplication(edge_workspace):
 
     db = DocDB(proj_root / ".vibetrace" / "vibetrace.db")
     # Pass docs_dir twice in paths list
-    res = DocIndexService.index_catalog(
-        "cat_dedup", [str(docs_dir), str(docs_dir)], db, proj_root
-    )
+    res = DocIndexService.index_catalog("cat_dedup", [str(docs_dir), str(docs_dir)], db, proj_root)
     # Must only index 1 file once
     assert res["files"] == 1
     assert res["chunks"] == 1
