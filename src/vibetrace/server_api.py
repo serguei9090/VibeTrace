@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.server_api_docs import docs_router
+from vibetrace.server_api_saved_traces import get_saved_traces_router
 from vibetrace.services.graph_service import (
     analyze_file_dependencies,
     build_call_stack,
@@ -24,15 +25,6 @@ from vibetrace.services.graph_service import (
     read_file_lines,
     trace_execution_path,
 )
-from vibetrace.services.saved_traces_service import (
-    SavedTraceCreate,
-    create_saved_trace,
-    delete_saved_trace,
-    delete_saved_trace_by_name,
-    get_saved_trace_by_id,
-    get_saved_trace_by_name,
-    list_saved_traces,
-)
 
 
 class ReindexPayload(BaseModel):
@@ -41,6 +33,7 @@ class ReindexPayload(BaseModel):
     file_path: str | None = None
     force: bool = False
     embed: bool = False
+    docs: bool = True
 
 
 class AgentFocusPayload(BaseModel):
@@ -121,6 +114,7 @@ app.add_middleware(
 )
 
 app.include_router(docs_router)
+app.include_router(get_saved_traces_router(lambda: db))
 
 
 @app.get("/api/hooks")
@@ -329,58 +323,6 @@ def search_signature_endpoint(
     return db.search_by_signature_pattern(pattern, limit=limit, offset=offset)
 
 
-@app.get("/api/saved-traces")
-def get_saved_traces_endpoint():
-    """List all saved architectural trace queries."""
-    return [t.model_dump() for t in list_saved_traces(db)]
-
-
-@app.get("/api/saved-traces/{trace_id}")
-def get_saved_trace_endpoint(trace_id: int):
-    """Get a single saved architectural trace query by ID."""
-    saved = get_saved_trace_by_id(db, trace_id)
-    if not saved:
-        raise HTTPException(status_code=404, detail=f"Saved trace with ID {trace_id} not found")
-    return saved.model_dump()
-
-
-@app.post("/api/saved-traces")
-def post_saved_trace_endpoint(payload: SavedTraceCreate):
-    """Save or update an architectural trace query."""
-    return create_saved_trace(db, payload).model_dump()
-
-
-@app.delete("/api/saved-traces/{trace_id}")
-def delete_saved_trace_endpoint(trace_id: int):
-    """Delete a saved trace query by ID."""
-    deleted = delete_saved_trace(db, trace_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Saved trace not found")
-    return {"status": "deleted", "id": trace_id}
-
-
-@app.delete("/api/saved-traces/by-name/{name}")
-def delete_saved_trace_by_name_endpoint(name: str):
-    """Delete a saved trace query by name."""
-    deleted = delete_saved_trace_by_name(db, name)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
-    return {"status": "deleted", "name": name}
-
-
-@app.get("/api/saved-traces/{name}/run")
-def run_saved_trace_endpoint(name: str):
-    """Execute a saved trace query by name."""
-    saved = get_saved_trace_by_name(db, name)
-    if not saved:
-        raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
-    res = trace_execution_path(db, saved.from_symbol, saved.to_symbol, max_depth=saved.max_depth)
-    return {
-        "saved_trace": saved.model_dump(),
-        "trace_result": res.model_dump(),
-    }
-
-
 @app.post("/api/agent-focus")
 async def post_agent_focus(payload: AgentFocusPayload):
     """Broadcast live AI agent activity to connected Map Room WebSocket clients."""
@@ -447,6 +389,7 @@ def get_vibe_guard_endpoint(
     symbol: str = Query(default=""),
     file_path: str | None = Query(default=None),
     staged: bool = Query(default=False),
+    strict: bool = Query(default=False),
 ):
     """Pre-flight caller inspection to verify blast radius before editing code."""
     from vibetrace.services.caller_guard import CallerGuardService
@@ -454,7 +397,11 @@ def get_vibe_guard_endpoint(
     active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root))
     if staged:
         reports = CallerGuardService.get_staged_caller_guard(db, active_root)
-        return [r.model_dump() for r in reports]
+        serialized = [r.model_dump() for r in reports]
+        if strict:
+            violation = any(r.total_callers > 0 for r in reports)
+            return {"staged": True, "strict": True, "violation": violation, "reports": serialized}
+        return serialized
 
     if not symbol:
         raise HTTPException(
@@ -491,24 +438,36 @@ def get_vibe_bundle_endpoint(
 
 
 @app.get("/api/dependencies")
-def get_dependencies_endpoint(file_path: str = Query(..., min_length=1)):
+def get_dependencies_endpoint(
+    file_path: str = Query(..., min_length=1),
+    reverse: bool = Query(default=False),
+):
     """Categorize file dependencies into internal, third-party, and standard library."""
     norm_path = normalize_path(file_path, Path(project_root))
     if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
         raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")
     analysis = analyze_file_dependencies(db, norm_path)
+    counts = {
+        "internal": len(analysis["internal"]),
+        "third_party": len(analysis["third_party"]),
+        "stdlib": len(analysis["stdlib"]),
+        "dependents": len(analysis["dependents"]),
+        "circular": len(analysis["circular"]),
+        "total": (
+            len(analysis["internal"]) + len(analysis["third_party"]) + len(analysis["stdlib"])
+        ),
+    }
+    if reverse:
+        return {
+            "file_path": norm_path,
+            "reverse": True,
+            "counts": counts,
+            "dependents": analysis["dependents"],
+            "circular": analysis["circular"],
+        }
     return {
         "file_path": norm_path,
-        "counts": {
-            "internal": len(analysis["internal"]),
-            "third_party": len(analysis["third_party"]),
-            "stdlib": len(analysis["stdlib"]),
-            "dependents": len(analysis["dependents"]),
-            "circular": len(analysis["circular"]),
-            "total": (
-                len(analysis["internal"]) + len(analysis["third_party"]) + len(analysis["stdlib"])
-            ),
-        },
+        "counts": counts,
         **analysis,
     }
 
@@ -572,7 +531,67 @@ def post_reindex_endpoint(payload: ReindexPayload | None = None):
         engine = EmbeddingEngine(project_root=Path(project_root))
         if engine.is_available():
             embedded_count = engine.index_missing_embeddings(db)
-    return {"status": "ok", "mode": "workspace", "embedded_count": embedded_count}
+
+    doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
+    if eff_payload.docs:
+        try:
+            from vibetrace.docs.db import DocDB
+            from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+            active_root = Path(project_root).resolve()
+            local_cats = [
+                c for c in DocCatalogManager.list_catalogs(active_root) if c.scope == "local"
+            ]
+            if local_cats:
+                doc_db = DocDB(db.db_path)
+                for cat in local_cats:
+                    res_doc = DocIndexService.index_catalog(
+                        cat.name, cat.paths, doc_db, active_root, force=eff_payload.force
+                    )
+                    doc_stats["catalogs"] += 1
+                    doc_stats["files"] += res_doc.get("files", 0)
+                    doc_stats["chunks"] += res_doc.get("chunks", 0)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "mode": "workspace",
+        "embedded_count": embedded_count,
+        "docs": doc_stats,
+    }
+
+
+@app.get("/api/skill")
+def get_skill_endpoint():
+    """Inspect whether the vibetrace-navigator skill is installed in the project."""
+    root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root)).resolve()
+    local_skill = root / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md"
+    claude_skill = root / ".claude" / "skills" / "vibetrace-navigator" / "SKILL.md"
+    home = Path.home()
+    global_skill = home / ".gemini" / "antigravity" / "skills" / "vibetrace-navigator" / "SKILL.md"
+    return {
+        "installed": local_skill.exists() or claude_skill.exists(),
+        "paths": {
+            "agents": str(local_skill) if local_skill.exists() else None,
+            "claude": str(claude_skill) if claude_skill.exists() else None,
+            "global": str(global_skill) if global_skill.exists() else None,
+        },
+    }
+
+
+@app.post("/api/skill")
+def post_skill_endpoint(global_install: bool = Query(default=False)):
+    """Install or synchronize the vibetrace-navigator skill for AI agents."""
+    from vibetrace.skill_installer import install_skill
+
+    root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root)).resolve()
+    paths = install_skill(root, global_install=global_install)
+    return {
+        "status": "ok",
+        "installed_paths": [str(p) for p in paths],
+        "global": global_install,
+    }
 
 
 @app.websocket("/ws")
