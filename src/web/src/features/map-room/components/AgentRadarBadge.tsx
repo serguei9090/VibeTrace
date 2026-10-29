@@ -14,23 +14,11 @@ export const AgentRadarBadge: React.FC<AgentRadarBadgeProps> = ({
   lastAgentEvent,
 }) => {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
       <button
         type="button"
         onClick={() => onToggleFollow(!followAgent)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "6px 12px",
-          borderRadius: 999,
-          fontSize: "12px",
-          fontWeight: 600,
-          cursor: "pointer",
-          border: followAgent ? "1px solid #10b981" : "1px solid var(--border-color)",
-          background: followAgent ? "rgba(16, 185, 129, 0.16)" : "rgba(255,255,255,0.04)",
-          color: followAgent ? "#6ee7b7" : "var(--text-dim)",
-        }}
+        className={`vibe-btn ${followAgent ? "vibe-btn-agent-active" : ""}`}
         title="Automatically focus and highlight symbols queried by AI Agents via MCP/CLI"
       >
         <Radio size={14} color={followAgent ? "#10b981" : "#94a3b8"} />
@@ -44,9 +32,12 @@ export const AgentRadarBadge: React.FC<AgentRadarBadgeProps> = ({
             color: "#6ee7b7",
             background: "rgba(16, 185, 129, 0.1)",
             border: "1px solid rgba(16, 185, 129, 0.3)",
-            padding: "4px 8px",
-            borderRadius: 6,
-            maxWidth: 240,
+            padding: "0 8px",
+            height: "var(--control-height)",
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: "var(--radius-md)",
+            maxWidth: 220,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",

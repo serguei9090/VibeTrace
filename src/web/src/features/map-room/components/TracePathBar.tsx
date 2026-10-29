@@ -10,6 +10,7 @@ interface TracePathBarProps {
   nodes: RawGraphNode[];
   activeTrace: TracePathResponse | null;
   onTraceResult: (res: TracePathResponse | null) => void;
+  isSidebarOpen?: boolean;
 }
 
 export const TracePathBar: React.FC<TracePathBarProps> = ({
@@ -17,6 +18,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
   nodes,
   activeTrace,
   onTraceResult,
+  isSidebarOpen = false,
 }) => {
   const [fromSymbol, setFromSymbol] = useState("");
   const [toSymbol, setToSymbol] = useState("");
@@ -132,13 +134,14 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
       position="top-left"
       className="glass-panel"
       style={{
-        marginTop: "92px",
-        marginLeft: "20px",
-        padding: "10px 14px",
+        marginTop: "88px",
+        marginLeft: isSidebarOpen ? "344px" : "16px",
+        padding: "8px 12px",
         display: "flex",
         flexDirection: "column",
         gap: 8,
         zIndex: 9,
+        transition: "margin-left 0.25s ease",
       }}
     >
       <form
@@ -167,7 +170,8 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
               className="vibe-input"
               style={{
                 fontSize: "11px",
-                padding: "4px 8px",
+                padding: "0 8px",
+                height: "var(--control-height-sm)",
                 background: "rgba(16, 185, 129, 0.1)",
                 borderColor: "rgba(16, 185, 129, 0.3)",
                 color: "#6ee7b7",
@@ -187,15 +191,8 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
               <button
                 type="button"
                 onClick={handleDeleteSaved}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#f87171",
-                  cursor: "pointer",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                }}
+                className="vibe-btn vibe-btn-icon-sm"
+                style={{ color: "#f87171" }}
                 title="Delete saved bookmark"
               >
                 <Trash2 size={12} />
@@ -207,16 +204,26 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
         <input
           list="vibetrace-symbols"
           className="vibe-input"
-          style={{ width: 155, paddingLeft: 10 }}
+          style={{
+            width: 145,
+            padding: "0 8px",
+            height: "var(--control-height-sm)",
+            fontSize: "12px",
+          }}
           placeholder="From symbol..."
           value={fromSymbol}
           onChange={(e) => setFromSymbol(e.target.value)}
         />
-        <ArrowRight size={14} style={{ opacity: 0.6 }} />
+        <ArrowRight size={13} style={{ opacity: 0.6 }} />
         <input
           list="vibetrace-symbols"
           className="vibe-input"
-          style={{ width: 155, paddingLeft: 10 }}
+          style={{
+            width: 145,
+            padding: "0 8px",
+            height: "var(--control-height-sm)",
+            fontSize: "12px",
+          }}
           placeholder="To symbol..."
           value={toSymbol}
           onChange={(e) => setToSymbol(e.target.value)}
@@ -230,8 +237,13 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
 
         <button
           type="submit"
-          className="vibe-button"
-          style={{ background: "#10b981", padding: "6px 12px", fontSize: "12px" }}
+          className="vibe-btn vibe-btn-sm"
+          style={{
+            background: "#10b981",
+            borderColor: "#059669",
+            color: "#fff",
+            fontWeight: 600,
+          }}
           disabled={busy || !fromSymbol.trim() || !toSymbol.trim()}
         >
           {busy ? "Tracing..." : "Trace"}
@@ -241,17 +253,11 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
           <button
             type="button"
             onClick={() => setShowSavePrompt(true)}
+            className="vibe-btn vibe-btn-sm"
             style={{
               background: "rgba(245, 158, 11, 0.15)",
-              border: "1px solid rgba(245, 158, 11, 0.4)",
-              borderRadius: 6,
+              borderColor: "rgba(245, 158, 11, 0.4)",
               color: "#fbbf24",
-              padding: "5px 8px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: "11px",
             }}
             title="Bookmark this tracepath"
           >
@@ -264,16 +270,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
           <button
             type="button"
             onClick={handleClear}
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid var(--border-color)",
-              borderRadius: 6,
-              color: "#fff",
-              padding: "5px 8px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-            }}
+            className="vibe-btn vibe-btn-icon-sm"
             title="Clear tracepath"
           >
             <X size={13} />

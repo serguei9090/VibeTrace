@@ -1,10 +1,11 @@
 import { Handle, Position } from "@xyflow/react";
-import { Globe, Lock } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Globe, Lock } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
 import type { VibeNodeData } from "../../types";
 
-export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
+export const VibeNode = memo(({ id, data }: { id?: string; data: VibeNodeData }) => {
+  const nodeId = id || (data.id as string);
   const isClass = data.kind === "class";
   const isInterface = data.kind === "interface";
   const isStruct = data.kind === "struct";
@@ -164,6 +165,47 @@ export const VibeNode = memo(({ data }: { data: VibeNodeData }) => {
           {data.signature.length > 36 ? `${data.signature.substring(0, 36)}...` : data.signature}
         </div>
       )}
+
+      {((data.unrevealedCallees !== undefined && data.unrevealedCallees > 0) ||
+        (data.unrevealedCallers !== undefined && data.unrevealedCallers > 0)) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            marginTop: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          {data.unrevealedCallers !== undefined && data.unrevealedCallers > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (nodeId && data.onExpandCallers) data.onExpandCallers(nodeId);
+              }}
+              className="node-expand-pill"
+              title={`Reveal ${data.unrevealedCallers} upstream callers`}
+            >
+              <ArrowUpRight size={10} /> +{data.unrevealedCallers} callers
+            </button>
+          )}
+          {data.unrevealedCallees !== undefined && data.unrevealedCallees > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (nodeId && data.onExpandCallees) data.onExpandCallees(nodeId);
+              }}
+              className="node-expand-pill node-expand-callees"
+              title={`Reveal ${data.unrevealedCallees} downstream callees`}
+            >
+              <ArrowDownRight size={10} /> +{data.unrevealedCallees} callees
+            </button>
+          )}
+        </div>
+      )}
+
       <Handle
         type="source"
         position={isTraceMode ? Position.Right : Position.Bottom}

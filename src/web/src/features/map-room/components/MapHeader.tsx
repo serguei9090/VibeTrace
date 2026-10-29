@@ -1,6 +1,17 @@
-import { Activity, BookOpen, Code, Layers, RefreshCw, Search, X } from "lucide-react";
+import {
+  Activity,
+  BookOpen,
+  Code,
+  Layers,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
 import type React from "react";
-import type { AgentFocusEvent, LayoutMode, TracePathResponse } from "../types";
+import type { AgentFocusEvent, LayoutMode, TracePathResponse, ViewMode } from "../types";
 import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
@@ -12,6 +23,11 @@ interface MapHeaderProps {
   totalEdges: number;
   visibleSymbols: number;
   layoutMode: LayoutMode;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  onResetToRoots: () => void;
+  isSidebarOpen: boolean;
+  onToggleSidebar: () => void;
   activeTrace: TracePathResponse | null;
   onResetTrace?: () => void;
   lastUpdate: string;
@@ -31,6 +47,11 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   totalEdges,
   visibleSymbols,
   layoutMode,
+  viewMode,
+  onViewModeChange,
+  onResetToRoots,
+  isSidebarOpen,
+  onToggleSidebar,
   activeTrace,
   onResetTrace,
   lastUpdate,
@@ -41,46 +62,97 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   isDocsOpen,
 }) => {
   return (
-    <div className="vibe-header glass-panel">
-      <Activity size={24} color="#6366f1" />
-      <h2
-        style={{
-          margin: 0,
-          fontSize: "17px",
-          fontWeight: 700,
-          letterSpacing: "-0.02em",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        }}
-      >
-        <span>VIBETRACE</span>
-        <span
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            color: "#a5b4fc",
-            background: "rgba(99, 102, 241, 0.15)",
-            padding: "2px 8px",
-            borderRadius: "6px",
-            border: "1px solid rgba(99, 102, 241, 0.3)",
-            letterSpacing: "0.05em",
-          }}
+    <header className="vibe-header glass-panel">
+      {/* Brand & Hierarchy Sidebar Toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <button
+          type="button"
+          className={`vibe-btn vibe-btn-icon ${isSidebarOpen ? "vibe-btn-active" : ""}`}
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Close Code Hierarchy Sidebar" : "Open Code Hierarchy Sidebar"}
         >
-          {layoutMode === "trace"
-            ? "TRACEPATH ISOLATED"
-            : layoutMode === "impact"
-              ? "BLAST RADIUS"
-              : "ARCHITECTURE MAP"}
-        </span>
-      </h2>
+          {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+        </button>
 
-      <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Activity size={20} color="#6366f1" />
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "15px",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <span>VIBETRACE</span>
+            <span
+              style={{
+                fontSize: "10px",
+                fontWeight: 600,
+                color: "#a5b4fc",
+                background: "rgba(99, 102, 241, 0.15)",
+                padding: "2px 7px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid rgba(99, 102, 241, 0.3)",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {layoutMode === "trace"
+                ? "TRACEPATH"
+                : layoutMode === "impact"
+                  ? "BLAST RADIUS"
+                  : viewMode === "explorer"
+                    ? "EXPLORER"
+                    : "FULL MAP"}
+            </span>
+          </h2>
+        </div>
+      </div>
+
+      {/* Explorer vs Full Map Segmented Switch */}
+      <div className="vibe-segmented-control" style={{ flexShrink: 0 }}>
+        <button
+          type="button"
+          className={`vibe-segment-btn ${viewMode === "explorer" ? "active" : ""}`}
+          onClick={() => onViewModeChange("explorer")}
+          title="On-demand progressive disclosure: start with entrypoints and expand branches"
+        >
+          Hierarchical Explorer
+        </button>
+        <button
+          type="button"
+          className={`vibe-segment-btn ${viewMode === "full" ? "active" : ""}`}
+          onClick={() => onViewModeChange("full")}
+          title="Bird's-eye view of all symbols and districts"
+        >
+          Full Map
+        </button>
+      </div>
+
+      {/* Reset to roots in explorer mode */}
+      {viewMode === "explorer" && (
+        <button
+          type="button"
+          className="vibe-btn"
+          onClick={onResetToRoots}
+          title="Reset canvas back to root entrypoints (main & endpoints)"
+          style={{ flexShrink: 0 }}
+        >
+          <Sparkles size={14} color="#818cf8" />
+          Roots
+        </button>
+      )}
+
+      {/* Search Bar */}
+      <div style={{ position: "relative", flexShrink: 1, minWidth: 160, maxWidth: 240 }}>
         <Search
-          size={16}
+          size={15}
           style={{
             position: "absolute",
-            left: 12,
+            left: 11,
             top: 10,
             color: "var(--text-dim)",
           }}
@@ -91,45 +163,65 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           placeholder="Search symbols..."
           value={filter}
           onChange={(e) => onFilterChange(e.target.value)}
+          style={{ width: "100%" }}
         />
+        {filter && (
+          <button
+            type="button"
+            onClick={() => onFilterChange("")}
+            style={{
+              position: "absolute",
+              right: 8,
+              top: 9,
+              background: "transparent",
+              border: "none",
+              color: "var(--text-dim)",
+              cursor: "pointer",
+            }}
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
-      <button type="button" className="vibe-button" onClick={onRefresh} disabled={loading}>
-        <RefreshCw size={16} className={loading ? "spin" : ""} />
-        {loading ? "Syncing..." : "Sync Graph"}
-      </button>
-
-      {onToggleDocs && (
+      {/* Action Buttons: Sync Graph & Docs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <button
           type="button"
-          className="vibe-button"
-          onClick={onToggleDocs}
-          style={{
-            background: isDocsOpen ? "rgba(99, 102, 241, 0.3)" : undefined,
-            borderColor: isDocsOpen ? "#6366f1" : undefined,
-            color: isDocsOpen ? "#fff" : undefined,
-          }}
+          className="vibe-btn vibe-btn-primary"
+          onClick={onRefresh}
+          disabled={loading}
+          title="Re-fetch symbols and edges from database"
         >
-          <BookOpen size={16} color={isDocsOpen ? "#a5b4fc" : undefined} />
-          Docs
+          <RefreshCw size={15} className={loading ? "spin" : ""} />
+          {loading ? "Syncing..." : "Sync Graph"}
         </button>
-      )}
 
+        {onToggleDocs && (
+          <button
+            type="button"
+            className={`vibe-btn ${isDocsOpen ? "vibe-btn-active" : ""}`}
+            onClick={onToggleDocs}
+            title="Toggle Architecture Documentation"
+          >
+            <BookOpen size={15} color={isDocsOpen ? "#a5b4fc" : undefined} />
+            Docs
+          </button>
+        )}
+      </div>
+
+      {/* Active Tracepath Pill */}
       {activeTrace?.found && (
         <div
+          className="vibe-stat-chip"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
             background: "rgba(99, 102, 241, 0.2)",
-            border: "1px solid rgba(99, 102, 241, 0.45)",
-            borderRadius: 8,
-            padding: "6px 12px",
-            fontSize: "12px",
+            borderColor: "rgba(99, 102, 241, 0.45)",
             color: "#e0e7ff",
+            flexShrink: 0,
           }}
         >
-          <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace Active:</span>
+          <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace:</span>
           <span>
             {activeTrace.from_symbol} ➔ {activeTrace.to_symbol}
           </span>
@@ -144,7 +236,7 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
               style={{
                 background: "rgba(255, 255, 255, 0.1)",
                 border: "none",
-                borderRadius: 4,
+                borderRadius: "var(--radius-sm)",
                 color: "#fff",
                 cursor: "pointer",
                 padding: "2px 4px",
@@ -159,36 +251,31 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
         </div>
       )}
 
+      {/* Follow AI Agent Badge */}
       <AgentRadarBadge
         followAgent={followAgent}
         onToggleFollow={onToggleFollowAgent}
         lastAgentEvent={lastAgentEvent}
       />
 
-      <div className="stats-panel">
+      {/* Responsive Standardized Stats Chip */}
+      <div className="vibe-stat-chip" style={{ marginLeft: "auto", flexShrink: 0 }}>
         <Layers size={14} style={{ color: "#6366f1" }} />
         <span>
           {visibleSymbols < totalSymbols && visibleSymbols > 0
-            ? `Showing ${visibleSymbols} of ${totalSymbols} Symbols`
-            : `${totalSymbols || visibleSymbols} Symbols`}
+            ? `${visibleSymbols} / ${totalSymbols}`
+            : `${totalSymbols || visibleSymbols}`}
         </span>
-        <div
-          style={{
-            width: 1,
-            height: 16,
-            background: "var(--border-color)",
-          }}
-        />
-        <Code size={14} style={{ color: "#a855f7" }} /> <span>{totalEdges} Edges</span>
-        <div
-          style={{
-            width: 1,
-            height: 16,
-            background: "var(--border-color)",
-          }}
-        />
-        <span style={{ fontSize: "11px", opacity: 0.6 }}>Last Sync: {lastUpdate}</span>
+        <div style={{ width: 1, height: 14, background: "var(--border-color)" }} />
+        <Code size={14} style={{ color: "#a855f7" }} />
+        <span>{totalEdges}</span>
+        {lastUpdate && (
+          <>
+            <div style={{ width: 1, height: 14, background: "var(--border-color)" }} />
+            <span style={{ fontSize: "11px", opacity: 0.6 }}>{lastUpdate}</span>
+          </>
+        )}
       </div>
-    </div>
+    </header>
   );
 };

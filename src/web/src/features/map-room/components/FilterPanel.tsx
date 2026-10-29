@@ -14,6 +14,7 @@ interface FilterPanelProps {
   onToggleImpact: (impact: boolean) => void;
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
+  isSidebarOpen?: boolean;
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -27,6 +28,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onToggleImpact,
   layoutMode = "map",
   onLayoutModeChange,
+  isSidebarOpen = false,
 }) => {
   return (
     <>
@@ -38,8 +40,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           display: "flex",
           flexDirection: "column",
           gap: 8,
-          marginTop: "80px",
+          marginTop: "88px",
+          marginRight: "16px",
           minWidth: "185px",
+          maxHeight: "calc(100vh - 120px)",
+          overflowY: "auto",
         }}
       >
         {onLayoutModeChange && (
@@ -47,7 +52,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 6,
+              gap: 5,
               borderBottom: "1px solid var(--border-color)",
               paddingBottom: 8,
               marginBottom: 4,
@@ -56,31 +61,19 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <div style={{ fontSize: "11px", fontWeight: 600, opacity: 0.7 }}>LAYOUT MODE</div>
             {(
               [
-                { id: "map", label: "Architecture Map", icon: <MapIcon size={12} /> },
-                { id: "trace", label: "Tracepath LR", icon: <GitBranch size={12} /> },
-                { id: "impact", label: "Blast Radius", icon: <Activity size={12} /> },
+                { id: "map", label: "Architecture Map", icon: <MapIcon size={13} /> },
+                { id: "trace", label: "Tracepath LR", icon: <GitBranch size={13} /> },
+                { id: "impact", label: "Blast Radius", icon: <Activity size={13} /> },
               ] as const
             ).map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onLayoutModeChange(item.id)}
+                className={`vibe-btn vibe-btn-sm ${layoutMode === item.id ? "vibe-btn-active" : ""}`}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 8px",
-                  fontSize: "12px",
-                  borderRadius: 6,
-                  border:
-                    layoutMode === item.id
-                      ? "1px solid #6366f1"
-                      : "1px solid rgba(255,255,255,0.08)",
-                  background:
-                    layoutMode === item.id ? "rgba(99, 102, 241, 0.2)" : "rgba(255,255,255,0.03)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  textAlign: "left",
+                  justifyContent: "flex-start",
+                  width: "100%",
                 }}
               >
                 {item.icon}
@@ -230,9 +223,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </Panel>
 
       <Panel
-        position="bottom-right"
+        position="bottom-left"
         className="glass-panel"
-        style={{ padding: "8px 12px", marginBottom: 20, marginRight: 20 }}
+        style={{
+          padding: "8px 12px",
+          marginBottom: 20,
+          marginLeft: isSidebarOpen ? 344 : 20,
+          transition: "margin-left 0.25s ease",
+        }}
       >
         <div
           style={{

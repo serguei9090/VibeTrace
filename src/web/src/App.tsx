@@ -13,6 +13,7 @@ import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNod
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
+import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
 import { API_URL, useMapRoomState } from "./features/map-room/hooks/useMapRoomState";
 import { getGraphBounds } from "./features/map-room/utils/elkLayout";
 
@@ -43,6 +44,17 @@ export default function App() {
     handleImpactToggle,
     layoutMode,
     handleLayoutModeChange,
+    viewMode,
+    setViewMode,
+    showAnonymous,
+    setShowAnonymous,
+    revealedNodeIds,
+    isSidebarOpen,
+    setIsSidebarOpen,
+    onResetToRoots,
+    onToggleNodeVisibility,
+    onFocusNode,
+    onExpandNodeConnections,
     lastUpdate,
     followAgent,
     setFollowAgent,
@@ -73,6 +85,11 @@ export default function App() {
           nodes.filter((n) => n.type !== "districtGroup" && n.type !== "fileGroup").length
         }
         layoutMode={layoutMode}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onResetToRoots={onResetToRoots}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         activeTrace={activeTrace}
         onResetTrace={resetTrace}
         lastUpdate={lastUpdate}
@@ -81,6 +98,20 @@ export default function App() {
         lastAgentEvent={lastAgentEvent}
         onToggleDocs={() => setDocsDrawerOpen((prev) => !prev)}
         isDocsOpen={docsDrawerOpen}
+      />
+
+      <TreeSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        rawNodes={rawData.current.nodes}
+        rawEdges={rawData.current.edges}
+        revealedNodeIds={revealedNodeIds}
+        onToggleNodeVisibility={onToggleNodeVisibility}
+        onFocusNode={onFocusNode}
+        onExpandNodeConnections={onExpandNodeConnections}
+        onResetToRoots={onResetToRoots}
+        showAnonymous={showAnonymous}
+        onToggleAnonymous={setShowAnonymous}
       />
 
       <ReactFlow
@@ -107,11 +138,13 @@ export default function App() {
             border: "1px solid rgba(99, 102, 241, 0.3)",
             width: 220,
             height: 160,
-            bottom: 60,
+            bottom: 20,
+            right: 20,
           }}
           nodeColor={(n: any) => {
             if (n.data?.kind === "class") return "#a855f7";
             if (n.data?.kind === "interface") return "#10b981";
+            if (n.data?.kind === "endpoint") return "#f59e0b";
             return "#6366f1";
           }}
           maskColor="rgba(0, 0, 0, 0.7)"
@@ -126,6 +159,7 @@ export default function App() {
           nodes={rawData.current.nodes}
           activeTrace={activeTrace}
           onTraceResult={handleTraceResult}
+          isSidebarOpen={isSidebarOpen}
         />
 
         <CodeInspectorDrawer
@@ -153,6 +187,7 @@ export default function App() {
           onToggleImpact={handleImpactToggle}
           layoutMode={layoutMode}
           onLayoutModeChange={handleLayoutModeChange}
+          isSidebarOpen={isSidebarOpen}
         />
       </ReactFlow>
     </div>

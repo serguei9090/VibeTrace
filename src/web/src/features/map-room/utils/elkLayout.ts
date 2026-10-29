@@ -1,6 +1,6 @@
 import { type Edge, type Node, Position } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
-import type { LayoutMode, VibeNodeData } from "../types";
+import type { LayoutMode, VibeNodeData, ViewMode } from "../types";
 
 const elk = new ELK();
 
@@ -9,6 +9,7 @@ export const NODE_HEIGHT = 150;
 
 export interface LayoutConfig {
   mode?: LayoutMode;
+  viewMode?: ViewMode;
   traceStepMap?: Map<string, number>;
   impactDepthMap?: Map<string, number>;
 }
@@ -236,6 +237,59 @@ const layoutDirectionalGraph = async (
   return { nodes: finalNodes, edges: activeEdges };
 };
 
+const layoutExplorerGraph = async (
+  contentNodes: Node<VibeNodeData>[],
+  edges: Edge[]
+): Promise<{ nodes: Node[]; edges: Edge[] }> => {
+  const uniqueNodes = Array.from(new Map(contentNodes.map((n) => [n.id, n])).values());
+  const activeIds = new Set(uniqueNodes.map((n) => n.id));
+  const activeEdges = edges.filter(
+    (e) => activeIds.has(e.source) && activeIds.has(e.target) && !e.id.endsWith("-defines")
+  );
+
+  const rootGraph = {
+    id: "root",
+    children: uniqueNodes.map((n) => ({
+      id: n.id,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    })),
+    edges: activeEdges.map((e) => ({
+      id: e.id,
+      sources: [e.source],
+      targets: [e.target],
+    })),
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "160",
+      "elk.spacing.nodeNode": "70",
+      "elk.padding": "[top=60,left=60,bottom=60,right=60]",
+    },
+  };
+
+  const layouted = await elk.layout(rootGraph);
+  const posMap = new Map<string, { x: number; y: number }>();
+  layouted.children?.forEach((c: any) => {
+    posMap.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
+  });
+
+  const finalNodes: Node[] = uniqueNodes.map((n) => ({
+    ...n,
+    position: posMap.get(n.id) || { x: 0, y: 0 },
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+    data: {
+      ...n.data,
+      layoutMode: "trace",
+    },
+  }));
+
+  return { nodes: finalNodes, edges: activeEdges };
+};
+
 export const getLayoutedElements = async (
   nodes: Node<VibeNodeData>[],
   edges: Edge[],
@@ -249,6 +303,9 @@ export const getLayoutedElements = async (
   try {
     if (mode === "trace" || mode === "impact") {
       return await layoutDirectionalGraph(contentNodes, edges, mode, config);
+    }
+    if (config?.viewMode === "explorer") {
+      return await layoutExplorerGraph(contentNodes, edges);
     }
     return await layoutArchitectureMap(contentNodes, edges);
   } catch (err) {

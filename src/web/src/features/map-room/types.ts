@@ -1,4 +1,5 @@
 export type LayoutMode = "map" | "trace" | "impact";
+export type ViewMode = "explorer" | "full";
 
 export interface RawGraphNode {
   id: string;
@@ -29,6 +30,7 @@ export interface GraphData {
 }
 
 export interface VibeNodeData extends Record<string, unknown> {
+  id?: string;
   label: string;
   qualified_name?: string | null;
   kind: string;
@@ -45,6 +47,12 @@ export interface VibeNodeData extends Record<string, unknown> {
   stepBadge?: string;
   impactBadge?: string;
   layoutMode?: LayoutMode;
+  viewMode?: ViewMode;
+  unrevealedCallees?: number;
+  unrevealedCallers?: number;
+  onExpandCallees?: (id: string) => void;
+  onExpandCallers?: (id: string) => void;
+  onCollapseNode?: (id: string) => void;
 }
 
 export interface SelectedElement {

@@ -9,9 +9,14 @@ import {
 import axios from "axios";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GraphData, LayoutMode, SelectedElement, TracePathResponse } from "../types";
+import type { GraphData, LayoutMode, SelectedElement, TracePathResponse, ViewMode } from "../types";
 import { getLayoutedElements } from "../utils/elkLayout";
 import { buildFlowElements, computeSelectionHighlights } from "../utils/graphTraversal";
+import {
+  calculateUnrevealedNeighbors,
+  findRootEntryPoints,
+  isAnonymousSymbol,
+} from "../utils/treeHierarchy";
 import { useVibeSync } from "./useVibeSync";
 
 const isBrowser = typeof window !== "undefined";
@@ -55,6 +60,10 @@ export function useMapRoomState() {
   const [showPrivate, setShowPrivate] = useState(true);
   const [impactMode, setImpactMode] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("map");
+  const [viewMode, setViewMode] = useState<ViewMode>("explorer");
+  const [showAnonymous, setShowAnonymous] = useState(false);
+  const [revealedNodeIds, setRevealedNodeIds] = useState<Set<string>>(new Set());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
   const [followAgent, setFollowAgent] = useState(true);
@@ -93,6 +102,8 @@ export function useMapRoomState() {
     if (res?.found) {
       setLayoutMode("trace");
       setImpactMode(false);
+      // Auto-reveal nodes in trace
+      setRevealedNodeIds((prev) => new Set([...prev, ...res.node_ids]));
     } else if (!res) {
       setLayoutMode("map");
     }
@@ -103,11 +114,68 @@ export function useMapRoomState() {
     setLayoutMode("map");
   }, []);
 
+  const onResetToRoots = useCallback(() => {
+    const roots = findRootEntryPoints(rawData.current.nodes, rawData.current.edges, showAnonymous);
+    setRevealedNodeIds(new Set(roots));
+    setSelectedElement(null);
+    cachedLayout.current = null;
+  }, [showAnonymous]);
+
+  const onToggleNodeVisibility = useCallback((nodeId: string) => {
+    setRevealedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+    cachedLayout.current = null;
+  }, []);
+
+  const onFocusNode = useCallback((nodeId: string) => {
+    setRevealedNodeIds((prev) => new Set([...prev, nodeId]));
+    setSelectedElement({ id: nodeId, type: "node" });
+    cachedLayout.current = null;
+  }, []);
+
+  const onExpandNodeConnections = useCallback((nodeId: string) => {
+    const edges = rawData.current.edges;
+    const neighborIds: string[] = [];
+    for (const e of edges) {
+      if (e.relation_type === "defines") continue;
+      if (e.from_node_id === nodeId) neighborIds.push(e.to_node_id);
+      if (e.to_node_id === nodeId) neighborIds.push(e.from_node_id);
+    }
+    setRevealedNodeIds((prev) => new Set([...prev, nodeId, ...neighborIds]));
+    cachedLayout.current = null;
+  }, []);
+
   const applyLayoutAndFilters = useCallback(async () => {
     const { nodes: rawNodes, edges: rawEdges } = rawData.current;
     if (rawNodes.length === 0) return;
 
-    const filteredNodes = rawNodes.filter((n) => {
+    // Filter out anonymous closures unless explicitly requested
+    const nonAnonNodes = showAnonymous ? rawNodes : rawNodes.filter((n) => !isAnonymousSymbol(n));
+
+    // Explorer mode limits visible nodes to revealed set + active filters
+    let targetCandidateNodes = nonAnonNodes;
+    if (viewMode === "explorer") {
+      const term = filter.trim().toLowerCase();
+      targetCandidateNodes = nonAnonNodes.filter((n) => {
+        if (revealedNodeIds.has(n.id)) return true;
+        if (
+          term &&
+          (n.name.toLowerCase().includes(term) ||
+            (n.qualified_name?.toLowerCase().includes(term) ?? false))
+        ) {
+          return true;
+        }
+        if (activeTrace?.node_ids.includes(n.id)) return true;
+        if (followAgent && lastAgentEvent?.node_ids.includes(n.id)) return true;
+        return false;
+      });
+    }
+
+    const filteredNodes = targetCandidateNodes.filter((n) => {
       const typeMatch = activeFilters.has(n.kind);
       const visibilityMatch = showPrivate || n.visibility !== "private";
       return typeMatch && visibilityMatch;
@@ -144,10 +212,70 @@ export function useMapRoomState() {
       activeEdgeTypes
     );
 
-    const layoutKey = `${layoutMode}_${showPrivate}_${Array.from(activeFilters).sort().join(",")}_${Array.from(activeEdgeTypes).sort().join(",")}_${filteredNodes.length}_${filteredEdges.length}`;
+    // Compute unrevealed neighbor counts for progressive disclosure
+    const neighborMap = calculateUnrevealedNeighbors(
+      nonAnonNodes,
+      rawEdges,
+      visibleNodeIds,
+      showAnonymous
+    );
 
-    if (layoutMode === "map" && cachedLayout.current && cachedLayout.current.key === layoutKey) {
-      const flowNodeMap = new Map(flowNodes.map((fn) => [fn.id, fn]));
+    // Enrich flow nodes with on-demand expansion triggers and callbacks
+    const interactiveNodes = flowNodes.map((fn) => {
+      const info = neighborMap.get(fn.id);
+      return {
+        ...fn,
+        data: {
+          ...fn.data,
+          id: fn.id,
+          viewMode,
+          unrevealedCallees: info?.unrevealedCallees || 0,
+          unrevealedCallers: info?.unrevealedCallers || 0,
+          onExpandCallees: (id: string) => {
+            const nInfo = neighborMap.get(id);
+            const calleeIds =
+              nInfo?.calleeIds ??
+              rawEdges
+                .filter((e) => e.from_node_id === id && e.relation_type !== "defines")
+                .map((e) => e.to_node_id);
+            if (calleeIds.length > 0) {
+              setRevealedNodeIds((prev) => new Set([...prev, ...calleeIds]));
+              cachedLayout.current = null;
+            }
+          },
+          onExpandCallers: (id: string) => {
+            const nInfo = neighborMap.get(id);
+            const callerIds =
+              nInfo?.callerIds ??
+              rawEdges
+                .filter((e) => e.to_node_id === id && e.relation_type !== "defines")
+                .map((e) => e.from_node_id);
+            if (callerIds.length > 0) {
+              setRevealedNodeIds((prev) => new Set([...prev, ...callerIds]));
+              cachedLayout.current = null;
+            }
+          },
+          onCollapseNode: (id: string) => {
+            setRevealedNodeIds((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            cachedLayout.current = null;
+          },
+        },
+      };
+    });
+
+    const layoutKey = `${layoutMode}_${viewMode}_${showAnonymous}_${showPrivate}_${Array.from(activeFilters).sort().join(",")}_${Array.from(activeEdgeTypes).sort().join(",")}_${filteredNodes.length}_${filteredEdges.length}_${revealedNodeIds.size}`;
+
+    if (
+      layoutMode === "map" &&
+      viewMode === "full" &&
+      cachedLayout.current &&
+      cachedLayout.current.key === layoutKey
+    ) {
+      const flowNodeMap = new Map(interactiveNodes.map((fn) => [fn.id, fn]));
       const updatedNodes = cachedLayout.current.nodes.map((n) => {
         const symbolUpdate = flowNodeMap.get(n.id);
         if (symbolUpdate) {
@@ -167,10 +295,11 @@ export function useMapRoomState() {
 
     try {
       const { nodes: layoutNodes, edges: layoutEdges } = await getLayoutedElements(
-        flowNodes,
+        interactiveNodes,
         flowEdges,
         {
           mode: layoutMode,
+          viewMode,
           traceStepMap: highlights.traceStepMap,
           impactDepthMap: highlights.impactDepthMap,
         }
@@ -194,6 +323,9 @@ export function useMapRoomState() {
     showPrivate,
     impactMode,
     layoutMode,
+    viewMode,
+    showAnonymous,
+    revealedNodeIds,
     filter,
     selectedElement,
     activeTrace,
@@ -216,10 +348,17 @@ export function useMapRoomState() {
       cachedLayout.current = null;
       setLastUpdate(new Date().toLocaleTimeString());
 
+      // Seed initial roots on first load
+      setRevealedNodeIds((prev) => {
+        if (prev.size === 0) {
+          const roots = findRootEntryPoints(res.data.nodes, res.data.edges, false);
+          return new Set(roots);
+        }
+        return prev;
+      });
+
       if (res.data.nodes.length === 0) {
         setError("Database is empty. Did you run the indexer?");
-      } else {
-        await applyLayoutAndFilters();
       }
     } catch (err: any) {
       console.error("Failed to fetch graph", err);
@@ -227,7 +366,7 @@ export function useMapRoomState() {
     } finally {
       setLoading(false);
     }
-  }, [applyLayoutAndFilters]);
+  }, []);
 
   fetchGraphRef.current = fetchGraph;
 
@@ -298,6 +437,17 @@ export function useMapRoomState() {
     handleImpactToggle,
     layoutMode,
     handleLayoutModeChange,
+    viewMode,
+    setViewMode,
+    showAnonymous,
+    setShowAnonymous,
+    revealedNodeIds,
+    isSidebarOpen,
+    setIsSidebarOpen,
+    onResetToRoots,
+    onToggleNodeVisibility,
+    onFocusNode,
+    onExpandNodeConnections,
     lastUpdate,
     followAgent,
     setFollowAgent,
