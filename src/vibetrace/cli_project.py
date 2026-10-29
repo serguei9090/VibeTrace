@@ -64,6 +64,9 @@ def register_project_parser(sub: Any) -> None:
     p_guard.add_argument("symbol", help="Target symbol or function to inspect")
     p_guard.add_argument("--repo", default=None, help="Repository defining the target symbol")
 
+    # project links
+    proj_sub.add_parser("links", help="Discover cross-repository HTTP and RPC contract links")
+
     p_proj.set_defaults(func=cmd_project)
 
 
@@ -95,6 +98,8 @@ def cmd_project(args: argparse.Namespace) -> int:
             return _cmd_project_search(args, root, as_json)
         elif action == "guard":
             return _cmd_project_guard(args, root, as_json)
+        elif action == "links":
+            return _cmd_project_links(args, root, as_json)
         else:
             print(f"Unknown project action: '{action}'", file=sys.stderr)
             return 1
@@ -235,4 +240,21 @@ def _cmd_project_guard(args: argparse.Namespace, root: Path, as_json: bool) -> i
                 for c in callers:
                     line_str = f":{c['call_line']}" if c.get("call_line") else ""
                     print(f"      • {c['caller_symbol']} in {c['caller_file']}{line_str}")
+    return 0
+
+
+def _cmd_project_links(args: argparse.Namespace, root: Path, as_json: bool) -> int:
+    ws = ProjectWorkspace.load(root)
+    links = ws.discover_cross_repo_links()
+
+    if as_json:
+        print(json.dumps([link.model_dump() for link in links], indent=2))
+    else:
+        print(f"🔗 Discovered {len(links)} Cross-Repository Contract Links:")
+        if not links:
+            print("   No matching HTTP routes or RPC service contracts detected.")
+        for link in links:
+            src = f"[{link.source_repo}] {link.source_symbol} ({link.source_file})"
+            tgt = f"[{link.target_repo}] {link.target_symbol} ({link.target_file})"
+            print(f"  • {src} --[{link.contract_key}]--> {tgt}")
     return 0

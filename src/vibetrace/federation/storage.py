@@ -8,6 +8,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 
+from vibetrace.federation.cross_repo_linker import CrossRepoLink, CrossRepoLinker
 from vibetrace.federation.models import (
     FederatedCaller,
     FederatedGuardReport,
@@ -116,6 +117,12 @@ class FederatedSQLiteEngine:
                 )
             )
         return statuses
+
+    def get_cross_repo_links(self) -> list[CrossRepoLink]:
+        """Correlate HTTP routes and client invocations across attached repositories."""
+        conn = self._get_conn()
+        linker = CrossRepoLinker(conn, self._attached)
+        return linker.discover_links()
 
     def search(
         self,
@@ -253,6 +260,21 @@ class FederatedSQLiteEngine:
             if repo_callers:
                 callers_by_repo[r_name] = repo_callers
                 total_callers += len(repo_callers)
+
+        # 3. Check synthesized cross-repo contract links (e.g. client fetch -> backend route)
+        for link in self.get_cross_repo_links():
+            if link.target_symbol == symbol_name or link.target_symbol == target_id:
+                existing = callers_by_repo.get(link.source_repo, [])
+                if not any(link.source_symbol in c.get("caller_symbol", "") for c in existing):
+                    caller = FederatedCaller(
+                        calling_repo=link.source_repo,
+                        caller_symbol=f"{link.source_symbol} [{link.contract_key}]",
+                        caller_file=link.source_file,
+                        call_line=link.source_line,
+                        caller_kind="client_route",
+                    )
+                    callers_by_repo.setdefault(link.source_repo, []).append(caller.model_dump())
+                    total_callers += 1
 
         risk = "LOW"
         if total_callers > 10 or len(callers_by_repo) > 1:

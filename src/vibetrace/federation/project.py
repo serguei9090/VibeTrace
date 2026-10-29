@@ -11,6 +11,7 @@ from vibetrace.federation.config import (
     load_project_manifest,
     save_project_manifest,
 )
+from vibetrace.federation.cross_repo_linker import CrossRepoLink
 from vibetrace.federation.models import (
     FederatedGuardReport,
     FederatedNode,
@@ -192,3 +193,7 @@ class ProjectWorkspace:
     ) -> FederatedGuardReport:
         """Trace cross-repository callers and compute blast radius for a symbol."""
         return self.engine.get_cross_repo_guard(symbol, target_repo=target_repo)
+
+    def discover_cross_repo_links(self) -> list[CrossRepoLink]:
+        """Correlate HTTP routes and client invocations across member repositories."""
+        return self.engine.get_cross_repo_links()
