@@ -442,6 +442,14 @@ def cmd_init(args: argparse.Namespace) -> int:
         configure_hooks=configure_hooks,
     )
 
+    if getattr(args, "project", False):
+        from vibetrace.federation.project import ProjectWorkspace
+
+        ws = ProjectWorkspace.init(root, name=root.name, auto_discover=True)
+        res["federation_initialized"] = True
+        res["project_name"] = ws.manifest.name
+        res["members"] = [m.model_dump() for m in ws.manifest.members]
+
     if getattr(args, "json", False):
         print(json.dumps(res, indent=2))
         return 0
@@ -467,6 +475,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         lines.append(f"- **Git Pre-Commit Guard**: {res.get('hooks_message', 'configured')}")
     if res["installed_skills"]:
         lines.append(f"- **Skill Installed**: `{', '.join(res['installed_skills'])}`")
+    if res.get("federation_initialized"):
+        mem_count = len(res.get("members", []))
+        proj_msg = f"- **Federated Project**: '{res['project_name']}'"
+        lines.append(f"{proj_msg} ({mem_count} member repos in .vibetrace-project.toml)")
     if res["indexed"]:
         lines.append(
             f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"

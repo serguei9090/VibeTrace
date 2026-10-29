@@ -407,6 +407,12 @@ examples:
         default=False,
         help="Automatically install Git/Lefthook pre-commit guard hooks",
     )
+    p_init.add_argument(
+        "--project",
+        action="store_true",
+        default=False,
+        help="Initialize as a federated multi-repository / monorepo workspace",
+    )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
 

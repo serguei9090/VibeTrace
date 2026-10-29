@@ -124,3 +124,43 @@ uv run vibetrace index .
 # Optional: encode local EmbeddingGemma 2 (256d MRL) vectors
 uv run vibetrace index . --embed
 ```
+
+---
+
+## 🌐 Monorepos & Multi-Repo Federation Workflow
+
+When working in a workspace with multiple repositories (e.g. `frontend/`, `backend/`, `shared/`) or a monorepo (`packages/*`, `apps/*`):
+
+### 1. Zero-Complexity Workspace Setup (`project init`)
+Initialize the umbrella `.vibetrace-project.toml` manifest with zero configuration. It automatically adopts the directory name as the project name and discovers all sub-packages:
+
+```bash
+# Auto-detects all member repos and names the project after the current folder:
+uv run vibetrace project init
+
+# Or initialize as a federated project directly:
+uv run vibetrace init --project
+
+# Index all member repositories into federated storage:
+uv run vibetrace project index
+```
+
+### 2. Inspecting Cross-Repository Contract Links (`project links`)
+VibeTrace automatically matches client-side HTTP calls (e.g. Next.js `fetch("/api/v1/orders")`) to backend server route handlers (FastAPI `@app.post("/api/v1/orders")`):
+
+- **MCP Tool:** `vibetrace_project_links()`
+- **CLI:** `uv run vibetrace project links`
+
+### 3. Federated Cross-Repo Blast Radius Guard (`project guard`)
+Before modifying a data model, API route, or function in one repository, check all callers across **all** member repositories:
+
+- **MCP Tool:** `vibetrace_project_guard(symbol="process_payment")`
+- **CLI:** `uv run vibetrace project guard process_payment`
+
+### 4. Federated vs. Scoped Search (`project search`)
+Search across all repositories simultaneously or limit search to a single member service:
+
+- **MCP Tool:** `vibetrace_project_search(query="checkout", repo="backend")`
+- **CLI (All Repos):** `uv run vibetrace project search "checkout"`
+- **CLI (Scoped):** `uv run vibetrace project search "checkout" --repo backend`
+
