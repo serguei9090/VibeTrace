@@ -11,7 +11,7 @@ pre-commit:
       glob: "*.py"
       run: uv run pyright
     web-lint:
-      glob: "src/web/**/*.{ts,tsx,js,json,css}"
+      glob: "{src/web,extensions/vscode}/**/*.{ts,tsx,js,json,css}"
       run: biome check --write {staged_files}
 
 # --- VibeTrace Automated Sync ---

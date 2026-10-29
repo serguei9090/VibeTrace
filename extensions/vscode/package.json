@@ -1,0 +1,167 @@
+{
+  "name": "vibetrace-vscode",
+  "displayName": "VibeTrace - Code Intelligence & Blast Radius Guard",
+  "description": "Local AI code graph intelligence, surgical code slicing, blast-radius caller guards, and embedded Map Room for VS Code.",
+  "version": "0.1.0",
+  "publisher": "vibetrace",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "call-graph",
+    "blast-radius",
+    "code-intelligence",
+    "tree-sitter",
+    "ai-agent",
+    "context"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:go",
+    "onLanguage:rust",
+    "onLanguage:csharp",
+    "onView:vibetrace.mapRoomView"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibetrace.inspectCallers",
+        "title": "VibeTrace: Inspect Blast Radius Callers",
+        "category": "VibeTrace",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "vibetrace.copySlice",
+        "title": "VibeTrace: Copy Surgical Slice to Clipboard",
+        "category": "VibeTrace",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "vibetrace.bundleContext",
+        "title": "VibeTrace: Assemble Task Context Bundle",
+        "category": "VibeTrace",
+        "icon": "$(package)"
+      },
+      {
+        "command": "vibetrace.openMapRoom",
+        "title": "VibeTrace: Open Map Room Webview",
+        "category": "VibeTrace",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "vibetrace.refreshProject",
+        "title": "VibeTrace: Refresh Project Federation",
+        "category": "VibeTrace",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vibetrace.reindex",
+        "title": "VibeTrace: Trigger Codebase Reindex",
+        "category": "VibeTrace",
+        "icon": "$(sync)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vibetrace.inspectCallers",
+          "group": "vibetrace@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "vibetrace.copySlice",
+          "group": "vibetrace@2",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "vibetrace.bundleContext",
+          "group": "vibetrace@3",
+          "when": "editorTextFocus"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "vibetrace.refreshProject",
+          "when": "view == vibetrace.mapRoomView",
+          "group": "navigation"
+        },
+        {
+          "command": "vibetrace.reindex",
+          "when": "view == vibetrace.mapRoomView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vibetrace-explorer",
+          "title": "VibeTrace",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "vibetrace-explorer": [
+        {
+          "type": "webview",
+          "id": "vibetrace.mapRoomView",
+          "name": "Map Room & Federation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "VibeTrace",
+      "properties": {
+        "vibetrace.daemonUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "Base URL of the local VibeTrace daemon API."
+        },
+        "vibetrace.wsUrl": {
+          "type": "string",
+          "default": "ws://127.0.0.1:8000/ws",
+          "description": "WebSocket URL for live VibeTrace graph and agent events."
+        },
+        "vibetrace.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable caller guard and blast radius badges above symbols."
+        },
+        "vibetrace.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Surface unpatched caller warnings in the Problems pane."
+        },
+        "vibetrace.bundleTokenBudget": {
+          "type": "number",
+          "default": 1500,
+          "description": "Default maximum token budget when assembling task context bundles."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun run esbuild.config.mjs",
+    "watch": "bun run esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --preload ./src/test/suite/vscode_shim.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "bun-types": "^1.4.4",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5"
+  }
+}
