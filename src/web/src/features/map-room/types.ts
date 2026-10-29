@@ -106,3 +106,11 @@ export interface SavedTrace {
   max_depth: number;
   created_at?: string | null;
 }
+
+export interface NodeNeighborsResponse {
+  center_node: RawGraphNode;
+  nodes: RawGraphNode[];
+  edges: RawGraphEdge[];
+  caller_count: number;
+  callee_count: number;
+}

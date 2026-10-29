@@ -158,6 +158,85 @@ def get_graph(file_path: str | None = None):
     return db.get_graph_data(None)
 
 
+@app.get("/api/node/{node_id}/neighbors")
+def get_node_neighbors(
+    node_id: str,
+    direction: Literal["up", "down", "both"] = Query(default="both"),
+    all_relations: bool = Query(default=False),
+):
+    """
+    Return immediate 1-hop caller and/or callee neighbors for a node.
+    Used for instant, lightweight progressive drill-down in the Map Room.
+    """
+    node = db.get_node(node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found")
+
+    rel_types = None if all_relations else ("calls", "routes", "inherits", "implements", "imports")
+    callers = []
+    callees = []
+
+    if direction in ("up", "both"):
+        callers = db.get_neighbors(node_id, "up", relation_types=rel_types)
+    if direction in ("down", "both"):
+        callees = db.get_neighbors(node_id, "down", relation_types=rel_types)
+
+    # Collect unique neighbor nodes and edges
+    neighbor_nodes = []
+    edges = []
+    seen_nodes = set()
+
+    for c in callers:
+        nid = c["neighbor_id"]
+        if nid not in seen_nodes:
+            seen_nodes.add(nid)
+            neighbor_nodes.append({
+                "id": nid,
+                "name": c["name"],
+                "qualified_name": c["qualified_name"],
+                "kind": c["kind"],
+                "file_path": c["file_path"],
+                "start_line": c["start_line"],
+                "end_line": c["end_line"],
+                "signature": c["signature"],
+            })
+        edges.append({
+            "from_node_id": nid,
+            "to_node_id": node_id,
+            "relation_type": c["relation_type"],
+            "call_line": c["call_line"],
+        })
+
+    for c in callees:
+        nid = c["neighbor_id"]
+        if nid not in seen_nodes:
+            seen_nodes.add(nid)
+            neighbor_nodes.append({
+                "id": nid,
+                "name": c["name"],
+                "qualified_name": c["qualified_name"],
+                "kind": c["kind"],
+                "file_path": c["file_path"],
+                "start_line": c["start_line"],
+                "end_line": c["end_line"],
+                "signature": c["signature"],
+            })
+        edges.append({
+            "from_node_id": node_id,
+            "to_node_id": nid,
+            "relation_type": c["relation_type"],
+            "call_line": c["call_line"],
+        })
+
+    return {
+        "center_node": node,
+        "nodes": neighbor_nodes,
+        "edges": edges,
+        "caller_count": len(callers),
+        "callee_count": len(callees),
+    }
+
+
 @app.get("/trace")
 @app.get("/api/trace")
 def get_trace(

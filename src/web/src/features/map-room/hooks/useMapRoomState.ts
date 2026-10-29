@@ -9,7 +9,14 @@ import {
 import axios from "axios";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GraphData, LayoutMode, SelectedElement, TracePathResponse, ViewMode } from "../types";
+import type {
+  GraphData,
+  LayoutMode,
+  NodeNeighborsResponse,
+  SelectedElement,
+  TracePathResponse,
+  ViewMode,
+} from "../types";
 import { getLayoutedElements } from "../utils/elkLayout";
 import { buildFlowElements, computeSelectionHighlights } from "../utils/graphTraversal";
 import {
@@ -231,7 +238,40 @@ export function useMapRoomState() {
           viewMode,
           unrevealedCallees: info?.unrevealedCallees || 0,
           unrevealedCallers: info?.unrevealedCallers || 0,
-          onExpandCallees: (id: string) => {
+          onExpandCallees: async (id: string) => {
+            try {
+              // Try surgical lazy neighbors endpoint first
+              const res = await axios.get<NodeNeighborsResponse>(
+                `${API_URL}/api/node/${id}/neighbors?direction=down`
+              );
+              if (res.data?.nodes && res.data.nodes.length > 0) {
+                // Incorporate fetched nodes/edges into rawData if not already present
+                const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
+                for (const newNode of res.data.nodes) {
+                  if (!existingNodeIds.has(newNode.id)) {
+                    rawData.current.nodes.push(newNode);
+                  }
+                }
+                const existingEdgeKeys = new Set(
+                  rawData.current.edges.map(
+                    (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`
+                  )
+                );
+                for (const newEdge of res.data.edges) {
+                  const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
+                  if (!existingEdgeKeys.has(key)) {
+                    rawData.current.edges.push(newEdge);
+                  }
+                }
+                const newIds = res.data.nodes.map((n) => n.id);
+                setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+                cachedLayout.current = null;
+                return;
+              }
+            } catch {
+              // Fallback to local memory graph if offline or error
+            }
+
             const nInfo = neighborMap.get(id);
             const calleeIds =
               nInfo?.calleeIds ??
@@ -243,7 +283,38 @@ export function useMapRoomState() {
               cachedLayout.current = null;
             }
           },
-          onExpandCallers: (id: string) => {
+          onExpandCallers: async (id: string) => {
+            try {
+              const res = await axios.get<NodeNeighborsResponse>(
+                `${API_URL}/api/node/${id}/neighbors?direction=up`
+              );
+              if (res.data?.nodes && res.data.nodes.length > 0) {
+                const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
+                for (const newNode of res.data.nodes) {
+                  if (!existingNodeIds.has(newNode.id)) {
+                    rawData.current.nodes.push(newNode);
+                  }
+                }
+                const existingEdgeKeys = new Set(
+                  rawData.current.edges.map(
+                    (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`
+                  )
+                );
+                for (const newEdge of res.data.edges) {
+                  const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
+                  if (!existingEdgeKeys.has(key)) {
+                    rawData.current.edges.push(newEdge);
+                  }
+                }
+                const newIds = res.data.nodes.map((n) => n.id);
+                setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+                cachedLayout.current = null;
+                return;
+              }
+            } catch {
+              // Fallback to local memory graph
+            }
+
             const nInfo = neighborMap.get(id);
             const callerIds =
               nInfo?.callerIds ??

@@ -70,7 +70,7 @@ export const VibeNode = memo(({ id, data }: { id?: string; data: VibeNodeData })
     boxShadow: isHighlighted
       ? `0 0 24px ${glowColor}, 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15)`
       : "0 4px 16px -2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-    opacity: isDimmed ? 0.22 : 1,
+    opacity: isDimmed ? 0.45 : 1,
     transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
   };
 

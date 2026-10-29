@@ -45,7 +45,8 @@ export const isAnonymousSymbol = (node: RawGraphNode): boolean => {
 };
 
 /**
- * Finds high-level entry points for initial hierarchical progressive exploration.
+ * Finds high-level entry points and their immediate callees for initial hierarchical progressive exploration.
+ * Returning entry points PLUS their direct targets ensures real connecting lines are visible on initial load.
  */
 export const findRootEntryPoints = (
   nodes: RawGraphNode[],
@@ -58,20 +59,22 @@ export const findRootEntryPoints = (
   // In-degree & out-degree maps
   const inDegreeMap = new Map<string, number>();
   const outDegreeMap = new Map<string, number>();
+  const outEdges = new Map<string, string[]>();
 
   for (const e of edges) {
     if (e.relation_type === "defines") continue;
     if (nodeMap.has(e.from_node_id) && nodeMap.has(e.to_node_id)) {
       outDegreeMap.set(e.from_node_id, (outDegreeMap.get(e.from_node_id) || 0) + 1);
       inDegreeMap.set(e.to_node_id, (inDegreeMap.get(e.to_node_id) || 0) + 1);
+
+      const outs = outEdges.get(e.from_node_id) || [];
+      outs.push(e.to_node_id);
+      outEdges.set(e.from_node_id, outs);
     }
   }
 
   // 1. All API endpoints are primary entry points
   const endpoints = candidateNodes.filter((n) => n.kind === "endpoint");
-  if (endpoints.length > 0 && endpoints.length <= 50) {
-    return endpoints.map((n) => n.id);
-  }
 
   // 2. High-level entrypoints: main, cli, run, app, or root handlers
   const primaryNames = new Set(["main", "cli", "run", "app", "serve", "handler"]);
@@ -89,21 +92,42 @@ export const findRootEntryPoints = (
     return inDeg === 0 && outDeg > 0 && n.kind !== "variable" && n.kind !== "module";
   });
 
-  const combined = new Set<string>();
-  for (const n of endpoints) combined.add(n.id);
-  for (const n of mainEntrypoints) combined.add(n.id);
-  for (const n of naturalRoots) combined.add(n.id);
+  const selectedRoots: string[] = [];
+  // Prioritize primary entrypoints and top endpoints with outgoing calls
+  const candidatesWithCalls = [...endpoints, ...mainEntrypoints, ...naturalRoots].filter(
+    (n) => (outDegreeMap.get(n.id) || 0) > 0
+  );
 
-  if (combined.size > 0) {
-    // Cap initial roots to top 30 to guarantee instantaneous rendering and high readability
-    return Array.from(combined).slice(0, 30);
+  const pool =
+    candidatesWithCalls.length > 0
+      ? candidatesWithCalls
+      : [...endpoints, ...mainEntrypoints, ...naturalRoots];
+  for (const n of pool) {
+    if (!selectedRoots.includes(n.id)) {
+      selectedRoots.push(n.id);
+    }
+    if (selectedRoots.length >= 8) break; // Limit to top 8 distinct pipeline roots
   }
 
-  // Fallback: Top 15 nodes by out-degree
-  const sorted = [...candidateNodes].sort(
-    (a, b) => (outDegreeMap.get(b.id) || 0) - (outDegreeMap.get(a.id) || 0)
-  );
-  return sorted.slice(0, 15).map((n) => n.id);
+  if (selectedRoots.length === 0) {
+    // Fallback: Top 5 nodes by out-degree
+    const sorted = [...candidateNodes].sort(
+      (a, b) => (outDegreeMap.get(b.id) || 0) - (outDegreeMap.get(a.id) || 0)
+    );
+    return sorted.slice(0, 5).map((n) => n.id);
+  }
+
+  // Include the roots PLUS their immediate 1st-level callees so lines connect immediately!
+  const finalSet = new Set<string>(selectedRoots);
+  for (const rootId of selectedRoots) {
+    const callees = outEdges.get(rootId) || [];
+    for (const c of callees.slice(0, 3)) {
+      // Up to 3 immediate targets per root
+      finalSet.add(c);
+    }
+  }
+
+  return Array.from(finalSet);
 };
 
 /**
