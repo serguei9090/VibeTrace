@@ -123,6 +123,11 @@
     "configuration": {
       "title": "VibeTrace",
       "properties": {
+        "vibetrace.autoStartDaemon": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically launch background VibeTrace daemon if not currently running."
+        },
         "vibetrace.daemonUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8000",

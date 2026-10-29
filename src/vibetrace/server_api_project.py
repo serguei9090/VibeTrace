@@ -16,24 +16,46 @@ def get_project_router() -> APIRouter:
     """Create and configure the federated project workspace API router."""
     router = APIRouter(prefix="/api/project", tags=["project-federation"])
 
-    def _get_workspace() -> ProjectWorkspace:
+    def _resolve_project_root() -> Path | None:
         active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", Path.cwd())).resolve()
-        found = find_project_root(active_root)
-        if not found:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No federated project workspace found in '{active_root}' or parents.",
-            )
-        return ProjectWorkspace.load(found)
+        return find_project_root(active_root)
 
     @router.get("")
     def get_project_status_endpoint() -> dict[str, Any]:
         """Return project manifest and member repository health status."""
-        ws = _get_workspace()
-        try:
+        active_root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", Path.cwd())).resolve()
+        found = _resolve_project_root()
+        if not found:
             return {
+                "is_federated": False,
+                "project_name": active_root.name,
+                "storage": "sqlite",
+                "manifest_path": "",
+                "member_count": 1,
+                "members": [
+                    {
+                        "name": active_root.name,
+                        "path": ".",
+                        "database_path": str(active_root / ".vibetrace" / "vibetrace.db"),
+                        "exists": (active_root / ".vibetrace" / "vibetrace.db").exists(),
+                        "node_count": 0,
+                    }
+                ],
+                "cross_repo_link_count": 0,
+            }
+
+        ws = ProjectWorkspace.load(found)
+        try:
+            links = ws.discover_cross_repo_links()
+            return {
+                "is_federated": True,
+                "project_name": ws.manifest.name,
+                "storage": ws.manifest.settings.storage_backend,
+                "manifest_path": str(found),
+                "member_count": len(ws.manifest.members),
                 "manifest": ws.manifest.model_dump(),
                 "members": [m.model_dump() for m in ws.list_members()],
+                "cross_repo_link_count": len(links),
             }
         finally:
             ws.close()
@@ -45,7 +67,11 @@ def get_project_router() -> APIRouter:
         limit: int = Query(default=20, ge=1, le=100),
     ) -> list[dict[str, Any]]:
         """Search symbol definitions across one or all member repositories."""
-        ws = _get_workspace()
+        found = _resolve_project_root()
+        if not found:
+            return []
+
+        ws = ProjectWorkspace.load(found)
         try:
             results = ws.search(query, repo=repo, limit=limit)
             return [r.model_dump() for r in results]
@@ -58,7 +84,14 @@ def get_project_router() -> APIRouter:
         repo: str | None = Query(default=None),
     ) -> dict[str, Any]:
         """Perform cross-repository blast-radius analysis for a symbol."""
-        ws = _get_workspace()
+        found = _resolve_project_root()
+        if not found:
+            raise HTTPException(
+                status_code=404,
+                detail="No federated project workspace found in current directory or parents.",
+            )
+
+        ws = ProjectWorkspace.load(found)
         try:
             report = ws.guard(symbol, target_repo=repo)
             return report.model_dump()
@@ -68,7 +101,11 @@ def get_project_router() -> APIRouter:
     @router.get("/links")
     def get_cross_repo_links_endpoint() -> list[dict[str, Any]]:
         """Discover cross-repository HTTP routes and RPC service contracts."""
-        ws = _get_workspace()
+        found = _resolve_project_root()
+        if not found:
+            return []
+
+        ws = ProjectWorkspace.load(found)
         try:
             links = ws.discover_cross_repo_links()
             return [lnk.model_dump() for lnk in links]

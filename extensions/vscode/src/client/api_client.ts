@@ -239,6 +239,9 @@ export class VibeTraceApiClient {
         return [];
       }
       const data = await resp.json();
+      if (Array.isArray(data)) {
+        return data as CrossRepoLink[];
+      }
       return (data.links || []) as CrossRepoLink[];
     } catch {
       return [];

@@ -4,11 +4,13 @@ import { VibeTraceWsClient } from "./client/ws_client.js";
 import { VibeTraceCodeLensProvider } from "./providers/codelens_provider.js";
 import { VibeTraceContextMenuProvider } from "./providers/context_menu.js";
 import { VibeTraceDiagnosticsProvider } from "./providers/diagnostics_provider.js";
+import { VibeTraceDaemonManager } from "./server/daemon_manager.js";
 import { VibeTraceMapRoomWebviewProvider } from "./views/map_room_webview.js";
 
 let wsClient: VibeTraceWsClient | null = null;
 let diagnosticsProvider: VibeTraceDiagnosticsProvider | null = null;
 let statusBarItem: vscode.StatusBarItem | null = null;
+let daemonManager: VibeTraceDaemonManager | null = null;
 
 const SUPPORTED_LANGUAGES = [
   "python",
@@ -25,9 +27,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const config = vscode.workspace.getConfiguration("vibetrace");
   const daemonUrl = config.get<string>("daemonUrl", "http://127.0.0.1:8000");
   const wsUrl = config.get<string>("wsUrl", "ws://127.0.0.1:8000/ws");
+  const autoStart = config.get<boolean>("autoStartDaemon", true);
 
   const apiClient = new VibeTraceApiClient(daemonUrl);
   wsClient = new VibeTraceWsClient(wsUrl);
+
+  // Managed Daemon Lifecycle
+  daemonManager = new VibeTraceDaemonManager(apiClient);
+  context.subscriptions.push(daemonManager);
 
   // Providers
   const codeLensProvider = new VibeTraceCodeLensProvider(apiClient);
@@ -64,7 +71,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Status Bar Item
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = "vibetrace.openMapRoom";
-  statusBarItem.text = "$(pulse) VibeTrace: Checking...";
+  statusBarItem.text = "$(pulse) VibeTrace: Starting...";
   statusBarItem.tooltip = "Click to open VibeTrace Map Room";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
@@ -82,6 +89,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
   };
+
+  // Auto-start daemon in background if requested
+  if (autoStart) {
+    try {
+      const port = Number(new URL(daemonUrl).port || "8000");
+      await daemonManager.ensureDaemonRunning(port);
+    } catch {
+      // Safe fallback
+    }
+  }
 
   // WebSocket Live Events
   wsClient.onRefresh(() => {
@@ -109,14 +126,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Watch for configuration changes
   context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (e.affectsConfiguration("vibetrace.daemonUrl")) {
         const newDaemon = vscode.workspace
           .getConfiguration("vibetrace")
           .get<string>("daemonUrl", "http://127.0.0.1:8000");
         apiClient.updateBaseUrl(newDaemon);
         mapRoomProvider.updateDaemonUrl(newDaemon);
-        updateStatus();
+        await updateStatus();
       }
       if (e.affectsConfiguration("vibetrace.wsUrl")) {
         const newWs = vscode.workspace
@@ -142,5 +159,9 @@ export function deactivate(): void {
   if (statusBarItem) {
     statusBarItem.dispose();
     statusBarItem = null;
+  }
+  if (daemonManager) {
+    daemonManager.dispose();
+    daemonManager = null;
   }
 }
