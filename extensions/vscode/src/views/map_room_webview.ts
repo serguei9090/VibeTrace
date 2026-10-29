@@ -1,14 +1,27 @@
 import * as vscode from "vscode";
 import type { ProjectStatus, VibeTraceApiClient } from "../client/api_client.js";
 
+interface ActiveFileSymbol {
+  name: string;
+  line: number;
+  totalCallers: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+}
+
 export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private apiClient: VibeTraceApiClient;
   private daemonUrl: string;
+  private onOpenTabRequested: () => void;
 
-  constructor(apiClient: VibeTraceApiClient, daemonUrl = "http://127.0.0.1:8000") {
+  constructor(
+    apiClient: VibeTraceApiClient,
+    daemonUrl = "http://127.0.0.1:8000",
+    onOpenTabRequested: () => void = () => {}
+  ) {
     this.apiClient = apiClient;
     this.daemonUrl = daemonUrl;
+    this.onOpenTabRequested = onOpenTabRequested;
   }
 
   public updateDaemonUrl(daemonUrl: string): void {
@@ -31,6 +44,10 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
+        case "openMapRoomTab": {
+          this.onOpenTabRequested();
+          break;
+        }
         case "openMapRoomExternal": {
           await vscode.env.openExternal(vscode.Uri.parse(this.daemonUrl));
           break;
@@ -39,18 +56,22 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
           await vscode.commands.executeCommand("vibetrace.reindex");
           break;
         }
-        case "refreshFederation": {
-          await vscode.commands.executeCommand("vibetrace.refreshProject");
-          break;
-        }
         case "inspectCallers": {
           await vscode.commands.executeCommand("vibetrace.inspectCallers", message.symbol);
           break;
         }
-        case "navigate": {
-          if (message.filePath && message.line !== undefined) {
-            await this.navigateToFile(message.filePath, message.line);
+        case "copySlice": {
+          await vscode.commands.executeCommand("vibetrace.copySlice");
+          break;
+        }
+        case "jumpToLine": {
+          if (message.line !== undefined) {
+            this.jumpToActiveEditorLine(message.line);
           }
+          break;
+        }
+        case "refresh": {
+          await this.refresh();
           break;
         }
       }
@@ -63,10 +84,34 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
     if (!this.view) return;
 
     const isConnected = await this.apiClient.isAvailable();
-    const projectStatus = isConnected ? await this.apiClient.getProjectStatus() : null;
-    const links = isConnected && projectStatus ? await this.apiClient.getProjectLinks() : [];
+    let projectStatus: ProjectStatus | null = null;
+    let topologyStats = { nodes: 0, edges: 0 };
 
-    this.view.webview.html = this.renderHtml(isConnected, projectStatus, links);
+    if (isConnected) {
+      projectStatus = await this.apiClient.getProjectStatus();
+      try {
+        const resp = await fetch(`${this.daemonUrl}/api/graph`, {
+          signal: AbortSignal.timeout(2500),
+        });
+        if (resp.ok) {
+          const g = await resp.json();
+          topologyStats = {
+            nodes: (g.nodes || []).length,
+            edges: (g.edges || []).length,
+          };
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    const activeSymbols = await this.extractActiveFileSymbols();
+    this.view.webview.html = this.renderHtml(
+      isConnected,
+      projectStatus,
+      topologyStats,
+      activeSymbols
+    );
   }
 
   public postFocusEvent(symbol: string, nodeIds: string[]): void {
@@ -79,54 +124,117 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
     }
   }
 
+  private async extractActiveFileSymbols(): Promise<{
+    fileName: string;
+    filePath: string;
+    symbols: ActiveFileSymbol[];
+  } | null> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.scheme !== "file") {
+      return null;
+    }
+
+    const doc = editor.document;
+    const text = doc.getText();
+    const lines = text.split(/\r?\n/);
+    const lang = doc.languageId;
+    const pat =
+      lang === "python"
+        ? /^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)/
+        : /^\s*(?:export\s+)?(?:async\s+)?(?:function|class|const|func|fn)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+
+    const rawSymbols: Array<{ name: string; line: number }> = [];
+    for (let i = 0; i < Math.min(lines.length, 400); i++) {
+      const m = pat.exec(lines[i]);
+      if (m?.[1]) {
+        rawSymbols.push({ name: m[1], line: i });
+      }
+    }
+
+    const results: ActiveFileSymbol[] = [];
+    for (const sym of rawSymbols.slice(0, 12)) {
+      const guard = await this.apiClient.getCallerGuard(sym.name, doc.uri.fsPath);
+      results.push({
+        name: sym.name,
+        line: sym.line,
+        totalCallers: guard?.total_callers ?? 0,
+        riskLevel: guard?.risk_level ?? "LOW",
+      });
+    }
+
+    return {
+      fileName: vscode.workspace.asRelativePath(doc.uri),
+      filePath: doc.uri.fsPath,
+      symbols: results,
+    };
+  }
+
+  private jumpToActiveEditorLine(line: number): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+    const pos = new vscode.Position(Math.max(0, line), 0);
+    editor.selection = new vscode.Selection(pos, pos);
+    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+  }
+
   private renderHtml(
     isConnected: boolean,
-    project: ProjectStatus | null,
-    links: Array<{
-      client_repo: string;
-      server_repo: string;
-      http_method: string;
-      route_path: string;
-      server_handler: string;
-    }>
+    project: (ProjectStatus & { is_federated?: boolean }) | null,
+    stats: { nodes: number; edges: number },
+    activeFile: { fileName: string; filePath: string; symbols: ActiveFileSymbol[] } | null
   ): string {
     const statusColor = isConnected ? "#4ec9b0" : "#f14c4c";
-    const statusText = isConnected ? "Daemon Connected" : "Daemon Offline";
+    const statusText = isConnected ? "Online" : "Offline";
+    const isFederated = project?.is_federated === true;
 
-    let projectSection = "";
-    if (project) {
-      const memberPills = project.members
-        .map(
-          (m) =>
-            `<span class="pill" title="${m.path}">📁 <strong>${m.name}</strong> (${m.node_count} nodes)</span>`
-        )
+    let symbolRows = "";
+    if (activeFile && activeFile.symbols.length > 0) {
+      symbolRows = activeFile.symbols
+        .map((s) => {
+          const badgeClass =
+            s.totalCallers === 0
+              ? "badge-leaf"
+              : s.riskLevel === "HIGH"
+                ? "badge-high"
+                : "badge-med";
+          const label = s.totalCallers === 0 ? "0 Callers (Leaf)" : `▲ ${s.totalCallers} Callers`;
+          return `
+          <div class="symbol-row">
+            <div class="symbol-name" onclick="send('jumpToLine', { line: ${s.line} })" title="Jump to line ${s.line + 1}">
+              <code>${s.name}</code>
+            </div>
+            <div class="symbol-actions">
+              <span class="badge ${badgeClass}">${label}</span>
+              <button class="btn-icon" onclick="send('inspectCallers', { symbol: '${s.name}' })" title="Inspect Callers">🔍</button>
+            </div>
+          </div>`;
+        })
         .join("");
+    } else {
+      symbolRows = `<div class="empty-state">${
+        activeFile
+          ? "No top-level functions found in this file."
+          : "Open any source file in editor to inspect functions & blast radius."
+      }</div>`;
+    }
 
-      const linkRows = links
-        .slice(0, 5)
-        .map(
-          (lnk) =>
-            `<li class="link-item"><span class="badge ${lnk.http_method.toLowerCase()}">${lnk.http_method}</span> <code>${lnk.route_path}</code><div class="link-sub">${lnk.client_repo} ➔ ${lnk.server_repo}:${lnk.server_handler}</div></li>`
-        )
-        .join("");
-
-      projectSection = `
+    let workspaceHtml = "";
+    if (isFederated && project) {
+      const pills = project.members.map((m) => `<span class="pill">📁 ${m.name}</span>`).join(" ");
+      workspaceHtml = `
         <div class="card">
-          <div class="card-header">
-            <span>🌐 Federated Workspace: <strong>${project.project_name}</strong></span>
-            <span class="subtext">(${project.storage})</span>
+          <div class="card-title">🌐 Federated Workspace: <strong>${project.project_name}</strong></div>
+          <div class="pill-group">${pills}</div>
+        </div>`;
+    } else {
+      workspaceHtml = `
+        <div class="card">
+          <div class="card-title">📦 Workspace Code Graph</div>
+          <div class="stats-grid">
+            <div class="stat-box"><span class="stat-num">${stats.nodes}</span><span class="stat-label">Symbols</span></div>
+            <div class="stat-box"><span class="stat-num">${stats.edges}</span><span class="stat-label">Relations</span></div>
           </div>
-          <div class="pill-container">
-            ${memberPills}
-          </div>
-          ${
-            links.length > 0
-              ? `<div class="links-header">🔗 Cross-Repo Contracts (${links.length} total)</div>
-                 <ul class="links-list">${linkRows}</ul>`
-              : ""
-          }
-        </div>
-      `;
+        </div>`;
     }
 
     return `<!DOCTYPE html>
@@ -134,67 +242,74 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VibeTrace Map Room</title>
+  <title>VibeTrace Control Panel</title>
   <style>
     body {
-      font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto);
-      font-size: 12px;
+      font-family: var(--vscode-font-family);
+      font-size: 11px;
       color: var(--vscode-foreground);
       background-color: var(--vscode-sideBar-background);
       padding: 10px;
       margin: 0;
+      line-height: 1.4;
     }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
       border-bottom: 1px solid var(--vscode-panel-border, #333);
     }
     .status-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
     }
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background-color: ${statusColor};
       box-shadow: 0 0 4px ${statusColor};
     }
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-    button {
+    .primary-btn {
+      width: 100%;
       background-color: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
       border: none;
-      padding: 6px 10px;
-      border-radius: 2px;
+      padding: 7px 10px;
+      border-radius: 3px;
       cursor: pointer;
+      font-weight: 600;
       font-size: 11px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: background-color 0.15s;
+      margin-bottom: 8px;
     }
-    button:hover {
+    .primary-btn:hover {
       background-color: var(--vscode-button-hoverBackground);
     }
-    button.secondary {
-      background-color: var(--vscode-button-secondaryBackground, #3a3d41);
-      color: var(--vscode-button-secondaryForeground, #ffffff);
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
     }
-    button.secondary:hover {
-      background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+    .btn-row button {
+      flex: 1;
+      background: var(--vscode-button-secondaryBackground, #3a3d41);
+      color: var(--vscode-button-secondaryForeground, #ffffff);
+      border: none;
+      padding: 5px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 10px;
+    }
+    .btn-row button:hover {
+      background: var(--vscode-button-secondaryHoverBackground, #45494e);
     }
     .card {
       background: var(--vscode-editor-background);
@@ -203,71 +318,114 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
       padding: 8px;
       margin-bottom: 12px;
     }
-    .card-header {
+    .card-title {
+      font-weight: 600;
+      margin-bottom: 6px;
       font-size: 11px;
+    }
+    .stats-grid {
+      display: flex;
+      gap: 8px;
+    }
+    .stat-box {
+      flex: 1;
+      background: var(--vscode-sideBar-background);
+      border: 1px solid var(--vscode-panel-border, #333);
+      border-radius: 3px;
+      padding: 6px;
+      text-align: center;
+    }
+    .stat-num {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--vscode-button-background, #0e70c0);
+    }
+    .stat-label {
+      font-size: 9px;
+      opacity: 0.75;
+    }
+    .section-header {
+      font-weight: 600;
+      font-size: 11px;
+      margin-bottom: 6px;
       display: flex;
       justify-content: space-between;
-      margin-bottom: 6px;
+      align-items: center;
     }
-    .subtext {
-      opacity: 0.7;
+    .file-tag {
+      font-size: 10px;
+      color: var(--vscode-textLink-foreground);
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .pill-container {
+    .symbol-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .symbol-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border, #2d2d2d);
+      border-radius: 3px;
+    }
+    .symbol-name {
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .symbol-name:hover {
+      color: var(--vscode-textLink-activeForeground);
+    }
+    .symbol-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .badge-leaf { background: #234d38; color: #4ec9b0; }
+    .badge-med { background: #4d4423; color: #dcdcaa; }
+    .badge-high { background: #5a2424; color: #f48771; }
+    .btn-icon {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 2px;
+      font-size: 10px;
+    }
+    .empty-state {
+      padding: 12px;
+      text-align: center;
+      opacity: 0.65;
+      font-style: italic;
+      border: 1px dashed var(--vscode-panel-border, #333);
+      border-radius: 3px;
+    }
+    .pill-group {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
       margin-top: 4px;
     }
     .pill {
-      background: var(--vscode-badge-background, #2c2d30);
+      background: var(--vscode-badge-background, #333);
       color: var(--vscode-badge-foreground, #fff);
       padding: 2px 6px;
       border-radius: 3px;
-      font-size: 10px;
-    }
-    .links-header {
-      font-size: 11px;
-      font-weight: 600;
-      margin-top: 8px;
-      margin-bottom: 4px;
-    }
-    .links-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .link-item {
-      padding: 4px 0;
-      border-bottom: 1px solid var(--vscode-panel-border, #222);
-      font-size: 10px;
-    }
-    .badge {
-      font-weight: bold;
-      padding: 1px 4px;
-      border-radius: 2px;
       font-size: 9px;
-    }
-    .badge.get { background: #0e70c0; color: #fff; }
-    .badge.post { background: #28a745; color: #fff; }
-    .badge.put, .badge.patch { background: #d39e00; color: #fff; }
-    .badge.delete { background: #dc3545; color: #fff; }
-    .link-sub {
-      opacity: 0.75;
-      font-size: 9px;
-      margin-top: 2px;
-    }
-    .frame-container {
-      margin-top: 8px;
-      border: 1px solid var(--vscode-panel-border, #333);
-      border-radius: 4px;
-      height: 320px;
-      overflow: hidden;
-      position: relative;
-    }
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
     }
   </style>
 </head>
@@ -277,62 +435,36 @@ export class VibeTraceMapRoomWebviewProvider implements vscode.WebviewViewProvid
       <div class="status-dot"></div>
       <span>${statusText}</span>
     </div>
-    <span class="subtext">${this.daemonUrl}</span>
+    <span style="opacity: 0.7;">${this.daemonUrl.replace("http://", "")}</span>
   </div>
 
-  <div class="btn-group">
-    <button onclick="send('openMapRoomExternal')">🚀 Open Full Map Room</button>
-    <button class="secondary" onclick="send('reindex')">🔄 Reindex AST & Graph</button>
-    <button class="secondary" onclick="send('refreshFederation')">🌐 Project Federation Status</button>
+  <button class="primary-btn" onclick="send('openMapRoomTab')">
+    🗺️ Open Architecture Map (Full Tab)
+  </button>
+
+  <div class="btn-row">
+    <button onclick="send('reindex')">🔄 Reindex AST...</button>
+    <button onclick="send('openMapRoomExternal')">🌐 In Browser</button>
   </div>
 
-  ${projectSection}
-
-  <div class="frame-container">
-    <iframe src="${this.daemonUrl}" title="VibeTrace Map Room"></iframe>
+  <div class="section-header">
+    <span>Active File Symbols</span>
+    <span class="file-tag">${activeFile ? activeFile.fileName : ""}</span>
   </div>
+  <div class="symbol-list">
+    ${symbolRows}
+  </div>
+
+  <div style="margin-top: 12px;"></div>
+  ${workspaceHtml}
 
   <script>
     const vscode = acquireVsCodeApi();
     function send(cmd, data = {}) {
       vscode.postMessage({ command: cmd, ...data });
     }
-    window.addEventListener('message', event => {
-      const msg = event.data;
-      if (msg.type === 'agent_focus') {
-        console.log('VibeTrace agent focus:', msg);
-      }
-    });
   </script>
 </body>
 </html>`;
-  }
-
-  private async navigateToFile(filePath: string, line: number): Promise<void> {
-    let targetUri: vscode.Uri | null = null;
-    if (vscode.workspace.workspaceFolders) {
-      for (const f of vscode.workspace.workspaceFolders) {
-        const candidate = vscode.Uri.joinPath(f.uri, filePath);
-        try {
-          await vscode.workspace.fs.stat(candidate);
-          targetUri = candidate;
-          break;
-        } catch {
-          // Keep searching
-        }
-      }
-    }
-    if (!targetUri) {
-      targetUri = vscode.Uri.file(filePath);
-    }
-    try {
-      const doc = await vscode.workspace.openTextDocument(targetUri);
-      const editor = await vscode.window.showTextDocument(doc);
-      const pos = new vscode.Position(Math.max(0, line - 1), 0);
-      editor.selection = new vscode.Selection(pos, pos);
-      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-    } catch {
-      // Ignored
-    }
   }
 }

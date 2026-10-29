@@ -1,30 +1,72 @@
 import * as cp from "node:child_process";
 import * as fs from "node:fs";
+import * as net from "node:net";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { VibeTraceApiClient } from "../client/api_client.js";
+
+export async function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "127.0.0.1");
+  });
+}
+
+export async function findAvailablePort(startPort: number, maxAttempts = 30): Promise<number> {
+  for (let p = startPort; p < startPort + maxAttempts; p++) {
+    if (await isPortAvailable(p)) {
+      return p;
+    }
+  }
+  return startPort;
+}
 
 export class VibeTraceDaemonManager implements vscode.Disposable {
   private apiClient: VibeTraceApiClient;
   private outputChannel: vscode.OutputChannel;
   private daemonProcess: cp.ChildProcess | null = null;
   private isShuttingDown = false;
+  private activePort = 8000;
 
   constructor(apiClient: VibeTraceApiClient) {
     this.apiClient = apiClient;
     this.outputChannel = vscode.window.createOutputChannel("VibeTrace Daemon");
   }
 
-  public async ensureDaemonRunning(port = 8000): Promise<boolean> {
+  public getActivePort(): number {
+    return this.activePort;
+  }
+
+  public async ensureDaemonRunning(
+    requestedPort = 8000
+  ): Promise<{ success: boolean; port: number }> {
     if (await this.apiClient.isAvailable()) {
       this.outputChannel.appendLine(
-        `[Info] Connected to existing VibeTrace daemon on port ${port}.`
+        `[Info] Connected to existing VibeTrace daemon on port ${requestedPort}.`
       );
-      return true;
+      this.activePort = requestedPort;
+      return { success: true, port: requestedPort };
     }
 
+    let port = requestedPort;
+    const available = await isPortAvailable(port);
+    if (!available) {
+      this.outputChannel.appendLine(
+        `[Warning] Port ${port} is occupied. Searching for next available port...`
+      );
+      port = await findAvailablePort(port + 1);
+      this.outputChannel.appendLine(`[Info] Selected open port: ${port}`);
+    }
+
+    this.activePort = port;
+    this.apiClient.updateBaseUrl(`http://127.0.0.1:${port}`);
+
     this.outputChannel.appendLine(
-      "[Info] No active VibeTrace daemon detected. Spawning background service..."
+      `[Info] Spawning background VibeTrace daemon on http://127.0.0.1:${port}...`
     );
     const workspaceRoot = this.getWorkspaceRoot();
 
@@ -33,7 +75,7 @@ export class VibeTraceDaemonManager implements vscode.Disposable {
       this.outputChannel.appendLine(
         "[Warning] Could not locate 'vibetrace' or 'uv' executable. Please run 'uv run vibetrace serve' manually."
       );
-      return false;
+      return { success: false, port };
     }
 
     this.outputChannel.appendLine(
@@ -66,17 +108,17 @@ export class VibeTraceDaemonManager implements vscode.Disposable {
       });
 
       // Poll until ready
-      const ready = await this.waitForReady(12000);
+      const ready = await this.waitForReady(15000);
       if (ready) {
         this.outputChannel.appendLine(`[Success] VibeTrace daemon active on port ${port}.`);
         this.checkAutoIndex();
-        return true;
+        return { success: true, port };
       }
       this.outputChannel.appendLine("[Error] Timed out waiting for VibeTrace daemon to start.");
-      return false;
+      return { success: false, port };
     } catch (err) {
       this.outputChannel.appendLine(`[Error] Failed to spawn VibeTrace daemon: ${err}`);
-      return false;
+      return { success: false, port };
     }
   }
 

@@ -128,6 +128,11 @@
           "default": true,
           "description": "Automatically launch background VibeTrace daemon if not currently running."
         },
+        "vibetrace.port": {
+          "type": "number",
+          "default": 8000,
+          "description": "Port for VibeTrace local daemon. If 0 or if port is busy, automatically finds an open port."
+        },
         "vibetrace.daemonUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8000",

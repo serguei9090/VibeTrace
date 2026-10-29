@@ -260,6 +260,18 @@ export class VibeTraceContextMenuProvider {
           ? targetPath.fsPath
           : undefined;
 
+    const confirm = await vscode.window.showWarningMessage(
+      pathStr
+        ? `Reindex AST and call graph for '${pathStr}'?`
+        : "Reindex entire workspace AST and code graph? This will rescan all project files.",
+      { modal: true },
+      "Reindex",
+      "Cancel"
+    );
+    if (confirm !== "Reindex") {
+      return;
+    }
+
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,

@@ -5,6 +5,7 @@ import { VibeTraceCodeLensProvider } from "./providers/codelens_provider.js";
 import { VibeTraceContextMenuProvider } from "./providers/context_menu.js";
 import { VibeTraceDiagnosticsProvider } from "./providers/diagnostics_provider.js";
 import { VibeTraceDaemonManager } from "./server/daemon_manager.js";
+import { openMapRoomTab } from "./views/map_room_tab.js";
 import { VibeTraceMapRoomWebviewProvider } from "./views/map_room_webview.js";
 
 let wsClient: VibeTraceWsClient | null = null;
@@ -25,8 +26,9 @@ const SUPPORTED_LANGUAGES = [
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const config = vscode.workspace.getConfiguration("vibetrace");
-  const daemonUrl = config.get<string>("daemonUrl", "http://127.0.0.1:8000");
-  const wsUrl = config.get<string>("wsUrl", "ws://127.0.0.1:8000/ws");
+  const configuredPort = config.get<number>("port", 8000);
+  const daemonUrl = config.get<string>("daemonUrl", `http://127.0.0.1:${configuredPort}`);
+  const wsUrl = config.get<string>("wsUrl", `ws://127.0.0.1:${configuredPort}/ws`);
   const autoStart = config.get<boolean>("autoStartDaemon", true);
 
   const apiClient = new VibeTraceApiClient(daemonUrl);
@@ -42,7 +44,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const contextMenuProvider = new VibeTraceContextMenuProvider(apiClient, () => {
     codeLensProvider.refresh();
   });
-  const mapRoomProvider = new VibeTraceMapRoomWebviewProvider(apiClient, daemonUrl);
+
+  const mapRoomProvider = new VibeTraceMapRoomWebviewProvider(apiClient, daemonUrl, () =>
+    openMapRoomTab(context, apiClient.getBaseUrl())
+  );
 
   // Register CodeLens for each language selector
   for (const lang of SUPPORTED_LANGUAGES) {
@@ -54,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
-  // Register Webview View
+  // Register Sidebar Webview View
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("vibetrace.mapRoomView", mapRoomProvider)
   );
@@ -63,16 +68,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   contextMenuProvider.registerCommands(context);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("vibetrace.openMapRoom", async () => {
-      await vscode.commands.executeCommand("vibetrace.mapRoomView.focus");
+    vscode.commands.registerCommand("vibetrace.openMapRoom", () => {
+      openMapRoomTab(context, apiClient.getBaseUrl());
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("vibetrace.openMapRoomTab", () => {
+      openMapRoomTab(context, apiClient.getBaseUrl());
     })
   );
 
   // Status Bar Item
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = "vibetrace.openMapRoom";
+  statusBarItem.command = "vibetrace.openMapRoomTab";
   statusBarItem.text = "$(pulse) VibeTrace: Starting...";
-  statusBarItem.tooltip = "Click to open VibeTrace Map Room";
+  statusBarItem.tooltip = "Click to open VibeTrace Architecture Map";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
@@ -90,15 +101,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
-  // Auto-start daemon in background if requested
+  // Auto-start daemon in background with dynamic port fallback
   if (autoStart) {
     try {
-      const port = Number(new URL(daemonUrl).port || "8000");
-      await daemonManager.ensureDaemonRunning(port);
+      const res = await daemonManager.ensureDaemonRunning(configuredPort);
+      if (res.success && res.port !== configuredPort) {
+        const newUrl = `http://127.0.0.1:${res.port}`;
+        const newWs = `ws://127.0.0.1:${res.port}/ws`;
+        apiClient.updateBaseUrl(newUrl);
+        mapRoomProvider.updateDaemonUrl(newUrl);
+        wsClient.updateUrl(newWs);
+      }
     } catch {
       // Safe fallback
     }
   }
+
+  // Auto-refresh sidebar symbols on active editor change
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      mapRoomProvider.refresh();
+    })
+  );
 
   // WebSocket Live Events
   wsClient.onRefresh(() => {
@@ -127,10 +151,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Watch for configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration("vibetrace.daemonUrl")) {
+      if (
+        e.affectsConfiguration("vibetrace.port") ||
+        e.affectsConfiguration("vibetrace.daemonUrl")
+      ) {
+        const newPort = vscode.workspace.getConfiguration("vibetrace").get<number>("port", 8000);
         const newDaemon = vscode.workspace
           .getConfiguration("vibetrace")
-          .get<string>("daemonUrl", "http://127.0.0.1:8000");
+          .get<string>("daemonUrl", `http://127.0.0.1:${newPort}`);
         apiClient.updateBaseUrl(newDaemon);
         mapRoomProvider.updateDaemonUrl(newDaemon);
         await updateStatus();
