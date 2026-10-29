@@ -2,7 +2,7 @@ import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./App.css";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { DocsExplorerDrawer } from "./features/docs/components/DocsExplorerDrawer";
 import { CanvasAutoFitter } from "./features/map-room/components/CanvasAutoFitter";
 import { CodeInspectorDrawer } from "./features/map-room/components/CodeInspectorDrawer";
@@ -15,6 +15,7 @@ import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
 import { API_URL, useMapRoomState } from "./features/map-room/hooks/useMapRoomState";
+import type { ViewMode } from "./features/map-room/types";
 
 const nodeTypes = {
   vibeNode: VibeNode,
@@ -74,6 +75,16 @@ export default function App() {
   } = useMapRoomState();
   const [docsDrawerOpen, setDocsDrawerOpen] = useState(false);
 
+  const handleViewModeChange = useCallback(
+    (mode: ViewMode) => {
+      setViewMode(mode);
+      if (mode === "full") {
+        setIsSidebarOpen(false);
+      }
+    },
+    [setViewMode, setIsSidebarOpen]
+  );
+
   return (
     <div className="graph-container">
       <MapHeader
@@ -88,7 +99,7 @@ export default function App() {
         }
         layoutMode={layoutMode}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
         onResetToRoots={onResetToRoots}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
@@ -134,6 +145,9 @@ export default function App() {
         onPaneClick={onPaneClick}
         fitView
         fitViewOptions={{ padding: 0.35 }}
+        onlyRenderVisibleElements
+        minZoom={0.05}
+        maxZoom={2.0}
       >
         <Controls />
         <MiniMap

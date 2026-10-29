@@ -325,7 +325,9 @@ export const buildFlowElements = (
           strokeWidth,
           strokeDasharray,
           opacity: isDimmed ? 0.04 : 0.8,
-          transition: "opacity 0.25s ease, stroke 0.25s ease",
+          ...(filteredEdges.length < 250
+            ? { transition: "opacity 0.2s ease, stroke 0.2s ease" }
+            : {}),
         },
       });
     }
