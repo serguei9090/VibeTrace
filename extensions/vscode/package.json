@@ -152,6 +152,7 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "bun run build",
     "build": "bun run esbuild.config.mjs",
     "watch": "bun run esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",

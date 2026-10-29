@@ -63,6 +63,7 @@ test-results/
 *.dll
 *.pdb
 *.obj
+*.vsix
 
 # Scratch & Automation Scratchpad
 /scratch/
