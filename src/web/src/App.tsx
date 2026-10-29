@@ -55,6 +55,8 @@ export default function App() {
     onToggleNodeVisibility,
     onFocusNode,
     onExpandNodeConnections,
+    onExpandCallees,
+    onExpandCallers,
     lastUpdate,
     followAgent,
     setFollowAgent,
@@ -167,7 +169,12 @@ export default function App() {
           selectedElement={selectedElement}
           rawNodes={rawData.current.nodes}
           rawEdges={rawData.current.edges}
+          revealedNodeIds={revealedNodeIds}
           onClose={() => setSelectedElement(null)}
+          onFocusNode={onFocusNode}
+          onExpandCallees={onExpandCallees}
+          onExpandCallers={onExpandCallers}
+          onExpandNodeConnections={onExpandNodeConnections}
         />
 
         <DocsExplorerDrawer

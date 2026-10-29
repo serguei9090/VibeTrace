@@ -156,6 +156,84 @@ export function useMapRoomState() {
     cachedLayout.current = null;
   }, []);
 
+  const onExpandCallees = useCallback(async (nodeId: string) => {
+    try {
+      const res = await axios.get<NodeNeighborsResponse>(
+        `${API_URL}/api/node/${nodeId}/neighbors?direction=down`
+      );
+      if (res.data?.nodes && res.data.nodes.length > 0) {
+        const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
+        for (const newNode of res.data.nodes) {
+          if (!existingNodeIds.has(newNode.id)) {
+            rawData.current.nodes.push(newNode);
+          }
+        }
+        const existingEdgeKeys = new Set(
+          rawData.current.edges.map((e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`)
+        );
+        for (const newEdge of res.data.edges) {
+          const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
+          if (!existingEdgeKeys.has(key)) {
+            rawData.current.edges.push(newEdge);
+          }
+        }
+        const newIds = res.data.nodes.map((n) => n.id);
+        setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+        cachedLayout.current = null;
+        return;
+      }
+    } catch {
+      // Fallback to local memory graph if offline or error
+    }
+
+    const calleeIds = rawData.current.edges
+      .filter((e) => e.from_node_id === nodeId && e.relation_type !== "defines")
+      .map((e) => e.to_node_id);
+    if (calleeIds.length > 0) {
+      setRevealedNodeIds((prev) => new Set([...prev, ...calleeIds]));
+      cachedLayout.current = null;
+    }
+  }, []);
+
+  const onExpandCallers = useCallback(async (nodeId: string) => {
+    try {
+      const res = await axios.get<NodeNeighborsResponse>(
+        `${API_URL}/api/node/${nodeId}/neighbors?direction=up`
+      );
+      if (res.data?.nodes && res.data.nodes.length > 0) {
+        const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
+        for (const newNode of res.data.nodes) {
+          if (!existingNodeIds.has(newNode.id)) {
+            rawData.current.nodes.push(newNode);
+          }
+        }
+        const existingEdgeKeys = new Set(
+          rawData.current.edges.map((e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`)
+        );
+        for (const newEdge of res.data.edges) {
+          const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
+          if (!existingEdgeKeys.has(key)) {
+            rawData.current.edges.push(newEdge);
+          }
+        }
+        const newIds = res.data.nodes.map((n) => n.id);
+        setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+        cachedLayout.current = null;
+        return;
+      }
+    } catch {
+      // Fallback to local memory graph
+    }
+
+    const callerIds = rawData.current.edges
+      .filter((e) => e.to_node_id === nodeId && e.relation_type !== "defines")
+      .map((e) => e.from_node_id);
+    if (callerIds.length > 0) {
+      setRevealedNodeIds((prev) => new Set([...prev, ...callerIds]));
+      cachedLayout.current = null;
+    }
+  }, []);
+
   const applyLayoutAndFilters = useCallback(async () => {
     const { nodes: rawNodes, edges: rawEdges } = rawData.current;
     if (rawNodes.length === 0) return;
@@ -238,94 +316,8 @@ export function useMapRoomState() {
           viewMode,
           unrevealedCallees: info?.unrevealedCallees || 0,
           unrevealedCallers: info?.unrevealedCallers || 0,
-          onExpandCallees: async (id: string) => {
-            try {
-              // Try surgical lazy neighbors endpoint first
-              const res = await axios.get<NodeNeighborsResponse>(
-                `${API_URL}/api/node/${id}/neighbors?direction=down`
-              );
-              if (res.data?.nodes && res.data.nodes.length > 0) {
-                // Incorporate fetched nodes/edges into rawData if not already present
-                const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
-                for (const newNode of res.data.nodes) {
-                  if (!existingNodeIds.has(newNode.id)) {
-                    rawData.current.nodes.push(newNode);
-                  }
-                }
-                const existingEdgeKeys = new Set(
-                  rawData.current.edges.map(
-                    (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`
-                  )
-                );
-                for (const newEdge of res.data.edges) {
-                  const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
-                  if (!existingEdgeKeys.has(key)) {
-                    rawData.current.edges.push(newEdge);
-                  }
-                }
-                const newIds = res.data.nodes.map((n) => n.id);
-                setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
-                cachedLayout.current = null;
-                return;
-              }
-            } catch {
-              // Fallback to local memory graph if offline or error
-            }
-
-            const nInfo = neighborMap.get(id);
-            const calleeIds =
-              nInfo?.calleeIds ??
-              rawEdges
-                .filter((e) => e.from_node_id === id && e.relation_type !== "defines")
-                .map((e) => e.to_node_id);
-            if (calleeIds.length > 0) {
-              setRevealedNodeIds((prev) => new Set([...prev, ...calleeIds]));
-              cachedLayout.current = null;
-            }
-          },
-          onExpandCallers: async (id: string) => {
-            try {
-              const res = await axios.get<NodeNeighborsResponse>(
-                `${API_URL}/api/node/${id}/neighbors?direction=up`
-              );
-              if (res.data?.nodes && res.data.nodes.length > 0) {
-                const existingNodeIds = new Set(rawData.current.nodes.map((n) => n.id));
-                for (const newNode of res.data.nodes) {
-                  if (!existingNodeIds.has(newNode.id)) {
-                    rawData.current.nodes.push(newNode);
-                  }
-                }
-                const existingEdgeKeys = new Set(
-                  rawData.current.edges.map(
-                    (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`
-                  )
-                );
-                for (const newEdge of res.data.edges) {
-                  const key = `${newEdge.from_node_id}-${newEdge.to_node_id}-${newEdge.relation_type}`;
-                  if (!existingEdgeKeys.has(key)) {
-                    rawData.current.edges.push(newEdge);
-                  }
-                }
-                const newIds = res.data.nodes.map((n) => n.id);
-                setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
-                cachedLayout.current = null;
-                return;
-              }
-            } catch {
-              // Fallback to local memory graph
-            }
-
-            const nInfo = neighborMap.get(id);
-            const callerIds =
-              nInfo?.callerIds ??
-              rawEdges
-                .filter((e) => e.to_node_id === id && e.relation_type !== "defines")
-                .map((e) => e.from_node_id);
-            if (callerIds.length > 0) {
-              setRevealedNodeIds((prev) => new Set([...prev, ...callerIds]));
-              cachedLayout.current = null;
-            }
-          },
+          onExpandCallees: onExpandCallees,
+          onExpandCallers: onExpandCallers,
           onCollapseNode: (id: string) => {
             setRevealedNodeIds((prev) => {
               const next = new Set(prev);
@@ -404,6 +396,8 @@ export function useMapRoomState() {
     lastAgentEvent,
     setNodes,
     setEdges,
+    onExpandCallees,
+    onExpandCallers,
   ]);
 
   const fetchGraph = useCallback(async () => {
@@ -519,6 +513,8 @@ export function useMapRoomState() {
     onToggleNodeVisibility,
     onFocusNode,
     onExpandNodeConnections,
+    onExpandCallees,
+    onExpandCallers,
     lastUpdate,
     followAgent,
     setFollowAgent,

@@ -190,43 +190,51 @@ def get_node_neighbors(
         nid = c["neighbor_id"]
         if nid not in seen_nodes:
             seen_nodes.add(nid)
-            neighbor_nodes.append({
-                "id": nid,
-                "name": c["name"],
-                "qualified_name": c["qualified_name"],
-                "kind": c["kind"],
-                "file_path": c["file_path"],
-                "start_line": c["start_line"],
-                "end_line": c["end_line"],
-                "signature": c["signature"],
-            })
-        edges.append({
-            "from_node_id": nid,
-            "to_node_id": node_id,
-            "relation_type": c["relation_type"],
-            "call_line": c["call_line"],
-        })
+            neighbor_nodes.append(
+                {
+                    "id": nid,
+                    "name": c["name"],
+                    "qualified_name": c["qualified_name"],
+                    "kind": c["kind"],
+                    "file_path": c["file_path"],
+                    "start_line": c["start_line"],
+                    "end_line": c["end_line"],
+                    "signature": c["signature"],
+                }
+            )
+        edges.append(
+            {
+                "from_node_id": nid,
+                "to_node_id": node_id,
+                "relation_type": c["relation_type"],
+                "call_line": c["call_line"],
+            }
+        )
 
     for c in callees:
         nid = c["neighbor_id"]
         if nid not in seen_nodes:
             seen_nodes.add(nid)
-            neighbor_nodes.append({
-                "id": nid,
-                "name": c["name"],
-                "qualified_name": c["qualified_name"],
-                "kind": c["kind"],
-                "file_path": c["file_path"],
-                "start_line": c["start_line"],
-                "end_line": c["end_line"],
-                "signature": c["signature"],
-            })
-        edges.append({
-            "from_node_id": node_id,
-            "to_node_id": nid,
-            "relation_type": c["relation_type"],
-            "call_line": c["call_line"],
-        })
+            neighbor_nodes.append(
+                {
+                    "id": nid,
+                    "name": c["name"],
+                    "qualified_name": c["qualified_name"],
+                    "kind": c["kind"],
+                    "file_path": c["file_path"],
+                    "start_line": c["start_line"],
+                    "end_line": c["end_line"],
+                    "signature": c["signature"],
+                }
+            )
+        edges.append(
+            {
+                "from_node_id": node_id,
+                "to_node_id": nid,
+                "relation_type": c["relation_type"],
+                "call_line": c["call_line"],
+            }
+        )
 
     return {
         "center_node": node,

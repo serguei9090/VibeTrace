@@ -93,20 +93,35 @@ export const findRootEntryPoints = (
   });
 
   const selectedRoots: string[] = [];
-  // Prioritize primary entrypoints and top endpoints with outgoing calls
-  const candidatesWithCalls = [...endpoints, ...mainEntrypoints, ...naturalRoots].filter(
-    (n) => (outDegreeMap.get(n.id) || 0) > 0
-  );
+  // Prioritize a balanced mix: primary CLI/main entrypoints + top HTTP endpoints
+  const endpointsWithCalls = endpoints.filter((n) => (outDegreeMap.get(n.id) || 0) > 0);
+  const mainWithCalls = mainEntrypoints.filter((n) => (outDegreeMap.get(n.id) || 0) > 0);
+  const naturalWithCalls = naturalRoots.filter((n) => (outDegreeMap.get(n.id) || 0) > 0);
 
-  const pool =
-    candidatesWithCalls.length > 0
-      ? candidatesWithCalls
-      : [...endpoints, ...mainEntrypoints, ...naturalRoots];
-  for (const n of pool) {
-    if (!selectedRoots.includes(n.id)) {
-      selectedRoots.push(n.id);
+  // Take up to 4 main/CLI entrypoints first
+  for (const n of mainWithCalls) {
+    if (!selectedRoots.includes(n.id)) selectedRoots.push(n.id);
+    if (selectedRoots.length >= 4) break;
+  }
+
+  // Then add top HTTP API endpoints (up to 4)
+  for (const n of endpointsWithCalls) {
+    if (!selectedRoots.includes(n.id)) selectedRoots.push(n.id);
+    if (selectedRoots.length >= 8) break;
+  }
+
+  // Fill remaining slots from natural roots if any space remains
+  for (const n of naturalWithCalls) {
+    if (!selectedRoots.includes(n.id)) selectedRoots.push(n.id);
+    if (selectedRoots.length >= 8) break;
+  }
+
+  // Fallback if none had calls
+  if (selectedRoots.length === 0) {
+    for (const n of [...mainEntrypoints, ...endpoints, ...naturalRoots]) {
+      if (!selectedRoots.includes(n.id)) selectedRoots.push(n.id);
+      if (selectedRoots.length >= 8) break;
     }
-    if (selectedRoots.length >= 8) break; // Limit to top 8 distinct pipeline roots
   }
 
   if (selectedRoots.length === 0) {
