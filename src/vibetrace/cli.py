@@ -23,27 +23,8 @@ from vibetrace.cli_commands import (
     cmd_summary,
     cmd_trace,
 )
+from vibetrace.cli_project import register_project_parser
 from vibetrace.cli_vibe import cmd_bundle, cmd_guard
-
-# Aliases for backward compatibility
-_cmd_index = cmd_index
-_cmd_search = cmd_search
-_cmd_trace = cmd_trace
-_cmd_slice = cmd_slice
-_cmd_call_stack = cmd_call_stack
-_cmd_call_tree = cmd_call_tree
-_cmd_impact = cmd_impact
-_cmd_summary = cmd_summary
-_cmd_references = cmd_references
-_cmd_dependencies = cmd_dependencies
-_cmd_hooks = cmd_hooks
-_cmd_serve = cmd_serve
-_cmd_init = cmd_init
-_cmd_skill = cmd_skill
-_cmd_mcp = cmd_mcp
-_cmd_docs = cmd_docs
-_cmd_guard = cmd_guard
-_cmd_bundle = cmd_bundle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -117,7 +98,7 @@ examples:
         help="Skip synchronizing local documentation catalogs",
     )
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_idx.set_defaults(func=_cmd_index)
+    p_idx.set_defaults(func=cmd_index)
 
     # search
     p_search = sub.add_parser(
@@ -155,7 +136,7 @@ examples:
     )
     p_search.add_argument("--path", default=".", help="Project root directory path")
     p_search.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_search.set_defaults(func=_cmd_search)
+    p_search.set_defaults(func=cmd_search)
 
     # trace
     p_trace = sub.add_parser(
@@ -199,7 +180,7 @@ examples:
     )
     p_trace.add_argument("--path", default=".", help="Project root directory path")
     p_trace.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_trace.set_defaults(func=_cmd_trace)
+    p_trace.set_defaults(func=cmd_trace)
 
     # slice
     p_slice = sub.add_parser(
@@ -223,7 +204,7 @@ examples:
     )
     p_slice.add_argument("--path", default=".", help="Project root directory path")
     p_slice.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_slice.set_defaults(func=_cmd_slice)
+    p_slice.set_defaults(func=cmd_slice)
 
     # call-tree
     p_tree = sub.add_parser(
@@ -245,7 +226,7 @@ examples:
     )
     p_tree.add_argument("--path", default=".", help="Project root directory path")
     p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_tree.set_defaults(func=_cmd_call_tree)
+    p_tree.set_defaults(func=cmd_call_tree)
 
     # call-stack
     p_stack = sub.add_parser(
@@ -274,7 +255,7 @@ examples:
     )
     p_stack.add_argument("--path", default=".", help="Project root directory path")
     p_stack.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_stack.set_defaults(func=_cmd_call_stack)
+    p_stack.set_defaults(func=cmd_call_stack)
 
     # impact
     p_impact = sub.add_parser(
@@ -287,7 +268,7 @@ examples:
     )
     p_impact.add_argument("file_path", help="Relative or absolute file path to analyze")
     p_impact.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_impact.set_defaults(func=_cmd_impact)
+    p_impact.set_defaults(func=cmd_impact)
 
     # summary
     p_sum = sub.add_parser(
@@ -304,7 +285,7 @@ examples:
     )
     p_sum.add_argument("--offset", type=int, default=0, help="Pagination offset (default: 0)")
     p_sum.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_sum.set_defaults(func=_cmd_summary)
+    p_sum.set_defaults(func=cmd_summary)
 
     # references
     p_refs = sub.add_parser(
@@ -324,7 +305,7 @@ examples:
     )
     p_refs.add_argument("--path", default=".", help="Project root directory path")
     p_refs.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_refs.set_defaults(func=_cmd_references)
+    p_refs.set_defaults(func=cmd_references)
 
     # dependencies
     p_deps = sub.add_parser(
@@ -346,7 +327,7 @@ examples:
     )
     p_deps.add_argument("--path", default=".", help="Project root directory path")
     p_deps.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_deps.set_defaults(func=_cmd_dependencies)
+    p_deps.set_defaults(func=cmd_dependencies)
 
     # serve
     p_serve = sub.add_parser(
@@ -362,7 +343,7 @@ examples:
     p_serve.add_argument(
         "--path", default=".", help="Project workspace path (default: current directory)"
     )
-    p_serve.set_defaults(func=_cmd_serve)
+    p_serve.set_defaults(func=cmd_serve)
 
     # hooks
     p_hooks = sub.add_parser(
@@ -394,7 +375,7 @@ examples:
     )
     p_hooks.add_argument("--path", default=".", help="Project root directory path")
     p_hooks.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_hooks.set_defaults(func=_cmd_hooks)
+    p_hooks.set_defaults(func=cmd_hooks)
 
     # init
     p_init = sub.add_parser(
@@ -427,7 +408,7 @@ examples:
         help="Automatically install Git/Lefthook pre-commit guard hooks",
     )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_init.set_defaults(func=_cmd_init)
+    p_init.set_defaults(func=cmd_init)
 
     # skill
     p_skill = sub.add_parser(
@@ -452,7 +433,7 @@ examples:
         help="Install into user global agent skills directory",
     )
     p_skill.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_skill.set_defaults(func=_cmd_skill)
+    p_skill.set_defaults(func=cmd_skill)
 
     # mcp
     p_mcp = sub.add_parser(
@@ -463,7 +444,7 @@ examples:
     p_mcp.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_mcp.set_defaults(func=_cmd_mcp)
+    p_mcp.set_defaults(func=cmd_mcp)
 
     # docs
     p_docs = sub.add_parser(
@@ -541,7 +522,7 @@ examples:
         help="Maximum number of chunks to return",
     )
 
-    p_docs.set_defaults(func=_cmd_docs)
+    p_docs.set_defaults(func=cmd_docs)
 
     # guard
     p_guard = sub.add_parser(
@@ -572,7 +553,7 @@ examples:
     p_guard.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_guard.set_defaults(func=_cmd_guard)
+    p_guard.set_defaults(func=cmd_guard)
 
     # bundle
     p_bundle = sub.add_parser(
@@ -593,7 +574,10 @@ examples:
     p_bundle.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_bundle.set_defaults(func=_cmd_bundle)
+    p_bundle.set_defaults(func=cmd_bundle)
+
+    # project (federated multi-repo workspace)
+    register_project_parser(sub)
 
     # Accept global flags after the subcommand too; SUPPRESS keeps root-level values intact.
     def _add_common_flags(parser_obj: argparse.ArgumentParser) -> None:
