@@ -290,6 +290,49 @@ const layoutExplorerGraph = async (
   return { nodes: finalNodes, edges: activeEdges };
 };
 
+export const layoutPackageGraph = async (
+  nodes: Node[],
+  edges: Edge[]
+): Promise<{ nodes: Node[]; edges: Edge[] }> => {
+  const elkNodes = nodes.map((n) => ({
+    id: n.id,
+    width: 280,
+    height: 180,
+  }));
+
+  const elkEdges = edges.map((e) => ({
+    id: e.id,
+    sources: [e.source],
+    targets: [e.target],
+  }));
+
+  const rootGraph = {
+    id: "root",
+    children: elkNodes,
+    edges: elkEdges,
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.spacing.nodeNode": "70",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+      "elk.edgeRouting": "ORTHOGONAL",
+    },
+  };
+
+  const layouted = await elk.layout(rootGraph);
+  const layoutedMap = new Map(layouted.children?.map((c: any) => [c.id, c]) || []);
+
+  const finalNodes = nodes.map((n) => {
+    const pos = layoutedMap.get(n.id);
+    return {
+      ...n,
+      position: { x: pos?.x ?? 0, y: pos?.y ?? 0 },
+    };
+  });
+
+  return { nodes: finalNodes, edges };
+};
+
 export const getLayoutedElements = async (
   nodes: Node<VibeNodeData>[],
   edges: Edge[],

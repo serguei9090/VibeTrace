@@ -10,6 +10,7 @@ import { FilterPanel } from "./features/map-room/components/FilterPanel";
 import { MapHeader } from "./features/map-room/components/MapHeader";
 import { DistrictNode } from "./features/map-room/components/nodes/DistrictNode";
 import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNode";
+import { PackageNode } from "./features/map-room/components/nodes/PackageNode";
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
@@ -19,6 +20,7 @@ import type { ViewMode } from "./features/map-room/types";
 
 const nodeTypes = {
   vibeNode: VibeNode,
+  packageNode: PackageNode,
   districtGroup: DistrictNode,
   fileGroup: FileGroupNode,
 };

@@ -17,12 +17,13 @@ import type {
   TracePathResponse,
   ViewMode,
 } from "../types";
-import { getLayoutedElements } from "../utils/elkLayout";
+import { getLayoutedElements, layoutPackageGraph } from "../utils/elkLayout";
 import {
   buildFlowElements,
   computeSelectionHighlights,
   getConnectedComponent,
 } from "../utils/graphTraversal";
+import { buildPackageGraph, normalizeDirPath } from "../utils/packageGraph";
 import {
   calculateUnrevealedNeighbors,
   findRootEntryPoints,
@@ -123,6 +124,11 @@ export function useMapRoomState() {
   const resetTrace = useCallback(() => {
     setActiveTrace(null);
     setLayoutMode("map");
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    cachedLayout.current = null;
   }, []);
 
   const onResetToRoots = useCallback(() => {
@@ -253,9 +259,59 @@ export function useMapRoomState() {
     }
   }, []);
 
+  const onExplorePackage = useCallback((dirPath: string) => {
+    const pkgSymbols = rawData.current.nodes.filter((n) => {
+      const dir = normalizeDirPath(n.file_path);
+      return dir === dirPath || dir.startsWith(`${dirPath}/`);
+    });
+
+    if (pkgSymbols.length > 0) {
+      const endpoints = pkgSymbols.filter((n) => n.kind === "endpoint");
+      const targets =
+        endpoints.length > 0 ? endpoints.map((n) => n.id) : pkgSymbols.slice(0, 8).map((n) => n.id);
+      setRevealedNodeIds(new Set(targets));
+      setSelectedElement(null);
+      setViewMode("explorer");
+      cachedLayout.current = null;
+    }
+  }, []);
+
   const applyLayoutAndFilters = useCallback(async () => {
     const { nodes: rawNodes, edges: rawEdges } = rawData.current;
     if (rawNodes.length === 0) return;
+
+    // Macro Full Map: Fast, Clustered Package Architecture Graph (Option 1)
+    if (viewMode === "full") {
+      const { packageNodes, packageEdges } = buildPackageGraph(
+        rawNodes,
+        rawEdges,
+        onExplorePackage
+      );
+
+      const layoutKey = `pkg_${viewMode}_${packageNodes.length}_${packageEdges.length}`;
+      if (cachedLayout.current && cachedLayout.current.key === layoutKey) {
+        return;
+      }
+
+      try {
+        const { nodes: layoutNodes, edges: layoutEdges } = await layoutPackageGraph(
+          packageNodes,
+          packageEdges
+        );
+        if (layoutNodes && layoutNodes.length > 0) {
+          cachedLayout.current = {
+            key: layoutKey,
+            nodes: layoutNodes,
+            edges: layoutEdges,
+          };
+          setNodes(layoutNodes);
+          setEdges(layoutEdges);
+        }
+      } catch (err) {
+        console.error("Package Layout Error:", err);
+      }
+      return;
+    }
 
     // Filter out anonymous closures unless explicitly requested
     const nonAnonNodes = showAnonymous ? rawNodes : rawNodes.filter((n) => !isAnonymousSymbol(n));
@@ -412,6 +468,7 @@ export function useMapRoomState() {
     setEdges,
     onExpandCallees,
     onExpandCallers,
+    onExplorePackage,
   ]);
 
   const fetchGraph = useCallback(async () => {
@@ -470,11 +527,18 @@ export function useMapRoomState() {
 
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      if (node.type === "packageNode") {
+        const dirPath = (node.data as any)?.label;
+        if (dirPath) {
+          onExplorePackage(dirPath);
+        }
+        return;
+      }
       if (node.type === "vibeNode") {
         onExpandCallees(node.id);
       }
     },
-    [onExpandCallees]
+    [onExpandCallees, onExplorePackage]
   );
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
@@ -526,7 +590,7 @@ export function useMapRoomState() {
     layoutMode,
     handleLayoutModeChange,
     viewMode,
-    setViewMode,
+    setViewMode: handleViewModeChange,
     showAnonymous,
     setShowAnonymous,
     revealedNodeIds,
