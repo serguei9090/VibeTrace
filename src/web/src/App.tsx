@@ -15,7 +15,6 @@ import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
 import { API_URL, useMapRoomState } from "./features/map-room/hooks/useMapRoomState";
-import { getGraphBounds } from "./features/map-room/utils/elkLayout";
 
 const nodeTypes = {
   vibeNode: VibeNode,
@@ -135,7 +134,6 @@ export default function App() {
         onPaneClick={onPaneClick}
         fitView
         fitViewOptions={{ padding: 0.35 }}
-        translateExtent={getGraphBounds(nodes)}
       >
         <Controls />
         <MiniMap
