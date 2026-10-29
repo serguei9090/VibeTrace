@@ -14,8 +14,10 @@ from typing import Any
 HOOK_SCRIPT_BLOCK = """# --- VibeTrace Automated Indexer ---
 if command -v uv >/dev/null 2>&1; then
     uv run vibetrace index
+    uv run vibetrace docs index
 elif command -v vibetrace >/dev/null 2>&1; then
     vibetrace index
+    vibetrace docs index
 fi
 # --- End VibeTrace ---
 """
@@ -99,19 +101,22 @@ def _inject_lefthook_hook(content: str, hook_name: str) -> str:
                 run_indent = sub_indent + "  "
                 injection = [
                     f"{sub_indent}vibetrace-sync:",
-                    f"{run_indent}run: uv run vibetrace index",
+                    f"{run_indent}run: uv run vibetrace index && uv run vibetrace docs index",
                 ]
                 lines[cmd_idx + 1 : cmd_idx + 1] = injection
                 return "\n".join(lines)
             injection = [
                 "  commands:",
                 "    vibetrace-sync:",
-                "      run: uv run vibetrace index",
+                "      run: uv run vibetrace index && uv run vibetrace docs index",
             ]
             lines[hook_idx + 1 : hook_idx + 1] = injection
             return "\n".join(lines)
 
-    snippet = f"\n{hook_name}:\n  commands:\n    vibetrace-sync:\n      run: uv run vibetrace index"
+    snippet = (
+        f"\n{hook_name}:\n  commands:\n    vibetrace-sync:\n"
+        "      run: uv run vibetrace index && uv run vibetrace docs index"
+    )
     return content.rstrip() + snippet
 
 

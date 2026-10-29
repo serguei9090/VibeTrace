@@ -110,6 +110,12 @@ examples:
         action="store_true",
         help="Enable LSP hybrid bridge for dynamic types and re-exports",
     )
+    p_idx.add_argument(
+        "--no-docs",
+        action="store_true",
+        default=False,
+        help="Skip synchronizing local documentation catalogs",
+    )
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_idx.set_defaults(func=_cmd_index)
 

@@ -85,6 +85,38 @@ class CodeChangeHandler(FileSystemEventHandler):
                 self._debounce_timer.cancel()
                 self._debounce_timer = None
 
+    def _handle_doc_change(self, src_path: str, is_deleted: bool = False) -> bool:
+        """Handle real-time sync for documentation files in local catalogs."""
+        try:
+            from vibetrace.docs.db import DocDB
+            from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+            p = Path(src_path)
+            if p.suffix.lower() not in DocIndexService.SUPPORTED_DOC_EXTS:
+                return False
+
+            local_cats = [
+                c for c in DocCatalogManager.list_catalogs(self.root_path) if c.scope == "local"
+            ]
+            for cat in local_cats:
+                for cat_p_str in cat.paths:
+                    cat_p = self.root_path / cat_p_str
+                    if p.is_relative_to(cat_p):
+                        doc_db = DocDB(self.db.db_path)
+                        rel_file = str(p.relative_to(self.root_path)).replace("\\", "/")
+                        if is_deleted:
+                            doc_db.delete_file_chunks(cat.name, rel_file)
+                            print(f"Doc file deleted: {rel_file}")
+                        else:
+                            DocIndexService.index_catalog(
+                                cat.name, [str(p)], doc_db, self.root_path, force=True
+                            )
+                            print(f"Doc file synchronized: {rel_file}")
+                        return True
+        except Exception:
+            pass
+        return False
+
     def on_modified(self, event):
         src_path = str(event.src_path)
         if event.is_directory or self._should_ignore(src_path):
@@ -99,6 +131,8 @@ class CodeChangeHandler(FileSystemEventHandler):
         )
         if indexed:
             print(f"File modified: {rel_path}")
+            self._schedule_post_sync()
+        elif self._handle_doc_change(src_path):
             self._schedule_post_sync()
 
     def on_created(self, event):
@@ -117,10 +151,16 @@ class CodeChangeHandler(FileSystemEventHandler):
             print(f"File created: {rel_path}")
             self.resolver.add_file(rel_path)
             self._schedule_post_sync()
+        elif self._handle_doc_change(src_path):
+            self._schedule_post_sync()
 
     def on_deleted(self, event):
         src_path = str(event.src_path)
         if self._should_ignore(src_path):
+            return
+
+        if self._handle_doc_change(src_path, is_deleted=True):
+            self._schedule_post_sync()
             return
 
         if event.is_directory:

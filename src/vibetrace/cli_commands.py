@@ -79,10 +79,39 @@ def cmd_index(args: argparse.Namespace) -> int:
             if not args.json:
                 print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
 
+    # Auto-sync local documentation catalogs unless explicitly disabled
+    doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
+    if not getattr(args, "no_docs", False):
+        try:
+            from vibetrace.docs.db import DocDB
+            from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+            local_cats = [c for c in DocCatalogManager.list_catalogs(root) if c.scope == "local"]
+            if local_cats:
+                doc_db = DocDB(db.db_path)
+                for cat in local_cats:
+                    res_doc = DocIndexService.index_catalog(
+                        cat.name, cat.paths, doc_db, root, force=args.force
+                    )
+                    doc_stats["catalogs"] += 1
+                    doc_stats["files"] += res_doc.get("files", 0)
+                    doc_stats["chunks"] += res_doc.get("chunks", 0)
+                if not args.json and (doc_stats["files"] > 0 or doc_stats["chunks"] > 0):
+                    print(
+                        f"Synchronized {doc_stats['files']} doc files "
+                        f"({doc_stats['chunks']} chunks) across {doc_stats['catalogs']} catalog(s)."
+                    )
+        except Exception:
+            pass
+
     if args.json:
-        print(
-            json.dumps({"status": "ok", "path": target, "embedded_count": embedded_count}, indent=2)
-        )
+        payload = {
+            "status": "ok",
+            "path": target,
+            "embedded_count": embedded_count,
+            "docs": doc_stats,
+        }
+        print(json.dumps(payload, indent=2))
     return 0
 
 
