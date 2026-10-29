@@ -67,6 +67,7 @@ export default function App() {
     selectedElement,
     setSelectedElement,
     onNodeClick,
+    onNodeDoubleClick,
     onEdgeClick,
     onPaneClick,
     rawData,
@@ -124,6 +125,7 @@ export default function App() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         fitView

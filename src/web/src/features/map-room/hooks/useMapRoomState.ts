@@ -332,12 +332,7 @@ export function useMapRoomState() {
 
     const layoutKey = `${layoutMode}_${viewMode}_${showAnonymous}_${showPrivate}_${Array.from(activeFilters).sort().join(",")}_${Array.from(activeEdgeTypes).sort().join(",")}_${filteredNodes.length}_${filteredEdges.length}_${revealedNodeIds.size}`;
 
-    if (
-      layoutMode === "map" &&
-      viewMode === "full" &&
-      cachedLayout.current &&
-      cachedLayout.current.key === layoutKey
-    ) {
+    if (cachedLayout.current && cachedLayout.current.key === layoutKey) {
       const flowNodeMap = new Map(interactiveNodes.map((fn) => [fn.id, fn]));
       const updatedNodes = cachedLayout.current.nodes.map((n) => {
         const symbolUpdate = flowNodeMap.get(n.id);
@@ -454,6 +449,15 @@ export function useMapRoomState() {
     }
   }, []);
 
+  const onNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (node.type === "vibeNode") {
+        onExpandCallees(node.id);
+      }
+    },
+    [onExpandCallees]
+  );
+
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setSelectedElement((prev) => (prev?.id === edge.id ? null : { id: edge.id, type: "edge" }));
   }, []);
@@ -525,6 +529,7 @@ export function useMapRoomState() {
     selectedElement,
     setSelectedElement,
     onNodeClick,
+    onNodeDoubleClick,
     onEdgeClick,
     onPaneClick,
     rawData,

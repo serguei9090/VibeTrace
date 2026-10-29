@@ -228,8 +228,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         style={{
           padding: "8px 12px",
           marginBottom: 20,
-          marginLeft: isSidebarOpen ? 344 : 20,
+          marginLeft: isSidebarOpen ? 370 : 68,
           transition: "margin-left 0.25s ease",
+          zIndex: 5,
         }}
       >
         <div
