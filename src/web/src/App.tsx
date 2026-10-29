@@ -101,6 +101,11 @@ export default function App() {
         lastAgentEvent={lastAgentEvent}
         onToggleDocs={() => setDocsDrawerOpen((prev) => !prev)}
         isDocsOpen={docsDrawerOpen}
+        selectedElement={selectedElement}
+        rawNodes={rawData.current.nodes}
+        rawEdges={rawData.current.edges}
+        revealedNodeIds={revealedNodeIds}
+        onFocusNode={onFocusNode}
       />
 
       <TreeSidebar

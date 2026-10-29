@@ -1,6 +1,7 @@
 import {
   Activity,
   BookOpen,
+  ChevronRight,
   Code,
   Layers,
   PanelLeftClose,
@@ -10,8 +11,16 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type React from "react";
-import type { AgentFocusEvent, LayoutMode, TracePathResponse, ViewMode } from "../types";
+import React, { useMemo } from "react";
+import type {
+  AgentFocusEvent,
+  LayoutMode,
+  RawGraphEdge,
+  RawGraphNode,
+  SelectedElement,
+  TracePathResponse,
+  ViewMode,
+} from "../types";
 import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
@@ -36,6 +45,11 @@ interface MapHeaderProps {
   lastAgentEvent: AgentFocusEvent | null;
   onToggleDocs?: () => void;
   isDocsOpen?: boolean;
+  selectedElement?: SelectedElement | null;
+  rawNodes?: RawGraphNode[];
+  rawEdges?: RawGraphEdge[];
+  revealedNodeIds?: Set<string>;
+  onFocusNode?: (nodeId: string) => void;
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
@@ -60,7 +74,47 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   lastAgentEvent,
   onToggleDocs,
   isDocsOpen,
+  selectedElement,
+  rawNodes,
+  rawEdges,
+  revealedNodeIds,
+  onFocusNode,
 }) => {
+  const breadcrumbs = useMemo(() => {
+    if (
+      !selectedElement ||
+      selectedElement.type !== "node" ||
+      !rawNodes ||
+      !rawEdges ||
+      !revealedNodeIds
+    ) {
+      return [];
+    }
+    const target = rawNodes.find((n) => n.id === selectedElement.id);
+    if (!target) return [];
+
+    const chain: RawGraphNode[] = [target];
+    const visited = new Set<string>([target.id]);
+    let curr = target;
+
+    while (chain.length < 5) {
+      const incoming = rawEdges.find(
+        (e) =>
+          e.to_node_id === curr.id &&
+          e.relation_type !== "defines" &&
+          revealedNodeIds.has(e.from_node_id) &&
+          !visited.has(e.from_node_id)
+      );
+      if (!incoming) break;
+      const caller = rawNodes.find((n) => n.id === incoming.from_node_id);
+      if (!caller) break;
+      chain.unshift(caller);
+      visited.add(caller.id);
+      curr = caller;
+    }
+
+    return chain;
+  }, [selectedElement, rawNodes, rawEdges, revealedNodeIds]);
   return (
     <header className="vibe-header glass-panel">
       {/* Brand & Hierarchy Sidebar Toggle */}
@@ -144,6 +198,73 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           <Sparkles size={14} color="#818cf8" />
           Roots
         </button>
+      )}
+
+      {/* Active Branch Breadcrumbs (Explorer Mode) */}
+      {viewMode === "explorer" && breadcrumbs.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "3px",
+            background: "rgba(15, 23, 42, 0.75)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "6px",
+            padding: "2px 6px",
+            fontSize: "11px",
+            overflow: "hidden",
+            flexShrink: 1,
+            maxWidth: "360px",
+          }}
+        >
+          {breadcrumbs.map((crumb, idx) => {
+            const isLast = idx === breadcrumbs.length - 1;
+            const dotColor =
+              crumb.kind === "endpoint"
+                ? "#f59e0b"
+                : crumb.kind === "class"
+                  ? "#c084fc"
+                  : "#818cf8";
+            return (
+              <React.Fragment key={crumb.id}>
+                {idx > 0 && <ChevronRight size={11} color="rgba(255, 255, 255, 0.3)" />}
+                <button
+                  type="button"
+                  onClick={() => onFocusNode?.(crumb.id)}
+                  style={{
+                    background: isLast ? "rgba(99, 102, 241, 0.22)" : "transparent",
+                    border: isLast ? "1px solid rgba(99, 102, 241, 0.4)" : "none",
+                    color: isLast ? "#c7d2fe" : "#94a3b8",
+                    borderRadius: "4px",
+                    padding: "2px 5px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    fontSize: "10.5px",
+                    fontWeight: isLast ? 600 : 400,
+                    maxWidth: "110px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={`Focus ${crumb.qualified_name || crumb.name}`}
+                >
+                  <span
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      background: dotColor,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{crumb.name}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
       )}
 
       {/* Search Bar */}
