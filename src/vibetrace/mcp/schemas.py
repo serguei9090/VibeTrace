@@ -504,3 +504,63 @@ class VibeBundleInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class ProjectStatusInput(BaseModel):
+    """Input model for inspecting federated multi-repo project status."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    scope_path: str = Field(
+        default=".",
+        description="Project root or member repository path",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ProjectSearchInput(BaseModel):
+    """Input model for federated symbol search across member repositories."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    query: str = Field(..., description="Symbol or function name to search for", min_length=1)
+    repo: str | None = Field(default=None, description="Optional member repository filter")
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum results to return")
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ProjectGuardInput(BaseModel):
+    """Input model for cross-repository blast-radius caller inspection."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol: str = Field(
+        ...,
+        description="Target symbol to inspect for cross-repo callers",
+        min_length=1,
+    )
+    repo: str | None = Field(default=None, description="Optional repository defining the symbol")
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ProjectLinksInput(BaseModel):
+    """Input model for discovering cross-repo HTTP routes and RPC contracts."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

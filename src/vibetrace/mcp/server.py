@@ -53,6 +53,7 @@ from vibetrace.mcp.schemas import (
 from vibetrace.mcp.schemas import (
     TraceDirection as TraceDirection,
 )
+from vibetrace.mcp.tools_project import register_project_tools
 from vibetrace.services.graph_service import (
     analyze_file_dependencies,
     build_call_stack,
@@ -616,6 +617,9 @@ async def vibetrace_get_vibe_bundle(params: VibeBundleInput) -> str:
         return format_vibe_bundle_markdown(bundle)
     except Exception as e:
         return handle_error(e, f"assembling vibe bundle for '{params.intent}'")
+
+
+register_project_tools(mcp)
 
 
 def main() -> None:
