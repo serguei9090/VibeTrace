@@ -85,6 +85,16 @@ class IndexerConfig(BaseModel):
         default=True,
         description="Automatically synchronize working tree changes during queries",
     )
+    exclude_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "CodeIngestTest/**",
+            "scratch/**",
+            "tests/fixtures/**",
+            "**/*.min.js",
+            "**/*.bundle.js",
+        ],
+        description="Glob or gitignore patterns to exclude from AST indexing and graph analysis",
+    )
 
 
 class VibeTraceConfig(BaseModel):
@@ -143,6 +153,13 @@ batch_size = 32
 debounce_seconds = 2.0
 # Auto-sync working tree changes during queries
 auto_sync = true
+# Folders and glob patterns excluded from indexing
+exclude_patterns = [
+    "CodeIngestTest/**",
+    "scratch/**",
+    "tests/fixtures/**",
+    "**/*.min.js",
+]
 """
 
 

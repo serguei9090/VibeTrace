@@ -18,7 +18,11 @@ import type {
   ViewMode,
 } from "../types";
 import { getLayoutedElements } from "../utils/elkLayout";
-import { buildFlowElements, computeSelectionHighlights } from "../utils/graphTraversal";
+import {
+  buildFlowElements,
+  computeSelectionHighlights,
+  getConnectedComponent,
+} from "../utils/graphTraversal";
 import {
   calculateUnrevealedNeighbors,
   findRootEntryPoints,
@@ -152,7 +156,10 @@ export function useMapRoomState() {
       if (e.from_node_id === nodeId) neighborIds.push(e.to_node_id);
       if (e.to_node_id === nodeId) neighborIds.push(e.from_node_id);
     }
-    setRevealedNodeIds((prev) => new Set([...prev, nodeId, ...neighborIds]));
+    setRevealedNodeIds((prev) => {
+      const activeBranch = getConnectedComponent(nodeId, prev, rawData.current.edges);
+      return new Set([...activeBranch, nodeId, ...neighborIds]);
+    });
     cachedLayout.current = null;
   }, []);
 
@@ -178,7 +185,10 @@ export function useMapRoomState() {
           }
         }
         const newIds = res.data.nodes.map((n) => n.id);
-        setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+        setRevealedNodeIds((prev) => {
+          const activeBranch = getConnectedComponent(nodeId, prev, rawData.current.edges);
+          return new Set([...activeBranch, ...newIds]);
+        });
         cachedLayout.current = null;
         return;
       }
@@ -190,7 +200,10 @@ export function useMapRoomState() {
       .filter((e) => e.from_node_id === nodeId && e.relation_type !== "defines")
       .map((e) => e.to_node_id);
     if (calleeIds.length > 0) {
-      setRevealedNodeIds((prev) => new Set([...prev, ...calleeIds]));
+      setRevealedNodeIds((prev) => {
+        const activeBranch = getConnectedComponent(nodeId, prev, rawData.current.edges);
+        return new Set([...activeBranch, ...calleeIds]);
+      });
       cachedLayout.current = null;
     }
   }, []);
@@ -217,7 +230,10 @@ export function useMapRoomState() {
           }
         }
         const newIds = res.data.nodes.map((n) => n.id);
-        setRevealedNodeIds((prev) => new Set([...prev, ...newIds]));
+        setRevealedNodeIds((prev) => {
+          const activeBranch = getConnectedComponent(nodeId, prev, rawData.current.edges);
+          return new Set([...activeBranch, ...newIds]);
+        });
         cachedLayout.current = null;
         return;
       }
@@ -229,7 +245,10 @@ export function useMapRoomState() {
       .filter((e) => e.to_node_id === nodeId && e.relation_type !== "defines")
       .map((e) => e.from_node_id);
     if (callerIds.length > 0) {
-      setRevealedNodeIds((prev) => new Set([...prev, ...callerIds]));
+      setRevealedNodeIds((prev) => {
+        const activeBranch = getConnectedComponent(nodeId, prev, rawData.current.edges);
+        return new Set([...activeBranch, ...callerIds]);
+      });
       cachedLayout.current = null;
     }
   }, []);

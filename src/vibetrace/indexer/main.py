@@ -101,16 +101,34 @@ def index_file(
         return False
 
 
-def load_gitignore(root_path: Path) -> pathspec.PathSpec | None:
-    """Load .gitignore from the root path if it exists."""
+def load_ignore_spec(
+    root_path: Path,
+    extra_patterns: list[str] | None = None,
+) -> pathspec.PathSpec | None:
+    """Load .gitignore combined with configured exclude patterns."""
+    lines: list[str] = []
     gitignore_path = root_path / ".gitignore"
     if gitignore_path.exists():
         try:
             with open(gitignore_path, encoding="utf-8") as f:
-                return pathspec.PathSpec.from_lines("gitignore", f)
+                lines.extend(f.readlines())
         except Exception as e:
             print(f"Warning: Failed to load .gitignore: {e}")
+
+    if extra_patterns:
+        lines.extend(extra_patterns)
+
+    if lines:
+        return pathspec.PathSpec.from_lines("gitignore", lines)
     return None
+
+
+def load_gitignore(root_path: Path) -> pathspec.PathSpec | None:
+    """Load .gitignore combined with configured exclude patterns from the root path."""
+    from vibetrace.config import load_config
+
+    cfg = load_config(root_path)
+    return load_ignore_spec(root_path, cfg.indexer.exclude_patterns)
 
 
 def reindex_all(
@@ -122,6 +140,8 @@ def reindex_all(
     use_lsp: bool = False,
 ) -> None:
     """Reindex a file or directory recursively."""
+    from vibetrace.config import load_config
+
     target_path = Path(target_path_str).resolve()
     eff_root = (
         project_root.resolve()
@@ -130,7 +150,8 @@ def reindex_all(
     )
 
     failed: list[str] = []
-    spec = load_gitignore(eff_root)
+    cfg = load_config(eff_root)
+    spec = load_ignore_spec(eff_root, cfg.indexer.exclude_patterns)
     resolver = ModuleResolver(eff_root) if eff_root.is_dir() else None
 
     if not target_path.exists():
@@ -190,6 +211,9 @@ def reindex_all(
                     continue
                 full_path = eff_root / c
                 if is_ignored_path(c, spec):
+                    db.clear_file(c)
+                    if resolver:
+                        resolver.remove_file(c)
                     continue
                 if index_file(
                     db,

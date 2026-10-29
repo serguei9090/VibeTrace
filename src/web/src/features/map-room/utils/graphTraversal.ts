@@ -333,3 +333,46 @@ export const buildFlowElements = (
 
   return { flowNodes, flowEdges };
 };
+
+/**
+ * Computes the connected component containing `targetNodeId` among `currentRevealedIds`.
+ * Traverses both upstream and downstream edges so the whole active pipeline is preserved,
+ * while pruning away unrelated disconnected roots and branches.
+ */
+export const getConnectedComponent = (
+  targetNodeId: string,
+  currentRevealedIds: Set<string>,
+  edges: RawGraphEdge[]
+): Set<string> => {
+  const result = new Set<string>([targetNodeId]);
+  const queue = [targetNodeId];
+
+  // Build bidirectional adjacency list for fast traversal within revealed nodes
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    if (e.relation_type === "defines") continue;
+    if (currentRevealedIds.has(e.from_node_id) && currentRevealedIds.has(e.to_node_id)) {
+      const fromList = adj.get(e.from_node_id) || [];
+      fromList.push(e.to_node_id);
+      adj.set(e.from_node_id, fromList);
+
+      const toList = adj.get(e.to_node_id) || [];
+      toList.push(e.from_node_id);
+      adj.set(e.to_node_id, toList);
+    }
+  }
+
+  while (queue.length > 0) {
+    const curr = queue.shift();
+    if (!curr) break;
+    const neighbors = adj.get(curr) || [];
+    for (const n of neighbors) {
+      if (!result.has(n)) {
+        result.add(n);
+        queue.push(n);
+      }
+    }
+  }
+
+  return result;
+};
