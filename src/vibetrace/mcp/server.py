@@ -47,6 +47,7 @@ from vibetrace.mcp.schemas import (
     ListSavedTracesInput,
     ReferencesInput,
     ReindexInput,
+    RemediateVulnerabilityInput,
     ResponseFormat,
     SaveTraceInput,
     SearchInput,
@@ -746,6 +747,29 @@ async def vibetrace_approve_security_exception(params: ApproveSecurityExceptionI
         )
     except Exception as e:
         return handle_error(e, f"approving security exception '{params.finding_id}'")
+
+
+@mcp.tool(name="vibetrace_remediate_vulnerability", annotations=_READ_ONLY)
+async def vibetrace_remediate_vulnerability(params: RemediateVulnerabilityInput) -> str:
+    """Generate structured AI remediation instructions and compliant code patterns for findings."""
+    try:
+        from vibetrace.security.service import SecurityService
+
+        db, root = get_context_for_path(params.scope_path)
+        bundle = SecurityService.build_remediation_bundle(
+            db=db,
+            project_root=Path(root),
+            finding_id=params.finding_id,
+            file_filter=params.file_path,
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(bundle, indent=2)
+        items = bundle.get("remediations", [])
+        if not isinstance(items, list) or not items:
+            return "✅ No unapproved findings matched for remediation."
+        return "\n\n---\n\n".join(str(it["ai_fix_prompt"]) for it in items if isinstance(it, dict))
+    except Exception as e:
+        return handle_error(e, "remediating security vulnerability")
 
 
 register_project_tools(mcp)

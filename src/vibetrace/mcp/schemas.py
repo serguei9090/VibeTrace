@@ -659,3 +659,23 @@ class ApproveSecurityExceptionInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class RemediateVulnerabilityInput(BaseModel):
+    """Input model for generating structured remediation prompts and patches for findings."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    finding_id: str | None = Field(
+        default=None,
+        description="Optional specific finding ID (e.g. 'SEC-CWE-78-...').",
+    )
+    file_path: str | None = Field(
+        default=None,
+        description="Optional file filter for remediation",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

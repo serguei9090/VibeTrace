@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 487 / 487 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 490 / 490 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 languages), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (FastMCP 22 tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
+The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 languages), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (FastMCP 23 tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
 
 All **470 automated tests** in `tests/` pass with zero failures.
 
@@ -64,6 +64,10 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_no_taint_flag_disables_escalation` | `--no-taint` / `analyze_taint=False` | No escalation. | ✅ PASS |
 
 | `e2e/security-card.spec.ts` (Playwright) | Map Room `SecurityAuditCard`: taint path, **Show path** (calls `/trace`), copy AI fix prompt, approve exception | Card renders from `/api/security/audit`; actions hit the right endpoints. | ✅ PASS |
+
+| `test_sql_injection_and_path_traversal_detection` | CWE-89 (SQLi) and CWE-22 (Path Traversal) | Dynamic SQL and unvalidated file paths flagged. | ✅ PASS |
+| `test_poetry_and_requirements_lockfiles` | `poetry.lock` and `requirements.txt` + SHA-256 lockfile memoization | PyPI packages extracted and memoized. | ✅ PASS |
+| `test_remediate_vulnerability_and_baseline_metadata` | `vibetrace_remediate_vulnerability` MCP tool + `category`/`symbol_name` in `security.toml` | Emits AI fix prompts; persists full baseline fields. | ✅ PASS |
 
 > **Known gap:** node radar badges have no automated test; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
 

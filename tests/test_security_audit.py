@@ -329,3 +329,76 @@ def test_js_ts_injection_rules(tmp_path: Path):
     cwes = sorted(f.cwe_id for f in AstSecurityScanner.scan_file("a.ts", tmp_path))
     assert cwes == ["CWE-78", "CWE-95", "CWE-95"]
     assert [f.cwe_id for f in AstSecurityScanner.scan_file("b.tsx", tmp_path)] == ["CWE-95"]
+
+
+def test_sql_injection_and_path_traversal_detection(tmp_path: Path):
+    (tmp_path / "db_io.py").write_text(
+        "def query_user(cur, uid, fname):\n"
+        "    cur.execute(f'SELECT * FROM users WHERE id = {uid}')\n"
+        "    return open(f'/var/uploads/{fname}', 'rb').read()\n",
+        encoding="utf-8",
+    )
+    findings = AstSecurityScanner.scan_file("db_io.py", tmp_path)
+    cwes = sorted(f.cwe_id for f in findings)
+    assert cwes == ["CWE-22", "CWE-89"]
+
+
+def test_poetry_and_requirements_lockfiles(tmp_path: Path):
+    from vibetrace.security.lockfile_parser import LockfileParser
+
+    (tmp_path / "poetry.lock").write_text(
+        '[[package]]\nname = "flask"\nversion = "3.0.0"\n', encoding="utf-8"
+    )
+    (tmp_path / "requirements.txt").write_text(
+        "# comment\ndjango==5.0.1\nrequests>=2.0\n", encoding="utf-8"
+    )
+    pkgs = LockfileParser.parse_all_lockfiles(tmp_path)
+    names = sorted((p.name, p.version, p.ecosystem) for p in pkgs)
+    assert ("django", "5.0.1", "PyPI") in names
+    assert ("flask", "3.0.0", "PyPI") in names
+
+
+@pytest.mark.asyncio
+async def test_remediate_vulnerability_and_baseline_metadata(tmp_path: Path):
+    import json
+
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.indexer.models import Node
+    from vibetrace.mcp.schemas import RemediateVulnerabilityInput, ResponseFormat
+    from vibetrace.mcp.server import vibetrace_remediate_vulnerability
+
+    (tmp_path / "s.py").write_text("eval('1')\n", encoding="utf-8")
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(
+        Node(
+            id="n1",
+            name="f1",
+            qualified_name="f1",
+            kind="function",
+            file_path="s.py",
+            start_line=1,
+            end_line=1,
+        )
+    )
+    res = await vibetrace_remediate_vulnerability(
+        RemediateVulnerabilityInput(scope_path=str(tmp_path), response_format=ResponseFormat.JSON)
+    )
+    bundle = json.loads(res)
+    assert bundle["total_remediations"] == 1
+    assert "CWE-95" in bundle["remediations"][0]["ai_fix_prompt"]
+
+    SecurityBaselineManager.record_exception(
+        project_root=tmp_path,
+        finding_id=bundle["remediations"][0]["finding_id"],
+        rule_id="py:CWE-95",
+        file_path="s.py",
+        code_hash="abc",
+        rationale="test",
+        category="taint_reachability",
+        symbol_name="f1",
+    )
+    toml_text = (ctx / "security.toml").read_text(encoding="utf-8")
+    assert 'category = "taint_reachability"' in toml_text
+    assert 'symbol_name = "f1"' in toml_text

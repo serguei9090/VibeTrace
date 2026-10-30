@@ -77,6 +77,15 @@ class SecurityApprovePayload(BaseModel):
     severity: str = "HIGH"
     status: str = "APPROVED"
     reviewed_by: str = "developer"
+    category: str = "ast_pattern"
+    symbol_name: str | None = None
+
+
+class SecurityRemediatePayload(BaseModel):
+    """Payload to generate structured remediation guidance for a security finding."""
+
+    finding_id: str | None = None
+    file_path: str | None = None
 
 
 # Global Managers
@@ -368,8 +377,23 @@ def approve_security_exception_endpoint(payload: SecurityApprovePayload):
         severity=payload.severity,
         status=payload.status,
         reviewed_by=payload.reviewed_by,
+        category=payload.category,
+        symbol_name=payload.symbol_name,
     )
     return {"status": "ok", "baseline_file": ".vibetrace/security.toml"}
+
+
+@app.post("/api/security/remediate")
+def remediate_security_finding_endpoint(payload: SecurityRemediatePayload):
+    """Generates AI remediation guidance and compliant replacement snippets."""
+    from vibetrace.security.service import SecurityService
+
+    return SecurityService.build_remediation_bundle(
+        db=db,
+        project_root=Path(project_root),
+        finding_id=payload.finding_id,
+        file_filter=payload.file_path,
+    )
 
 
 @app.get("/call-tree")

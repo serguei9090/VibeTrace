@@ -96,4 +96,37 @@ RULES_CATALOG: dict[str, SecurityRuleSpec] = {
         non_compliant_example="data = pickle.loads(untrusted_bytes)",
         compliant_example="data = json.loads(untrusted_bytes)  # or yaml.safe_load()",
     ),
+    # 6. CWE-89: SQL Injection
+    "CWE-89": SecurityRuleSpec(
+        rule_id="CWE-89",
+        cwe_id="CWE-89",
+        severity=Severity.CRITICAL,
+        title=(
+            "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+        ),
+        explanation=(
+            "Constructing SQL queries with f-strings, string concatenation (`+`), or `.format()` "
+            "allows attackers to inject SQL syntax and read or modify arbitrary database tables. "
+            "Always pass dynamic values via parameterized query placeholders (`?` or `%s`)."
+        ),
+        non_compliant_example="cursor.execute(f'SELECT * FROM users WHERE name = \"{user}\"')",
+        compliant_example="cursor.execute('SELECT * FROM users WHERE name = ?', (user,))",
+    ),
+    # 7. CWE-22: Path Traversal
+    "CWE-22": SecurityRuleSpec(
+        rule_id="CWE-22",
+        cwe_id="CWE-22",
+        severity=Severity.HIGH,
+        title="Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+        explanation=(
+            "Joining or opening file paths constructed from untrusted input without verifying "
+            "that the resolved canonical path stays inside the intended base directory allows "
+            "`../` sequences to read or overwrite sensitive system files."
+        ),
+        non_compliant_example="open(f'/var/data/{user_filename}', 'rb').read()",
+        compliant_example=(
+            "target = (BASE_DIR / user_filename).resolve()\n"
+            "if not target.is_relative_to(BASE_DIR.resolve()): raise ValueError('Invalid path')"
+        ),
+    ),
 }

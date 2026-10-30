@@ -105,6 +105,8 @@ class AstSecurityScanner:
         cls._check_hardcoded_secrets(node, file_path, lines, findings, lang)
         cls._check_weak_crypto(node, file_path, lines, findings, lang)
         cls._check_insecure_deserialization(node, file_path, lines, findings, lang)
+        cls._check_sql_injection(node, file_path, lines, findings, lang)
+        cls._check_path_traversal(node, file_path, lines, findings, lang)
 
         for child in node.children:
             cls._visit_node(child, file_path, lines, findings, lang)
@@ -367,3 +369,87 @@ class AstSecurityScanner:
                             "Call to 'pickle.loads()' allows arbitrary code execution. Use JSON.",
                         )
                     )
+
+    # --- Rule 6: SQL Injection (CWE-89) ---
+    @classmethod
+    def _check_sql_injection(
+        cls,
+        node: Node,
+        file_path: str,
+        lines: list[str],
+        findings: list[SecurityFinding],
+        lang: str,
+    ) -> None:
+        if node.type not in ("call", "call_expression"):
+            return
+        fn_node = node.child_by_field_name("function")
+        args_node = node.child_by_field_name("arguments")
+        if not fn_node or not args_node or not fn_node.text:
+            return
+        fn_text = fn_node.text.decode("utf-8", errors="replace")
+        if not fn_text.endswith((".execute", ".executemany", ".raw", ".query")):
+            return
+        first_arg = next(
+            (c for c in args_node.children if c.type not in ("(", ")", ",")),
+            None,
+        )
+        if not first_arg or not first_arg.text:
+            return
+        arg_text = first_arg.text.decode("utf-8", errors="replace")
+        has_interp = (
+            first_arg.type in ("binary_operator", "binary_expression", "template_string")
+            or any(c.type == "interpolation" for c in first_arg.children)
+            or (first_arg.type == "string" and arg_text.startswith(("f'", 'f"', "F'", 'F"')))
+            or ".format(" in arg_text
+        )
+        if has_interp and re.search(r"(?i)\b(SELECT|INSERT|UPDATE|DELETE|DROP)\b", arg_text):
+            findings.append(
+                cls._create_finding(
+                    "CWE-89",
+                    file_path,
+                    node.start_point[0] + 1,
+                    node.end_point[0] + 1,
+                    lines,
+                    f"Dynamic SQL query in '{fn_text}()'. Use parameterized queries.",
+                )
+            )
+
+    # --- Rule 7: Path Traversal (CWE-22) ---
+    @classmethod
+    def _check_path_traversal(
+        cls,
+        node: Node,
+        file_path: str,
+        lines: list[str],
+        findings: list[SecurityFinding],
+        lang: str,
+    ) -> None:
+        if lang == "python" and node.type == "call":
+            fn_node = node.child_by_field_name("function")
+            args_node = node.child_by_field_name("arguments")
+            if not fn_node or not args_node or not fn_node.text:
+                return
+            fn_text = fn_node.text.decode("utf-8", errors="replace")
+            if fn_text not in ("open", "os.remove", "os.unlink", "shutil.rmtree", "send_file"):
+                return
+            first_arg = next(
+                (c for c in args_node.children if c.type not in ("(", ")", ",")),
+                None,
+            )
+            if not first_arg or not first_arg.text:
+                return
+            arg_text = first_arg.text.decode("utf-8", errors="replace")
+            is_fstr = any(c.type == "interpolation" for c in first_arg.children) or (
+                first_arg.type == "string" and arg_text.startswith(("f'", 'f"'))
+            )
+            if is_fstr and ("/" in arg_text or "\\" in arg_text):
+                findings.append(
+                    cls._create_finding(
+                        "CWE-22",
+                        file_path,
+                        node.start_point[0] + 1,
+                        node.end_point[0] + 1,
+                        lines,
+                        f"Unvalidated dynamic path in '{fn_text}()'. Validate via Path.resolve().",
+                    )
+                )

@@ -652,6 +652,11 @@ examples:
         action="store_true",
         help="Disable call-graph taint reachability escalation",
     )
+    p_security.add_argument(
+        "--fix",
+        action="store_true",
+        help="Emit AI remediation prompts and compliant patch patterns for unapproved findings",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)

@@ -108,6 +108,8 @@ class SecurityBaselineManager:
         severity: str = "HIGH",
         status: str = "APPROVED",
         reviewed_by: str = "developer",
+        category: str = "ast_pattern",
+        symbol_name: str | None = None,
     ) -> None:
         """Appends or updates a security exception in .vibetrace/security.toml."""
         path = cls.get_baseline_path(project_root)
@@ -126,7 +128,9 @@ class SecurityBaselineManager:
         new_entry = {
             "id": finding_id,
             "rule_id": rule_id,
+            "category": category,
             "file_path": file_path,
+            "symbol_name": symbol_name or "",
             "code_hash": code_hash,
             "severity": severity,
             "status": status,
@@ -157,7 +161,10 @@ class SecurityBaselineManager:
             lines.append("[[exceptions]]")
             lines.append(f'id = "{_escape_toml_str(exc.get("id", ""))}"')
             lines.append(f'rule_id = "{_escape_toml_str(exc.get("rule_id", ""))}"')
+            lines.append(f'category = "{_escape_toml_str(exc.get("category", "ast_pattern"))}"')
             lines.append(f'file_path = "{_escape_toml_str(exc.get("file_path", ""))}"')
+            if exc.get("symbol_name"):
+                lines.append(f'symbol_name = "{_escape_toml_str(exc.get("symbol_name", ""))}"')
             lines.append(f'code_hash = "{_escape_toml_str(exc.get("code_hash", ""))}"')
             lines.append(f'severity = "{_escape_toml_str(exc.get("severity", "HIGH"))}"')
             lines.append(f'status = "{_escape_toml_str(exc.get("status", "APPROVED"))}"')

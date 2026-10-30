@@ -159,6 +159,15 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
     else:
         print(safe_str(format_security_audit_md(report)))
 
+    if getattr(args, "fix", False):
+        bundle = SecurityService.build_remediation_bundle(
+            db=db, project_root=project_root, file_filter=file_filter
+        )
+        for item in bundle.get("remediations", []):  # type: ignore[attr-defined]
+            if isinstance(item, dict):
+                print(safe_str(f"\n--- AI REMEDIATION ({item['finding_id']}) ---"))
+                print(safe_str(str(item["ai_fix_prompt"])))
+
     if is_ci:
         # Determine failure conditions based on severity threshold
         unapproved_critical = [

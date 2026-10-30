@@ -75,6 +75,8 @@ class SecurityService:
         severity: str = "HIGH",
         status: str = "APPROVED",
         reviewed_by: str = "developer",
+        category: str = "ast_pattern",
+        symbol_name: str | None = None,
     ) -> None:
         """Records an approved exception in .vibetrace/security.toml."""
         SecurityBaselineManager.record_exception(
@@ -87,4 +89,52 @@ class SecurityService:
             severity=severity,
             status=status,
             reviewed_by=reviewed_by,
+            category=category,
+            symbol_name=symbol_name,
         )
+
+    @classmethod
+    def build_remediation_bundle(
+        cls,
+        db: IndexerDB,
+        project_root: Path,
+        finding_id: str | None = None,
+        file_filter: str | None = None,
+    ) -> dict[str, object]:
+        """Generates structured AI remediation instructions and diff guidance for findings."""
+        report = cls.audit_project(
+            db=db,
+            project_root=project_root,
+            file_filter=file_filter,
+            check_dependencies=finding_id is not None,
+        )
+        targets = [
+            f
+            for f in report.findings
+            if (finding_id and f.id == finding_id) or (not finding_id and f.status != "APPROVED")
+        ]
+        remediations = []
+        for f in targets:
+            prompt = (
+                f"Remediate {f.cwe_id} ({f.severity}) '{f.title}' in "
+                f"{f.file_path}:{f.start_line}-{f.end_line}.\n"
+                f"Issue: {f.message}\n"
+                f"Guidance: {f.remediation_guidance or ''}\n"
+                f"Replace vulnerable code:\n{f.non_compliant_snippet or ''}\n"
+                f"With compliant pattern:\n{f.compliant_snippet or ''}"
+            )
+            remediations.append(
+                {
+                    "finding_id": f.id,
+                    "cwe_id": f.cwe_id,
+                    "severity": f.severity,
+                    "file_path": f.file_path,
+                    "start_line": f.start_line,
+                    "end_line": f.end_line,
+                    "symbol_name": f.symbol_name,
+                    "non_compliant_snippet": f.non_compliant_snippet,
+                    "compliant_snippet": f.compliant_snippet,
+                    "ai_fix_prompt": prompt.strip(),
+                }
+            )
+        return {"total_remediations": len(remediations), "remediations": remediations}

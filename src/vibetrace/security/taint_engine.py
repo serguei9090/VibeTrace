@@ -14,8 +14,10 @@ from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
 MAX_DEPTH = 8
-TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502"}
-SANITIZERS = frozenset({"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval"})
+TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502", "CWE-89", "CWE-22"}
+SANITIZERS = frozenset(
+    {"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval", "is_relative_to"}
+)
 _SOURCE_DECORATOR_RE = re.compile(
     r"(\.(get|post|put|patch|delete|route|websocket)\b|click\.(command|group)|\.tool\b)"
 )
