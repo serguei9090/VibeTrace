@@ -107,6 +107,7 @@ class ReindexService:
             "status": "ok",
             "mode": "workspace",
             "embedded_count": embedded_count,
+            "docs": doc_stats,
             "doc_stats": doc_stats,
         }
         if embeddings_error:

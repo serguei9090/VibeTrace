@@ -19,14 +19,15 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **⚡ 1-Shot Context Packing (`vibetrace bundle`)**: Combines relevant architecture docs, target code slices, callee contracts, caller blast radius, and sibling test patterns within a bounded token budget ($\le 1,500$ tokens) for zero-shot LLM completion.
 - **🛡️ Pre-Flight Caller Guard (`vibetrace guard`)**: AST incoming caller inspection with exact call lines and blast-radius advisories to prevent breaking sibling callers before modifying function signatures.
 - **🚦 Git Pre-Commit Gate (`vibetrace guard --staged`)**: Validates modified symbol signatures in staged git changes against active callers to prevent breaking commits (`--strict`).
+- **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
 - **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with hybrid BM25 + vector RRF, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
-- **🗺️ Bidirectional BFS Tracepaths (`vibetrace trace`)**: Finds the shortest and alternative call chains between any two functions, classes, or HTTP endpoints with exact `file.py:L<line>` coordinates.
+- **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Zero dead-end execution traces via recursive SQLite CTE reachability checks (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
 - **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`). Cross-queries code + docs via `--with-docs`.
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🤖 Native Model Context Protocol (`vibetrace mcp`)**: 14 purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, and inspect code surgically.
-- **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with live Caller Guard badges, 1-click Vibe Bundle copying, and Documentation RAG Explorer Drawer.
+- **🤖 Native Model Context Protocol (`vibetrace mcp`)**: 16 purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits surgically.
+- **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a 60 FPS Macro Clustered Package Graph (Option 1), live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
 
 ---
 
@@ -101,22 +102,29 @@ vibetrace docs search "rate limiting" --scope local
 # 4. 4-Stream Hybrid Search (with optional docs cross-query)
 vibetrace search "authentication flow" --with-docs
 
-# 5. Bidirectional Execution Trace
+# 5. Reachable Execution Trace & Multi-Route Analysis
 vibetrace trace "handleLogin" "verifyPassword"
 vibetrace trace "GET /api/users" "queryUsersFromDB"
 vibetrace trace "handleLogin" "verifyPassword" --save-as "AuthFlow"
 vibetrace trace --saved "AuthFlow"
 
-# 6. Surgical Code Slicing (token-efficient)
+# 6. Architectural Split Audit & Code Triage
+vibetrace audit splits
+# Interactive triage prompt to approve benign bifurcations into .vibetrace/splits.toml
+vibetrace audit splits --approve
+# CI/CD gate with deterministic hash tripwires (exits 1 if unapproved or modified)
+vibetrace audit splits --ci --strict
+
+# 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"
 
-# 7. Top-Down Recursive Call Tree
+# 8. Top-Down Recursive Call Tree
 vibetrace call-tree "main" --depth 3
 
-# 8. Blast Radius Impact Analysis
+# 9. Blast Radius Impact Analysis
 vibetrace impact src/auth/service.py
 
-# 9. Launch Map Room Web Visualizer (http://localhost:8000)
+# 10. Launch Map Room Web Visualizer (http://localhost:8000)
 vibetrace serve
 ```
 
@@ -137,13 +145,15 @@ Add VibeTrace to your agent's MCP configuration (`claude_desktop_config.json`, `
 }
 ```
 
-The agent gains access to 14 surgical code intelligence tools:
+The agent gains access to 20 surgical code intelligence tools:
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget)
 - `vibetrace_check_caller_guard` (Pre-flight caller inspection and blast-radius advisory)
+- `vibetrace_audit_splits` (Scan codebase for execution bifurcations and check status against baseline)
+- `vibetrace_approve_split` (Approve a split path into `.vibetrace/splits.toml` with SHA-256 hash)
 - `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope)
 - `vibetrace_list_doc_catalogs` (List configured documentation catalogs)
 - `vibetrace_semantic_search` (4-stream hybrid AST + BM25 + Vector + PageRank)
-- `vibetrace_trace_path` (Bidirectional execution pathfinding with exact call lines)
+- `vibetrace_trace_path` (Bidirectional reachable execution pathfinding with exact call lines)
 - `vibetrace_get_code_slice` (Surgical source lines with outgoing callee contracts)
 - `vibetrace_impact_analysis` (3-level transitive blast radius)
 - `vibetrace_find_references` (Find all incoming calls and references)
@@ -151,7 +161,10 @@ The agent gains access to 14 surgical code intelligence tools:
 - `vibetrace_get_call_stack` (Bidirectional call stack analysis)
 - `vibetrace_get_dependencies` (Categorize imports: internal/stdlib/third-party)
 - `vibetrace_get_structural_summary` (File AST symbol layout)
+- `vibetrace_search_by_signature` (Find functions matching specific signature patterns)
 - `vibetrace_save_trace` / `vibetrace_list_saved_traces` (Saved trace bookmarks)
+- `vibetrace_delete_saved_trace` (Delete saved trace bookmarks)
+- `vibetrace_reindex_project` (Trigger incremental or full AST reindexing)
 
 ---
 
