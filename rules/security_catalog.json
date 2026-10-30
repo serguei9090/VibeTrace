@@ -1,0 +1,155 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "id": "web:CWE-79-xss",
+      "cwe_id": "CWE-79",
+      "severity": "HIGH",
+      "title": "Improper Neutralization of Input During Web Page Generation ('XSS')",
+      "message": "Unescaped HTML assignment ('dangerouslySetInnerHTML' / '.innerHTML' / 'mark_safe').",
+      "pattern": "(?:dangerouslySetInnerHTML|\\.innerHTML\\s*=|\\bmark_safe\\s*\\()",
+      "languages": ["py", "js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "el.textContent = userText; // or sanitize with DOMPurify"
+    },
+    {
+      "id": "net:CWE-918-ssrf",
+      "cwe_id": "CWE-918",
+      "severity": "HIGH",
+      "title": "Server-Side Request Forgery (SSRF)",
+      "message": "HTTP client called with dynamically interpolated URL string.",
+      "pattern": "\\b(?:requests|httpx|axios)\\.(?:get|post|put|delete|request)\\s*\\(\\s*(?:f['\"]|`https?://\\$\\{)",
+      "languages": ["py", "js", "ts", "tsx"],
+      "compliant_snippet": "Validate hostname against an explicit allowlist before requesting."
+    },
+    {
+      "id": "tls:CWE-295-cert",
+      "cwe_id": "CWE-295",
+      "severity": "MEDIUM",
+      "title": "Improper Certificate Validation",
+      "message": "TLS certificate verification disabled ('verify=False' / 'rejectUnauthorized: false').",
+      "pattern": "(?:\\bverify\\s*=\\s*False\\b|rejectUnauthorized\\s*:\\s*false\\b|_create_unverified_context\\s*\\()",
+      "languages": ["py", "js", "ts", "tsx"],
+      "compliant_snippet": "Keep TLS certificate verification enabled (verify=True)."
+    },
+    {
+      "id": "jwt:CWE-347-unverified",
+      "cwe_id": "CWE-347",
+      "severity": "HIGH",
+      "title": "Improper Verification of Cryptographic Signature ('Unverified JWT')",
+      "message": "JWT decoded with signature verification disabled.",
+      "pattern": "jwt\\.decode\\s*\\([^)]*(?:['\"]verify_signature['\"]\\s*:\\s*False|verify\\s*=\\s*False)",
+      "languages": ["py", "js", "ts"],
+      "compliant_snippet": "jwt.decode(token, key=PUBLIC_KEY, algorithms=['RS256'])"
+    },
+    {
+      "id": "xml:CWE-611-xxe",
+      "cwe_id": "CWE-611",
+      "severity": "HIGH",
+      "title": "Improper Restriction of XML External Entity Reference ('XXE')",
+      "message": "XML parser configured with 'resolve_entities=True'.",
+      "pattern": "XMLParser\\s*\\([^)]*resolve_entities\\s*=\\s*True",
+      "languages": ["py"],
+      "compliant_snippet": "lxml.etree.XMLParser(resolve_entities=False, no_network=True)"
+    },
+    {
+      "id": "web:CWE-601-open-redirect",
+      "cwe_id": "CWE-601",
+      "severity": "MEDIUM",
+      "title": "URL Redirection to Untrusted Site ('Open Redirect')",
+      "message": "Direct redirect to unvalidated request parameter or query string.",
+      "pattern": "\\b(?:res\\.)?redirect\\s*\\(\\s*(?:request\\.(?:args|query|GET|POST)|req\\.(?:query|body))",
+      "languages": ["py", "js", "ts", "tsx"],
+      "compliant_snippet": "return redirect(url_for('dashboard'))"
+    },
+    {
+      "id": "db:CWE-943-nosql-injection",
+      "cwe_id": "CWE-943",
+      "severity": "CRITICAL",
+      "title": "Improper Neutralization of Special Elements in Data Query Logic ('NoSQL Injection')",
+      "message": "MongoDB '$where' operator executes arbitrary JavaScript on query evaluation.",
+      "pattern": "['\"]\\$where['\"]\\s*:",
+      "languages": ["py", "js", "ts", "tsx"],
+      "compliant_snippet": "db.users.find({'username': str(user)})"
+    },
+    {
+      "id": "js:CWE-1321-prototype-pollution",
+      "cwe_id": "CWE-1321",
+      "severity": "HIGH",
+      "title": "Improperly Controlled Modification of Object Prototype ('Prototype Pollution')",
+      "message": "Direct mutation of '__proto__' or 'constructor.prototype'.",
+      "pattern": "(?:\\.__proto__\\s*(?:\\[|=)|\\[\\s*['\"]__proto__['\"]\\s*\\]\\s*=|constructor\\.prototype\\s*\\[)",
+      "languages": ["js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "const safeMap = Object.create(null);"
+    },
+    {
+      "id": "web:CWE-1336-ssti",
+      "cwe_id": "CWE-1336",
+      "severity": "CRITICAL",
+      "title": "Server-Side Template Injection ('SSTI')",
+      "message": "Dynamic template rendering via 'render_template_string' or 'jinja2.Template'.",
+      "pattern": "\\b(?:render_template_string|jinja2\\.Template)\\s*\\(\\s*(?:f['\"]|request\\.|[a-zA-Z_][a-zA-Z0-9_]*\\s*\\+)",
+      "languages": ["py"],
+      "compliant_snippet": "render_template('page.html', value=user_value)"
+    },
+    {
+      "id": "crypto:CWE-330-weak-random",
+      "cwe_id": "CWE-330",
+      "severity": "MEDIUM",
+      "title": "Use of Insufficiently Random Values",
+      "message": "Non-cryptographic PRNG ('random.*' / 'Math.random') used for secret/token/OTP.",
+      "pattern": "\\b\\w*(?:token|secret|otp|nonce|api_key|session_id|reset_code)\\w*\\s*=\\s*[^#\\n]*(?:\\brandom\\.(?:randint|choice|random|randrange)|Math\\.random\\s*\\()",
+      "languages": ["py", "js", "ts", "tsx"],
+      "compliant_snippet": "reset_token = secrets.token_urlsafe(32)"
+    },
+    {
+      "id": "fs:CWE-377-insecure-temp",
+      "cwe_id": "CWE-377",
+      "severity": "MEDIUM",
+      "title": "Insecure Temporary File",
+      "message": "'tempfile.mktemp' is vulnerable to symlink race conditions (TOCTOU).",
+      "pattern": "\\btempfile\\.mktemp\\s*\\(",
+      "languages": ["py"],
+      "compliant_snippet": "with tempfile.NamedTemporaryFile(delete=False) as tmp: ..."
+    },
+    {
+      "id": "crypto:CWE-321-hardcoded-pem-key",
+      "cwe_id": "CWE-321",
+      "severity": "CRITICAL",
+      "title": "Use of Hard-coded Cryptographic Key",
+      "message": "Hardcoded PEM private key block detected in source code.",
+      "pattern": "-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----",
+      "languages": ["py", "js", "ts", "tsx", "go", "rs"],
+      "compliant_snippet": "PRIVATE_KEY = os.environ['SIGNING_PRIVATE_KEY']"
+    },
+    {
+      "id": "web:CWE-942-cors-wildcard-credentials",
+      "cwe_id": "CWE-942",
+      "severity": "MEDIUM",
+      "title": "Permissive Cross-domain Policy with Untrusted Domains ('Insecure CORS')",
+      "message": "Wildcard 'allow_origins=[\"*\"]' combined with 'allow_credentials=True'.",
+      "pattern": "allow_origins\\s*=\\s*\\[\\s*['\"]\\*['\"]\\s*\\][^#\\n]*allow_credentials\\s*=\\s*True",
+      "languages": ["py"],
+      "compliant_snippet": "CORSMiddleware(app, allow_origins=['https://app.example.com'])"
+    },
+    {
+      "id": "web:CWE-489-debug-enabled",
+      "cwe_id": "CWE-489",
+      "severity": "MEDIUM",
+      "title": "Active Debug Code in Production",
+      "message": "Web application launched with 'debug=True'.",
+      "pattern": "\\bapp\\.run\\s*\\([^)]*\\bdebug\\s*=\\s*True\\b",
+      "languages": ["py"],
+      "compliant_snippet": "app.run(host='0.0.0.0', debug=False)"
+    },
+    {
+      "id": "sec:CWE-798-token-prefix",
+      "cwe_id": "CWE-798",
+      "severity": "CRITICAL",
+      "title": "Use of Hard-coded Credentials (Leaked Cloud/API Token)",
+      "message": "Hardcoded AWS, GitHub, Stripe, or Slack secret token literal detected.",
+      "pattern": "['\"](?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36}|sk_live_[0-9a-zA-Z]{24})['\"]",
+      "languages": ["py", "js", "ts", "tsx", "go", "rs"],
+      "compliant_snippet": "API_TOKEN = os.environ['SERVICE_API_TOKEN']"
+    }
+  ]
+}

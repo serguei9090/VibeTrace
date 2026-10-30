@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T16:26:20.029168+00:00"
+updated_at = "2026-10-30T16:32:49.328433+00:00"
 total_records = 19
 
 [[splits]]
@@ -75,7 +75,7 @@ code_hash = "9657f5cf73cdcf86b8109e752768ff5fa2d38a16f151459bc684efd9af456d8f"
 branches_count = 3
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.843131+00:00"
+reviewed_at = "2026-10-30T16:32:49.152161+00:00"
 branches = ["GET **/api/security/audit** (src/web/e2e/security-card.spec.ts)", "GET **/api/security/approve (src/web/e2e/security-card.spec.ts)", "GET / (src/vibetrace/server_api.py)"]
 
 [[splits]]
@@ -87,7 +87,7 @@ code_hash = "10f1726194cf4846d7b0485e0b1d8474f1426e6414e9b61e687d0cb3aaf8783d"
 branches_count = 11
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.859207+00:00"
+reviewed_at = "2026-10-30T16:32:49.180304+00:00"
 branches = ["get_context_for_path (src/vibetrace/services/graph_service.py)", "audit_project (src/vibetrace/security/service.py)", "record_exception (src/vibetrace/security/service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "format_security_audit_sarif (src/vibetrace/security/formatters.py)", "safe_str (src/vibetrace/services/graph_service.py)", "format_security_audit_md (src/vibetrace/security/formatters.py)", "build_remediation_bundle (src/vibetrace/security/service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "record_exception (src/vibetrace/security/service.py)"]
 
 [[splits]]
@@ -99,7 +99,7 @@ code_hash = "c57254a09351904852ae5f4b802f5f5a88a1a7019e0b8fe1949ec54fa49a5002"
 branches_count = 4
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.887082+00:00"
+reviewed_at = "2026-10-30T16:32:49.192334+00:00"
 branches = ["CallerGuardBadge (src/web/src/features/map-room/components/CallerGuardBadge.tsx)", "VibeBundleButton (src/web/src/features/map-room/components/VibeBundleButton.tsx)", "SplitAuditCard (src/web/src/features/map-room/components/SplitAuditCard.tsx)", "SecurityAuditCard (src/web/src/features/map-room/components/SecurityAuditCard.tsx)"]
 
 [[splits]]
@@ -111,7 +111,7 @@ code_hash = "35be7e29af73e5ea8c3963da2fa370b8000476c846256f731799727999dc7ad6"
 branches_count = 6
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.901197+00:00"
+reviewed_at = "2026-10-30T16:32:49.218754+00:00"
 branches = ["buildPackageGraph (src/web/src/features/map-room/utils/packageGraph.ts)", "layoutPackageGraph (src/web/src/features/map-room/utils/elkLayout.ts)", "computeSelectionHighlights (src/web/src/features/map-room/utils/graphTraversal.ts)", "buildFlowElements (src/web/src/features/map-room/utils/graphTraversal.ts)", "calculateUnrevealedNeighbors (src/web/src/features/map-room/utils/treeHierarchy.ts)", "getLayoutedElements (src/web/src/features/map-room/utils/elkLayout.ts)"]
 
 [[splits]]
@@ -123,7 +123,7 @@ code_hash = "52aaa2976296c703e4e62e12b974777a3ef8008292874a9df5c6157d396ae87f"
 branches_count = 6
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.932388+00:00"
+reviewed_at = "2026-10-30T16:32:49.233692+00:00"
 branches = ["get_context_for_path (src/vibetrace/services/graph_service.py)", "audit_splits (src/vibetrace/services/split_audit_service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "format_split_audit_md (src/vibetrace/mcp/formatters.py)", "record_split_approval (src/vibetrace/services/split_audit_service.py)", "record_split_approval (src/vibetrace/services/split_audit_service.py)"]
 
 [[splits]]
@@ -131,12 +131,12 @@ symbol = "sync_and_load_rules"
 qualified_name = "RuleCatalogManager.sync_and_load_rules"
 file_path = "src/vibetrace/security/rule_sync.py"
 status = "approved"
-code_hash = "5b33dd49c7cd4f1bca7d930bd37bb4cd9bdaabe322d6226df58fe551b078ccee"
-branches_count = 8
+code_hash = "91639b788d7f3f34a44509d8f6b9c51d086280e05b3e5ad7fd80cad503c94ead"
+branches_count = 10
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.915988+00:00"
-branches = ["_ensure_table (src/vibetrace/security/rule_sync.py)", "get_sync_config (src/vibetrace/security/rule_sync.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_refresh_from_feed (src/vibetrace/security/rule_sync.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)", "parse_semgrep_yaml (src/vibetrace/security/rule_sync.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)"]
+reviewed_at = "2026-10-30T16:32:49.205380+00:00"
+branches = ["_ensure_table (src/vibetrace/security/rule_sync.py)", "detect_project_languages (src/vibetrace/security/rule_sync.py)", "get_sync_config (src/vibetrace/security/rule_sync.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_refresh_from_feed (src/vibetrace/security/rule_sync.py)", "_seed_builtin_cache (src/vibetrace/security/rule_sync.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)", "parse_semgrep_yaml (src/vibetrace/security/rule_sync.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)"]
 
 [[splits]]
 symbol = "scan_file"
@@ -147,7 +147,7 @@ code_hash = "ec75eb02dfdab1e770eb55696cbcbc7d224d66b56f0d8aeedeb624f5cb57f288"
 branches_count = 2
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.946669+00:00"
+reviewed_at = "2026-10-30T16:32:49.247747+00:00"
 branches = ["get_parser (src/vibetrace/indexer/parsers/__init__.py)", "_visit_node (src/vibetrace/security/ast_scanner.py)"]
 
 [[splits]]
@@ -159,7 +159,7 @@ code_hash = "98b9540c6a013b3e576e24c557930d81fb99e11a5c27a849fc4a32acd1b8c18e"
 branches_count = 7
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.962415+00:00"
+reviewed_at = "2026-10-30T16:32:49.258139+00:00"
 branches = ["_init_cache_table (src/vibetrace/security/osv_client.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_is_unhydrated_stub_list (src/vibetrace/security/osv_client.py)", "_fetch_from_osv (src/vibetrace/security/osv_client.py)", "_get_conn (src/vibetrace/indexer/db.py)", "_deduplicate_vulns (src/vibetrace/security/osv_client.py)", "_osv_to_finding (src/vibetrace/security/osv_client.py)"]
 
 [[splits]]
@@ -171,7 +171,7 @@ code_hash = "31f4a28779a59b3b7b0ecf1dd2e1c217673ce83787198ad696bd05b8bfcfdc2e"
 branches_count = 10
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.973747+00:00"
+reviewed_at = "2026-10-30T16:32:49.273681+00:00"
 branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_is_test_path (src/vibetrace/security/service.py)", "sync_and_load_rules (src/vibetrace/security/rule_sync.py)", "scan_file (src/vibetrace/security/ast_scanner.py)", "scan_file_with_rules (src/vibetrace/security/rule_sync.py)", "analyze (src/vibetrace/security/taint_engine.py)", "load_sanitizers (src/vibetrace/security/baseline.py)", "parse_all_lockfiles (src/vibetrace/security/lockfile_parser.py)", "query_vulnerabilities (src/vibetrace/security/osv_client.py)", "apply_baseline_to_findings (src/vibetrace/security/baseline.py)"]
 
 [[splits]]
@@ -179,11 +179,11 @@ symbol = "_rule_from_dict"
 qualified_name = "RuleCatalogManager._rule_from_dict"
 file_path = "src/vibetrace/security/rule_sync.py"
 status = "approved"
-code_hash = "051849b0344a283d60856375de0dfd7736cf85bf551f10d1be544fb977b8c57a"
+code_hash = "1134e70bedc8c93b27a228047fb37e2ae4a2fc023e2e541913a82fdcc3d26bce"
 branches_count = 7
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.872098+00:00"
+reviewed_at = "2026-10-30T16:32:49.167031+00:00"
 branches = ["compile_semgrep_pattern (src/vibetrace/security/rule_sync.py)", "compile_semgrep_pattern (src/vibetrace/security/rule_sync.py)", "compile_semgrep_pattern (src/vibetrace/security/rule_sync.py)", "HIGH (src/vibetrace/security/models.py)", "MEDIUM (src/vibetrace/security/models.py)", "LOW (src/vibetrace/security/models.py)", "DeclarativeRule (src/vibetrace/security/rule_sync.py)"]
 
 [[splits]]
@@ -191,11 +191,11 @@ symbol = "_refresh_from_feed"
 qualified_name = "RuleCatalogManager._refresh_from_feed"
 file_path = "src/vibetrace/security/rule_sync.py"
 status = "approved"
-code_hash = "8e0f3774968225256b404c839f48167d01cd0769132b6451c86b2af1686b3501"
+code_hash = "a099506aca453f465727a5b5aa0fe4bdb4099b9df62ccc06bf77e6afdb17bee2"
 branches_count = 2
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.985693+00:00"
+reviewed_at = "2026-10-30T16:32:49.286375+00:00"
 branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)"]
 
 [[splits]]
@@ -207,7 +207,7 @@ code_hash = "0b87b812a6c8d71d9132a1e5a6d723dcbaf3d9fb22fc4cb6c685cc7f799c27b2"
 branches_count = 5
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:19.999760+00:00"
+reviewed_at = "2026-10-30T16:32:49.301729+00:00"
 branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_enclosing_node_id (src/vibetrace/security/taint_engine.py)", "_path_from_source (src/vibetrace/security/taint_engine.py)", "verify_interprocedural_taint_flow (src/vibetrace/security/dataflow.py)", "_bump (src/vibetrace/security/taint_engine.py)"]
 
 [[splits]]
@@ -219,7 +219,7 @@ code_hash = "df01fe3e99dffc6baaeef0f890c7001e9130dcaeea8a87d12c1e47881f8dc35a"
 branches_count = 2
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:20.015108+00:00"
+reviewed_at = "2026-10-30T16:32:49.315396+00:00"
 branches = ["load_baseline (src/vibetrace/security/baseline.py)", "SecurityAuditReport (src/vibetrace/security/models.py)"]
 
 [[splits]]
@@ -231,5 +231,5 @@ code_hash = "bad532cebbca1c31a3bacebe36459725364f19fe34e3d07e9390a879467c8334"
 branches_count = 2
 rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:26:20.029168+00:00"
+reviewed_at = "2026-10-30T16:32:49.327428+00:00"
 branches = ["_calc_code_hash (src/vibetrace/security/ast_scanner.py)", "SecurityFinding (src/vibetrace/security/models.py)"]

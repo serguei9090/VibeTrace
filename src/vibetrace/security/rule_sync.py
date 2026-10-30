@@ -327,6 +327,20 @@ class RuleCatalogManager:
             return DEFAULT_RULES_TTL_DAYS, DEFAULT_RULES_FEED_URL
 
     @classmethod
+    def detect_project_languages(cls, db: IndexerDB) -> set[str]:
+        """Detects all file extensions present in the indexed project (`py`, `ts`, `go`, etc.)."""
+        exts: set[str] = set()
+        with db._get_conn() as conn:
+            for (fp,) in conn.execute(
+                "SELECT DISTINCT file_path FROM nodes WHERE file_path IS NOT NULL"
+            ).fetchall():
+                if "." in str(fp):
+                    ext = str(fp).rsplit(".", 1)[-1].lower()
+                    for norm in _LANG_ALIAS.get(ext, (ext,)):
+                        exts.add(norm)
+        return exts
+
+    @classmethod
     def sync_and_load_rules(
         cls,
         db: IndexerDB,
@@ -334,8 +348,9 @@ class RuleCatalogManager:
         force_update: bool = False,
         fetcher: Any = None,
     ) -> list[DeclarativeRule]:
-        """Loads built-in rules, auto-syncs remote catalog on TTL expiry, and merges local rules."""
+        """Loads built-in rules, auto-syncs remote catalog on TTL expiry, and filters languages."""
         cls._ensure_table(db)
+        project_langs = cls.detect_project_languages(db)
         ttl_days, feed_url = cls.get_sync_config(project_root)
         ttl_secs = ttl_days * 86400.0
         now = time.time()
@@ -350,7 +365,10 @@ class RuleCatalogManager:
             or (oldest_ts > 0.0 and (now - oldest_ts) > ttl_secs)
         )
         if needs_sync and feed_url:
-            cls._refresh_from_feed(db, feed_url, now, fetcher=fetcher)
+            cls._refresh_from_feed(db, feed_url, now, fetcher=fetcher, project_langs=project_langs)
+        elif oldest_ts == 0.0:
+            # One-time initial seed of SQLite cache from built-in language-matched rules
+            cls._seed_builtin_cache(db, now, project_langs)
 
         rules_by_id: dict[str, DeclarativeRule] = {r.id: r for r in BUILTIN_DECLARATIVE_RULES}
 
@@ -386,11 +404,44 @@ class RuleCatalogManager:
                 except Exception:
                     continue
 
-        return list(rules_by_id.values())
+        all_rules = list(rules_by_id.values())
+        if not project_langs:
+            return all_rules
+        return [r for r in all_rules if set(r.languages) & project_langs]
+
+    @classmethod
+    def _seed_builtin_cache(cls, db: IndexerDB, now: float, project_langs: set[str]) -> None:
+        with db._get_conn() as conn:
+            for r in BUILTIN_DECLARATIVE_RULES:
+                if project_langs and not (set(r.languages) & project_langs):
+                    continue
+                item = {
+                    "id": r.id,
+                    "cwe_id": r.cwe_id,
+                    "severity": r.severity.value,
+                    "title": r.title,
+                    "message": r.message,
+                    "pattern-regex": r.pattern,
+                    "languages": list(r.languages),
+                    "compliant_snippet": r.compliant_snippet,
+                }
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO security_rules_cache (rule_id, rule_json, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (r.id, json.dumps(item), now),
+                )
+            conn.commit()
 
     @classmethod
     def _refresh_from_feed(
-        cls, db: IndexerDB, feed_url: str, now: float, fetcher: Any = None
+        cls,
+        db: IndexerDB,
+        feed_url: str,
+        now: float,
+        fetcher: Any = None,
+        project_langs: set[str] | None = None,
     ) -> None:
         try:
             if fetcher is not None:
@@ -403,15 +454,18 @@ class RuleCatalogManager:
             with db._get_conn() as conn:
                 for item in items:
                     parsed = cls._rule_from_dict(item)
-                    if parsed:
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO security_rules_cache (
-                                rule_id, rule_json, updated_at
-                            ) VALUES (?, ?, ?)
-                            """,
-                            (parsed.id, json.dumps(item), now),
-                        )
+                    if not parsed:
+                        continue
+                    if project_langs and not (set(parsed.languages) & project_langs):
+                        continue
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO security_rules_cache (
+                            rule_id, rule_json, updated_at
+                        ) VALUES (?, ?, ?)
+                        """,
+                        (parsed.id, json.dumps(item), now),
+                    )
                 conn.commit()
         except Exception:
             return
@@ -435,11 +489,10 @@ class RuleCatalogManager:
         if not pat:
             raw_pat = str(data.get("pattern", "")).strip()
             if raw_pat:
-                pat = (
-                    compile_semgrep_pattern(raw_pat)
-                    if ("$" in raw_pat or "..." in raw_pat)
-                    else raw_pat
+                is_semgrep_pat = bool(
+                    re.search(r"(?<!\\)\$[A-Z_][A-Z0-9_]*", raw_pat) or "..." in raw_pat
                 )
+                pat = compile_semgrep_pattern(raw_pat) if is_semgrep_pat else raw_pat
             elif isinstance(data.get("pattern-either"), list):
                 sub_pats = []
                 for entry in data["pattern-either"]:

@@ -302,3 +302,34 @@ def test_semgrep_yaml_compiler_and_cwe_top25_rules(tmp_path) -> None:
         "CWE-489",
         "CWE-798",
     }.issubset(cwes)
+
+
+def test_language_aware_rule_filtering_and_initial_seed(tmp_path) -> None:
+    """Verifies project-language detection filters rules to only languages in the repo."""
+    from vibetrace.security.rule_sync import RuleCatalogManager
+
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(_node("p1", "py_fn", 1, 5))
+
+    assert RuleCatalogManager.detect_project_languages(db) == {"py"}
+    py_rules = RuleCatalogManager.sync_and_load_rules(db, tmp_path)
+    assert any(r.id == "xml:CWE-611-xxe" for r in py_rules)
+    assert not any(r.id == "js:CWE-1321-prototype-pollution" for r in py_rules)
+
+    # Add a TypeScript node -> JS/TS rules now automatically activate
+    db.upsert_node(
+        Node(
+            id="t1",
+            name="ts_fn",
+            qualified_name="ts_fn",
+            kind="function",
+            file_path="src/ui.ts",
+            start_line=1,
+            end_line=5,
+        )
+    )
+    assert {"py", "ts", "tsx"}.issubset(RuleCatalogManager.detect_project_languages(db))
+    poly_rules = RuleCatalogManager.sync_and_load_rules(db, tmp_path)
+    assert any(r.id == "js:CWE-1321-prototype-pollution" for r in poly_rules)
