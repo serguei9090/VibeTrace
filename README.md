@@ -116,17 +116,18 @@ vibetrace audit splits --approve
 # CI/CD gate with deterministic hash tripwires (exits 1 if unapproved or modified)
 vibetrace audit splits --ci --strict
 
-# 6b. Security Audit (AST patterns + dependency CVEs)
+# 6b. Security Audit (AST + Def-Use Taint + Auto-Syncing Rule Catalog + OSV CVEs)
 vibetrace audit security
-# CI gate; --skip-deps stays fully offline, --update forces CVE cache refresh
+# CI gate; --skip-deps stays fully offline, --update forces CVE + rule catalog refresh
 vibetrace audit security --ci --fail-on high --skip-deps
-# Disable taint escalation; add custom sanitizers under [taint] sanitizers = ["fn"] in .vibetrace/security.toml
+# Disable taint escalation; add custom sanitizers under [taint] sanitizers = ["fn"]
+# or configure rule auto-sync TTL under [sync] rules_ttl_days = 7 in .vibetrace/security.toml
 vibetrace audit security --no-taint
 # Emit AI remediation prompts and compliant patch patterns
 vibetrace audit security --fix
-# Export OASIS SARIF 2.1.0 for GitHub Code Scanning, or batch-approve verified findings
+# Export OASIS SARIF 2.1.0 for GitHub Code Scanning, or batch-approve with disposition tags
 vibetrace audit security --sarif
-vibetrace audit security --approve --rationale "Verified safe"
+vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
 
 # 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"

@@ -140,4 +140,69 @@ RULES_CATALOG: dict[str, SecurityRuleSpec] = {
             "if not target.is_relative_to(BASE_DIR.resolve()): raise ValueError('Invalid path')"
         ),
     ),
+    # 8. CWE-79: Cross-Site Scripting (XSS)
+    "CWE-79": SecurityRuleSpec(
+        rule_id="CWE-79",
+        cwe_id="CWE-79",
+        severity=Severity.HIGH,
+        title="Improper Neutralization of Input During Web Page Generation ('XSS')",
+        explanation=(
+            "Assigning unsanitized HTML via `innerHTML`, `dangerouslySetInnerHTML`, or `mark_safe` "
+            "allows attackers to inject executable `<script>` payloads into the user's browser."
+        ),
+        non_compliant_example="el.innerHTML = userComment;",
+        compliant_example="el.textContent = userComment;  // or DOMPurify.sanitize(userComment)",
+    ),
+    # 9. CWE-918: Server-Side Request Forgery (SSRF)
+    "CWE-918": SecurityRuleSpec(
+        rule_id="CWE-918",
+        cwe_id="CWE-918",
+        severity=Severity.HIGH,
+        title="Server-Side Request Forgery (SSRF)",
+        explanation=(
+            "Fetching URLs constructed directly from untrusted input allows attackers to probe "
+            "internal metadata services (e.g. `169.254.169.254`) or private intranet endpoints."
+        ),
+        non_compliant_example="requests.get(f'http://{user_host}/status')",
+        compliant_example="if user_host not in ALLOWED_HOSTS: raise ValueError()\nrequests.get(f'https://{user_host}/status')",
+    ),
+    # 10. CWE-295: Improper Certificate Validation
+    "CWE-295": SecurityRuleSpec(
+        rule_id="CWE-295",
+        cwe_id="CWE-295",
+        severity=Severity.MEDIUM,
+        title="Improper Certificate Validation",
+        explanation=(
+            "Disabling TLS certificate verification (`verify=False`, `rejectUnauthorized: false`) "
+            "exposes connections to Man-in-the-Middle (MitM) interception and spoofing."
+        ),
+        non_compliant_example="requests.get('https://api.example.com', verify=False)",
+        compliant_example="requests.get('https://api.example.com', verify=True)",
+    ),
+    # 11. CWE-347: Improper Verification of Cryptographic Signature (JWT)
+    "CWE-347": SecurityRuleSpec(
+        rule_id="CWE-347",
+        cwe_id="CWE-347",
+        severity=Severity.HIGH,
+        title="Improper Verification of Cryptographic Signature ('Unverified JWT')",
+        explanation=(
+            "Decoding JWT tokens with `verify_signature: False` or `verify=False` allows "
+            "attackers to forge arbitrary identity claims and escalate privileges."
+        ),
+        non_compliant_example="jwt.decode(token, options={'verify_signature': False})",
+        compliant_example="jwt.decode(token, key=PUBLIC_KEY, algorithms=['RS256'])",
+    ),
+    # 12. CWE-611: Improper Restriction of XML External Entity Reference (XXE)
+    "CWE-611": SecurityRuleSpec(
+        rule_id="CWE-611",
+        cwe_id="CWE-611",
+        severity=Severity.HIGH,
+        title="Improper Restriction of XML External Entity Reference ('XXE')",
+        explanation=(
+            "Parsing XML with external entity resolution enabled (`resolve_entities=True`) allows "
+            "attackers to read local files (`file:///etc/passwd`) or trigger SSRF."
+        ),
+        non_compliant_example="lxml.etree.XMLParser(resolve_entities=True)",
+        compliant_example="lxml.etree.XMLParser(resolve_entities=False, no_network=True)",
+    ),
 }

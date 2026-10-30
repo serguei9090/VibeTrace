@@ -9,12 +9,14 @@ from __future__ import annotations
 import json
 import re
 from collections import deque
+from pathlib import Path
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.security.dataflow import verify_sink_taint_flow
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
 MAX_DEPTH = 8
-TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502", "CWE-89", "CWE-22"}
+TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502", "CWE-89", "CWE-22", "CWE-79", "CWE-918", "CWE-611"}
 SANITIZERS = frozenset(
     {"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval", "is_relative_to"}
 )
@@ -53,6 +55,7 @@ class TaintEngine:
         db: IndexerDB,
         findings: list[SecurityFinding],
         extra_sanitizers: frozenset[str] = frozenset(),
+        project_root: Path | None = None,
     ) -> list[SecurityFinding]:
         candidates = [f for f in findings if f.cwe_id in TAINT_CWES]
         if not candidates:
@@ -79,6 +82,21 @@ class TaintEngine:
             path = cls._path_from_source(nodes, callers, sink_id, sanitizers)
             if path is None:
                 continue
+            sink_node = nodes[sink_id]
+            if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
+                is_tainted, var_chain = verify_sink_taint_flow(
+                    project_root=project_root,
+                    file_path=finding.file_path,
+                    func_start_line=int(sink_node["start_line"]),
+                    func_end_line=int(sink_node["end_line"]),
+                    sink_line=finding.start_line,
+                    sanitizers=sanitizers,
+                )
+                if not is_tainted:
+                    finding.metadata["dataflow"] = "untainted_local"
+                    continue
+                if var_chain:
+                    finding.metadata["taint_vars"] = var_chain
             finding.category = FindingCategory.TAINT_REACHABILITY
             finding.severity = _bump(finding.severity)
             finding.symbol_name = nodes[sink_id]["name"]

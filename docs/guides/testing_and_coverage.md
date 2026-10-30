@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 493 / 493 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 495 / 495 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -72,8 +72,8 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_nosec_and_false_positive_precision` | `# nosec`, `usedforsecurity=False`, safe SQL `{placeholders}`, static ternary `execSync` | Suppresses false positives while catching dynamic template injection. | ✅ PASS |
 | `test_go_and_rust_security_rules` | Go & Rust `CWE-78` and `CWE-327` | Flags shell `-c` invocations and MD5/SHA1 in Go and Rust. | ✅ PASS |
 | `test_sarif_export_and_cli_approve` | SARIF 2.1.0 `--sarif` export and CLI `--approve` | Emits valid SARIF 2.1.0 JSON; `--approve` records baseline exceptions. | ✅ PASS |
-
-> **Known gap:** taint is call-edge reachability only (no data-flow), so false positives are possible.
+| `test_intraprocedural_def_use_taint_and_untainted_local` | Intra-procedural Def-Use variable taint (`dataflow.py`) | Escalates tainted parameter chains (`cmd -> q -> run_cmd`) while blocking false-positive escalation on hardcoded local variables (`untainted_local`). | ✅ PASS |
+| `test_rule_catalog_sync_ttl_and_declarative_rules` | Self-updating rule catalog sync (`rule_sync.py`) + CWE-79/918/295/347/611 | Auto-syncs on SQLite TTL expiry (`[sync] rules_ttl_days`) or `--update`, merges `.vibetrace/rules/*.json`, and runs with zero external binaries required. | ✅ PASS |
 
 ---
 

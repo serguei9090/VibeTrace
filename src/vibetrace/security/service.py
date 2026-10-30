@@ -10,6 +10,7 @@ from vibetrace.security.baseline import SecurityBaselineManager
 from vibetrace.security.lockfile_parser import LockfileParser
 from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
+from vibetrace.security.rule_sync import RuleCatalogManager
 from vibetrace.security.taint_engine import TaintEngine
 
 
@@ -56,15 +57,24 @@ class SecurityService:
                 non_tests = [f for f in all_files if not cls._is_test_path(f)]
                 target_files = non_tests if non_tests else all_files
 
-        # 1. Source code AST inspection
+        # 1. Source code AST + declarative rule catalog inspection
+        decl_rules = RuleCatalogManager.sync_and_load_rules(
+            db=db, project_root=project_root, force_update=force_update_cves
+        )
         for f_path in target_files:
             file_findings = AstSecurityScanner.scan_file(f_path, project_root)
+            file_findings.extend(
+                RuleCatalogManager.scan_file_with_rules(f_path, project_root, decl_rules)
+            )
             findings.extend(file_findings)
 
-        # 1b. Call-graph reachability from untrusted entry points to injection sinks
+        # 1b. Call-graph + intra-procedural Def-Use reachability from untrusted entry points
         if analyze_taint:
             findings = TaintEngine.analyze(
-                db, findings, frozenset(SecurityBaselineManager.load_sanitizers(project_root))
+                db,
+                findings,
+                frozenset(SecurityBaselineManager.load_sanitizers(project_root)),
+                project_root=project_root,
             )
 
         # 2. Dependency lockfile CVE scanning (Google OSV)
