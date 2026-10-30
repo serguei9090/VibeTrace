@@ -63,7 +63,9 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_custom_sanitizer_from_toml_and_no_taint_flag` | `[taint] sanitizers` in security.toml, preserved on rewrite | Custom sanitizer blocks escalation. | ✅ PASS |
 | `test_no_taint_flag_disables_escalation` | `--no-taint` / `analyze_taint=False` | No escalation. | ✅ PASS |
 
-> **Known gap:** the Map Room `SecurityAuditCard` and node badges have no automated frontend test yet; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
+| `e2e/security-card.spec.ts` (Playwright) | Map Room `SecurityAuditCard`: taint path, **Show path** (calls `/trace`), copy AI fix prompt, approve exception | Card renders from `/api/security/audit`; actions hit the right endpoints. | ✅ PASS |
+
+> **Known gap:** node radar badges have no automated test; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
 
 ---
 

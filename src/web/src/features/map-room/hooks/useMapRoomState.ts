@@ -124,6 +124,21 @@ export function useMapRoomState() {
     }
   }, []);
 
+  const showTracePath = useCallback(
+    async (from: string, to: string) => {
+      if (!from || !to) return;
+      try {
+        const res = await axios.get<TracePathResponse>(`${API_URL}/trace`, {
+          params: { from_symbol: from, to_symbol: to, max_depth: 8, detect_splits: true },
+        });
+        handleTraceResult(res.data);
+      } catch (err) {
+        console.error("Failed to load taint path trace", err);
+      }
+    },
+    [handleTraceResult]
+  );
+
   const resetTrace = useCallback(() => {
     setActiveTrace(null);
     setLayoutMode("map");
@@ -641,5 +656,6 @@ export function useMapRoomState() {
     onPaneClick,
     rawData,
     fetchGraph,
+    showTracePath,
   };
 }

@@ -20,6 +20,7 @@ interface CodeInspectorDrawerProps {
   onExpandCallees?: (nodeId: string) => void;
   onExpandCallers?: (nodeId: string) => void;
   onExpandNodeConnections?: (nodeId: string) => void;
+  onShowTracePath?: (from: string, to: string) => void;
 }
 
 interface SourceResponse {
@@ -40,6 +41,7 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
   onExpandCallees,
   onExpandCallers,
   onExpandNodeConnections,
+  onShowTracePath,
 }) => {
   const [sourceData, setSourceData] = useState<SourceResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -215,6 +217,7 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
         filePath={targetNode.file_path}
         startLine={targetNode.start_line}
         endLine={targetNode.end_line}
+        onShowPath={onShowTracePath}
       />
 
       {selectedEdge && calleeNode && (

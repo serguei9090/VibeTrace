@@ -16,6 +16,7 @@ interface SecurityAuditCardProps {
   filePath?: string;
   startLine?: number;
   endLine?: number;
+  onShowPath?: (from: string, to: string) => void;
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -41,6 +42,7 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
   filePath,
   startLine,
   endLine,
+  onShowPath,
 }) => {
   const [findings, setFindings] = useState<SecurityFindingUI[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -153,6 +155,20 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
                 {f.metadata?.taint_path && (
                   <div style={{ color: "#fdba74" }}>
                     Reachable from untrusted input: {f.metadata.taint_path.join(" → ")}
+                    {onShowPath && (
+                      <button
+                        type="button"
+                        style={{ marginLeft: 8 }}
+                        onClick={() =>
+                          onShowPath(
+                            f.metadata?.taint_path?.[0] ?? "",
+                            f.metadata?.taint_path?.at(-1) ?? ""
+                          )
+                        }
+                      >
+                        Show path
+                      </button>
+                    )}
                   </div>
                 )}
                 {f.remediation_guidance && <div>{f.remediation_guidance}</div>}

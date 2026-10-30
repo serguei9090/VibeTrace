@@ -66,6 +66,7 @@ export default function App() {
     activeTrace,
     handleTraceResult,
     resetTrace,
+    showTracePath,
     selectedElement,
     setSelectedElement,
     onNodeClick,
@@ -196,6 +197,7 @@ export default function App() {
           onExpandCallees={onExpandCallees}
           onExpandCallers={onExpandCallers}
           onExpandNodeConnections={onExpandNodeConnections}
+          onShowTracePath={showTracePath}
         />
 
         <DocsExplorerDrawer

@@ -44,6 +44,12 @@ test.describe("Security audit card", () => {
       await route.fulfill({ json: { ok: true } });
     });
 
+    let traceUrl = "";
+    await page.route("**/trace?**", async (route) => {
+      traceUrl = route.request().url();
+      await route.fulfill({ json: { found: false, node_ids: [], hops: [], paths: [] } });
+    });
+
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
@@ -57,6 +63,10 @@ test.describe("Security audit card", () => {
     await row.click();
 
     await expect(page.getByText("Reachable from untrusted input: handler → sink")).toBeVisible();
+
+    await page.getByRole("button", { name: "Show path" }).click();
+    await expect.poll(() => traceUrl).toContain("from_symbol=handler");
+    expect(traceUrl).toContain("to_symbol=sink");
 
     await page.getByRole("button", { name: /Copy AI fix prompt/ }).click();
     const clip = await page.evaluate(() => navigator.clipboard.readText());
