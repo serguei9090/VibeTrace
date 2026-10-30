@@ -160,7 +160,7 @@ class AstSecurityScanner:
                     return
 
                 fn_text = fn_node.text.decode("utf-8", errors="replace") if fn_node.text else ""
-                if "subprocess" in fn_text or fn_text in ("system", "popen"):
+                if "subprocess" in fn_text or "system" in fn_text or fn_text == "popen":
                     if fn_text in ("os.system", "system"):
                         findings.append(
                             cls._create_finding(

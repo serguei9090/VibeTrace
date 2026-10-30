@@ -31,7 +31,9 @@ from vibetrace.mcp.formatters import (
     format_vibe_bundle_markdown,
 )
 from vibetrace.mcp.schemas import (
+    ApproveSecurityExceptionInput,
     ApproveSplitInput,
+    AuditSecurityInput,
     AuditSplitsInput,
     CallerGuardInput,
     CallStackInput,
@@ -678,6 +680,71 @@ async def vibetrace_approve_split(params: ApproveSplitInput) -> str:
         )
     except Exception as e:
         return handle_error(e, f"recording split approval for '{params.symbol}'")
+
+
+@mcp.tool(name="vibetrace_audit_security", annotations=_READ_ONLY)
+async def vibetrace_audit_security(params: AuditSecurityInput) -> str:
+    """Audit codebase and lockfile dependencies for security vulnerabilities.
+
+    Detects static AST flaws (CWE-78, CWE-95, CWE-798, CWE-327, CWE-502) and package CVEs.
+    """
+    try:
+        from vibetrace.security.formatters import format_security_audit_md
+        from vibetrace.security.service import SecurityService
+
+        db, root = get_context_for_path(params.scope_path)
+        report = SecurityService.audit_project(
+            db=db,
+            project_root=Path(root),
+            file_filter=params.file_path,
+            check_dependencies=not params.skip_deps,
+            force_update_cves=params.update,
+        )
+
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+        return format_security_audit_md(report)
+    except Exception as e:
+        return handle_error(e, "auditing security vulnerabilities")
+
+
+@mcp.tool(name="vibetrace_approve_security_exception", annotations=_MUTATION)
+async def vibetrace_approve_security_exception(params: ApproveSecurityExceptionInput) -> str:
+    """Record an approved security exception into .vibetrace/security.toml baseline.
+
+    Uses normalized SHA-256 code hashing to ensure modifications trip verification gates.
+    """
+    try:
+        from vibetrace.security.service import SecurityService
+
+        _, root = get_context_for_path(params.scope_path)
+        SecurityService.record_exception(
+            project_root=Path(root),
+            finding_id=params.finding_id,
+            rule_id=params.rule_id,
+            file_path=params.file_path,
+            code_hash=params.code_hash,
+            rationale=params.rationale,
+            severity=params.severity,
+            status=params.status,
+            reviewed_by=params.reviewed_by,
+        )
+        msg = {
+            "status": "ok",
+            "finding_id": params.finding_id,
+            "rule_id": params.rule_id,
+            "file_path": params.file_path,
+            "review_status": params.status,
+            "baseline_file": ".vibetrace/security.toml",
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(msg, indent=2)
+        return (
+            f"✅ Successfully approved security exception `{params.finding_id}`.\n"
+            f"File: `{params.file_path}` | Recorded in `.vibetrace/security.toml`."
+        )
+    except Exception as e:
+        return handle_error(e, f"approving security exception '{params.finding_id}'")
 
 
 register_project_tools(mcp)

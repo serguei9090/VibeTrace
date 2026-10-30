@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from vibetrace.security.ast_scanner import AstSecurityScanner
 from vibetrace.security.baseline import SecurityBaselineManager
 
@@ -181,3 +183,133 @@ def test_osv_client_caching_and_mapping(tmp_path: Path):
         assert len(findings2) == 1
         assert findings2[0].id == findings[0].id
         assert mock_fetch.call_count == 1
+
+
+def test_security_api_endpoints(tmp_path: Path):
+    from unittest.mock import patch
+
+    from fastapi.testclient import TestClient
+
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.server_api import app
+
+    db_path = tmp_path / "test.db"
+    db = IndexerDB(str(db_path))
+
+    # Add a mock file with a vulnerable line
+    vuln_py = tmp_path / "cmd_runner.py"
+    vuln_py.write_text("import os\ndef run(x):\n    os.system(x)\n", encoding="utf-8")
+
+    from vibetrace.indexer.models import Node
+
+    db.upsert_node(
+        Node(
+            id="cmd_run",
+            name="run",
+            qualified_name="run",
+            kind="function",
+            file_path="cmd_runner.py",
+            start_line=2,
+            end_line=3,
+        )
+    )
+
+    with (
+        patch("vibetrace.server_api.db", db),
+        patch("vibetrace.server_api.project_root", tmp_path),
+    ):
+        client = TestClient(app)
+
+        # 1. GET /api/security/audit (skip dependencies to isolate AST)
+        resp = client.get("/api/security/audit?skip_deps=true")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_findings"] >= 1
+        assert data["unapproved_count"] >= 1
+        finding = data["findings"][0]
+
+        # 2. POST /api/security/approve
+        approve_payload = {
+            "finding_id": finding["id"],
+            "rule_id": finding["rule_id"],
+            "file_path": finding["file_path"],
+            "code_hash": finding["code_hash"],
+            "rationale": "Test environment approval",
+            "severity": finding["severity"],
+            "status": "APPROVED",
+            "reviewed_by": "test-suite",
+        }
+        resp_post = client.post("/api/security/approve", json=approve_payload)
+        assert resp_post.status_code == 200
+        assert resp_post.json()["status"] == "ok"
+
+        # 3. Rescan -> should be approved
+        resp_after = client.get("/api/security/audit?skip_deps=true")
+        assert resp_after.status_code == 200
+        data_after = resp_after.json()
+        assert data_after["approved_count"] == 1
+        assert data_after["unapproved_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_mcp_security_tools(tmp_path: Path):
+    from vibetrace.mcp.schemas import (
+        ApproveSecurityExceptionInput,
+        AuditSecurityInput,
+        ResponseFormat,
+    )
+    from vibetrace.mcp.server import (
+        vibetrace_approve_security_exception,
+        vibetrace_audit_security,
+    )
+
+    vuln_py = tmp_path / "script.py"
+    vuln_py.write_text("eval('1+1')\n", encoding="utf-8")
+
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.indexer.models import Node
+
+    context_dir = tmp_path / ".vibetrace"
+    context_dir.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(context_dir / "vibetrace.db"))
+    db.upsert_node(
+        Node(
+            id="n_eval",
+            name="eval_test",
+            qualified_name="eval_test",
+            kind="function",
+            file_path="script.py",
+            start_line=1,
+            end_line=1,
+        )
+    )
+
+    # 1. MCP Audit
+    audit_res = await vibetrace_audit_security(
+        AuditSecurityInput(
+            scope_path=str(tmp_path),
+            skip_deps=True,
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    import json
+
+    data = json.loads(audit_res)
+    assert data["total_findings"] >= 1
+    f = data["findings"][0]
+
+    # 2. MCP Approve
+    approve_res = await vibetrace_approve_security_exception(
+        ApproveSecurityExceptionInput(
+            finding_id=f["id"],
+            rule_id=f["rule_id"],
+            file_path=f["file_path"],
+            code_hash=f["code_hash"],
+            rationale="MCP approved rule exception",
+            scope_path=str(tmp_path),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    appr_data = json.loads(approve_res)
+    assert appr_data["status"] == "ok"
+    assert appr_data["finding_id"] == f["id"]

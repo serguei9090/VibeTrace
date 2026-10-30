@@ -611,3 +611,47 @@ class ApproveSplitInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class AuditSecurityInput(BaseModel):
+    """Input model for auditing security vulnerabilities across the codebase and lockfiles."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str | None = Field(
+        default=None,
+        description="Optional specific file to audit (e.g. 'src/api.py')",
+    )
+    skip_deps: bool = Field(
+        default=False,
+        description="Skip lockfile package CVE resolution (AST code scan only)",
+    )
+    update: bool = Field(
+        default=False,
+        description="Force refresh vulnerability intelligence from Google OSV",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ApproveSecurityExceptionInput(BaseModel):
+    """Input model for recording a security finding exception into .vibetrace/security.toml."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    finding_id: str = Field(..., description="Unique ID of the finding (e.g. 'SEC-CWE-78-...')")
+    rule_id: str = Field(..., description="Standardized rule identifier (e.g. 'py:CWE-78')")
+    file_path: str = Field(..., description="Path to the file containing the vulnerability")
+    code_hash: str = Field(..., description="SHA-256 hash of the vulnerable snippet")
+    rationale: str = Field(..., description="Explanation or justification for accepting this risk")
+    severity: str = Field(default="HIGH", description="Severity tier: CRITICAL, HIGH, MEDIUM, LOW")
+    status: str = Field(default="APPROVED", description="Status: APPROVED or RISK")
+    reviewed_by: str = Field(default="agent", description="Reviewer identifier or agent name")
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

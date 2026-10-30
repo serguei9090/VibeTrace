@@ -66,6 +66,19 @@ class SplitApprovePayload(BaseModel):
     reviewed_by: str = "developer"
 
 
+class SecurityApprovePayload(BaseModel):
+    """Payload to record a security exception in .vibetrace/security.toml."""
+
+    finding_id: str
+    rule_id: str
+    file_path: str
+    code_hash: str
+    rationale: str = "Security review verified"
+    severity: str = "HIGH"
+    status: str = "APPROVED"
+    reviewed_by: str = "developer"
+
+
 # Global Managers
 class ConnectionManager:
     def __init__(self) -> None:
@@ -317,6 +330,44 @@ def approve_split_endpoint(payload: SplitApprovePayload):
         reviewed_by=payload.reviewed_by,
     )
     return {"status": "ok", "baseline_path": str(path)}
+
+
+@app.get("/api/security/audit")
+def get_security_audit_endpoint(
+    file_path: str | None = Query(default=None),
+    skip_deps: bool = Query(default=False),
+    update: bool = Query(default=False),
+):
+    """Audits codebase and dependencies for security flaws against .vibetrace/security.toml."""
+    from vibetrace.security.service import SecurityService
+
+    report = SecurityService.audit_project(
+        db=db,
+        project_root=Path(project_root),
+        file_filter=file_path,
+        check_dependencies=not skip_deps,
+        force_update_cves=update,
+    )
+    return report.model_dump()
+
+
+@app.post("/api/security/approve")
+def approve_security_exception_endpoint(payload: SecurityApprovePayload):
+    """Records an accepted security exception into .vibetrace/security.toml baseline."""
+    from vibetrace.security.service import SecurityService
+
+    SecurityService.record_exception(
+        project_root=Path(project_root),
+        finding_id=payload.finding_id,
+        rule_id=payload.rule_id,
+        file_path=payload.file_path,
+        code_hash=payload.code_hash,
+        rationale=payload.rationale,
+        severity=payload.severity,
+        status=payload.status,
+        reviewed_by=payload.reviewed_by,
+    )
+    return {"status": "ok", "baseline_file": ".vibetrace/security.toml"}
 
 
 @app.get("/call-tree")
