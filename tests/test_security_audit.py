@@ -313,3 +313,19 @@ async def test_mcp_security_tools(tmp_path: Path):
     appr_data = json.loads(approve_res)
     assert appr_data["status"] == "ok"
     assert appr_data["finding_id"] == f["id"]
+
+
+def test_js_ts_injection_rules(tmp_path: Path):
+    (tmp_path / "a.ts").write_text(
+        "import cp from 'child_process';\n"
+        "export function run(x: string) {\n"
+        "  cp.execSync(x);\n"
+        "  eval(x);\n"
+        "  return new Function(x);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "b.tsx").write_text("export const f = (x: string) => eval(x);\n", encoding="utf-8")
+    cwes = sorted(f.cwe_id for f in AstSecurityScanner.scan_file("a.ts", tmp_path))
+    assert cwes == ["CWE-78", "CWE-95", "CWE-95"]
+    assert [f.cwe_id for f in AstSecurityScanner.scan_file("b.tsx", tmp_path)] == ["CWE-95"]

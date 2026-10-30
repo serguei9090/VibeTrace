@@ -37,6 +37,9 @@ _DUMMY_SECRET_VALS = {
 }
 
 
+_JS_LANGS = ("javascript", "typescript", "tsx")
+
+
 def _calc_code_hash(code_str: str) -> str:
     """Calculates normalized SHA-256 hash ignoring surrounding whitespace and comments."""
     normalized = "\n".join(
@@ -190,11 +193,15 @@ class AstSecurityScanner:
                                     )
                                 )
                                 return
-        elif lang in ("javascript", "typescript") and node.type == "call_expression":
+        elif lang in _JS_LANGS and node.type == "call_expression":
             fn_node = node.child_by_field_name("function")
             if fn_node:
                 fn_text = fn_node.text.decode("utf-8", errors="replace") if fn_node.text else ""
-                if fn_text in ("exec", "child_process.exec"):
+                if fn_text.split(".")[-1] in ("exec", "execSync") and (
+                    fn_text in ("exec", "execSync")
+                    or "child_process" in fn_text
+                    or "cp." in fn_text
+                ):
                     findings.append(
                         cls._create_finding(
                             "CWE-78",
@@ -202,7 +209,7 @@ class AstSecurityScanner:
                             node.start_point[0] + 1,
                             node.end_point[0] + 1,
                             lines,
-                            "Call to 'child_process.exec()' uses a shell. Use 'execFile'.",
+                            f"Call to '{fn_text}()' uses a shell. Use 'execFile'.",
                         )
                     )
 
@@ -230,7 +237,20 @@ class AstSecurityScanner:
                             f"Dangerous call to '{fn_node.text.decode()}' executes code.",
                         )
                     )
-        elif lang in ("javascript", "typescript") and node.type == "call_expression":
+        elif lang in _JS_LANGS and node.type == "new_expression":
+            ctor = node.child_by_field_name("constructor")
+            if ctor and ctor.text == b"Function":
+                findings.append(
+                    cls._create_finding(
+                        "CWE-95",
+                        file_path,
+                        node.start_point[0] + 1,
+                        node.end_point[0] + 1,
+                        lines,
+                        "'new Function()' compiles a string into executable JavaScript.",
+                    )
+                )
+        elif lang in _JS_LANGS and node.type == "call_expression":
             fn_node = node.child_by_field_name("function")
             if fn_node and fn_node.text == b"eval":
                 findings.append(
