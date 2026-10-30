@@ -150,6 +150,11 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
             {open && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                 <div>{f.message}</div>
+                {f.metadata?.taint_path && (
+                  <div style={{ color: "#fdba74" }}>
+                    Reachable from untrusted input: {f.metadata.taint_path.join(" → ")}
+                  </div>
+                )}
                 {f.remediation_guidance && <div>{f.remediation_guidance}</div>}
                 {f.non_compliant_snippet && (
                   <pre style={{ margin: 0, color: "#fca5a5", whiteSpace: "pre-wrap" }}>

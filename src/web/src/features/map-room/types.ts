@@ -153,6 +153,7 @@ export interface SecurityFindingUI {
   rationale?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
+  metadata?: { taint_path?: string[] } & Record<string, unknown>;
 }
 
 export interface SecurityAuditReportUI {
