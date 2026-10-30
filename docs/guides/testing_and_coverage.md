@@ -54,7 +54,13 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_security_api_endpoints` | `GET /api/security/audit`, `POST /api/security/approve` | Audit returns findings; approval persists to baseline. | ✅ PASS |
 | `test_mcp_security_tools` | `vibetrace_audit_security`, `vibetrace_approve_security_exception` | Agents can audit and triage over MCP. | ✅ PASS |
 
-> **Known gap:** the Map Room `SecurityAuditCard` and node badges have no automated frontend test yet; Go/Rust/Java AST rules are not covered.
+| `test_reachable_sink_is_escalated_with_path` | Taint: endpoint -> sink | Sink escalated, category `taint_reachability`, path attached. | ✅ PASS |
+| `test_unreachable_sink_not_escalated` | Taint: no entry point | Finding unchanged. | ✅ PASS |
+| `test_sanitizer_on_path_blocks_escalation` | Sanitizer on path | Not escalated. | ✅ PASS |
+| `test_non_critical_severity_is_bumped_one_tier` | Severity bump | MEDIUM to HIGH; CRITICAL stays. | ✅ PASS |
+| `test_js_ts_injection_rules` | JS/TS `execSync`, `eval`, `new Function`, tsx | CWE-78/95 flagged. | ✅ PASS |
+
+> **Known gap:** the Map Room `SecurityAuditCard` and node badges have no automated frontend test yet; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
 
 ---
 
