@@ -329,11 +329,14 @@ def record_split_approval(
     baseline[f"{norm_fp}:{qualified_name}"] = new_record
     if symbol != qualified_name:
         baseline[f"{norm_fp}:{symbol}"] = new_record
+    baseline[qualified_name] = new_record
+    if symbol != qualified_name:
+        baseline[symbol] = new_record
 
     # Unique list of records by (file_path, qualified_name)
     unique_records: dict[str, dict[str, Any]] = {}
-    for v in baseline.values():
-        if isinstance(v, dict) and v.get("qualified_name"):
+    for k, v in baseline.items():
+        if ":" in k and isinstance(v, dict) and v.get("qualified_name"):
             v_fp = str(v.get("file_path") or "").replace("\\", "/")
             unique_records[f"{v_fp}:{v['qualified_name']}"] = v
     return save_split_baseline(project_root, list(unique_records.values()))

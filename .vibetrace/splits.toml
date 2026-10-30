@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T19:20:01.858621+00:00"
+updated_at = "2026-10-30T19:21:15.997256+00:00"
 total_records = 125
 
 [[splits]]
@@ -167,11 +167,11 @@ symbol = "audit_project"
 qualified_name = "SecurityService.audit_project"
 file_path = "src/vibetrace/security/service.py"
 status = "approved"
-code_hash = "a8333b6ff58fbfc2f0ce5bbf4fb89d0cf53214020648934e7abd8ba33414700c"
+code_hash = "9fdd7cdaec19f177a8fe0f5f17f6f818c6a332a3d77d40983737190e85ad9814"
 branches_count = 12
-rationale = "Security orchestrator combining AST SAST, Taint, IaC, Git Secrets, and OSV CVEs"
+rationale = "Approve updated splits"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:29:18.654244+00:00"
+reviewed_at = "2026-10-30T19:21:15.975254+00:00"
 branches = ["_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "apply_baseline_to_findings"]
 
 [[splits]]
@@ -191,12 +191,12 @@ symbol = "_refresh_from_feed"
 qualified_name = "RuleCatalogManager._refresh_from_feed"
 file_path = "src/vibetrace/security/rule_sync.py"
 status = "approved"
-code_hash = "a099506aca453f465727a5b5aa0fe4bdb4099b9df62ccc06bf77e6afdb17bee2"
-branches_count = 2
-rationale = "Verified security & Map Room split orchestration"
+code_hash = "5e03ac21be3739444fbdc5e8d1688db50d217f3668ac98e782d42dc713fd1946"
+branches_count = 4
+rationale = "Approve updated splits"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.286375+00:00"
-branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_rule_from_dict (src/vibetrace/security/rule_sync.py)"]
+reviewed_at = "2026-10-30T19:21:15.954705+00:00"
+branches = ["parse_semgrep_yaml", "parse_semgrep_yaml", "_get_conn", "_rule_from_dict"]
 
 [[splits]]
 symbol = "analyze"
@@ -251,11 +251,11 @@ symbol = "run_unified_review"
 qualified_name = "run_unified_review"
 file_path = "src/vibetrace/services/review_service.py"
 status = "approved"
-code_hash = "3b9abe66521951b3503a016df3e5f6253709aac36a9342614659e2dac52c1c2d"
+code_hash = "222272a502875cef4eb3af8c77cf66d05c89df64b562eab18e769b814636d382"
 branches_count = 7
-rationale = "Unified review gate combining Security, IaC, Git Secrets, Splits, Coverage Gate, and Caller Guard"
+rationale = "Approve updated splits"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:29:23.590532+00:00"
+reviewed_at = "2026-10-30T19:21:15.996229+00:00"
 branches = ["_detect_git_changed_files", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "evaluate_coverage_gate", "UnifiedReviewReport"]
 
 [[splits]]
@@ -287,12 +287,12 @@ symbol = "_scan_patch_text"
 qualified_name = "GitSecretScanner._scan_patch_text"
 file_path = "src/vibetrace/security/git_secret_scanner.py"
 status = "approved"
-code_hash = "c9855ad4067073c7a8d6176b8b8ee7b83d639af4cf1a31fa5c7531b567447bec"
-branches_count = 6
-rationale = "Git patch secret scanner branching on token formats, Shannon entropy, and nosec suppression"
+code_hash = "71941c96d52a1bc127d7de99d2ffa53d54ee33d5c4580b50e2f4498d84e5a249"
+branches_count = 7
+rationale = "Approve updated splits"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:29:08.733273+00:00"
-branches = ["_is_ignored_path", "_mask_secret", "SecurityFinding", "shannon_entropy", "_mask_secret", "SecurityFinding"]
+reviewed_at = "2026-10-30T19:21:15.935305+00:00"
+branches = ["_is_ignored_path", "_mask_secret", "SecurityFinding", "SecurityFinding", "shannon_entropy", "_mask_secret", "SecurityFinding"]
 
 [[splits]]
 symbol = "evaluate_coverage_gate"
