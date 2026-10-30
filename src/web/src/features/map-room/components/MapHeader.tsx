@@ -335,67 +335,69 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
         </div>
       )}
 
-      {/* Action Buttons: Sync Graph */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <button
-          type="button"
-          className="vibe-btn vibe-btn-primary"
-          onClick={onRefresh}
-          disabled={loading}
-          title="Re-fetch symbols and edges from database"
-        >
-          <RefreshCw size={15} className={loading ? "spin" : ""} />
-          {loading ? "Syncing..." : "Sync Graph"}
-        </button>
-      </div>
-
-      {/* Active Tracepath Pill */}
-      {activeTrace?.found && (
-        <div
-          className="vibe-stat-chip"
-          style={{
-            background: "rgba(99, 102, 241, 0.2)",
-            borderColor: "rgba(99, 102, 241, 0.45)",
-            color: "#e0e7ff",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace:</span>
-          <span>
-            {activeTrace.from_symbol} ➔ {activeTrace.to_symbol}
-          </span>
-          <span style={{ opacity: 0.7, fontSize: "11px" }}>
-            ({activeTrace.hops.length} hop{activeTrace.hops.length > 1 ? "s" : ""})
-          </span>
-          {onResetTrace && (
+      {/* Map Room Only: Sync Graph, Active Tracepath Pill & Follow AI Agent */}
+      {workspaceMode === "map" && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <button
               type="button"
-              onClick={onResetTrace}
-              title="Clear Trace (Return to Architecture Map)"
+              className="vibe-btn vibe-btn-primary"
+              onClick={onRefresh}
+              disabled={loading}
+              title="Re-fetch symbols and edges from database"
+            >
+              <RefreshCw size={15} className={loading ? "spin" : ""} />
+              {loading ? "Syncing..." : "Sync Graph"}
+            </button>
+          </div>
+
+          {activeTrace?.found && (
+            <div
+              className="vibe-stat-chip"
               style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                color: "#fff",
-                cursor: "pointer",
-                padding: "2px 4px",
-                display: "flex",
-                alignItems: "center",
-                marginLeft: 4,
+                background: "rgba(99, 102, 241, 0.2)",
+                borderColor: "rgba(99, 102, 241, 0.45)",
+                color: "#e0e7ff",
+                flexShrink: 0,
               }}
             >
-              <X size={12} />
-            </button>
+              <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace:</span>
+              <span>
+                {activeTrace.from_symbol} ➔ {activeTrace.to_symbol}
+              </span>
+              <span style={{ opacity: 0.7, fontSize: "11px" }}>
+                ({activeTrace.hops.length} hop{activeTrace.hops.length > 1 ? "s" : ""})
+              </span>
+              {onResetTrace && (
+                <button
+                  type="button"
+                  onClick={onResetTrace}
+                  title="Clear Trace (Return to Architecture Map)"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    color: "#fff",
+                    cursor: "pointer",
+                    padding: "2px 4px",
+                    display: "flex",
+                    alignItems: "center",
+                    marginLeft: 4,
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Follow AI Agent Badge */}
-      <AgentRadarBadge
-        followAgent={followAgent}
-        onToggleFollow={onToggleFollowAgent}
-        lastAgentEvent={lastAgentEvent}
-      />
+          <AgentRadarBadge
+            followAgent={followAgent}
+            onToggleFollow={onToggleFollowAgent}
+            lastAgentEvent={lastAgentEvent}
+          />
+        </>
+      )}
 
       {/* Responsive Standardized Stats Chip */}
       <div className="vibe-stat-chip" style={{ marginLeft: "auto", flexShrink: 0 }}>
