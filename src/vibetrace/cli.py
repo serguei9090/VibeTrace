@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from vibetrace.cli_audit import cmd_audit_splits
+from vibetrace.cli_audit import cmd_audit_security, cmd_audit_splits
 from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
@@ -612,6 +612,32 @@ examples:
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
     p_splits.set_defaults(func=cmd_audit_splits)
+
+    p_security = p_audit_sub.add_parser(
+        "security",
+        help="Audit code for security vulnerabilities against .vibetrace/security.toml baseline",
+    )
+    p_security.add_argument("--file", default=None, help="Filter audit to a specific file")
+    p_security.add_argument(
+        "--ci",
+        action="store_true",
+        help="Run in CI mode (fails on unapproved or modified vulnerabilities)",
+    )
+    p_security.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail CI on MEDIUM severity vulnerabilities as well as CRITICAL/HIGH",
+    )
+    p_security.add_argument(
+        "--fail-on",
+        default="HIGH",
+        choices=["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+        help="Minimum severity threshold to trigger non-zero CI exit (default: HIGH)",
+    )
+    p_security.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)
     register_project_parser(sub)

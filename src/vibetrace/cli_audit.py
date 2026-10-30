@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 from vibetrace.mcp.formatters import format_split_audit_md
+from vibetrace.security.formatters import format_security_audit_md
+from vibetrace.security.service import SecurityService
 from vibetrace.services.graph_service import get_context_for_path, safe_str
 from vibetrace.services.split_audit_service import (
     audit_splits,
@@ -120,6 +122,105 @@ def cmd_audit_splits(args: argparse.Namespace) -> int:
                     rationale=rat,
                 )
                 print("      🛑 Recorded as RISK.")
+            elif choice == "q":
+                break
+
+    return 0
+
+
+def cmd_audit_security(args: argparse.Namespace) -> int:
+    """Audits codebase for security vulnerabilities against .vibetrace/security.toml baseline."""
+    auto_sync = not getattr(args, "no_sync", False)
+    root_override = getattr(args, "root", None)
+    path_hint = getattr(args, "path", ".")
+
+    db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
+    project_root = Path(root)
+
+    file_filter = getattr(args, "file", None)
+    report = SecurityService.audit_project(db, project_root, file_filter=file_filter)
+
+    is_json = getattr(args, "json", False)
+    is_ci = getattr(args, "ci", False)
+    is_strict = getattr(args, "strict", False)
+    fail_on = getattr(args, "fail_on", "HIGH").upper()
+
+    if is_json:
+        print(report.model_dump_json(indent=2))
+    else:
+        print(safe_str(format_security_audit_md(report)))
+
+    if is_ci:
+        # Determine failure conditions based on severity threshold
+        unapproved_critical = [
+            f for f in report.findings if f.severity == "CRITICAL" and f.status != "APPROVED"
+        ]
+        unapproved_high = [
+            f for f in report.findings if f.severity == "HIGH" and f.status != "APPROVED"
+        ]
+        unapproved_medium = [
+            f for f in report.findings if f.severity == "MEDIUM" and f.status != "APPROVED"
+        ]
+
+        has_failure = False
+        if unapproved_critical or (fail_on in ("HIGH", "MEDIUM", "LOW") and unapproved_high):
+            has_failure = True
+        elif is_strict or fail_on in ("MEDIUM", "LOW"):
+            if unapproved_medium:
+                has_failure = True
+
+        if report.modified_count > 0:
+            has_failure = True
+
+        if has_failure:
+            print(
+                f"\n❌ CI Security Gate Failed: {report.unapproved_count} unapproved, "
+                f"{report.modified_count} modified vulnerabilities detected.",
+                file=sys.stderr,
+            )
+            return 1
+
+        print("\n✅ All security vulnerabilities verified or approved in baseline.")
+        return 0
+
+    # Interactive triage prompt if TTY
+    if sys.stdin.isatty():
+        actionable = [f for f in report.findings if f.status in ("UNAPPROVED", "MODIFIED_CODE")]
+        if not actionable:
+            return 0
+
+        print(f"\nFound {len(actionable)} security finding(s) needing triage. Interactive Review:")
+        for idx, f in enumerate(actionable, 1):
+            print(f"\n[{idx}/{len(actionable)}] [{f.severity}] {f.cwe_id}: {f.title}")
+            print(f"      Location: {f.file_path}:L{f.start_line}-L{f.end_line}")
+            print(f"      Status: {f.status} (Code Hash: {f.code_hash[:8]})")
+            print(f"      Issue: {f.message}")
+
+            try:
+                choice = input("      [A]pprove exception / [S]kip / [Q]uit > ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+
+            if choice == "a":
+                try:
+                    rat = input("      Rationale [Security review exception verified]: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    rat = ""
+                if not rat:
+                    rat = "Security review exception verified"
+
+                SecurityService.record_exception(
+                    project_root=project_root,
+                    finding_id=f.id,
+                    rule_id=f.rule_id,
+                    file_path=f.file_path,
+                    code_hash=f.code_hash,
+                    rationale=rat,
+                    severity=f.severity.value,
+                    status="APPROVED",
+                )
+                print("      ✅ Recorded as APPROVED exception in .vibetrace/security.toml.")
             elif choice == "q":
                 break
 
