@@ -517,3 +517,45 @@ def test_sarif_export_and_cli_approve(tmp_path: Path):
     report2 = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
     assert report2.approved_count == 1
     assert report2.unapproved_count == 0
+
+
+def test_osv_deduplication_and_moderate_severity() -> None:
+    """Verifies GHSA/PYSEC alias deduplication and MODERATE -> MEDIUM severity mapping."""
+    from vibetrace.security.lockfile_parser import DependencyPackage
+    from vibetrace.security.models import Severity
+    from vibetrace.security.osv_client import OsvClient
+
+    pkg = DependencyPackage(
+        name="starlette", version="0.50.0", ecosystem="PyPI", lockfile_path="uv.lock"
+    )
+    raw_vulns = [
+        {
+            "id": "PYSEC-2026-249",
+            "details": "Form parsing DoS in starlette.",
+            "aliases": ["CVE-2026-54283", "GHSA-82w8-qh3p-5jfq"],
+        },
+        {
+            "id": "GHSA-82w8-qh3p-5jfq",
+            "summary": "Starlette: request.form() limits silently ignored",
+            "aliases": ["CVE-2026-54283", "PYSEC-2026-249"],
+            "database_specific": {"severity": "MODERATE"},
+            "affected": [
+                {
+                    "package": {"name": "starlette", "ecosystem": "PyPI"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [{"introduced": "0.4.1"}, {"fixed": "1.3.1"}],
+                        }
+                    ],
+                }
+            ],
+        },
+    ]
+    deduped = OsvClient._deduplicate_vulns(raw_vulns)
+    assert len(deduped) == 1
+    assert deduped[0]["id"] == "GHSA-82w8-qh3p-5jfq"
+    finding = OsvClient._osv_to_finding(pkg, deduped[0])
+    assert finding.severity == Severity.MEDIUM
+    assert finding.compliant_snippet == 'starlette >= "1.3.1"'
+    assert finding.message == "Starlette: request.form() limits silently ignored"
