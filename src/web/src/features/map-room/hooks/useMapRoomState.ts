@@ -13,6 +13,8 @@ import type {
   GraphData,
   LayoutMode,
   NodeNeighborsResponse,
+  SecurityAuditReportUI,
+  SecurityFindingUI,
   SelectedElement,
   TracePathResponse,
   ViewMode,
@@ -88,6 +90,7 @@ export function useMapRoomState() {
   });
 
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
+  const securityFindings = useRef<SecurityFindingUI[]>([]);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const cachedLayout = useRef<{
     key: string;
@@ -383,11 +386,24 @@ export function useMapRoomState() {
     // Enrich flow nodes with on-demand expansion triggers and callbacks
     const interactiveNodes = flowNodes.map((fn) => {
       const info = neighborMap.get(fn.id);
+      const d = fn.data as { file_path?: string; start_line?: number; end_line?: number };
+      const SEV_RANK = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+      let secRank = -1;
+      for (const f of securityFindings.current) {
+        if (
+          f.file_path === d.file_path &&
+          f.start_line <= (d.end_line ?? 0) &&
+          f.end_line >= (d.start_line ?? 0)
+        ) {
+          secRank = Math.max(secRank, SEV_RANK.indexOf(f.severity as (typeof SEV_RANK)[number]));
+        }
+      }
       return {
         ...fn,
         data: {
           ...fn.data,
           id: fn.id,
+          securityBadge: secRank >= 0 ? SEV_RANK[secRank] : undefined,
           viewMode,
           unrevealedCallees: info?.unrevealedCallees || 0,
           unrevealedCallers: info?.unrevealedCallers || 0,
@@ -482,6 +498,14 @@ export function useMapRoomState() {
       }
       rawData.current = res.data;
       cachedLayout.current = null;
+      try {
+        const sec = await axios.get<SecurityAuditReportUI>(`${API_URL}/api/security/audit`, {
+          params: { skip_deps: true },
+        });
+        securityFindings.current = sec.data.findings.filter((f) => f.status !== "APPROVED");
+      } catch {
+        securityFindings.current = []; // security badges are optional; graph still renders
+      }
       setLastUpdate(new Date().toLocaleTimeString());
 
       // Seed initial roots on first load

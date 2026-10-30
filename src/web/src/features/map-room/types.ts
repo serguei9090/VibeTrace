@@ -48,6 +48,8 @@ export interface VibeNodeData extends Record<string, unknown> {
   impactBadge?: string;
   splitBadge?: string;
   splitBranches?: string[];
+  securityBadge?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  securityFindingId?: string;
   layoutMode?: LayoutMode;
   viewMode?: ViewMode;
   unrevealedCallees?: number;
@@ -129,4 +131,38 @@ export interface NodeNeighborsResponse {
   edges: RawGraphEdge[];
   caller_count: number;
   callee_count: number;
+}
+
+export interface SecurityFindingUI {
+  id: string;
+  rule_id: string;
+  cwe_id: string;
+  category: "ast_pattern" | "taint_reachability" | "package_cve";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+  title: string;
+  message: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  symbol_name?: string | null;
+  code_hash: string;
+  non_compliant_snippet?: string | null;
+  compliant_snippet?: string | null;
+  remediation_guidance?: string | null;
+  status: "UNAPPROVED" | "APPROVED" | "MODIFIED_CODE" | "RISK";
+  rationale?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface SecurityAuditReportUI {
+  total_findings: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  unapproved_count: number;
+  modified_count: number;
+  approved_count: number;
+  findings: SecurityFindingUI[];
 }

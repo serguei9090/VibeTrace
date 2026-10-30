@@ -134,6 +134,30 @@ export const VibeNode = memo(({ id, data }: { id?: string; data: VibeNodeData })
               ⑂ {data.splitBadge}
             </span>
           )}
+          {data.securityBadge && (
+            <span
+              style={{
+                background:
+                  data.securityBadge === "CRITICAL"
+                    ? "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)"
+                    : data.securityBadge === "HIGH"
+                      ? "linear-gradient(135deg, #f97316 0%, #c2410c 100%)"
+                      : "linear-gradient(135deg, #eab308 0%, #a16207 100%)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: "10px",
+                padding: "2px 6px",
+                borderRadius: "999px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                boxShadow: "0 0 8px rgba(239, 68, 68, 0.4)",
+              }}
+              title={`Security Finding: ${data.securityBadge}`}
+            >
+              🛡️ {data.securityBadge}
+            </span>
+          )}
           {data.impactBadge && (
             <span
               style={{
