@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T16:32:49.328433+00:00"
-total_records = 19
+updated_at = "2026-10-30T16:39:04.188114+00:00"
+total_records = 20
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -233,3 +233,15 @@ rationale = "Verified security & Map Room split orchestration"
 reviewed_by = "developer"
 reviewed_at = "2026-10-30T16:32:49.327428+00:00"
 branches = ["_calc_code_hash (src/vibetrace/security/ast_scanner.py)", "SecurityFinding (src/vibetrace/security/models.py)"]
+
+[[splits]]
+symbol = "initialize_workspace"
+qualified_name = "initialize_workspace"
+file_path = "src/vibetrace/skill_installer.py"
+status = "approved"
+code_hash = "8691528cb4aa56f6ddf9c74dcfe5a164402d703f792f762696420cddc6553531"
+branches_count = 13
+rationale = "Verified workspace initialization and security rule seed"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T16:39:04.188114+00:00"
+branches = ["configure_gitignore (src/vibetrace/skill_installer.py)", "install_skill (src/vibetrace/skill_installer.py)", "save_default_config (src/vibetrace/config.py)", "detect_project_ecosystems (src/vibetrace/skill_installer.py)", "add_path (src/vibetrace/docs/service.py)", "DocDB (src/vibetrace/docs/db.py)", "index_catalog (src/vibetrace/docs/service.py)", "install_hooks (src/vibetrace/indexer/hooks.py)", "IndexerDB (src/vibetrace/indexer/db.py)", "reindex_all (src/vibetrace/indexer/main.py)", "update_centrality_scores (src/vibetrace/indexer/db.py)", "get_graph_data (src/vibetrace/indexer/db.py)", "sync_and_load_rules (src/vibetrace/security/rule_sync.py)"]

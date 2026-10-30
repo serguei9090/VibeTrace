@@ -31,6 +31,26 @@ Verify that modified function signatures across all staged git changes do not br
 - **CLI (Advisory Check):** `uv run vibetrace guard --staged`
 - **CLI (Strict Pre-Commit Gate):** `uv run vibetrace guard --staged --strict`
 
+### 4. Architectural Split Path Audit & Code Review (`audit splits`)
+Detect cross-module execution bifurcations (functions branching into 2+ external modules) and verify their normalized AST SHA-256 tripwires against `.vibetrace/splits.toml`:
+- **MCP Tool (Audit):** `vibetrace_audit_splits(symbol="")`
+- **MCP Tool (Approve):** `vibetrace_approve_split(symbol="reindex_all", status="approved", rationale="Verified orchestrator")`
+- **CLI:** `uv run vibetrace audit splits` / `uv run vibetrace audit splits --approve` / `uv run vibetrace audit splits --ci --strict`
+
+### 5. Polyglot Security, Inter-Procedural Taint & CVE Audit (`audit security`)
+Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), inter-procedural positional argument-to-parameter taint reachability, language-aware auto-syncing CWE Top 25 / Semgrep YAML rules (`.vibetrace/rules/*.yaml`), and hydrated OSV.dev lockfile CVE scanning (`uv.lock`, `bun.lock`, `poetry.lock`, `requirements.txt`):
+- **MCP Tool (Audit):** `vibetrace_audit_security(scope_path="", check_dependencies=True, analyze_taint=True)`
+- **MCP Tool (Remediate):** `vibetrace_remediate_vulnerability(finding_id="", scope_path="")`
+- **MCP Tool (Approve Exception with Disposition Tag):** `vibetrace_approve_security_exception(finding_id="SEC-...", rationale="No alternative API", tag="no-alternative")`
+- **Inline Auditable Suppression Tag:** `# nosec [no-alternative]: reason` (or `risk-accepted`, `false-positive`, `compensating-control`)
+- **CLI:**
+  ```bash
+  uv run vibetrace audit security --skip-deps --ci
+  uv run vibetrace audit security --fix
+  uv run vibetrace audit security --sarif
+  uv run vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
+  ```
+
 ---
 
 ## Standard 4-Step Surgical Workflow (`Docs -> Locate -> Trace/Impact -> Slice`)

@@ -199,6 +199,12 @@ def initialize_workspace(
         graph_stats = db.get_graph_data()
         indexed_nodes = len(graph_stats.get("nodes", []))
         indexed_edges = len(graph_stats.get("edges", []))
+        try:
+            from vibetrace.security.rule_sync import RuleCatalogManager
+
+            RuleCatalogManager.sync_and_load_rules(db, root)
+        except Exception:
+            pass
 
     return {
         "project_root": str(root),
