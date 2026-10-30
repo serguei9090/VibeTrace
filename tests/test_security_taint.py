@@ -339,6 +339,7 @@ def test_language_aware_rule_filtering_and_initial_seed(tmp_path) -> None:
 def test_unified_review_gate(tmp_path, monkeypatch) -> None:
     """Verifies run_unified_review and cmd_review combine Security, Split Audit, and Coverage."""
     import argparse
+
     from vibetrace.cli_audit import cmd_review
     from vibetrace.services.review_service import format_unified_review_md, run_unified_review
 
@@ -407,24 +408,60 @@ def test_iac_scanner_docker_compose_gha(tmp_path) -> None:
 
 
 def test_git_secret_entropy_scanner() -> None:
-    """Verifies Gitleaks-style token format and Shannon entropy detection in git patches."""
+    """Verifies Gitleaks-grade token formats, DB URIs, and Shannon entropy in git patches."""
     from vibetrace.security.git_secret_scanner import GitSecretScanner, shannon_entropy
 
     assert shannon_entropy("aB3$xZ9!qW7#mP2@kL5^vN8&tR4*yU1") >= 4.3
     patch = (
         "diff --git a/src/config.py b/src/config.py\n"
         "+++ b/src/config.py\n"
-        "@@ -1,0 +1,2 @@\n"
+        "@@ -1,0 +1,4 @@\n"
         "+AWS_KEY = 'AKIAIOSFODNN7EXAMPLE'\n"
+        "+HF_TOKEN = 'hf_aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890'\n"
+        "+DB_URL = 'postgresql://prod_user:Sup3rS3cretDBPass99@db.internal:5432/app'\n"
         "+api_secret = 'xK9pQ2mZ8vL4nB7wR1tY6uJ3hG5fD0sA'\n"
     )
     findings = GitSecretScanner._scan_patch_text(patch, "working-tree")
     rules = {f.rule_id for f in findings}
     assert "git:leaked-api-token" in rules
+    assert "git:database-uri-password" in rules
     assert "git:high-entropy-secret" in rules
-    # Ensure raw secret is masked in snippet
+    # Ensure raw secrets and DB passwords are masked in snippets
     for f in findings:
-        assert "AKIAIOSFODNN7EXAMPLE" not in (f.non_compliant_snippet or "")
+        snippet = f.non_compliant_snippet or ""
+        assert "AKIAIOSFODNN7EXAMPLE" not in snippet
+        assert "Sup3rS3cretDBPass99" not in snippet
+
+
+def test_expanded_community_polyglot_rules(tmp_path) -> None:
+    """Verifies expanded community rules (ZipSlip, torch.load, NEXT_PUBLIC_SECRET, Go, Rust)."""
+    from vibetrace.security.rule_sync import BUILTIN_DECLARATIVE_RULES, RuleCatalogManager
+
+    (tmp_path / "ml.py").write_text(
+        "import tarfile, torch\n"
+        "def load_m(p, t):\n"
+        "    t.extractall()\n"
+        "    torch.load(p)\n"
+        "    torch.load(p, weights_only=True)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "web.ts").write_text(
+        "const k = process.env.NEXT_PUBLIC_DATABASE_URL;\nwindow.postMessage(data, '*');\n",
+        encoding="utf-8",
+    )
+    py_findings = RuleCatalogManager.scan_file_with_rules(
+        "ml.py", tmp_path, BUILTIN_DECLARATIVE_RULES
+    )
+    py_rules = [f.rule_id for f in py_findings]
+    assert "py:CWE-22-tarfile-extractall" in py_rules
+    assert py_rules.count("py:CWE-502-torch-load-unsafe") == 1  # weights_only=True is excluded!
+
+    ts_findings = RuleCatalogManager.scan_file_with_rules(
+        "web.ts", tmp_path, BUILTIN_DECLARATIVE_RULES
+    )
+    ts_rules = {f.rule_id for f in ts_findings}
+    assert "js:CWE-200-next-public-secret" in ts_rules
+    assert "js:CWE-345-postmessage-wildcard" in ts_rules
 
 
 def test_hybrid_coverage_quality_gate(tmp_path) -> None:

@@ -150,6 +150,117 @@
       "pattern": "['\"](?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36}|sk_live_[0-9a-zA-Z]{24})['\"]",
       "languages": ["py", "js", "ts", "tsx", "go", "rs"],
       "compliant_snippet": "API_TOKEN = os.environ['SERVICE_API_TOKEN']"
+    },
+    {
+      "id": "py:CWE-22-tarfile-extractall",
+      "cwe_id": "CWE-22",
+      "severity": "HIGH",
+      "title": "Arbitrary File Overwrite via Archive Extraction ('ZipSlip')",
+      "message": "'tarfile.extractall()' without 'filter=\"data\"' allows path traversal.",
+      "pattern": "\\.extractall\\s*\\(\\s*\\)",
+      "languages": ["py"],
+      "compliant_snippet": "tar.extractall(path=dest, filter='data')"
+    },
+    {
+      "id": "py:CWE-502-torch-load-unsafe",
+      "cwe_id": "CWE-502",
+      "severity": "CRITICAL",
+      "title": "Unsafe PyTorch Model Deserialization",
+      "message": "'torch.load()' without 'weights_only=True' uses pickle and can execute code.",
+      "pattern": "\\btorch\\.load\\s*\\([^)]*\\)",
+      "pattern-not-regex": "weights_only\\s*=\\s*True",
+      "languages": ["py"],
+      "compliant_snippet": "torch.load(model_path, weights_only=True)"
+    },
+    {
+      "id": "py:CWE-352-csrf-exempt",
+      "cwe_id": "CWE-352",
+      "severity": "MEDIUM",
+      "title": "Cross-Site Request Forgery (CSRF) Protection Disabled",
+      "message": "Disabling CSRF verification via '@csrf_exempt' exposes state-changing endpoints.",
+      "pattern": "@csrf_exempt\\b",
+      "languages": ["py"],
+      "compliant_snippet": "# Keep CSRF middleware active for cookie-authenticated endpoints"
+    },
+    {
+      "id": "js:CWE-95-new-function",
+      "cwe_id": "CWE-95",
+      "severity": "HIGH",
+      "title": "Dynamic Code Evaluation via 'new Function()'",
+      "message": "Constructing functions from strings via 'new Function()' is equivalent to eval().",
+      "pattern": "\\bnew\\s+Function\\s*\\(",
+      "languages": ["js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "// Use a safe expression parser or predefined callback map"
+    },
+    {
+      "id": "js:CWE-345-postmessage-wildcard",
+      "cwe_id": "CWE-345",
+      "severity": "MEDIUM",
+      "title": "Cross-Origin 'postMessage' with Wildcard TargetOrigin ('*')",
+      "message": "Sending messages with targetOrigin '*' leaks data to any embedding origin.",
+      "pattern": "\\.postMessage\\s*\\([^,]+,\\s*['\"]\\*['\"]\\s*\\)",
+      "languages": ["js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "window.postMessage(payload, 'https://trusted.example.com')"
+    },
+    {
+      "id": "js:CWE-1004-cookie-httponly-false",
+      "cwe_id": "CWE-1004",
+      "severity": "MEDIUM",
+      "title": "Sensitive Cookie Without 'HttpOnly' Flag",
+      "message": "Setting 'httpOnly: false' allows client-side scripts (XSS) to steal cookies.",
+      "pattern": "\\bhttpOnly\\s*:\\s*false\\b",
+      "languages": ["js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "res.cookie('session', token, { httpOnly: true, secure: true })"
+    },
+    {
+      "id": "js:CWE-200-next-public-secret",
+      "cwe_id": "CWE-200",
+      "severity": "CRITICAL",
+      "title": "Server Secret Exposed to Client Bundle via 'NEXT_PUBLIC_'",
+      "message": "Referencing 'NEXT_PUBLIC_*_SECRET' or 'NEXT_PUBLIC_*_PRIVATE_KEY' bundles secrets to browsers.",
+      "pattern": "NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|PRIVATE_KEY|PASSWORD|DATABASE_URL)",
+      "languages": ["js", "ts", "tsx", "jsx"],
+      "compliant_snippet": "process.env.SERVER_ONLY_SECRET"
+    },
+    {
+      "id": "go:CWE-295-tls-insecure-skip-verify",
+      "cwe_id": "CWE-295",
+      "severity": "HIGH",
+      "title": "Go TLS 'InsecureSkipVerify: true' Disables Certificate Validation",
+      "message": "Setting 'InsecureSkipVerify: true' exposes TLS connections to MITM attacks.",
+      "pattern": "\\bInsecureSkipVerify\\s*:\\s*true\\b",
+      "languages": ["go"],
+      "compliant_snippet": "&tls.Config{MinVersion: tls.VersionTLS13}"
+    },
+    {
+      "id": "go:CWE-400-http-listenandserve-no-timeout",
+      "cwe_id": "CWE-400",
+      "severity": "MEDIUM",
+      "title": "Go 'http.ListenAndServe' Without Timeouts ('Slowloris DoS')",
+      "message": "Default 'http.ListenAndServe' has no ReadHeaderTimeout, enabling Slowloris DoS.",
+      "pattern": "\\bhttp\\.ListenAndServe(?:TLS)?\\s*\\(",
+      "languages": ["go"],
+      "compliant_snippet": "srv := &http.Server{Addr: addr, ReadHeaderTimeout: 5 * time.Second}"
+    },
+    {
+      "id": "rs:CWE-295-reqwest-accept-invalid-certs",
+      "cwe_id": "CWE-295",
+      "severity": "HIGH",
+      "title": "Rust TLS 'danger_accept_invalid_certs(true)' Enabled",
+      "message": "Accepting invalid TLS certificates disables authenticity checks.",
+      "pattern": "\\.danger_accept_invalid_certs\\s*\\(\\s*true\\s*\\)",
+      "languages": ["rs"],
+      "compliant_snippet": "reqwest::Client::builder().use_rustls_tls().build()"
+    },
+    {
+      "id": "rs:CWE-843-mem-transmute",
+      "cwe_id": "CWE-843",
+      "severity": "HIGH",
+      "title": "Unsafe Type Reinterpretation via 'std::mem::transmute'",
+      "message": "'mem::transmute' bypasses Rust's type system and can cause undefined behavior.",
+      "pattern": "\\bmem::transmute\\b",
+      "languages": ["rs"],
+      "compliant_snippet": "// Use TryFrom / From or safe byte conversion methods (to_le_bytes)"
     }
   ]
 }

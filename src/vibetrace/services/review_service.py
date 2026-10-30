@@ -89,6 +89,7 @@ def run_unified_review(
         project_root=project_root,
         check_dependencies=check_dependencies,
         analyze_taint=True,
+        git_commit_depth=100 if norm_scope == "full" else 10,
     )
     active_sec: list[SecurityFinding] = []
     for f in sec_report.findings:

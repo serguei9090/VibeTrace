@@ -40,6 +40,7 @@ class SecurityService:
         force_update_cves: bool = False,
         analyze_taint: bool = True,
         include_tests: bool = False,
+        git_commit_depth: int = 10,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
@@ -82,12 +83,12 @@ class SecurityService:
         # 1c. Zero-dependency IaC scanning (Dockerfile, docker-compose, K8s, GitHub Actions)
         findings.extend(IacScanner.scan_project(project_root, file_filter=file_filter))
 
-        # 1d. Gitleaks-style Secret & Shannon Entropy scanning (working tree + last 10 commits)
+        # 1d. Gitleaks-style Secret & Shannon Entropy scanning (working tree + last N commits)
         if not file_filter:
             findings.extend(
                 GitSecretScanner.scan_repository(
                     project_root=project_root,
-                    commit_depth=10,
+                    commit_depth=git_commit_depth,
                     include_tests=include_tests,
                 )
             )

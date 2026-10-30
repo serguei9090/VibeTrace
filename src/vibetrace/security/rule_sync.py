@@ -20,6 +20,27 @@ DEFAULT_RULES_TTL_DAYS = 7
 DEFAULT_RULES_FEED_URL = (
     "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/rules/security_catalog.json"
 )
+# Official public Semgrep Community Registry rule feeds mapped by language extension
+TRUSTED_COMMUNITY_YAML_FEEDS: dict[str, tuple[str, ...]] = {
+    "py": (
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/python/lang/security/audit/dangerous-system-call.yaml",
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/python/lang/security/deserialization/pickle.yaml",
+    ),
+    "js": (
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/detect-eval-with-expression.yaml",
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/audit/unsafe-dynamic-method.yaml",
+    ),
+    "ts": (
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/detect-eval-with-expression.yaml",
+    ),
+    "go": (
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/go/lang/security/audit/crypto/math_random.yaml",
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/go/lang/security/audit/net/use-tls.yaml",
+    ),
+    "rs": (
+        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/rust/lang/security/unsafe-usage.yaml",
+    ),
+}
 _NOSEC_RE = re.compile(
     r"(?:#|//)\s*(?:nosec|vibetrace:ignore)(?:\s*\[([a-zA-Z0-9_-]+)\])?(?:\s*:\s*(.+))?$",
     re.IGNORECASE,
@@ -291,6 +312,121 @@ BUILTIN_DECLARATIVE_RULES: list[DeclarativeRule] = [
         languages=("py", "js", "ts", "tsx", "go", "rs"),
         compliant_snippet="API_TOKEN = os.environ['SERVICE_API_TOKEN']",
     ),
+    # --- Expanded Community Security Pack (Python, JS/TS, Go, Rust) ---
+    DeclarativeRule(
+        id="py:CWE-22-tarfile-extractall",
+        cwe_id="CWE-22",
+        severity=Severity.HIGH,
+        title="Arbitrary File Overwrite via Archive Extraction ('ZipSlip')",
+        message="'tarfile.extractall()' without 'filter=\"data\"' allows path traversal.",
+        pattern=r"\.extractall\s*\(\s*\)",
+        languages=("py",),
+        compliant_snippet="tar.extractall(path=dest, filter='data')",
+    ),
+    DeclarativeRule(
+        id="py:CWE-502-torch-load-unsafe",
+        cwe_id="CWE-502",
+        severity=Severity.CRITICAL,
+        title="Unsafe PyTorch Model Deserialization",
+        message="'torch.load()' without 'weights_only=True' uses pickle and can execute code.",
+        pattern=r"\btorch\.load\s*\([^)]*\)",
+        negative_pattern=r"weights_only\s*=\s*True",
+        languages=("py",),
+        compliant_snippet="torch.load(model_path, weights_only=True)",
+    ),
+    DeclarativeRule(
+        id="py:CWE-352-csrf-exempt",
+        cwe_id="CWE-352",
+        severity=Severity.MEDIUM,
+        title="Cross-Site Request Forgery (CSRF) Protection Disabled",
+        message="Disabling CSRF verification via '@csrf_exempt' exposes state-changing endpoints.",
+        pattern=r"@csrf_exempt\b",
+        languages=("py",),
+        compliant_snippet="# Keep CSRF middleware active for cookie-authenticated endpoints",
+    ),
+    DeclarativeRule(
+        id="js:CWE-95-new-function",
+        cwe_id="CWE-95",
+        severity=Severity.HIGH,
+        title="Dynamic Code Evaluation via 'new Function()'",
+        message="Constructing functions from strings via 'new Function()' is equivalent to eval().",
+        pattern=r"\bnew\s+Function\s*\(",
+        languages=("js", "ts", "tsx", "jsx"),
+        compliant_snippet="// Use a safe expression parser or predefined callback map",
+    ),
+    DeclarativeRule(
+        id="js:CWE-345-postmessage-wildcard",
+        cwe_id="CWE-345",
+        severity=Severity.MEDIUM,
+        title="Cross-Origin 'postMessage' with Wildcard TargetOrigin ('*')",
+        message="Sending messages with targetOrigin '*' leaks data to any embedding origin.",
+        pattern=r"\.postMessage\s*\([^,]+,\s*['\"]\*['\"]\s*\)",
+        languages=("js", "ts", "tsx", "jsx"),
+        compliant_snippet="window.postMessage(payload, 'https://trusted.example.com')",
+    ),
+    DeclarativeRule(
+        id="js:CWE-1004-cookie-httponly-false",
+        cwe_id="CWE-1004",
+        severity=Severity.MEDIUM,
+        title="Sensitive Cookie Without 'HttpOnly' Flag",
+        message="Setting 'httpOnly: false' allows client-side scripts (XSS) to steal cookies.",
+        pattern=r"\bhttpOnly\s*:\s*false\b",
+        languages=("js", "ts", "tsx", "jsx"),
+        compliant_snippet="res.cookie('session', token, { httpOnly: true, secure: true })",
+    ),
+    DeclarativeRule(
+        id="js:CWE-200-next-public-secret",
+        cwe_id="CWE-200",
+        severity=Severity.CRITICAL,
+        title="Server Secret Exposed to Client Bundle via 'NEXT_PUBLIC_'",
+        message=(
+            "Referencing 'NEXT_PUBLIC_*_SECRET' or 'NEXT_PUBLIC_*_PRIVATE_KEY' "
+            "bundles secrets to browsers."
+        ),
+        pattern=r"NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|PRIVATE_KEY|PASSWORD|DATABASE_URL)",
+        languages=("js", "ts", "tsx", "jsx"),
+        compliant_snippet="process.env.SERVER_ONLY_SECRET",
+    ),
+    DeclarativeRule(
+        id="go:CWE-295-tls-insecure-skip-verify",
+        cwe_id="CWE-295",
+        severity=Severity.HIGH,
+        title="Go TLS 'InsecureSkipVerify: true' Disables Certificate Validation",
+        message="Setting 'InsecureSkipVerify: true' exposes TLS connections to MITM attacks.",
+        pattern=r"\bInsecureSkipVerify\s*:\s*true\b",
+        languages=("go",),
+        compliant_snippet="&tls.Config{MinVersion: tls.VersionTLS13}",
+    ),
+    DeclarativeRule(
+        id="go:CWE-400-http-listenandserve-no-timeout",
+        cwe_id="CWE-400",
+        severity=Severity.MEDIUM,
+        title="Go 'http.ListenAndServe' Without Timeouts ('Slowloris DoS')",
+        message="Default 'http.ListenAndServe' has no ReadHeaderTimeout, enabling Slowloris DoS.",
+        pattern=r"\bhttp\.ListenAndServe(?:TLS)?\s*\(",
+        languages=("go",),
+        compliant_snippet="srv := &http.Server{Addr: addr, ReadHeaderTimeout: 5 * time.Second}",
+    ),
+    DeclarativeRule(
+        id="rs:CWE-295-reqwest-accept-invalid-certs",
+        cwe_id="CWE-295",
+        severity=Severity.HIGH,
+        title="Rust TLS 'danger_accept_invalid_certs(true)' Enabled",
+        message="Accepting invalid TLS certificates disables authenticity checks.",
+        pattern=r"\.danger_accept_invalid_certs\s*\(\s*true\s*\)",
+        languages=("rs",),
+        compliant_snippet="reqwest::Client::builder().use_rustls_tls().build()",
+    ),
+    DeclarativeRule(
+        id="rs:CWE-843-mem-transmute",
+        cwe_id="CWE-843",
+        severity=Severity.HIGH,
+        title="Unsafe Type Reinterpretation via 'std::mem::transmute'",
+        message="'mem::transmute' bypasses Rust's type system and can cause undefined behavior.",
+        pattern=r"\bmem::transmute\b",
+        languages=("rs",),
+        compliant_snippet="// Use TryFrom / From or safe byte conversion methods (to_le_bytes)",
+    ),
 ]
 
 
@@ -443,32 +579,62 @@ class RuleCatalogManager:
         fetcher: Any = None,
         project_langs: set[str] | None = None,
     ) -> None:
+        items: list[dict[str, Any]] = []
         try:
             if fetcher is not None:
                 payload = fetcher(feed_url)
             else:
                 req = urllib.request.Request(feed_url, headers={"User-Agent": "VibeTrace/1.0"})
                 with urllib.request.urlopen(req, timeout=2.5) as resp:  # nosec
-                    payload = json.loads(resp.read().decode("utf-8"))
-            items = payload if isinstance(payload, list) else payload.get("rules", [])
-            with db._get_conn() as conn:
-                for item in items:
-                    parsed = cls._rule_from_dict(item)
-                    if not parsed:
-                        continue
-                    if project_langs and not (set(parsed.languages) & project_langs):
-                        continue
-                    conn.execute(
-                        """
-                        INSERT OR REPLACE INTO security_rules_cache (
-                            rule_id, rule_json, updated_at
-                        ) VALUES (?, ?, ?)
-                        """,
-                        (parsed.id, json.dumps(item), now),
+                    raw_text = resp.read().decode("utf-8")
+                    payload = (
+                        parse_semgrep_yaml(raw_text)
+                        if feed_url.endswith((".yaml", ".yml"))
+                        else json.loads(raw_text)
                     )
-                conn.commit()
+            loaded = payload if isinstance(payload, list) else payload.get("rules", [])
+            if isinstance(loaded, list):
+                items.extend(loaded)
         except Exception:
+            pass
+
+        # Pull official public Semgrep community YAML feeds for detected project languages
+        if fetcher is None and project_langs:
+            seen_urls: set[str] = set()
+            for lang in sorted(project_langs):
+                for comm_url in TRUSTED_COMMUNITY_YAML_FEEDS.get(lang, ()):
+                    if comm_url in seen_urls:
+                        continue
+                    seen_urls.add(comm_url)
+                    try:
+                        req = urllib.request.Request(
+                            comm_url, headers={"User-Agent": "VibeTrace/1.0"}
+                        )
+                        with urllib.request.urlopen(req, timeout=2.0) as resp:  # nosec
+                            yaml_rules = parse_semgrep_yaml(resp.read().decode("utf-8"))
+                            items.extend(yaml_rules)
+                    except Exception:
+                        continue
+
+        if not items:
             return
+
+        with db._get_conn() as conn:
+            for item in items:
+                parsed = cls._rule_from_dict(item)
+                if not parsed:
+                    continue
+                if project_langs and not (set(parsed.languages) & project_langs):
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO security_rules_cache (
+                        rule_id, rule_json, updated_at
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (parsed.id, json.dumps(item), now),
+                )
+            conn.commit()
 
     @staticmethod
     def _rule_from_dict(data: dict[str, Any]) -> DeclarativeRule | None:
