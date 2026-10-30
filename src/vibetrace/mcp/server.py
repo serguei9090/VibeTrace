@@ -789,6 +789,8 @@ async def vibetrace_review_changes(params: ReviewChangesInput) -> str:
             project_root=Path(root),
             scope=params.scope,
             check_dependencies=params.check_dependencies,
+            min_coverage=params.min_coverage,
+            enforce_coverage=params.enforce_coverage or (params.min_coverage is not None),
         )
         if params.response_format == ResponseFormat.JSON:
             return report.model_dump_json(indent=2)

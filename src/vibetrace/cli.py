@@ -724,6 +724,17 @@ examples:
         action="store_true",
         help="Exit with code 1 if any unapproved or modified security/split issues exist",
     )
+    p_review.add_argument(
+        "--min-coverage",
+        type=float,
+        default=None,
+        help="Minimum test coverage percentage for modified symbols (default: 80.0)",
+    )
+    p_review.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enforce test coverage threshold as a hard fail in the Quality Gate",
+    )
     p_review.set_defaults(func=cmd_review)
 
     # project (federated multi-repo workspace)

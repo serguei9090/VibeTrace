@@ -703,6 +703,14 @@ class ReviewChangesInput(BaseModel):
         default=False,
         description="Include OSV dependency lockfile CVE checks in the review",
     )
+    min_coverage: float | None = Field(
+        default=None,
+        description="Minimum test coverage percentage for modified symbols (default: 80.0)",
+    )
+    enforce_coverage: bool = Field(
+        default=False,
+        description="Fail the review gate if modified symbol test coverage is below threshold",
+    )
     scope_path: str = Field(default=".", description="Project root path")
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,

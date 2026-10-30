@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T17:02:59.667052+00:00"
-total_records = 23
+updated_at = "2026-10-30T17:29:33.514169+00:00"
+total_records = 25
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -167,12 +167,12 @@ symbol = "audit_project"
 qualified_name = "SecurityService.audit_project"
 file_path = "src/vibetrace/security/service.py"
 status = "approved"
-code_hash = "31f4a28779a59b3b7b0ecf1dd2e1c217673ce83787198ad696bd05b8bfcfdc2e"
-branches_count = 10
-rationale = "Verified security & Map Room split orchestration"
+code_hash = "a8333b6ff58fbfc2f0ce5bbf4fb89d0cf53214020648934e7abd8ba33414700c"
+branches_count = 12
+rationale = "Security orchestrator combining AST SAST, Taint, IaC, Git Secrets, and OSV CVEs"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.273681+00:00"
-branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_is_test_path (src/vibetrace/security/service.py)", "sync_and_load_rules (src/vibetrace/security/rule_sync.py)", "scan_file (src/vibetrace/security/ast_scanner.py)", "scan_file_with_rules (src/vibetrace/security/rule_sync.py)", "analyze (src/vibetrace/security/taint_engine.py)", "load_sanitizers (src/vibetrace/security/baseline.py)", "parse_all_lockfiles (src/vibetrace/security/lockfile_parser.py)", "query_vulnerabilities (src/vibetrace/security/osv_client.py)", "apply_baseline_to_findings (src/vibetrace/security/baseline.py)"]
+reviewed_at = "2026-10-30T17:29:18.654244+00:00"
+branches = ["_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "apply_baseline_to_findings"]
 
 [[splits]]
 symbol = "_rule_from_dict"
@@ -251,23 +251,23 @@ symbol = "run_unified_review"
 qualified_name = "run_unified_review"
 file_path = "src/vibetrace/services/review_service.py"
 status = "approved"
-code_hash = "c311b57e12b40cb7cf8fc1fac3cd3a572d06bb64086792a1763fee44ba9b72fb"
-branches_count = 6
-rationale = "Unified review gate branching on changed vs full scope, diff line-range overlap, and checklist assembly"
+code_hash = "3b9abe66521951b3503a016df3e5f6253709aac36a9342614659e2dac52c1c2d"
+branches_count = 7
+rationale = "Unified review gate combining Security, IaC, Git Secrets, Splits, Coverage Gate, and Caller Guard"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:02:41.177884+00:00"
-branches = ["_detect_git_changed_files", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "UnifiedReviewReport"]
+reviewed_at = "2026-10-30T17:29:23.590532+00:00"
+branches = ["_detect_git_changed_files", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "evaluate_coverage_gate", "UnifiedReviewReport"]
 
 [[splits]]
 symbol = "cmd_review"
 qualified_name = "cmd_review"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "d36c76118ac5364c8ff6fb48be05e5825b379a4cc3e19908888c3e18c7b56d13"
+code_hash = "83f4e227efd3205f87975cb4005a9b8e515398775ec0aa6323dffd8771b87167"
 branches_count = 4
-rationale = "CLI review handler branching on JSON vs Markdown output and CI exit code gate"
+rationale = "CLI review handler supporting --min-coverage, --strict, --json, and --ci"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:02:47.654563+00:00"
+reviewed_at = "2026-10-30T17:29:28.615663+00:00"
 branches = ["get_context_for_path", "run_unified_review", "safe_str", "format_unified_review_md"]
 
 [[splits]]
@@ -275,9 +275,33 @@ symbol = "vibetrace_review_changes"
 qualified_name = "vibetrace_review_changes"
 file_path = "src/vibetrace/mcp/server.py"
 status = "approved"
-code_hash = "5690198555238d4fb72326c72271db248cd6ae765e33066e22f44c0b8dd7fb18"
+code_hash = "e0654c0af984cafadbcaa3b8a79ee58093776e1bff27befcc6bf1c862904faff"
 branches_count = 4
-rationale = "MCP review tool branching on auto-sync and JSON vs Markdown formatting"
+rationale = "MCP review handler supporting min_coverage and enforce_coverage"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:02:53.631501+00:00"
+reviewed_at = "2026-10-30T17:29:33.514169+00:00"
 branches = ["get_context_for_path", "run_unified_review", "format_unified_review_md", "handle_error"]
+
+[[splits]]
+symbol = "_scan_patch_text"
+qualified_name = "GitSecretScanner._scan_patch_text"
+file_path = "src/vibetrace/security/git_secret_scanner.py"
+status = "approved"
+code_hash = "c9855ad4067073c7a8d6176b8b8ee7b83d639af4cf1a31fa5c7531b567447bec"
+branches_count = 6
+rationale = "Git patch secret scanner branching on token formats, Shannon entropy, and nosec suppression"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T17:29:08.733273+00:00"
+branches = ["_is_ignored_path", "_mask_secret", "SecurityFinding", "shannon_entropy", "_mask_secret", "SecurityFinding"]
+
+[[splits]]
+symbol = "evaluate_coverage_gate"
+qualified_name = "CoverageService.evaluate_coverage_gate"
+file_path = "src/vibetrace/services/coverage_service.py"
+status = "approved"
+code_hash = "91aef9be9260c706c6595ec3907a2e57b31dbe6f4cb323baa102bcbeae73b014"
+branches_count = 7
+rationale = "Hybrid coverage gate combining AST test-caller reachability with Cobertura/LCOV line coverage"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T17:29:13.742119+00:00"
+branches = ["load_quality_gate_config", "_get_conn", "_is_test_symbol_or_file", "_is_test_symbol_or_file", "UntestedSymbol", "_parse_external_line_coverage", "CoverageGateReport"]

@@ -37,8 +37,8 @@ Detect cross-module execution bifurcations (functions branching into 2+ external
 - **MCP Tool (Approve):** `vibetrace_approve_split(symbol="reindex_all", status="approved", rationale="Verified orchestrator")`
 - **CLI:** `uv run vibetrace audit splits` / `uv run vibetrace audit splits --approve` / `uv run vibetrace audit splits --ci --strict`
 
-### 5. Polyglot Security, Inter-Procedural Taint & CVE Audit (`audit security`)
-Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), inter-procedural positional argument-to-parameter taint reachability, language-aware auto-syncing CWE Top 25 / Semgrep YAML rules (`.vibetrace/rules/*.yaml`), and hydrated OSV.dev lockfile CVE scanning (`uv.lock`, `bun.lock`, `poetry.lock`, `requirements.txt`):
+### 5. Polyglot Security, IaC, Git Secret, Inter-Procedural Taint & CVE Audit (`audit security`)
+Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency IaC scanning (`Dockerfile`, `docker-compose.yml`, K8s, GitHub Actions), Gitleaks-style git secret & Shannon entropy scanning (working tree + last 10 commits + tracked `.env`), inter-procedural positional argument-to-parameter taint reachability, language-aware auto-syncing CWE Top 25 / Semgrep YAML rules (`.vibetrace/rules/*.yaml`), and hydrated OSV.dev lockfile CVE scanning (`uv.lock`, `bun.lock`, `poetry.lock`, `requirements.txt`):
 - **MCP Tool (Audit):** `vibetrace_audit_security(scope_path="", check_dependencies=True, analyze_taint=True)`
 - **MCP Tool (Remediate):** `vibetrace_remediate_vulnerability(finding_id="", scope_path="")`
 - **MCP Tool (Approve Exception with Disposition Tag):** `vibetrace_approve_security_exception(finding_id="SEC-...", rationale="No alternative API", tag="no-alternative")`
@@ -51,11 +51,11 @@ Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), inter-procedural
   uv run vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
   ```
 
-### 6. Unified 1-Call AI Self-Review Gate (`review`)
-Before completing any coding task or committing, run the single unified gate that executes **Security + Inter-Procedural Taint**, **Split Path Audit**, and **Caller Guard** in one pass and outputs an actionable checklist:
-- **MCP Tool:** `vibetrace_review_changes(scope="changed", check_dependencies=False)`
-- **REST API:** `GET /api/review?scope=changed`
-- **CLI:** `uv run vibetrace review` / `uv run vibetrace review --full --ci`
+### 6. Unified 1-Call AI Self-Review & Quality Gate (`review`)
+Before completing any coding task or committing, run the single unified Quality Gate that executes **Security + IaC + Git Secret + Inter-Procedural Taint**, **Split Path Audit**, **Hybrid Test Coverage Gate** (instant AST test-caller reachability + `coverage.xml`/`lcov.info` line coverage with an 80% default target), and **Caller Guard** in one pass:
+- **MCP Tool:** `vibetrace_review_changes(scope="changed", check_dependencies=False, min_coverage=80.0, enforce_coverage=False)`
+- **REST API:** `GET /api/review?scope=changed&min_coverage=80`
+- **CLI:** `uv run vibetrace review` / `uv run vibetrace review --ci --strict --min-coverage 80`
 
 ---
 

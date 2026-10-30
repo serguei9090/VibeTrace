@@ -316,12 +316,16 @@ def cmd_review(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     scope = "full" if getattr(args, "full", False) else "changed"
     check_deps = getattr(args, "deps", False)
+    min_cov = getattr(args, "min_coverage", None)
+    enforce_cov = bool(getattr(args, "strict", False) or min_cov is not None)
 
     report = run_unified_review(
         db=db,
         project_root=Path(root),
         scope=scope,
         check_dependencies=check_deps,
+        min_coverage=min_cov,
+        enforce_coverage=enforce_cov,
     )
     if getattr(args, "json", False):
         print(report.model_dump_json(indent=2))

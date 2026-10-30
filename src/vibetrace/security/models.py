@@ -24,6 +24,8 @@ class FindingCategory(str, Enum):
     AST_PATTERN = "ast_pattern"
     TAINT_REACHABILITY = "taint_reachability"
     PACKAGE_CVE = "package_cve"
+    IAC_MISCONFIG = "iac_misconfig"
+    GIT_SECRET = "git_secret"
 
 
 class SecurityFinding(BaseModel):

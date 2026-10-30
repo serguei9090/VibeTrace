@@ -15,6 +15,7 @@ from vibetrace.services.caller_guard import (
     CallerGuardService,
     parse_git_diff_line_ranges,
 )
+from vibetrace.services.coverage_service import CoverageGateReport, CoverageService
 from vibetrace.services.split_audit_service import ArchitecturalSplit, audit_splits
 
 
@@ -29,6 +30,7 @@ class UnifiedReviewReport(BaseModel):
     new_splits_count: int = 0
     modified_splits_count: int = 0
     modified_symbols_with_callers: int = 0
+    coverage_gate: CoverageGateReport = Field(default_factory=CoverageGateReport)
     security_findings: list[SecurityFinding] = Field(default_factory=list)
     actionable_splits: list[ArchitecturalSplit] = Field(default_factory=list)
     caller_guards: list[CallerGuardReport] = Field(default_factory=list)
@@ -45,6 +47,8 @@ def _detect_git_changed_files(project_root: Path) -> tuple[set[str], str]:
             cwd=str(project_root),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         for line in st.stdout.splitlines():
@@ -57,6 +61,8 @@ def _detect_git_changed_files(project_root: Path) -> tuple[set[str], str]:
             cwd=str(project_root),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         diff_text = df.stdout or ""
@@ -70,12 +76,14 @@ def run_unified_review(
     project_root: Path,
     scope: str = "changed",
     check_dependencies: bool = False,
+    min_coverage: float | None = None,
+    enforce_coverage: bool = False,
 ) -> UnifiedReviewReport:
-    """Runs Security + Split Audit + Caller Guard in a single pass."""
+    """Runs Security + IaC + Git Secret + Split Audit + Caller Guard + Coverage Gate."""
     norm_scope = "full" if scope.lower() == "full" else "changed"
     changed_files, diff_text = _detect_git_changed_files(project_root)
 
-    # 1. Security & Inter-Procedural Taint Audit
+    # 1. Security, IaC, Git Secret & Inter-Procedural Taint Audit
     sec_report = SecurityService.audit_project(
         db=db,
         project_root=project_root,
@@ -90,6 +98,7 @@ def run_unified_review(
         if (
             norm_scope == "full"
             or f.status == "MODIFIED"
+            or f.category.value == "git_secret"
             or fp in changed_files
             or not changed_files
         ):
@@ -126,7 +135,18 @@ def run_unified_review(
     )
     with_callers = [r for r in caller_reports if r.total_callers > 0]
 
-    # 4. Build actionable agent checklist
+    # 4. Hybrid Test Coverage Quality Gate (AST Call-Graph + coverage.xml / lcov.info)
+    cov_gate = CoverageService.evaluate_coverage_gate(
+        db=db,
+        project_root=project_root,
+        scope=norm_scope,
+        changed_files=changed_files,
+        file_ranges=file_ranges,
+        min_coverage=min_coverage,
+        enforce=enforce_coverage,
+    )
+
+    # 5. Build actionable agent checklist
     actions: list[str] = []
     for f in active_sec[:10]:
         actions.append(
@@ -141,6 +161,13 @@ def run_unified_review(
             f"({s.branches_count} branches, hash `{s.code_hash[:8]}`) -> Verify branches and call "
             f"`vibetrace_approve_split(symbol='{s.symbol}', status='approved', rationale='...')`."
         )
+    for ut in cov_gate.untested_symbols[:5]:
+        tag_prefix = "COVERAGE:FAIL" if not cov_gate.passed else "COVERAGE:ADVISORY"
+        actions.append(
+            f"[{tag_prefix}] Untested symbol `{ut.symbol}` at `{ut.file_path}:L{ut.start_line}` "
+            f"(Coverage: {cov_gate.effective_coverage_pct}% vs {cov_gate.threshold_pct}% target) "
+            "-> Add unit test exercising this function."
+        )
     for cg in with_callers[:5]:
         actions.append(
             f"[CALLER_GUARD] Modified `{cg.symbol}` (`{cg.file_path}:L{cg.target_line}`) has "
@@ -148,7 +175,11 @@ def run_unified_review(
         )
 
     passed = (
-        (unapproved_sec == 0) and (modified_sec == 0) and (new_splits == 0) and (mod_splits == 0)
+        (unapproved_sec == 0)
+        and (modified_sec == 0)
+        and (new_splits == 0)
+        and (mod_splits == 0)
+        and cov_gate.passed
     )
 
     return UnifiedReviewReport(
@@ -160,6 +191,7 @@ def run_unified_review(
         new_splits_count=new_splits,
         modified_splits_count=mod_splits,
         modified_symbols_with_callers=len(with_callers),
+        coverage_gate=cov_gate,
         security_findings=active_sec,
         actionable_splits=active_splits,
         caller_guards=with_callers,
@@ -170,17 +202,26 @@ def run_unified_review(
 def format_unified_review_md(report: UnifiedReviewReport) -> str:
     """Formats UnifiedReviewReport as a token-compact markdown gate for AI agents."""
     verdict = "✅ PASS (Ready to Commit)" if report.passed else "⚠️ ACTION REQUIRED"
+    cg = report.coverage_gate
+    cov_icon = (
+        "✅" if cg.effective_coverage_pct >= cg.threshold_pct else ("❌" if cg.enforced else "⚠️")
+    )
     lines = [
         f"## 🔍 VibeTrace Unified AI Code Review (`scope={report.scope}`): {verdict}",
         "",
         f"- **Changed Files Inspected:** {len(report.changed_files)}",
         (
-            f"- **🛡️ Security & Taint:** {report.unapproved_security_count} unapproved, "
+            f"- **🛡️ Security, IaC & Git Secrets:** {report.unapproved_security_count} unapproved, "
             f"{report.modified_security_count} modified"
         ),
         (
             f"- **🔀 Architectural Splits:** {report.new_splits_count} new unapproved, "
             f"{report.modified_splits_count} modified tripwires"
+        ),
+        (
+            f"- **🧪 Quality Gate Test Coverage ({cg.coverage_source}):** {cov_icon} "
+            f"{cg.effective_coverage_pct}% ({cg.tested_symbols_count}/{cg.total_target_symbols} "
+            f"symbols tested — target: {cg.threshold_pct}%)"
         ),
         (
             f"- **📞 Caller Guard Advisories:** {report.modified_symbols_with_callers} "

@@ -7,6 +7,8 @@ from pathlib import Path
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.ast_scanner import AstSecurityScanner
 from vibetrace.security.baseline import SecurityBaselineManager
+from vibetrace.security.git_secret_scanner import GitSecretScanner
+from vibetrace.security.iac_scanner import IacScanner
 from vibetrace.security.lockfile_parser import LockfileParser
 from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
@@ -75,6 +77,19 @@ class SecurityService:
                 findings,
                 frozenset(SecurityBaselineManager.load_sanitizers(project_root)),
                 project_root=project_root,
+            )
+
+        # 1c. Zero-dependency IaC scanning (Dockerfile, docker-compose, K8s, GitHub Actions)
+        findings.extend(IacScanner.scan_project(project_root, file_filter=file_filter))
+
+        # 1d. Gitleaks-style Secret & Shannon Entropy scanning (working tree + last 10 commits)
+        if not file_filter:
+            findings.extend(
+                GitSecretScanner.scan_repository(
+                    project_root=project_root,
+                    commit_depth=10,
+                    include_tests=include_tests,
+                )
             )
 
         # 2. Dependency lockfile CVE scanning (Google OSV)
