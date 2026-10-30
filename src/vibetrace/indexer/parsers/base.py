@@ -163,8 +163,12 @@ class LanguageParser(ABC):
     def _get_id(self, file_path: str, qualified_name: str, kind: str | None = None) -> str:
         """Generate a unique deterministic ID for a node using its scoped qualified_name."""
         if kind == "module":
-            return hashlib.md5(f"module::{qualified_name}".encode()).hexdigest()
-        return hashlib.md5(f"{file_path}::{qualified_name}".encode()).hexdigest()
+            return hashlib.md5(
+                f"module::{qualified_name}".encode(), usedforsecurity=False
+            ).hexdigest()
+        return hashlib.md5(
+            f"{file_path}::{qualified_name}".encode(), usedforsecurity=False
+        ).hexdigest()
 
     def _scoped_name(self, name: str, scope_stack: list[str] | None = None) -> str:
         """Build a dotted qualified name from the active scope stack."""

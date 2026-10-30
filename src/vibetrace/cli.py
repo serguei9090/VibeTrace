@@ -657,6 +657,26 @@ examples:
         action="store_true",
         help="Emit AI remediation prompts and compliant patch patterns for unapproved findings",
     )
+    p_security.add_argument(
+        "--sarif",
+        action="store_true",
+        help="Output audit report in OASIS SARIF 2.1.0 JSON format for GitHub Code Scanning / IDEs",
+    )
+    p_security.add_argument(
+        "--include-tests",
+        action="store_true",
+        help="Include test directories and test files in AST security scanning",
+    )
+    p_security.add_argument(
+        "--approve",
+        action="store_true",
+        help="Approve current unapproved findings into .vibetrace/security.toml baseline",
+    )
+    p_security.add_argument(
+        "--rationale",
+        default="Security review verified via CLI",
+        help="Rationale saved when approving security exceptions with --approve",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)

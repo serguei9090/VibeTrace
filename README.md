@@ -124,6 +124,9 @@ vibetrace audit security --ci --fail-on high --skip-deps
 vibetrace audit security --no-taint
 # Emit AI remediation prompts and compliant patch patterns
 vibetrace audit security --fix
+# Export OASIS SARIF 2.1.0 for GitHub Code Scanning, or batch-approve verified findings
+vibetrace audit security --sarif
+vibetrace audit security --approve --rationale "Verified safe"
 
 # 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"

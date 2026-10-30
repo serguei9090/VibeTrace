@@ -147,14 +147,46 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         check_dependencies=not skip_deps,
         force_update_cves=force_update,
         analyze_taint=not getattr(args, "no_taint", False),
+        include_tests=getattr(args, "include_tests", False),
     )
 
+    if getattr(args, "approve", False):
+        rationale = getattr(args, "rationale", "Security review verified via CLI")
+        approved_now = 0
+        for f in report.findings:
+            if f.status != "APPROVED":
+                SecurityService.record_exception(
+                    project_root=project_root,
+                    finding_id=f.id,
+                    rule_id=f.rule_id,
+                    file_path=f.file_path,
+                    code_hash=f.code_hash,
+                    rationale=rationale,
+                    severity=str(getattr(f.severity, "value", f.severity)),
+                    status="APPROVED",
+                    reviewed_by="cli-user",
+                    category=str(getattr(f.category, "value", f.category)),
+                    symbol_name=f.symbol_name,
+                )
+                approved_now += 1
+        print(
+            safe_str(
+                f"Approved {approved_now} finding(s) in .vibetrace/security.toml ({rationale})."
+            )
+        )
+        return 0
+
     is_json = getattr(args, "json", False)
+    is_sarif = getattr(args, "sarif", False)
     is_ci = getattr(args, "ci", False)
     is_strict = getattr(args, "strict", False)
     fail_on = getattr(args, "fail_on", "HIGH").upper()
 
-    if is_json:
+    if is_sarif:
+        from vibetrace.security.formatters import format_security_audit_sarif
+
+        print(format_security_audit_sarif(report))
+    elif is_json:
         print(report.model_dump_json(indent=2))
     else:
         print(safe_str(format_security_audit_md(report)))

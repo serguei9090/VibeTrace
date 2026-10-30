@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from vibetrace.security.models import Severity
 
@@ -18,6 +18,10 @@ class SecurityRuleSpec:
     explanation: str
     non_compliant_example: str
     compliant_example: str
+    compliant_by_lang: dict[str, str] = field(default_factory=dict)
+
+    def get_compliant_example(self, lang: str) -> str:
+        return self.compliant_by_lang.get(lang, self.compliant_example)
 
 
 RULES_CATALOG: dict[str, SecurityRuleSpec] = {
@@ -37,6 +41,13 @@ RULES_CATALOG: dict[str, SecurityRuleSpec] = {
         ),
         non_compliant_example="subprocess.run(f'ping {host}', shell=True)",
         compliant_example="subprocess.run(['ping', host], shell=False, check=True)",
+        compliant_by_lang={
+            "javascript": "cp.execFileSync('ping', [host], { stdio: 'ignore' });",
+            "typescript": "cp.execFileSync('ping', [host], { stdio: 'ignore' });",
+            "tsx": "cp.execFileSync('ping', [host], { stdio: 'ignore' });",
+            "go": 'exec.CommandContext(ctx, "ping", host).Run()',
+            "rust": 'Command::new("ping").arg(host).status()?',
+        },
     ),
     # 2. CWE-95: Eval / Code Injection
     "CWE-95": SecurityRuleSpec(

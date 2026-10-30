@@ -402,3 +402,105 @@ async def test_remediate_vulnerability_and_baseline_metadata(tmp_path: Path):
     toml_text = (ctx / "security.toml").read_text(encoding="utf-8")
     assert 'category = "taint_reachability"' in toml_text
     assert 'symbol_name = "f1"' in toml_text
+
+
+def test_nosec_and_false_positive_precision(tmp_path: Path):
+    (tmp_path / "prec.py").write_text(
+        "import hashlib, os\n"
+        "def f(conn, placeholders, x):\n"
+        "    os.system(x)  # nosec\n"
+        "    hashlib.md5(b'abc', usedforsecurity=False)\n"
+        "    conn.execute(f'DELETE FROM t WHERE id IN ({placeholders})')\n",
+        encoding="utf-8",
+    )
+    assert AstSecurityScanner.scan_file("prec.py", tmp_path) == []
+
+    (tmp_path / "static.ts").write_text(
+        "import cp from 'child_process';\n"
+        "cp.execSync(process.platform === 'win32' ? 'where uv' : 'which uv');\n"
+        "cp.execSync(`kill ${pid}`);\n",
+        encoding="utf-8",
+    )
+    ts_findings = AstSecurityScanner.scan_file("static.ts", tmp_path)
+    assert len(ts_findings) == 1
+    assert ts_findings[0].start_line == 3
+    assert "execFileSync" in (ts_findings[0].compliant_snippet or "")
+
+
+def test_go_and_rust_security_rules(tmp_path: Path):
+    (tmp_path / "main.go").write_text(
+        "package main\n"
+        "import (\n"
+        '  "crypto/md5"\n'
+        '  "os/exec"\n'
+        ")\n"
+        "func run(u string) {\n"
+        '  exec.Command("sh", "-c", u)\n'
+        "  md5.New()\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    go_cwes = sorted(f.cwe_id for f in AstSecurityScanner.scan_file("main.go", tmp_path))
+    assert go_cwes == ["CWE-327", "CWE-78"]
+
+    (tmp_path / "main.rs").write_text(
+        "use std::process::Command;\n"
+        "fn run(u: &str) {\n"
+        '    Command::new("sh").arg("-c").arg(u).status();\n'
+        "    Md5::new();\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    rs_cwes = sorted(f.cwe_id for f in AstSecurityScanner.scan_file("main.rs", tmp_path))
+    assert rs_cwes == ["CWE-327", "CWE-78"]
+
+
+def test_sarif_export_and_cli_approve(tmp_path: Path):
+    import argparse
+    import json
+
+    from vibetrace.cli_audit import cmd_audit_security
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.indexer.models import Node
+    from vibetrace.security.formatters import format_security_audit_sarif
+    from vibetrace.security.service import SecurityService
+
+    (tmp_path / "app.py").write_text("eval('2+2')\n", encoding="utf-8")
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(
+        Node(
+            id="a1",
+            name="app_fn",
+            qualified_name="app_fn",
+            kind="function",
+            file_path="app.py",
+            start_line=1,
+            end_line=1,
+        )
+    )
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    sarif = json.loads(format_security_audit_sarif(report))
+    assert sarif["version"] == "2.1.0"
+    assert sarif["runs"][0]["results"][0]["ruleId"] == "CWE-95"
+    assert sarif["runs"][0]["results"][0]["level"] == "error"
+
+    rc = cmd_audit_security(
+        argparse.Namespace(
+            path=str(tmp_path),
+            file=None,
+            skip_deps=True,
+            update=False,
+            no_taint=True,
+            include_tests=False,
+            approve=True,
+            rationale="CLI approved",
+            auto_sync=False,
+            root=str(tmp_path),
+        )
+    )
+    assert rc == 0
+    report2 = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    assert report2.approved_count == 1
+    assert report2.unapproved_count == 0

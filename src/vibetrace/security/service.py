@@ -16,6 +16,17 @@ from vibetrace.security.taint_engine import TaintEngine
 class SecurityService:
     """Provides high-level security audit and exception recording workflows."""
 
+    @staticmethod
+    def _is_test_path(rel_path: str) -> bool:
+        norm = rel_path.replace("\\", "/")
+        parts = norm.split("/")
+        if any(p in ("tests", "test", "e2e", "__tests__") for p in parts[:-1]):
+            return True
+        fname = parts[-1]
+        return fname.startswith("test_") or fname.endswith(
+            ("_test.py", "_test.go", ".spec.ts", ".test.ts", ".spec.tsx")
+        )
+
     @classmethod
     def audit_project(
         cls,
@@ -25,6 +36,7 @@ class SecurityService:
         check_dependencies: bool = True,
         force_update_cves: bool = False,
         analyze_taint: bool = True,
+        include_tests: bool = False,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
@@ -37,7 +49,12 @@ class SecurityService:
                     "SELECT DISTINCT file_path FROM nodes WHERE file_path IS NOT NULL"
                 )
                 rows = cursor.fetchall()
-                target_files = [r[0] for r in rows if r[0]]
+                all_files = [r[0] for r in rows if r[0]]
+            if include_tests:
+                target_files = all_files
+            else:
+                non_tests = [f for f in all_files if not cls._is_test_path(f)]
+                target_files = non_tests if non_tests else all_files
 
         # 1. Source code AST inspection
         for f_path in target_files:

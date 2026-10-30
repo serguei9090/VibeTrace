@@ -38,6 +38,26 @@ _DUMMY_SECRET_VALS = {
 
 
 _JS_LANGS = ("javascript", "typescript", "tsx")
+_SAFE_SQL_INTERPS = {"placeholders", "placeholder", "qmarks", "alias", "table", "table_name"}
+_NOSEC_RE = re.compile(r"(?:#|//)\s*nosec\b", re.IGNORECASE)
+
+
+def _is_static_str_expr(node: Node) -> bool:
+    """Returns True if an AST expression is a pure static string literal or ternary of literals."""
+    if node.type in (
+        "string",
+        "string_literal",
+        "raw_string_literal",
+        "interpreted_string_literal",
+    ):
+        return not any(c.type in ("interpolation", "template_substitution") for c in node.children)
+    if node.type == "template_string":
+        return not any(c.type == "template_substitution" for c in node.children)
+    if node.type in ("conditional_expression", "ternary_expression"):
+        conseq = node.child_by_field_name("consequence")
+        alt = node.child_by_field_name("alternative")
+        return bool(conseq and alt and _is_static_str_expr(conseq) and _is_static_str_expr(alt))
+    return False
 
 
 def _calc_code_hash(code_str: str) -> str:
@@ -88,7 +108,13 @@ class AstSecurityScanner:
             lang=parser_wrapper.language_name,
         )
 
-        return findings
+        return [
+            f
+            for f in findings
+            if not _NOSEC_RE.search(
+                "\n".join(lines[max(0, f.start_line - 1) : min(len(lines), f.end_line)])
+            )
+        ]
 
     @classmethod
     def _visit_node(
@@ -120,6 +146,7 @@ class AstSecurityScanner:
         end_line: int,
         lines: list[str],
         custom_message: str | None = None,
+        lang: str = "python",
     ) -> SecurityFinding:
         rule_spec = RULES_CATALOG[cwe_id]
 
@@ -143,7 +170,7 @@ class AstSecurityScanner:
             end_line=end_line,
             code_hash=code_hash,
             non_compliant_snippet=snippet,
-            compliant_snippet=rule_spec.compliant_example,
+            compliant_snippet=rule_spec.get_compliant_example(lang),
             remediation_guidance=rule_spec.explanation,
         )
 
@@ -197,12 +224,39 @@ class AstSecurityScanner:
                                 return
         elif lang in _JS_LANGS and node.type == "call_expression":
             fn_node = node.child_by_field_name("function")
-            if fn_node:
+            args_node = node.child_by_field_name("arguments")
+            if fn_node and args_node:
                 fn_text = fn_node.text.decode("utf-8", errors="replace") if fn_node.text else ""
                 if fn_text.split(".")[-1] in ("exec", "execSync") and (
                     fn_text in ("exec", "execSync")
                     or "child_process" in fn_text
                     or "cp." in fn_text
+                ):
+                    first_arg = next(
+                        (c for c in args_node.children if c.type not in ("(", ")", ",")),
+                        None,
+                    )
+                    if first_arg and not _is_static_str_expr(first_arg):
+                        findings.append(
+                            cls._create_finding(
+                                "CWE-78",
+                                file_path,
+                                node.start_point[0] + 1,
+                                node.end_point[0] + 1,
+                                lines,
+                                f"Call to '{fn_text}()' uses a shell. Use 'execFile'.",
+                                lang=lang,
+                            )
+                        )
+        elif lang == "go" and node.type == "call_expression":
+            fn_node = node.child_by_field_name("function")
+            args_node = node.child_by_field_name("arguments")
+            if fn_node and args_node and fn_node.text in (b"exec.Command", b"exec.CommandContext"):
+                args_txt = (
+                    args_node.text.decode("utf-8", errors="replace") if args_node.text else ""
+                )
+                if any(s in args_txt for s in ('"sh"', '"/bin/sh"', '"bash"', '"cmd"')) and (
+                    '"-c"' in args_txt or '"/C"' in args_txt
                 ):
                     findings.append(
                         cls._create_finding(
@@ -211,9 +265,29 @@ class AstSecurityScanner:
                             node.start_point[0] + 1,
                             node.end_point[0] + 1,
                             lines,
-                            f"Call to '{fn_text}()' uses a shell. Use 'execFile'.",
+                            "Shell call via 'exec.Command' with '-c' risks command injection.",
+                            lang=lang,
                         )
                     )
+        elif lang == "rust" and node.type == "call_expression":
+            txt = node.text.decode("utf-8", errors="replace") if node.text else ""
+            if (
+                "Command::new(" in txt
+                and any(s in txt for s in ('"sh"', '"bash"', '"cmd"'))
+                and ('.arg("-c")' in txt or '.arg("/C")' in txt)
+                and (not node.parent or node.parent.type != "field_expression")
+            ):
+                findings.append(
+                    cls._create_finding(
+                        "CWE-78",
+                        file_path,
+                        node.start_point[0] + 1,
+                        node.end_point[0] + 1,
+                        lines,
+                        "Shell invocation via 'Command::new' with '-c' risks command injection.",
+                        lang=lang,
+                    )
+                )
 
     # --- Rule 2: Code Injection / Eval (CWE-95) ---
     @classmethod
@@ -330,9 +404,17 @@ class AstSecurityScanner:
     ) -> None:
         if lang == "python" and node.type == "call":
             fn_node = node.child_by_field_name("function")
+            args_node = node.child_by_field_name("arguments")
             if fn_node:
                 fn_text = fn_node.text.decode("utf-8", errors="replace") if fn_node.text else ""
-                if fn_text in ("hashlib.md5", "hashlib.sha1"):
+                args_txt = (
+                    args_node.text.decode("utf-8", errors="replace")
+                    if args_node and args_node.text
+                    else ""
+                )
+                if fn_text in ("hashlib.md5", "hashlib.sha1") and "usedforsecurity=False" not in (
+                    args_txt.replace(" ", "")
+                ):
                     findings.append(
                         cls._create_finding(
                             "CWE-327",
@@ -341,8 +423,26 @@ class AstSecurityScanner:
                             node.end_point[0] + 1,
                             lines,
                             f"Weak hash algorithm '{fn_text}' has collision risks. Use sha256.",
+                            lang=lang,
                         )
                     )
+        elif lang in ("go", "rust") and node.type == "call_expression":
+            fn_node = node.child_by_field_name("function")
+            fn_text = (
+                fn_node.text.decode("utf-8", errors="replace") if fn_node and fn_node.text else ""
+            )
+            if fn_text in ("md5.New", "md5.Sum", "sha1.New", "sha1.Sum", "Md5::new", "Sha1::new"):
+                findings.append(
+                    cls._create_finding(
+                        "CWE-327",
+                        file_path,
+                        node.start_point[0] + 1,
+                        node.end_point[0] + 1,
+                        lines,
+                        f"Weak hash algorithm '{fn_text}' has collision risks. Use SHA-256.",
+                        lang=lang,
+                    )
+                )
 
     # --- Rule 5: Insecure Deserialization (CWE-502) ---
     @classmethod
@@ -387,7 +487,9 @@ class AstSecurityScanner:
         if not fn_node or not args_node or not fn_node.text:
             return
         fn_text = fn_node.text.decode("utf-8", errors="replace")
-        if not fn_text.endswith((".execute", ".executemany", ".raw", ".query")):
+        if not fn_text.endswith(
+            (".execute", ".executemany", ".raw", ".query", ".Query", ".QueryRow", ".Exec")
+        ):
             return
         first_arg = next(
             (c for c in args_node.children if c.type not in ("(", ")", ",")),
@@ -401,8 +503,12 @@ class AstSecurityScanner:
             or any(c.type == "interpolation" for c in first_arg.children)
             or (first_arg.type == "string" and arg_text.startswith(("f'", 'f"', "F'", 'F"')))
             or ".format(" in arg_text
+            or "fmt.Sprintf(" in arg_text
         )
         if has_interp and re.search(r"(?i)\b(SELECT|INSERT|UPDATE|DELETE|DROP)\b", arg_text):
+            interps = re.findall(r"\{([^{}]+)\}", arg_text)
+            if interps and all(i.strip() in _SAFE_SQL_INTERPS for i in interps):
+                return
             findings.append(
                 cls._create_finding(
                     "CWE-89",
@@ -411,6 +517,7 @@ class AstSecurityScanner:
                     node.end_point[0] + 1,
                     lines,
                     f"Dynamic SQL query in '{fn_text}()'. Use parameterized queries.",
+                    lang=lang,
                 )
             )
 

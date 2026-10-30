@@ -1,8 +1,23 @@
-"""Markdown and JSON formatting utilities for VibeTrace Security Audit findings."""
+"""Markdown and SARIF 2.1.0 formatting utilities for VibeTrace Security Audit findings."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from vibetrace.security.rules import RULES_CATALOG
+
+_SARIF_LEVEL = {
+    "CRITICAL": "error",
+    "HIGH": "error",
+    "MEDIUM": "warning",
+    "LOW": "note",
+    "INFO": "note",
+}
+
+
+def _sev_str(sev: Any) -> str:
+    return str(getattr(sev, "value", sev))
 
 
 def format_security_audit_md(report: Any) -> str:
@@ -29,7 +44,7 @@ def format_security_audit_md(report: Any) -> str:
         return "\n".join(lines)
 
     for idx, f in enumerate(report.findings, 1):
-        sev_icon = f"[{f.severity}]"
+        sev_icon = f"[{_sev_str(f.severity)}]"
         st_badge = f"[{f.status}]"
 
         lines.extend(
@@ -75,3 +90,67 @@ def format_security_audit_md(report: Any) -> str:
         lines.append("---")
 
     return "\n".join(lines).strip()
+
+
+def format_security_audit_sarif(report: Any) -> str:
+    """Formats the security audit report as OASIS SARIF 2.1.0 JSON for GitHub / IDE integration."""
+    rules = [
+        {
+            "id": spec.cwe_id,
+            "name": spec.title,
+            "shortDescription": {"text": spec.title},
+            "fullDescription": {"text": spec.explanation},
+            "help": {"text": f"{spec.explanation}\n\nCompliant example:\n{spec.compliant_example}"},
+            "defaultConfiguration": {"level": _SARIF_LEVEL.get(_sev_str(spec.severity), "warning")},
+        }
+        for spec in RULES_CATALOG.values()
+    ]
+    results = []
+    for f in report.findings:
+        sev = _sev_str(f.severity)
+        result: dict[str, Any] = {
+            "ruleId": f.cwe_id,
+            "level": _SARIF_LEVEL.get(sev, "warning"),
+            "message": {"text": f.message},
+            "fingerprints": {"vibetraceFindingId": f.id, "codeHash": f.code_hash},
+            "properties": {
+                "severity": sev,
+                "category": _sev_str(f.category),
+                "status": f.status,
+                "taintPath": f.metadata.get("taint_path"),
+            },
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": f.file_path.replace("\\", "/")},
+                        "region": {
+                            "startLine": max(1, f.start_line),
+                            "endLine": max(1, f.end_line),
+                        },
+                    }
+                }
+            ],
+        }
+        if f.status == "APPROVED":
+            result["suppressions"] = [
+                {"kind": "external", "justification": f.rationale or "Approved in security.toml"}
+            ]
+        results.append(result)
+
+    sarif = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "VibeTrace Security",
+                        "informationUri": "https://github.com/vibetrace/vibetrace",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+    return json.dumps(sarif, indent=2)

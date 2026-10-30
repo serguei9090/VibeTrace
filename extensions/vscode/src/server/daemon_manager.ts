@@ -209,7 +209,9 @@ export class VibeTraceDaemonManager implements vscode.Disposable {
       this.outputChannel.appendLine("[Info] Terminating VibeTrace background daemon...");
       try {
         if (process.platform === "win32" && this.daemonProcess.pid) {
-          cp.execSync(`taskkill /F /T /PID ${this.daemonProcess.pid}`, { stdio: "ignore" });
+          cp.execFileSync("taskkill", ["/F", "/T", "/PID", String(this.daemonProcess.pid)], {
+            stdio: "ignore",
+          });
         } else {
           this.daemonProcess.kill("SIGTERM");
         }

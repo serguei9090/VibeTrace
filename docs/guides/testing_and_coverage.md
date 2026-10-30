@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 490 / 490 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 493 / 493 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -69,7 +69,11 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_poetry_and_requirements_lockfiles` | `poetry.lock` and `requirements.txt` + SHA-256 lockfile memoization | PyPI packages extracted and memoized. | ✅ PASS |
 | `test_remediate_vulnerability_and_baseline_metadata` | `vibetrace_remediate_vulnerability` MCP tool + `category`/`symbol_name` in `security.toml` | Emits AI fix prompts; persists full baseline fields. | ✅ PASS |
 
-> **Known gap:** node radar badges have no automated test; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
+| `test_nosec_and_false_positive_precision` | `# nosec`, `usedforsecurity=False`, safe SQL `{placeholders}`, static ternary `execSync` | Suppresses false positives while catching dynamic template injection. | ✅ PASS |
+| `test_go_and_rust_security_rules` | Go & Rust `CWE-78` and `CWE-327` | Flags shell `-c` invocations and MD5/SHA1 in Go and Rust. | ✅ PASS |
+| `test_sarif_export_and_cli_approve` | SARIF 2.1.0 `--sarif` export and CLI `--approve` | Emits valid SARIF 2.1.0 JSON; `--approve` records baseline exceptions. | ✅ PASS |
+
+> **Known gap:** node radar badges have no automated test; taint is call-edge reachability only (no data-flow), so false positives are possible.
 
 ---
 
