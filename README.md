@@ -120,6 +120,8 @@ vibetrace audit splits --ci --strict
 vibetrace audit security
 # CI gate; --skip-deps stays fully offline, --update forces CVE cache refresh
 vibetrace audit security --ci --fail-on high --skip-deps
+# Disable taint escalation; add custom sanitizers under [taint] sanitizers = ["fn"] in .vibetrace/security.toml
+vibetrace audit security --no-taint
 
 # 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"

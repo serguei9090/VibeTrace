@@ -337,6 +337,7 @@ def get_security_audit_endpoint(
     file_path: str | None = Query(default=None),
     skip_deps: bool = Query(default=False),
     update: bool = Query(default=False),
+    no_taint: bool = Query(default=False),
 ):
     """Audits codebase and dependencies for security flaws against .vibetrace/security.toml."""
     from vibetrace.security.service import SecurityService
@@ -347,6 +348,7 @@ def get_security_audit_endpoint(
         file_filter=file_path,
         check_dependencies=not skip_deps,
         force_update_cves=update,
+        analyze_taint=not no_taint,
     )
     return report.model_dump()
 

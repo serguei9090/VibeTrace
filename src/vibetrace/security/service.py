@@ -46,7 +46,9 @@ class SecurityService:
 
         # 1b. Call-graph reachability from untrusted entry points to injection sinks
         if analyze_taint:
-            findings = TaintEngine.analyze(db, findings)
+            findings = TaintEngine.analyze(
+                db, findings, frozenset(SecurityBaselineManager.load_sanitizers(project_root))
+            )
 
         # 2. Dependency lockfile CVE scanning (Google OSV)
         if check_dependencies and not file_filter:

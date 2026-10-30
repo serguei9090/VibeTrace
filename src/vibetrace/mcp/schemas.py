@@ -626,6 +626,10 @@ class AuditSecurityInput(BaseModel):
         default=False,
         description="Skip lockfile package CVE resolution (AST code scan only)",
     )
+    no_taint: bool = Field(
+        default=False,
+        description="Disable call-graph taint reachability escalation",
+    )
     update: bool = Field(
         default=False,
         description="Force refresh vulnerability intelligence from Google OSV",

@@ -15,7 +15,7 @@ from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
 MAX_DEPTH = 8
 TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502"}
-SANITIZERS = {"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval"}
+SANITIZERS = frozenset({"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval"})
 _SOURCE_DECORATOR_RE = re.compile(
     r"(\.(get|post|put|patch|delete|route|websocket)\b|click\.(command|group)|\.tool\b)"
 )
@@ -46,10 +46,16 @@ class TaintEngine:
     """Annotates AST findings with source-to-sink call paths from the indexed call graph."""
 
     @classmethod
-    def analyze(cls, db: IndexerDB, findings: list[SecurityFinding]) -> list[SecurityFinding]:
+    def analyze(
+        cls,
+        db: IndexerDB,
+        findings: list[SecurityFinding],
+        extra_sanitizers: frozenset[str] = frozenset(),
+    ) -> list[SecurityFinding]:
         candidates = [f for f in findings if f.cwe_id in TAINT_CWES]
         if not candidates:
             return findings
+        sanitizers = SANITIZERS | extra_sanitizers
 
         with db._get_conn() as conn:
             nodes = {
@@ -68,7 +74,7 @@ class TaintEngine:
             sink_id = cls._enclosing_node_id(nodes, finding)
             if sink_id is None:
                 continue
-            path = cls._path_from_source(nodes, callers, sink_id)
+            path = cls._path_from_source(nodes, callers, sink_id, sanitizers)
             if path is None:
                 continue
             finding.category = FindingCategory.TAINT_REACHABILITY
@@ -98,7 +104,9 @@ class TaintEngine:
         return best[1] if best else None
 
     @staticmethod
-    def _path_from_source(nodes: dict, callers: dict[str, list[str]], sink_id: str):
+    def _path_from_source(
+        nodes: dict, callers: dict[str, list[str]], sink_id: str, sanitizers: frozenset[str]
+    ):
         """Reverse BFS from sink; returns node ids ordered source -> sink, or None."""
         queue: deque[tuple[str, int]] = deque([(sink_id, 0)])
         parent: dict[str, str | None] = {sink_id: None}
@@ -115,7 +123,7 @@ class TaintEngine:
             for caller_id in callers.get(current, []):
                 if caller_id in parent or caller_id not in nodes:
                     continue
-                if nodes[caller_id]["name"] in SANITIZERS:
+                if nodes[caller_id]["name"] in sanitizers:
                     continue  # sanitizer on the path blocks propagation
                 parent[caller_id] = current
                 queue.append((caller_id, depth + 1))

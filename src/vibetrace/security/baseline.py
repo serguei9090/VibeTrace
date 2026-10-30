@@ -25,6 +25,18 @@ class SecurityBaselineManager:
         return project_root / SECURITY_BASELINE_FILE
 
     @classmethod
+    def load_sanitizers(cls, project_root: Path) -> list[str]:
+        """Reads user-declared taint sanitizer function names from the [taint] table."""
+        path = cls.get_baseline_path(project_root)
+        if not path.is_file():
+            return []
+        try:
+            raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            return []
+        return [str(s) for s in raw.get("taint", {}).get("sanitizers", [])]
+
+    @classmethod
     def load_baseline(cls, project_root: Path) -> dict[str, dict[str, Any]]:
         """Loads accepted security exceptions keyed by finding ID and rule_id:file_path."""
         path = cls.get_baseline_path(project_root)
@@ -102,6 +114,7 @@ class SecurityBaselineManager:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         existing: list[dict[str, Any]] = []
+        sanitizers = cls.load_sanitizers(project_root)
         if path.is_file():
             try:
                 raw = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -136,6 +149,9 @@ class SecurityBaselineManager:
             f"total_exceptions = {len(existing)}",
             "",
         ]
+        if sanitizers:
+            quoted = ", ".join(f'"{_escape_toml_str(s)}"' for s in sanitizers)
+            lines += ["[taint]", f"sanitizers = [{quoted}]", ""]
 
         for exc in existing:
             lines.append("[[exceptions]]")

@@ -146,6 +146,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         file_filter=file_filter,
         check_dependencies=not skip_deps,
         force_update_cves=force_update,
+        analyze_taint=not getattr(args, "no_taint", False),
     )
 
     is_json = getattr(args, "json", False)

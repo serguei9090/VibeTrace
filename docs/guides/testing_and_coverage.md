@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 480 / 480 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 487 / 487 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -59,6 +59,9 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_sanitizer_on_path_blocks_escalation` | Sanitizer on path | Not escalated. | ✅ PASS |
 | `test_non_critical_severity_is_bumped_one_tier` | Severity bump | MEDIUM to HIGH; CRITICAL stays. | ✅ PASS |
 | `test_js_ts_injection_rules` | JS/TS `execSync`, `eval`, `new Function`, tsx | CWE-78/95 flagged. | ✅ PASS |
+
+| `test_custom_sanitizer_from_toml_and_no_taint_flag` | `[taint] sanitizers` in security.toml, preserved on rewrite | Custom sanitizer blocks escalation. | ✅ PASS |
+| `test_no_taint_flag_disables_escalation` | `--no-taint` / `analyze_taint=False` | No escalation. | ✅ PASS |
 
 > **Known gap:** the Map Room `SecurityAuditCard` and node badges have no automated frontend test yet; Go/Rust/Java AST rules are not covered; taint is call-edge reachability only (no data-flow), so false positives are possible.
 

@@ -647,6 +647,11 @@ examples:
         action="store_true",
         help="Skip dependency lockfile CVE checking (AST code scan only)",
     )
+    p_security.add_argument(
+        "--no-taint",
+        action="store_true",
+        help="Disable call-graph taint reachability escalation",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)
