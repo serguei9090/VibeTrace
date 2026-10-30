@@ -110,6 +110,11 @@ def load_split_baseline(project_root: Path) -> dict[str, dict[str, Any]]:
         return {}
 
 
+def _escape_toml_str(val: Any) -> str:
+    """Escapes special characters in string values for valid TOML formatting."""
+    return str(val or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+
 def save_split_baseline(project_root: Path, splits: list[dict[str, Any]]) -> Path:
     """Writes updated splits baseline to .vibetrace/splits.toml in valid TOML format."""
     path = get_splits_toml_path(project_root)
@@ -128,17 +133,17 @@ def save_split_baseline(project_root: Path, splits: list[dict[str, Any]]) -> Pat
 
     for item in splits:
         lines.append("[[splits]]")
-        lines.append(f'symbol = "{item.get("symbol", "")}"')
-        lines.append(f'qualified_name = "{item.get("qualified_name", "")}"')
-        lines.append(f'file_path = "{item.get("file_path", "")}"')
-        lines.append(f'status = "{item.get("status", "approved")}"')
-        lines.append(f'code_hash = "{item.get("code_hash", "")}"')
+        lines.append(f'symbol = "{_escape_toml_str(item.get("symbol", ""))}"')
+        lines.append(f'qualified_name = "{_escape_toml_str(item.get("qualified_name", ""))}"')
+        lines.append(f'file_path = "{_escape_toml_str(item.get("file_path", ""))}"')
+        lines.append(f'status = "{_escape_toml_str(item.get("status", "approved"))}"')
+        lines.append(f'code_hash = "{_escape_toml_str(item.get("code_hash", ""))}"')
         lines.append(f"branches_count = {item.get('branches_count', 0)}")
-        lines.append(f'rationale = "{item.get("rationale", "")}"')
-        lines.append(f'reviewed_by = "{item.get("reviewed_by", "developer")}"')
-        lines.append(f'reviewed_at = "{item.get("reviewed_at", now_iso)}"')
+        lines.append(f'rationale = "{_escape_toml_str(item.get("rationale", ""))}"')
+        lines.append(f'reviewed_by = "{_escape_toml_str(item.get("reviewed_by", "developer"))}"')
+        lines.append(f'reviewed_at = "{_escape_toml_str(item.get("reviewed_at", now_iso))}"')
 
-        branch_strs = [f'"{b}"' for b in item.get("branches", [])]
+        branch_strs = [f'"{_escape_toml_str(b)}"' for b in item.get("branches", [])]
         lines.append(f"branches = [{', '.join(branch_strs)}]")
         lines.append("")
 

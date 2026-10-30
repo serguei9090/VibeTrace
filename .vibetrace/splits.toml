@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T00:28:00.497955+00:00"
-total_records = 3
+updated_at = "2026-10-30T00:41:35.087868+00:00"
+total_records = 5
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -15,7 +15,7 @@ code_hash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 branches_count = 2
 rationale = "Automated test verification"
 reviewed_by = "pytest"
-reviewed_at = "2026-10-30T00:27:54.796700+00:00"
+reviewed_at = "2026-10-30T00:37:22.194063+00:00"
 branches = ["branch1", "branch2"]
 
 [[splits]]
@@ -27,7 +27,7 @@ code_hash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 branches_count = 2
 rationale = "Architectural review verified"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T00:28:00.497955+00:00"
+reviewed_at = "2026-10-30T00:37:26.406564+00:00"
 branches = ["b1", "b2"]
 
 [[splits]]
@@ -40,4 +40,28 @@ branches_count = 2
 rationale = "Master indexing orchestrator dispatch"
 reviewed_by = "lead_dev"
 reviewed_at = "2026-10-30T00:19:07.807926+00:00"
+branches = ["load_config", "load_ignore_spec"]
+
+[[splits]]
+symbol = "hybrid_search"
+qualified_name = "hybrid_search"
+file_path = "src/vibetrace/services/hybrid_search.py"
+status = "approved"
+code_hash = "9407c32f0d17e51eff0aea2f064da871b02c2d3db788a1953b6487cf4eac8172"
+branches_count = 4
+rationale = "4-stream hybrid search fusion engine (BM25 + AST + Vector)"
+reviewed_by = "lead_dev"
+reviewed_at = "2026-10-30T00:38:10.048754+00:00"
+branches = ["EmbeddingEngine", "search_semantic", "get_nodes_by_ids", "SearchResult"]
+
+[[splits]]
+symbol = "load_gitignore"
+qualified_name = "load_gitignore"
+file_path = "src/vibetrace/indexer/main.py"
+status = "approved"
+code_hash = "d320406cb2ba621751077e14991d49dd36b6aa5377dddb5280e09f396f314683"
+branches_count = 2
+rationale = "Architectural review verified"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T00:41:35.086786+00:00"
 branches = ["load_config", "load_ignore_spec"]
