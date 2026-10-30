@@ -564,3 +564,50 @@ class ProjectLinksInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class AuditSplitsInput(BaseModel):
+    """Input model for auditing cross-module execution splits against baseline."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol: str | None = Field(
+        default=None,
+        description="Optional symbol to filter audit results (e.g. 'find_nodes_by_name')",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ApproveSplitInput(BaseModel):
+    """Input model for recording approval of an architectural split in .vibetrace/splits.toml."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol: str = Field(..., description="Function or method symbol name", min_length=1)
+    code_hash: str = Field(..., description="SHA-256 hash of the normalized function body")
+    qualified_name: str | None = Field(default=None, description="Optional qualified symbol name")
+    file_path: str = Field(default="", description="Source file path")
+    branches: list[str] = Field(
+        default_factory=list, description="Target outgoing branches or callees"
+    )
+    status: str = Field(
+        default="approved",
+        description="Review status: 'approved' or 'risk'",
+    )
+    rationale: str = Field(
+        default="Architectural review verified",
+        description="Explanation or review justification",
+    )
+    reviewed_by: str = Field(
+        default="developer",
+        description="Name or ID of reviewer / agent",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

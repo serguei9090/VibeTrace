@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from vibetrace.cli_audit import cmd_audit_splits
 from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
@@ -48,6 +49,8 @@ examples:
   vibetrace hooks status                # Inspect git hook background sync status
   vibetrace hooks install               # Auto-configure Lefthook or native git hooks
   vibetrace serve                       # Start Map Room API and WebSocket daemon
+  vibetrace audit splits                # Audit cross-module splits & interactive triage
+  vibetrace audit splits --ci           # CI gate: fail on unapproved or modified splits
 """
     parser = argparse.ArgumentParser(
         prog="vibetrace",
@@ -581,6 +584,34 @@ examples:
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
     p_bundle.set_defaults(func=cmd_bundle)
+
+    # audit (architectural pattern & split triage)
+    p_audit = sub.add_parser(
+        "audit",
+        help="Audit architectural patterns, security bounds, and execution splits",
+        description="Audit code execution splits against .vibetrace/splits.toml baseline.",
+    )
+    p_audit_sub = p_audit.add_subparsers(dest="audit_target", required=True)
+
+    p_splits = p_audit_sub.add_parser(
+        "splits",
+        help="Audit cross-module execution bifurcations against version-controlled baseline",
+    )
+    p_splits.add_argument("--symbol", default=None, help="Filter audit to a specific symbol")
+    p_splits.add_argument(
+        "--ci",
+        action="store_true",
+        help="Run in non-interactive CI mode (exit code 1 if unapproved or modified splits exist)",
+    )
+    p_splits.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail CI if any split is flagged as RISK",
+    )
+    p_splits.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_splits.set_defaults(func=cmd_audit_splits)
 
     # project (federated multi-repo workspace)
     register_project_parser(sub)

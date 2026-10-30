@@ -27,6 +27,10 @@ from vibetrace.services.graph_service import (
     read_file_lines,
     trace_execution_path,
 )
+from vibetrace.services.split_audit_service import (
+    audit_splits,
+    record_split_approval,
+)
 
 
 class ReindexPayload(BaseModel):
@@ -47,6 +51,19 @@ class AgentFocusPayload(BaseModel):
     summary: str = ""
     from_symbol: str | None = None
     to_symbol: str | None = None
+
+
+class SplitApprovePayload(BaseModel):
+    """Payload to approve an architectural split bifurcation."""
+
+    symbol: str
+    qualified_name: str | None = None
+    file_path: str = ""
+    code_hash: str = ""
+    branches: list[str] = Field(default_factory=list)
+    status: str = "approved"
+    rationale: str = "Architectural review verified"
+    reviewed_by: str = "developer"
 
 
 # Global Managers
@@ -274,6 +291,32 @@ def get_reachable_symbols(
         "count": len(symbols),
         "reachable_symbols": symbols,
     }
+
+
+@app.get("/api/splits/audit")
+def get_splits_audit(
+    symbol: str | None = Query(default=None),
+):
+    """Audits detected architectural bifurcations against .vibetrace/splits.toml baseline."""
+    report = audit_splits(db, Path(project_root), symbol=symbol)
+    return report.model_dump()
+
+
+@app.post("/api/splits/approve")
+def approve_split_endpoint(payload: SplitApprovePayload):
+    """Records architectural approval of a code split with deterministic SHA-256 hash."""
+    path = record_split_approval(
+        project_root=Path(project_root),
+        symbol=payload.symbol,
+        qualified_name=payload.qualified_name or payload.symbol,
+        file_path=payload.file_path,
+        code_hash=payload.code_hash,
+        branches=payload.branches,
+        status=payload.status,
+        rationale=payload.rationale,
+        reviewed_by=payload.reviewed_by,
+    )
+    return {"status": "ok", "baseline_path": str(path)}
 
 
 @app.get("/call-tree")

@@ -69,7 +69,8 @@ test-results/
 /scratch/
 
 # VibeTrace local storage & vectors
-.vibetrace/
+.vibetrace/*
+!.vibetrace/splits.toml
 vibetrace_context/
 *.lance/
 *.lance

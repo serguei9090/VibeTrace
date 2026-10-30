@@ -25,11 +25,14 @@ from vibetrace.mcp.formatters import (
     format_saved_traces_md,
     format_semantic_search_md,
     format_signature_search_md,
+    format_split_audit_md,
     format_structural_summary_md,
     format_trace_path_md,
     format_vibe_bundle_markdown,
 )
 from vibetrace.mcp.schemas import (
+    ApproveSplitInput,
+    AuditSplitsInput,
     CallerGuardInput,
     CallStackInput,
     CallTreeInput,
@@ -617,6 +620,64 @@ async def vibetrace_get_vibe_bundle(params: VibeBundleInput) -> str:
         return format_vibe_bundle_markdown(bundle)
     except Exception as e:
         return handle_error(e, f"assembling vibe bundle for '{params.intent}'")
+
+
+@mcp.tool(name="vibetrace_audit_splits", annotations=_READ_ONLY)
+async def vibetrace_audit_splits(params: AuditSplitsInput) -> str:
+    """Audit cross-module execution bifurcations against .vibetrace/splits.toml baseline.
+
+    Detects functions whose outgoing calls route across multiple distinct files.
+    """
+    try:
+        from vibetrace.services.split_audit_service import audit_splits
+
+        db, root = get_context_for_path(params.scope_path)
+        report = audit_splits(db, Path(root), symbol=params.symbol)
+
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+        return format_split_audit_md(report)
+    except Exception as e:
+        return handle_error(e, "auditing architectural splits")
+
+
+@mcp.tool(name="vibetrace_approve_split", annotations=_MUTATION)
+async def vibetrace_approve_split(params: ApproveSplitInput) -> str:
+    """Approve or record an architectural execution split in .vibetrace/splits.toml.
+
+    Uses SHA-256 code hashing to ensure changes trigger review re-validation.
+    """
+    try:
+        from vibetrace.services.split_audit_service import record_split_approval
+
+        _, root = get_context_for_path(params.scope_path)
+        baseline_path = record_split_approval(
+            project_root=Path(root),
+            symbol=params.symbol,
+            qualified_name=params.qualified_name or params.symbol,
+            file_path=params.file_path,
+            code_hash=params.code_hash,
+            branches=params.branches,
+            status=params.status,
+            rationale=params.rationale,
+            reviewed_by=params.reviewed_by,
+        )
+        msg = {
+            "status": "ok",
+            "symbol": params.symbol,
+            "code_hash": params.code_hash,
+            "review_status": params.status,
+            "baseline_file": str(baseline_path),
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(msg, indent=2)
+        hash_short = params.code_hash[:8]
+        return (
+            f"✅ Successfully approved split for `{params.symbol}` with hash `{hash_short}`.\n"
+            f"Recorded in `{baseline_path}`."
+        )
+    except Exception as e:
+        return handle_error(e, f"recording split approval for '{params.symbol}'")
 
 
 register_project_tools(mcp)

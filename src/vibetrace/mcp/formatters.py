@@ -371,3 +371,41 @@ def format_caller_guard_markdown(report: Any) -> str:
 def format_vibe_bundle_markdown(bundle: Any) -> str:
     """Format vibe bundle for MCP responses."""
     return getattr(bundle, "formatted_prompt", "")
+
+
+def format_split_audit_md(report: Any) -> str:
+    """Format architectural split audit report as clean Markdown."""
+    lines = [
+        "## Architectural Split Audit Report",
+        "",
+        f"- **Total Splits Detected:** {report.total_splits}",
+        f"- **Approved:** {report.approved_count} ✅",
+        f"- **Modified Code:** {report.modified_count} ⚠️",
+        f"- **New Unapproved:** {report.new_unapproved_count} ❓",
+        "",
+    ]
+    if not report.splits:
+        lines.append("No cross-module bifurcations detected.")
+        return "\n".join(lines)
+
+    lines.append("| Status | Symbol | File | Branches | Hash | Rationale |")
+    lines.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
+
+    for s in report.splits:
+        st_icon = "❓ NEW"
+        if s.status == "APPROVED":
+            st_icon = "✅ APPROVED"
+        elif s.status == "MODIFIED_CODE":
+            st_icon = "⚠️ MODIFIED"
+        elif s.status == "RISK":
+            st_icon = "🛑 RISK"
+
+        short_hash = s.code_hash[:8] if s.code_hash else "n/a"
+        file_loc = f"`{s.file_path}:L{s.start_line}`"
+        rationale = s.rationale or "-"
+        lines.append(
+            f"| {st_icon} | `{s.symbol}` | {file_loc} | "
+            f"{s.branches_count} | `{short_hash}` | {rationale} |"
+        )
+
+    return "\n".join(lines).strip()

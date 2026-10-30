@@ -5,6 +5,7 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { RawGraphEdge, RawGraphNode, SelectedElement } from "../types";
 import { CallerGuardBadge } from "./CallerGuardBadge";
+import { SplitAuditCard } from "./SplitAuditCard";
 import { VibeBundleButton } from "./VibeBundleButton";
 
 interface CodeInspectorDrawerProps {
@@ -200,6 +201,13 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
         </div>
         <VibeBundleButton apiUrl={apiUrl} symbolName={targetNode.name} />
       </div>
+
+      <SplitAuditCard
+        apiUrl={apiUrl}
+        symbolName={targetNode.name}
+        qualifiedName={targetNode.qualified_name}
+        filePath={targetNode.file_path}
+      />
 
       {selectedEdge && calleeNode && (
         <div

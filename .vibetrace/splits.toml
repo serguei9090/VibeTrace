@@ -1,0 +1,43 @@
+# VibeTrace Architectural Splits Baseline
+# Auto-generated & version-controlled in Git
+
+[meta]
+version = "1.0.0"
+updated_at = "2026-10-30T00:28:00.497955+00:00"
+total_records = 3
+
+[[splits]]
+symbol = "test_symbol_approval"
+qualified_name = "test_symbol_approval"
+file_path = "src/vibetrace/dummy.py"
+status = "approved"
+code_hash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+branches_count = 2
+rationale = "Automated test verification"
+reviewed_by = "pytest"
+reviewed_at = "2026-10-30T00:27:54.796700+00:00"
+branches = ["branch1", "branch2"]
+
+[[splits]]
+symbol = "mcp_test_split"
+qualified_name = "mcp_test_split"
+file_path = "src/mcp_test.py"
+status = "approved"
+code_hash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+branches_count = 2
+rationale = "Architectural review verified"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T00:28:00.497955+00:00"
+branches = ["b1", "b2"]
+
+[[splits]]
+symbol = "reindex_all"
+qualified_name = "reindex_all"
+file_path = "src/vibetrace/indexer/main.py"
+status = "approved"
+code_hash = "f55f265365e21f291f1e2ba2ec6c25ef3bf995d26c0616b290c54f4a9a8a0a0d"
+branches_count = 2
+rationale = "Master indexing orchestrator dispatch"
+reviewed_by = "lead_dev"
+reviewed_at = "2026-10-30T00:19:07.807926+00:00"
+branches = ["load_config", "load_ignore_spec"]
