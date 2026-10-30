@@ -637,6 +637,16 @@ examples:
     p_security.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
+    p_security.add_argument(
+        "--update",
+        action="store_true",
+        help="Force refresh vulnerability intelligence from Google OSV (bypassing 24h cache)",
+    )
+    p_security.add_argument(
+        "--skip-deps",
+        action="store_true",
+        help="Skip dependency lockfile CVE checking (AST code scan only)",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)

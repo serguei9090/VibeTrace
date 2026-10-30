@@ -111,3 +111,73 @@ def test_security_baseline_lifecycle(tmp_path: Path):
     report3 = SecurityBaselineManager.apply_baseline_to_findings(findings_mod, tmp_path)
     assert report3.modified_count == 1
     assert report3.findings[0].status == "MODIFIED_CODE"
+
+
+def test_lockfile_parser_uv_and_bun(tmp_path: Path):
+    from vibetrace.security.lockfile_parser import LockfileParser
+
+    # Create dummy uv.lock
+    uv_file = tmp_path / "uv.lock"
+    uv_file.write_text(
+        '[[package]]\nname = "vulnerable-pkg"\nversion = "1.0.0"\n', encoding="utf-8"
+    )
+
+    # Create dummy bun.lock
+    web_dir = tmp_path / "web"
+    web_dir.mkdir()
+    bun_file = web_dir / "bun.lock"
+    bun_file.write_text('{"packages": {"axios": ["axios@0.21.1", "", {}]}}', encoding="utf-8")
+
+    packages = LockfileParser.parse_all_lockfiles(tmp_path)
+    assert len(packages) == 2
+    pkg_map = {p.name: p for p in packages}
+    assert "vulnerable-pkg" in pkg_map
+    assert pkg_map["vulnerable-pkg"].version == "1.0.0"
+    assert pkg_map["vulnerable-pkg"].ecosystem == "PyPI"
+
+    assert "axios" in pkg_map
+    assert pkg_map["axios"].version == "0.21.1"
+    assert pkg_map["axios"].ecosystem == "npm"
+
+
+def test_osv_client_caching_and_mapping(tmp_path: Path):
+    from unittest.mock import patch
+
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.security.lockfile_parser import DependencyPackage
+    from vibetrace.security.osv_client import OsvClient
+
+    db_path = tmp_path / "test.db"
+    db = IndexerDB(str(db_path))
+
+    pkgs = [
+        DependencyPackage(
+            name="demo-pkg", version="1.0.0", ecosystem="PyPI", lockfile_path="uv.lock"
+        )
+    ]
+
+    mock_osv_vulns = {
+        ("PyPI", "demo-pkg", "1.0.0"): [
+            {
+                "id": "GHSA-1234-abcd",
+                "summary": "Critical remote code execution vulnerability",
+                "database_specific": {"severity": "CRITICAL"},
+                "affected": [{"ranges": [{"events": [{"fixed": "1.0.1"}]}]}],
+            }
+        ]
+    }
+
+    with patch.object(OsvClient, "_fetch_from_osv", return_value=mock_osv_vulns) as mock_fetch:
+        # First query -> calls OSV & caches
+        findings = OsvClient.query_vulnerabilities(pkgs, db)
+        assert len(findings) == 1
+        assert findings[0].id == "SEC-GHSA-1234-abcd-demo-pkg-1.0.0"
+        assert findings[0].severity == "CRITICAL"
+        assert 'demo-pkg >= "1.0.1"' in (findings[0].compliant_snippet or "")
+        assert mock_fetch.call_count == 1
+
+        # Second query -> pulls from cache (0 new network calls)
+        findings2 = OsvClient.query_vulnerabilities(pkgs, db)
+        assert len(findings2) == 1
+        assert findings2[0].id == findings[0].id
+        assert mock_fetch.call_count == 1

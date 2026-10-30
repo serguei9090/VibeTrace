@@ -138,7 +138,15 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
     project_root = Path(root)
 
     file_filter = getattr(args, "file", None)
-    report = SecurityService.audit_project(db, project_root, file_filter=file_filter)
+    skip_deps = getattr(args, "skip_deps", False)
+    force_update = getattr(args, "update", False)
+    report = SecurityService.audit_project(
+        db,
+        project_root,
+        file_filter=file_filter,
+        check_dependencies=not skip_deps,
+        force_update_cves=force_update,
+    )
 
     is_json = getattr(args, "json", False)
     is_ci = getattr(args, "ci", False)
