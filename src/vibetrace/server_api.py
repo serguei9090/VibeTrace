@@ -643,73 +643,22 @@ def get_summary_endpoint(
 @app.post("/api/reindex")
 def post_reindex_endpoint(payload: ReindexPayload | None = None):
     """Reindex the workspace or a single file on demand."""
-    from vibetrace.indexer.main import index_file, reindex_all
+    from vibetrace.services.reindex_service import ReindexService
 
     eff_payload = payload or ReindexPayload()
-    if eff_payload.file_path:
-        norm_path = normalize_path(eff_payload.file_path, Path(project_root))
-        abs_target = (Path(project_root) / norm_path).resolve()
-        root_resolved = Path(project_root).resolve()
-        if not abs_target.is_relative_to(root_resolved):
-            msg = f"Access denied: file path '{eff_payload.file_path}' is outside project root."
-            raise HTTPException(status_code=403, detail=msg)
-        if not abs_target.exists():
-            raise HTTPException(
-                status_code=404, detail=f"File not found: '{eff_payload.file_path}'"
-            )
-        indexed = index_file(
-            db, str(abs_target), project_root=Path(project_root), force=eff_payload.force
+    try:
+        return ReindexService.execute_reindex(
+            db=db,
+            project_root=Path(project_root),
+            file_path=eff_payload.file_path,
+            force=eff_payload.force,
+            embed=eff_payload.embed,
+            docs=eff_payload.docs,
         )
-        return {
-            "status": "ok",
-            "mode": "single_file",
-            "file_path": norm_path,
-            "indexed": indexed,
-        }
-
-    reindex_all(
-        db,
-        str(project_root),
-        verbose=False,
-        force=eff_payload.force,
-        project_root=Path(project_root),
-    )
-    embedded_count = 0
-    if eff_payload.embed:
-        from vibetrace.indexer.embeddings import EmbeddingEngine
-
-        engine = EmbeddingEngine(project_root=Path(project_root))
-        if engine.is_available():
-            embedded_count = engine.index_missing_embeddings(db)
-
-    doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
-    if eff_payload.docs:
-        try:
-            from vibetrace.docs.db import DocDB
-            from vibetrace.docs.service import DocCatalogManager, DocIndexService
-
-            active_root = Path(project_root).resolve()
-            local_cats = [
-                c for c in DocCatalogManager.list_catalogs(active_root) if c.scope == "local"
-            ]
-            if local_cats:
-                doc_db = DocDB(db.db_path)
-                for cat in local_cats:
-                    res_doc = DocIndexService.index_catalog(
-                        cat.name, cat.paths, doc_db, active_root, force=eff_payload.force
-                    )
-                    doc_stats["catalogs"] += 1
-                    doc_stats["files"] += res_doc.get("files", 0)
-                    doc_stats["chunks"] += res_doc.get("chunks", 0)
-        except Exception:
-            pass
-
-    return {
-        "status": "ok",
-        "mode": "workspace",
-        "embedded_count": embedded_count,
-        "docs": doc_stats,
-    }
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/skill")

@@ -237,24 +237,39 @@ class JavaScriptParser(LanguageParser):
                 saved_local_types = dict(ctx.local_types)
                 name_node = node.child_by_field_name("name")
                 name = self._get_text(name_node) if name_node else "<anonymous>"
-                # Support `const divide = (a, b) => a / b` variable declarators or CommonJS exports
+                # Support `const divide = (a, b) => a / b`,
+                # `useCallback(() => ...)`, or CommonJS exports
                 if name == "<anonymous>" and node.parent:
-                    if node.parent.type == "variable_declarator":
-                        if decl_name := node.parent.child_by_field_name("name"):
-                            name = self._get_text(decl_name)
-                    elif node.parent.type == "assignment_expression":
-                        if ln := node.parent.child_by_field_name("left"):
-                            ln_t = self._get_text(ln).strip()
-                            if ln_t.startswith(("exports.", "module.exports.")):
-                                name = ln_t.split(".")[-1]
-                                visibility = "exported"
-                    elif node.parent.type == "export_statement":
-                        stem = file_path.rsplit(".", 1)[0].split("/")[-1]
-                        if stem in ("index", "mod") and "/" in file_path:
-                            parts = file_path.split("/")
-                            stem = parts[-2] if len(parts) >= 2 else stem
-                        name = stem or "<anonymous>"
-                        visibility = "exported"
+                    curr = node.parent
+                    while curr and curr.type in (
+                        "arguments",
+                        "call_expression",
+                        "parenthesized_expression",
+                        "as_expression",
+                        "type_assertion",
+                        "satisfies_expression",
+                    ):
+                        curr = curr.parent
+
+                    if curr:
+                        if curr.type == "variable_declarator":
+                            if decl_name := curr.child_by_field_name("name"):
+                                name = self._get_text(decl_name)
+                        elif curr.type == "assignment_expression":
+                            if ln := curr.child_by_field_name("left"):
+                                ln_t = self._get_text(ln).strip()
+                                if ln_t.startswith(("exports.", "module.exports.")):
+                                    name = ln_t.split(".")[-1]
+                                    visibility = "exported"
+                                else:
+                                    name = ln_t
+                        elif curr.type == "export_statement":
+                            stem = file_path.rsplit(".", 1)[0].split("/")[-1]
+                            if stem in ("index", "mod") and "/" in file_path:
+                                parts = file_path.split("/")
+                                stem = parts[-2] if len(parts) >= 2 else stem
+                            name = stem or "<anonymous>"
+                            visibility = "exported"
 
                 if name == "<anonymous>":
                     name = f"<anonymous:L{node.start_point[0] + 1}>"

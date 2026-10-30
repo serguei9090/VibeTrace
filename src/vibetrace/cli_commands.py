@@ -13,7 +13,6 @@ from vibetrace.cli_docs import cmd_docs
 __all__ = ["cmd_docs"]
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
-from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.formatters import (
     format_code_slice_md,
     format_dependencies_md,
@@ -54,63 +53,28 @@ def cmd_index(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(
         target, auto_sync=False, root_override=getattr(args, "root", None)
     )
-    reindex_all(
-        db,
-        target,
-        verbose=not args.json,
+    from vibetrace.services.reindex_service import ReindexService
+
+    res = ReindexService.execute_reindex(
+        db=db,
+        project_root=Path(root),
         force=args.force,
-        project_root=root,
+        embed=args.embed,
+        docs=not getattr(args, "no_docs", False),
         use_lsp=args.lsp,
+        verbose=not args.json,
+        is_json=args.json,
     )
-
-    embedded_count = 0
-    if args.embed:
-        engine = EmbeddingEngine(project_root=root)
-        if not engine.is_available():
-            msg = (
-                "Optional [embeddings] extra not installed. Run: uv pip install -e '.[embeddings]'"
-            )
-            if args.json:
-                print(json.dumps({"status": "indexed", "embeddings_error": msg}))
-                return 0
-            print(f"Warning: {msg}", file=sys.stderr)
-        else:
-            embedded_count = engine.index_missing_embeddings(db)
-            if not args.json:
-                print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
-
-    # Auto-sync local documentation catalogs unless explicitly disabled
-    doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
-    if not getattr(args, "no_docs", False):
-        try:
-            from vibetrace.docs.db import DocDB
-            from vibetrace.docs.service import DocCatalogManager, DocIndexService
-
-            local_cats = [c for c in DocCatalogManager.list_catalogs(root) if c.scope == "local"]
-            if local_cats:
-                doc_db = DocDB(db.db_path)
-                for cat in local_cats:
-                    res_doc = DocIndexService.index_catalog(
-                        cat.name, cat.paths, doc_db, root, force=args.force
-                    )
-                    doc_stats["catalogs"] += 1
-                    doc_stats["files"] += res_doc.get("files", 0)
-                    doc_stats["chunks"] += res_doc.get("chunks", 0)
-                if not args.json and (doc_stats["files"] > 0 or doc_stats["chunks"] > 0):
-                    print(
-                        f"Synchronized {doc_stats['files']} doc files "
-                        f"({doc_stats['chunks']} chunks) across {doc_stats['catalogs']} catalog(s)."
-                    )
-        except Exception:
-            pass
 
     if args.json:
         payload = {
             "status": "ok",
             "path": target,
-            "embedded_count": embedded_count,
-            "docs": doc_stats,
+            "embedded_count": res.get("embedded_count", 0),
+            "docs": res.get("doc_stats", {}),
         }
+        if "embeddings_error" in res:
+            payload["embeddings_error"] = res["embeddings_error"]
         print(json.dumps(payload, indent=2))
     return 0
 

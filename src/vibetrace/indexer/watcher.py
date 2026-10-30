@@ -154,6 +154,50 @@ class CodeChangeHandler(FileSystemEventHandler):
         elif self._handle_doc_change(src_path):
             self._schedule_post_sync()
 
+    def _clear_directory_index(self, rel_dir: str) -> bool:
+        """Removes all files under a relative directory from index and resolver."""
+        prefix = f"{rel_dir}/" if rel_dir not in ("", ".") else ""
+        all_files = self.db.get_all_indexed_file_paths()
+        deleted_any = False
+        for f in all_files:
+            if f.startswith(prefix) or f == rel_dir:
+                self.db.clear_file(f)
+                self.resolver.remove_file(f)
+                deleted_any = True
+        return deleted_any
+
+    def _clear_single_file_index(self, rel_path: str) -> bool:
+        """Removes a single file from resolver and database index."""
+        was_indexed = (
+            rel_path in self.resolver.known_files or self.db.get_file_hash(rel_path) is not None
+        )
+        if was_indexed:
+            self.resolver.remove_file(rel_path)
+            self.db.clear_file(rel_path)
+            return True
+        return False
+
+    def _index_directory_tree(self, dest_path: str) -> None:
+        """Recursively discovers and indexes files under a target directory."""
+        dest_dir = Path(dest_path)
+        if not dest_dir.exists():
+            return
+        for root, dirs, files in os.walk(dest_dir):
+            dirs[:] = [d for d in dirs if not self._should_ignore(str(Path(root) / d))]
+            for file in files:
+                full_file = Path(root) / file
+                if not self._should_ignore(str(full_file)):
+                    rel_f = self._to_rel_path(str(full_file))
+                    indexed = index_file(
+                        self.db,
+                        str(full_file),
+                        project_root=self.root_path,
+                        resolver=self.resolver,
+                        force=True,
+                    )
+                    if indexed:
+                        self.resolver.add_file(rel_f)
+
     def on_deleted(self, event):
         src_path = str(event.src_path)
         if self._should_ignore(src_path):
@@ -165,30 +209,15 @@ class CodeChangeHandler(FileSystemEventHandler):
 
         if event.is_directory:
             rel_dir = self._to_rel_path(src_path)
-            prefix = f"{rel_dir}/" if rel_dir not in ("", ".") else ""
-            all_files = self.db.get_all_indexed_file_paths()
-            deleted_any = False
-            for f in all_files:
-                if f.startswith(prefix) or f == rel_dir:
-                    self.db.clear_file(f)
-                    self.resolver.remove_file(f)
-                    deleted_any = True
-            if deleted_any:
+            if self._clear_directory_index(rel_dir):
                 print(f"Directory deleted: {rel_dir} (cleared indexed files)")
                 self._schedule_post_sync()
             return
 
         rel_path = self._to_rel_path(src_path)
-        was_indexed = (
-            rel_path in self.resolver.known_files or self.db.get_file_hash(rel_path) is not None
-        )
-        if not was_indexed:
-            return
-
-        print(f"File deleted: {rel_path}")
-        self.resolver.remove_file(rel_path)
-        self.db.clear_file(rel_path)
-        self._schedule_post_sync()
+        if self._clear_single_file_index(rel_path):
+            print(f"File deleted: {rel_path}")
+            self._schedule_post_sync()
 
     def on_moved(self, event):
         src_path = str(event.src_path)
@@ -204,43 +233,17 @@ class CodeChangeHandler(FileSystemEventHandler):
 
         if event.is_directory:
             if not src_ignored:
-                prefix = f"{rel_src}/" if rel_src not in ("", ".") else ""
-                all_files = self.db.get_all_indexed_file_paths()
-                for f in all_files:
-                    if f.startswith(prefix) or f == rel_src:
-                        self.db.clear_file(f)
-                        self.resolver.remove_file(f)
-
+                self._clear_directory_index(rel_src)
             if not dest_ignored:
-                dest_dir = Path(dest_path)
-                if dest_dir.exists():
-                    for root, dirs, files in os.walk(dest_dir):
-                        dirs[:] = [d for d in dirs if not self._should_ignore(str(Path(root) / d))]
-                        for file in files:
-                            full_file = Path(root) / file
-                            if not self._should_ignore(str(full_file)):
-                                rel_f = self._to_rel_path(str(full_file))
-                                indexed = index_file(
-                                    self.db,
-                                    str(full_file),
-                                    project_root=self.root_path,
-                                    resolver=self.resolver,
-                                    force=True,
-                                )
-                                if indexed:
-                                    self.resolver.add_file(rel_f)
+                self._index_directory_tree(dest_path)
             print(f"Directory moved: {rel_src} -> {rel_dest}")
             self._schedule_post_sync()
             return
 
         print(f"File moved: {rel_src} -> {rel_dest}")
         changed = False
-        if not src_ignored and (
-            rel_src in self.resolver.known_files or self.db.get_file_hash(rel_src) is not None
-        ):
-            self.resolver.remove_file(rel_src)
-            self.db.clear_file(rel_src)
-            changed = True
+        if not src_ignored:
+            changed = self._clear_single_file_index(rel_src)
         if not dest_ignored:
             indexed = index_file(
                 self.db,
@@ -252,6 +255,7 @@ class CodeChangeHandler(FileSystemEventHandler):
             if indexed:
                 self.resolver.add_file(rel_dest)
                 changed = True
+
         if changed:
             self._schedule_post_sync()
 
