@@ -406,7 +406,7 @@ export function useMapRoomState() {
       let secRank = -1;
       for (const f of securityFindings.current) {
         if (
-          f.file_path === d.file_path &&
+          f.file_path.replace(/\\/g, "/") === (d.file_path ?? "").replace(/\\/g, "/") &&
           f.start_line <= (d.end_line ?? 0) &&
           f.end_line >= (d.start_line ?? 0)
         ) {

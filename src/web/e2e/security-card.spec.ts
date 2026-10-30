@@ -24,7 +24,9 @@ test.describe("Security audit card", () => {
     let approvePayload: Record<string, unknown> | null = null;
 
     await page.route("**/api/security/audit**", async (route) => {
-      const filePath = new URL(route.request().url()).searchParams.get("file_path") ?? "x.py";
+      const filePath =
+        new URL(route.request().url()).searchParams.get("file_path") ??
+        "src/vibetrace/indexer/main.py";
       await route.fulfill({
         json: {
           total_findings: 1,
@@ -56,6 +58,7 @@ test.describe("Security audit card", () => {
 
     const node = page.locator(".vibe-node").filter({ hasText: "reindex_all" }).first();
     await expect(node).toBeVisible({ timeout: 15000 });
+    await expect(node).toContainText("🛡️ CRITICAL");
     await node.click();
 
     const row = page.getByRole("button", { name: /CWE-78/ });

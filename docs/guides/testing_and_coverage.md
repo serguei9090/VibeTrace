@@ -63,7 +63,7 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_custom_sanitizer_from_toml_and_no_taint_flag` | `[taint] sanitizers` in security.toml, preserved on rewrite | Custom sanitizer blocks escalation. | ✅ PASS |
 | `test_no_taint_flag_disables_escalation` | `--no-taint` / `analyze_taint=False` | No escalation. | ✅ PASS |
 
-| `e2e/security-card.spec.ts` (Playwright) | Map Room `SecurityAuditCard`: taint path, **Show path** (calls `/trace`), copy AI fix prompt, approve exception | Card renders from `/api/security/audit`; actions hit the right endpoints. | ✅ PASS |
+| `e2e/security-card.spec.ts` (Playwright) | Map Room `🛡️ CRITICAL` node radar badge + `SecurityAuditCard`: taint path, **Show path** (calls `/trace`), copy AI fix prompt, approve exception | Card renders from `/api/security/audit`; actions hit the right endpoints. | ✅ PASS |
 
 | `test_sql_injection_and_path_traversal_detection` | CWE-89 (SQLi) and CWE-22 (Path Traversal) | Dynamic SQL and unvalidated file paths flagged. | ✅ PASS |
 | `test_poetry_and_requirements_lockfiles` | `poetry.lock` and `requirements.txt` + SHA-256 lockfile memoization | PyPI packages extracted and memoized. | ✅ PASS |
@@ -73,7 +73,7 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_go_and_rust_security_rules` | Go & Rust `CWE-78` and `CWE-327` | Flags shell `-c` invocations and MD5/SHA1 in Go and Rust. | ✅ PASS |
 | `test_sarif_export_and_cli_approve` | SARIF 2.1.0 `--sarif` export and CLI `--approve` | Emits valid SARIF 2.1.0 JSON; `--approve` records baseline exceptions. | ✅ PASS |
 
-> **Known gap:** node radar badges have no automated test; taint is call-edge reachability only (no data-flow), so false positives are possible.
+> **Known gap:** taint is call-edge reachability only (no data-flow), so false positives are possible.
 
 ---
 
