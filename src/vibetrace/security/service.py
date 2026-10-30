@@ -10,6 +10,7 @@ from vibetrace.security.baseline import SecurityBaselineManager
 from vibetrace.security.lockfile_parser import LockfileParser
 from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
+from vibetrace.security.taint_engine import TaintEngine
 
 
 class SecurityService:
@@ -23,6 +24,7 @@ class SecurityService:
         file_filter: str | None = None,
         check_dependencies: bool = True,
         force_update_cves: bool = False,
+        analyze_taint: bool = True,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
@@ -41,6 +43,10 @@ class SecurityService:
         for f_path in target_files:
             file_findings = AstSecurityScanner.scan_file(f_path, project_root)
             findings.extend(file_findings)
+
+        # 1b. Call-graph reachability from untrusted entry points to injection sinks
+        if analyze_taint:
+            findings = TaintEngine.analyze(db, findings)
 
         # 2. Dependency lockfile CVE scanning (Google OSV)
         if check_dependencies and not file_filter:
