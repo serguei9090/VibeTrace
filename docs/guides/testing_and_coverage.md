@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 470 / 470 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 480 / 480 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 languages), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (FastMCP 20 tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
+The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 languages), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (FastMCP 22 tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
 
 All **470 automated tests** in `tests/` pass with zero failures.
 
@@ -38,6 +38,23 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_split_audit_cli_flags` | CLI interface `vibetrace audit splits [--ci] [--strict]` | CLI reports colored summary. With `--ci` or `--strict`, exits with code 1 if unapproved or modified splits exist; exits 0 when clean. | ✅ PASS |
 | `test_toml_special_character_escaping` | Robust baseline persistence with paths containing backslashes and quotes | Confirms `_escape_toml_str` preserves Windows paths (`C:\...`) and arbitrary symbols in `.vibetrace/splits.toml` without syntax errors. | ✅ PASS |
 | `test_mcp_split_audit_tools` | FastMCP tools `vibetrace_audit_splits` and `vibetrace_approve_split` | Verifies AI coding agents can inspect and triage split audits programmatically via stdio/SSE protocol. | ✅ PASS |
+
+### 2.2b Security Audit (`tests/test_security_audit.py`)
+
+| Test | Use Case | Expected Behavior | Status |
+| :--- | :--- | :--- | :---: |
+| `test_command_injection_detection` | CWE-78 (`os.system`, `shell=True`) | Flagged with severity and guidance. | ✅ PASS |
+| `test_eval_injection_detection` | CWE-95 | `eval`/`exec` flagged. | ✅ PASS |
+| `test_hardcoded_secrets_detection` | CWE-798 | Literal credentials flagged. | ✅ PASS |
+| `test_weak_crypto_detection` | CWE-327 | MD5/SHA1 usage flagged. | ✅ PASS |
+| `test_insecure_deserialization_detection` | CWE-502 | `pickle`/unsafe loads flagged. | ✅ PASS |
+| `test_security_baseline_lifecycle` | `UNAPPROVED` → `APPROVED` → `MODIFIED` via `.vibetrace/security.toml` | Code change trips the hash tripwire; whitespace-only edits do not. | ✅ PASS |
+| `test_lockfile_parser_uv_and_bun` | `uv.lock`, `bun.lock` parsing | Packages extracted without invoking package managers. | ✅ PASS |
+| `test_osv_client_caching_and_mapping` | OSV.dev batch client, 24h SQLite cache | Cached results reused; offline falls back silently. | ✅ PASS |
+| `test_security_api_endpoints` | `GET /api/security/audit`, `POST /api/security/approve` | Audit returns findings; approval persists to baseline. | ✅ PASS |
+| `test_mcp_security_tools` | `vibetrace_audit_security`, `vibetrace_approve_security_exception` | Agents can audit and triage over MCP. | ✅ PASS |
+
+> **Known gap:** the Map Room `SecurityAuditCard` and node badges have no automated frontend test yet; Go/Rust/Java AST rules are not covered.
 
 ---
 

@@ -26,7 +26,8 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🤖 Native Model Context Protocol (`vibetrace mcp`)**: 16 purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits surgically.
+- **🛡️ Security Audit (`vibetrace audit security`)**: Offline AST scanner (CWE-78/95/327/502/798) plus lockfile CVE lookup via Google OSV.dev (24h SQLite cache, silent offline fallback), SonarQube-style remediation guidance, hash-tripwire Git baseline (`.vibetrace/security.toml`), Map Room 🛡️ badges and 1-click triage.
+- **🤖 Native Model Context Protocol (`vibetrace mcp`)**: Purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits and security findings surgically.
 - **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a 60 FPS Macro Clustered Package Graph (Option 1), live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
 
 ---
@@ -114,6 +115,11 @@ vibetrace audit splits
 vibetrace audit splits --approve
 # CI/CD gate with deterministic hash tripwires (exits 1 if unapproved or modified)
 vibetrace audit splits --ci --strict
+
+# 6b. Security Audit (AST patterns + dependency CVEs)
+vibetrace audit security
+# CI gate; --skip-deps stays fully offline, --update forces CVE cache refresh
+vibetrace audit security --ci --fail-on high --skip-deps
 
 # 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"
