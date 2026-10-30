@@ -54,7 +54,10 @@ def _is_test_symbol_or_file(name: str, file_path: str) -> bool:
     parts = norm.split("/")
     fname = parts[-1] if parts else ""
     if (
-        any(p in ("tests", "test", "e2e", "__tests__") for p in parts[:-1])
+        any(
+            p in ("tests", "test", "e2e", "__tests__", "codeingesttest", "fixtures")
+            for p in parts[:-1]
+        )
         or fname.startswith("test_")
         or fname.endswith(("_test.py", "_test.go", ".spec.ts", ".test.ts", ".spec.tsx"))
     ):

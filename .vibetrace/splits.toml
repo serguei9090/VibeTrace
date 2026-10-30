@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T17:29:33.514169+00:00"
-total_records = 25
+updated_at = "2026-10-30T18:54:29.126365+00:00"
+total_records = 125
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -305,3 +305,1203 @@ rationale = "Hybrid coverage gate combining AST test-caller reachability with Co
 reviewed_by = "developer"
 reviewed_at = "2026-10-30T17:29:13.742119+00:00"
 branches = ["load_quality_gate_config", "_get_conn", "_is_test_symbol_or_file", "_is_test_symbol_or_file", "UntestedSymbol", "_parse_external_line_coverage", "CoverageGateReport"]
+
+[[splits]]
+symbol = "traverse"
+qualified_name = "JavaScriptParser.extract.traverse"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+status = "approved"
+code_hash = "09e3dc1f88036bbe39df6f5eac8e6c73e8cc478612a8f44ce6e4f5e311f8df34"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.162607+00:00"
+branches = ["_handle_es_export", "_handle_es_import", "_handle_require", "extract_js_endpoint_route"]
+
+[[splits]]
+symbol = "trace_execution_path"
+qualified_name = "trace_execution_path"
+file_path = "src/vibetrace/services/trace_service.py"
+status = "approved"
+code_hash = "1c7a10f347e345d1d7fdb58eff6b2135e5885eac7e885cabb6f294c6b39b3f3d"
+branches_count = 21
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.174972+00:00"
+branches = ["_resolve_symbol_candidates", "_resolve_symbol_candidates", "TracePathResult", "TracePathResult", "TracePathResult", "_get_conn", "TraceHop", "_row_to_trace_node", "_row_to_trace_node", "_detect_split_points", "TracePathResult", "_row_to_trace_node", "_row_to_trace_node", "TracePathResult", "_row_to_trace_node", "_row_to_trace_node", "TracePathResult", "TraceHop", "TracePathResult", "_detect_split_points", "TracePathResult"]
+
+[[splits]]
+symbol = "_handle_definition"
+qualified_name = "PythonParser._handle_definition"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+status = "approved"
+code_hash = "6f6f8901b85f6438907d84b147cc7c1b9cb5f07dd147faf4283da48f7114a26b"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.191427+00:00"
+branches = ["_extract_param_types", "_extract_docstring", "extract_python_routes"]
+
+[[splits]]
+symbol = "get_context_for_path"
+qualified_name = "get_context_for_path"
+file_path = "src/vibetrace/services/graph_service.py"
+status = "approved"
+code_hash = "9993a8c6b2b14f2007c533c7b7325fcc53cbe00e61bee960158e40fa9f6d682d"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.206560+00:00"
+branches = ["load_config", "IndexerDB", "ensure_index_fresh"]
+
+[[splits]]
+symbol = "cmd_init"
+qualified_name = "cmd_init"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "4ff3a6877354c01bc6e409377ee897578e332aa82d6c5afea5d58e60aedfc623"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.220166+00:00"
+branches = ["initialize_workspace", "init"]
+
+[[splits]]
+symbol = "get_caller_guard"
+qualified_name = "CallerGuardService.get_caller_guard"
+file_path = "src/vibetrace/services/caller_guard.py"
+status = "approved"
+code_hash = "a9cc1adec282990ace38a6c535a1d7be3a3cc853f0caebe29b2cd6f92fbc53d5"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.233972+00:00"
+branches = ["CallerGuardReport", "read_file_lines", "CallerSite", "CallerGuardReport"]
+
+[[splits]]
+symbol = "extract"
+qualified_name = "PythonParser.extract"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+status = "approved"
+code_hash = "64ad407bc3245c6c574720f96ecdf542a214b0fa613b235bf5fbe3d8f020ca56"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.248380+00:00"
+branches = ["ParserContext", "extract_python_router_prefixes", "_extract_type_alias_name", "_traverse"]
+
+[[splits]]
+symbol = "search_nodes_endpoint"
+qualified_name = "search_nodes_endpoint"
+file_path = "src/vibetrace/server_api.py"
+status = "approved"
+code_hash = "860e4a5e229b33be8abd51f6240ab208ba4b31ce8530b34cc46ba5b9d8ccb499"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.260615+00:00"
+branches = ["search", "EmbeddingEngine", "hybrid_search"]
+
+[[splits]]
+symbol = "index_catalog"
+qualified_name = "DocIndexService.index_catalog"
+file_path = "src/vibetrace/docs/service.py"
+status = "approved"
+code_hash = "1c58f56503c70d6b4c181634eb2da693bc90f76f5d3083f797604f2a8b6cac26"
+branches_count = 7
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.273221+00:00"
+branches = ["EmbeddingEngine", "is_available", "get_file_mtime", "_extract_chunks", "delete_file_chunks", "embed_texts", "upsert_chunks"]
+
+[[splits]]
+symbol = "cmd_search"
+qualified_name = "cmd_search"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "df3da8a17263cf832ce6caa7be5547c4112b709414b04701a2f621c9f2899244"
+branches_count = 10
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.286735+00:00"
+branches = ["get_context_for_path", "notify_ui_focus", "safe_str", "format_signature_search_md", "EmbeddingEngine", "hybrid_search", "notify_ui_focus", "search", "safe_str", "format_semantic_search_md"]
+
+[[splits]]
+symbol = "cmd_trace"
+qualified_name = "cmd_trace"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "76b0f033bec56c41b94504a500d2f5cb9b0c9247e4bac81eb6cd6662cff65f8d"
+branches_count = 12
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.300269+00:00"
+branches = ["get_context_for_path", "list_saved_traces", "safe_str", "format_saved_traces_md", "delete_saved_trace_by_name", "get_saved_trace_by_name", "create_saved_trace", "SavedTraceCreate", "trace_execution_path", "notify_ui_focus", "safe_str", "format_trace_path_md"]
+
+[[splits]]
+symbol = "search_semantic"
+qualified_name = "EmbeddingEngine.search_semantic"
+file_path = "src/vibetrace/indexer/embeddings.py"
+status = "approved"
+code_hash = "19785f7dc17141aab6c8607876350e455ec867abfe41ef83b257f472876388a6"
+branches_count = 11
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.314449+00:00"
+branches = ["is_available", "_resolve_vector_store", "embed_texts", "_get_conn", "embed_texts", "pack_vector", "_get_conn", "try_load_sqlite_vec", "_get_conn", "unpack_vector", "cosine_similarity"]
+
+[[splits]]
+symbol = "batch_save_file_index"
+qualified_name = "IndexerDB.batch_save_file_index"
+file_path = "src/vibetrace/indexer/db.py"
+status = "approved"
+code_hash = "e748bfd529e981056c0157e8200b2d3df6dec8f1a3fb2f2467a99e7061d64347"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.327965+00:00"
+branches = ["_clean_path", "_clean_path", "_get_conn", "_resolve_vector_store"]
+
+[[splits]]
+symbol = "buildFileTree"
+qualified_name = "buildFileTree"
+file_path = "src/web/src/features/map-room/utils/treeHierarchy.ts"
+status = "approved"
+code_hash = "16003e5c4aac1e3dbee510830d8c55536f267c3cc6b6ea8c8106a5382e89e06e"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.341221+00:00"
+branches = ["isAnonymousSymbol", "GET /"]
+
+[[splits]]
+symbol = "execute_reindex"
+qualified_name = "ReindexService.execute_reindex"
+file_path = "src/vibetrace/services/reindex_service.py"
+status = "approved"
+code_hash = "6f672cf6f8b806dda5d683f1a5709062bf5d21a960662426fd7c56919b4c5b8e"
+branches_count = 9
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.354323+00:00"
+branches = ["normalize_path", "index_file", "reindex_all", "EmbeddingEngine", "is_available", "index_missing_embeddings", "list_catalogs", "DocDB", "index_catalog"]
+
+[[splits]]
+symbol = "search"
+qualified_name = "DocSearchService.search"
+file_path = "src/vibetrace/docs/service.py"
+status = "approved"
+code_hash = "8013a6c2a598312eff321d4c16f0e517ea13479b61d26131b42eb4818d1ce736"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.367700+00:00"
+branches = ["get_local_doc_db", "get_global_doc_db", "EmbeddingEngine", "DocChunkItem"]
+
+[[splits]]
+symbol = "search"
+qualified_name = "PostgresStorageBackend.search"
+file_path = "src/vibetrace/federation/storage_postgres.py"
+status = "approved"
+code_hash = "1b91cf9b9b6f437daf56dd777ad36f5f8c77c9ff7ea3cd689790430e36f144ff"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.908266+00:00"
+branches = ["_get_connection", "FederatedNode"]
+
+[[splits]]
+symbol = "search"
+qualified_name = "FederatedSQLiteEngine.search"
+file_path = "src/vibetrace/federation/storage.py"
+status = "approved"
+code_hash = "6f97fd270b9fa38ca8519ce8de6ac3d06e5a05a618c52420836768880e3a49ca"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.074750+00:00"
+branches = ["_get_conn", "FederatedNode"]
+
+[[splits]]
+symbol = "_find_sibling_test"
+qualified_name = "VibeBundleService._find_sibling_test"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+status = "approved"
+code_hash = "48148ece55e161a0b698221473f3341ff75d6cfb80d9379d653724cd0c3efd08"
+branches_count = 7
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.381349+00:00"
+branches = ["SiblingTestContext", "read_file_lines", "truncate_to_tokens", "SiblingTestContext", "truncate_to_tokens", "SiblingTestContext", "SiblingTestContext"]
+
+[[splits]]
+symbol = "list_catalogs"
+qualified_name = "DocCatalogManager.list_catalogs"
+file_path = "src/vibetrace/docs/service.py"
+status = "approved"
+code_hash = "65feb2774262fd0490fedcb65d62e4955eb5e5a7750a3b5d40aa10bcef11576f"
+branches_count = 8
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.394878+00:00"
+branches = ["_read_catalogs_from_toml", "get_global_config_path", "_read_catalogs_from_toml", "get_project_config_path", "get_global_doc_db", "get_local_doc_db", "DocCatalogInfo", "DocCatalogInfo"]
+
+[[splits]]
+symbol = "get_cross_repo_guard"
+qualified_name = "FederatedSQLiteEngine.get_cross_repo_guard"
+file_path = "src/vibetrace/federation/storage.py"
+status = "approved"
+code_hash = "be54d39643c765a963d18cf0a6f770a6d1df3a696f0192996584709a0f4897c5"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.407924+00:00"
+branches = ["_get_conn", "FederatedCaller", "get_cross_repo_links", "FederatedCaller", "FederatedGuardReport"]
+
+[[splits]]
+symbol = "get_cross_repo_guard"
+qualified_name = "PostgresStorageBackend.get_cross_repo_guard"
+file_path = "src/vibetrace/federation/storage_postgres.py"
+status = "approved"
+code_hash = "58c0f9cf02d09e55f47f6217fbe557bf1a505beef9b8eab0932e764f99094ac2"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.548313+00:00"
+branches = ["_get_connection", "FederatedCaller", "FederatedGuardReport"]
+
+[[splits]]
+symbol = "cmd_references"
+qualified_name = "cmd_references"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "594206cac4606b3214d134b0196197a57213892ad81333e3ebfae14ade776543"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.421789+00:00"
+branches = ["get_context_for_path", "normalize_path", "find_symbol_references", "notify_ui_focus", "safe_str", "format_references_md"]
+
+[[splits]]
+symbol = "_cmd_docs_index"
+qualified_name = "_cmd_docs_index"
+file_path = "src/vibetrace/cli_docs.py"
+status = "approved"
+code_hash = "9b6c07e589ce762a0e1eb255478ee8ce4be309ce24256b0318d05341f028354e"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.434335+00:00"
+branches = ["list_catalogs", "get_global_doc_db", "get_local_doc_db", "index_catalog"]
+
+[[splits]]
+symbol = "App"
+qualified_name = "App"
+file_path = "src/web/src/App.tsx"
+status = "approved"
+code_hash = "01c7229d7352a4a4509e60c7806884edf852b0ca50dd3b3dd4254595fe178790"
+branches_count = 9
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.449482+00:00"
+branches = ["useMapRoomState", "MapHeader", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "DocsExplorerDrawer", "FilterPanel"]
+
+[[splits]]
+symbol = "analyze_file_dependencies"
+qualified_name = "analyze_file_dependencies"
+file_path = "src/vibetrace/services/graph_service.py"
+status = "approved"
+code_hash = "cb46a16250e9299ced9d93376cc9d12b85adf155b1ec0b93559ea08bb7a34207"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.462548+00:00"
+branches = ["_clean_path", "categorize_file_dependencies"]
+
+[[splits]]
+symbol = "get_member_statuses"
+qualified_name = "FederatedSQLiteEngine.get_member_statuses"
+file_path = "src/vibetrace/federation/storage.py"
+status = "approved"
+code_hash = "b12d8a797ee74e57cb01fbae83c74bfa25621f9a2855f285f38255b00a4ac6ea"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.476773+00:00"
+branches = ["_get_conn", "MemberStatus"]
+
+[[splits]]
+symbol = "get_member_statuses"
+qualified_name = "PostgresStorageBackend.get_member_statuses"
+file_path = "src/vibetrace/federation/storage_postgres.py"
+status = "approved"
+code_hash = "6148b304d5b84d5a36538e5b9413ba8932ad251f3598680ec0a2ea6de832813b"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.892754+00:00"
+branches = ["_get_connection", "MemberStatus"]
+
+[[splits]]
+symbol = "index_member"
+qualified_name = "ProjectWorkspace.index_member"
+file_path = "src/vibetrace/federation/project.py"
+status = "approved"
+code_hash = "32792a09804e853c8588e6bf011fe85e5cd48da11c8774a8141d45b9b4c0c8e2"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.492439+00:00"
+branches = ["IndexerDB", "reindex_all", "close", "_get_conn"]
+
+[[splits]]
+symbol = "get_vibe_guard_endpoint"
+qualified_name = "get_vibe_guard_endpoint"
+file_path = "src/vibetrace/server_api.py"
+status = "approved"
+code_hash = "9dcae7b21d7bad3d43cc112afe81bb5753bcf71e88ae505a54944d3247b17fdb"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.504595+00:00"
+branches = ["get_staged_caller_guard", "normalize_path", "get_caller_guard"]
+
+[[splits]]
+symbol = "scan_architectural_splits"
+qualified_name = "scan_architectural_splits"
+file_path = "src/vibetrace/services/split_audit_service.py"
+status = "approved"
+code_hash = "42932c554f0e74c23a53822927597b5c9af574883f874d21a177460611420803"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.519164+00:00"
+branches = ["_get_conn", "BranchDetail", "compute_symbol_code_hash", "ArchitecturalSplit"]
+
+[[splits]]
+symbol = "cmd_dependencies"
+qualified_name = "cmd_dependencies"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "2cb16f34936093db85449018e0face5760719bde31c24c9e7f6f8ff5f60813bb"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.533005+00:00"
+branches = ["get_context_for_path", "normalize_path", "analyze_file_dependencies", "notify_ui_focus", "safe_str", "format_dependencies_md"]
+
+[[splits]]
+symbol = "cmd_impact"
+qualified_name = "cmd_impact"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "8da0a264a4b1fb0f41b3faf91cb30940603099d7388c90b0f1e621d699d70dde"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.563199+00:00"
+branches = ["get_context_for_path", "normalize_path", "compute_impact_analysis", "notify_ui_focus", "safe_str", "format_impact_analysis_md"]
+
+[[splits]]
+symbol = "vibetrace_get_structural_summary"
+qualified_name = "vibetrace_get_structural_summary"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "d8decdfda8ecb6dabc2f8cfbd1d1f4d7929776c1594266c913d283bf296a04fb"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.578654+00:00"
+branches = ["notify_ui_focus", "format_structural_summary_md", "handle_error"]
+
+[[splits]]
+symbol = "cmd_hooks"
+qualified_name = "cmd_hooks"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "d3fb59655be94bdc2b8efda0dab3dc665a19edc155d8d4dbefc08efbb5e8f3b4"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.595301+00:00"
+branches = ["get_context_for_path", "install_hooks", "uninstall_hooks", "get_hooks_status"]
+
+[[splits]]
+symbol = "vibetrace_semantic_search"
+qualified_name = "vibetrace_semantic_search"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "1f5f4b03ddff82c2db6285b13865a1627e927758d678d43348c46ea22cf8a73b"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.608390+00:00"
+branches = ["EmbeddingEngine", "hybrid_search", "search", "notify_ui_focus", "format_semantic_search_md", "handle_error"]
+
+[[splits]]
+symbol = "get_parser"
+qualified_name = "ParserFactory.get_parser"
+file_path = "src/vibetrace/indexer/parsers/__init__.py"
+status = "approved"
+code_hash = "818c056ea122def0bdb1dee657108fc592a5a08277e3221c88a5b53e6d25b338"
+branches_count = 12
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.624003+00:00"
+branches = ["PythonParser", "JavaScriptParser", "TypeScriptParser", "TypeScriptParser", "GoParser", "RustParser", "GenericParser", "GenericParser", "GenericParser", "GenericParser", "GenericParser", "GenericParser"]
+
+[[splits]]
+symbol = "vibetrace_find_references"
+qualified_name = "vibetrace_find_references"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "356d609929c09830e06a1b307626a48120ced2b7b4ecfa4e3cabfaeee9b61770"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.639524+00:00"
+branches = ["find_symbol_references", "format_references_md", "handle_error"]
+
+[[splits]]
+symbol = "clear_file"
+qualified_name = "IndexerDB.clear_file"
+file_path = "src/vibetrace/indexer/db.py"
+status = "approved"
+code_hash = "6f8f81b798f44aa7e530610d1d44bbea81c0d832243bb6fa42b2f977287af6be"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.655164+00:00"
+branches = ["_clean_path", "_get_conn", "_resolve_vector_store"]
+
+[[splits]]
+symbol = "vibetrace_reindex_project"
+qualified_name = "vibetrace_reindex_project"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "6f039fe29e76f82fd478af6b1ea564a8eba4c00ae2436a89f7255d0977051bdc"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.670427+00:00"
+branches = ["reindex_all", "EmbeddingEngine", "index_missing_embeddings", "safe_str", "handle_error"]
+
+[[splits]]
+symbol = "cmd_summary"
+qualified_name = "cmd_summary"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "43dfaff0fe238fdf46ab4779c479112c66a019d956b86a761b1f05612b7adce8"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.685486+00:00"
+branches = ["get_context_for_path", "normalize_path", "safe_str", "format_structural_summary_md"]
+
+[[splits]]
+symbol = "on_moved"
+qualified_name = "CodeChangeHandler.on_moved"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "307aa8c65db1904fd0fdbbd8458023c5267d0339235aca8c5b9be19476679f97"
+branches_count = 11
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.699626+00:00"
+branches = ["_should_ignore", "_should_ignore", "_to_rel_path", "_to_rel_path", "_clear_directory_index", "_index_directory_tree", "_schedule_post_sync", "_clear_single_file_index", "index_file", "add_file", "_schedule_post_sync"]
+
+[[splits]]
+symbol = "buildPackageGraph"
+qualified_name = "buildPackageGraph"
+file_path = "src/web/src/features/map-room/utils/packageGraph.ts"
+status = "approved"
+code_hash = "99724a1d48acd07123a130c9b05006d51a9fdee0007189a79574a7653e8bf7c7"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.715290+00:00"
+branches = ["normalizeDirPath", "GET /"]
+
+[[splits]]
+symbol = "assemble_bundle"
+qualified_name = "VibeBundleService.assemble_bundle"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+status = "approved"
+code_hash = "2bcf2d33bd79ded0b8fc876c7a7a7f8bd23d4f8f91156793b8e9f8bc8e6ffae4"
+branches_count = 11
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.731309+00:00"
+branches = ["hybrid_search", "get_code_slice", "get_code_slice", "truncate_to_tokens", "get_caller_guard", "search", "search", "_find_sibling_test", "_format_bundle_prompt", "estimate_tokens", "VibeBundle"]
+
+[[splits]]
+symbol = "cmd_index"
+qualified_name = "cmd_index"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "3f240b93928726664ae80438e329fdb6f31e2660bac70376e2fa36fb3772d175"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.745837+00:00"
+branches = ["get_context_for_path", "execute_reindex"]
+
+[[splits]]
+symbol = "vibetrace_impact_analysis"
+qualified_name = "vibetrace_impact_analysis"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "e32302ac60df1319ef4e01bd4b7e9f2418250605b763d4bfff5cf52c4eddf0f9"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.762859+00:00"
+branches = ["compute_impact_analysis", "notify_ui_focus", "format_impact_analysis_md", "handle_error"]
+
+[[splits]]
+symbol = "index_documentation"
+qualified_name = "index_documentation"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "9d57fec8a63b7ee6d0b16efd894edfbd0dc97145718c8161fea02b36ba7eb247"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.779371+00:00"
+branches = ["_get_project_root", "list_catalogs", "get_global_doc_db", "get_local_doc_db", "index_catalog"]
+
+[[splits]]
+symbol = "_index_directory_tree"
+qualified_name = "CodeChangeHandler._index_directory_tree"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "39ffaa24736d88d978b3335bfc45db578a950d3ce91b7820da0f716c2dd8aa4b"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.795416+00:00"
+branches = ["_should_ignore", "_should_ignore", "_to_rel_path", "index_file", "add_file"]
+
+[[splits]]
+symbol = "ensure_index_fresh"
+qualified_name = "ensure_index_fresh"
+file_path = "src/vibetrace/services/graph_service.py"
+status = "approved"
+code_hash = "4cb661bf2b0aefcf0f10bd7cca3a3d6b0640c04fdf234822c92d2610ecd98b4c"
+branches_count = 7
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.811491+00:00"
+branches = ["get_git_sha", "get_meta", "reindex_all", "get_git_delta", "reindex_all", "get_git_delta", "reindex_all"]
+
+[[splits]]
+symbol = "vibetrace_check_caller_guard"
+qualified_name = "vibetrace_check_caller_guard"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "81d5b4cd0e8076908a668cac0f54b9ba9991aa6c645d25ea4e0711fae627ebcd"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.827563+00:00"
+branches = ["get_context_for_path", "get_staged_caller_guard", "format_caller_guard_markdown", "get_caller_guard", "format_caller_guard_markdown", "handle_error"]
+
+[[splits]]
+symbol = "_handle_doc_change"
+qualified_name = "CodeChangeHandler._handle_doc_change"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "57aebdc27a913c339caf11f7eb92ea0f03994cb6cf1582da0e5a5a9ab25d7b6c"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.843600+00:00"
+branches = ["list_catalogs", "DocDB", "delete_file_chunks", "index_catalog"]
+
+[[splits]]
+symbol = "resolve_unresolved_edges"
+qualified_name = "resolve_unresolved_edges"
+file_path = "src/vibetrace/indexer/lsp_bridge.py"
+status = "approved"
+code_hash = "cdd4932b8679c919957eb4160d7c58105765d9496e1dd68545aac2c35953190f"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.860639+00:00"
+branches = ["_get_conn", "get_definition", "_clean_path"]
+
+[[splits]]
+symbol = "vibetrace_approve_security_exception"
+qualified_name = "vibetrace_approve_security_exception"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "84afb03a2b73f668e63aeee129e8b02704e0313a2c9b53322a06e943595b1107"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.876722+00:00"
+branches = ["get_context_for_path", "record_exception", "handle_error"]
+
+[[splits]]
+symbol = "cmd_slice"
+qualified_name = "cmd_slice"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "a56d35a3ecfcf08cff85dbd6d5bd13ae292353a45d571ad7a66ea367b4ea8282"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.925085+00:00"
+branches = ["get_context_for_path", "get_code_slice", "notify_ui_focus", "safe_str", "format_code_slice_md"]
+
+[[splits]]
+symbol = "vibetrace_approve_split"
+qualified_name = "vibetrace_approve_split"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "920981821e2863f4ded91763292cc4256a5f1ab88d57667f12d0561189e4411c"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.941173+00:00"
+branches = ["get_context_for_path", "record_split_approval", "handle_error"]
+
+[[splits]]
+symbol = "vibetrace_get_dependencies"
+qualified_name = "vibetrace_get_dependencies"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "440243595a40c00e6cad9b05757862f606bd88f654b5507dd18d083ff1636c55"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.958320+00:00"
+branches = ["analyze_file_dependencies", "format_dependencies_md", "handle_error"]
+
+[[splits]]
+symbol = "categorize_file_dependencies"
+qualified_name = "categorize_file_dependencies"
+file_path = "src/vibetrace/services/graph_service.py"
+status = "approved"
+code_hash = "0a02374e48c30b57a30163aee4b7f8b2806b1901eb482f8fda67fc15dcdd1b30"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.976249+00:00"
+branches = ["_clean_path", "get_python_stdlib_names", "is_stdlib_import"]
+
+[[splits]]
+symbol = "vibetrace_remediate_vulnerability"
+qualified_name = "vibetrace_remediate_vulnerability"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "1baf812170292e2cb0b54d15d8dc2d48d571851b3de8ec1f5f1aa2350164ca56"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:16.992080+00:00"
+branches = ["get_context_for_path", "build_remediation_bundle", "handle_error"]
+
+[[splits]]
+symbol = "_register_imported_module"
+qualified_name = "LanguageParser._register_imported_module"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+status = "approved"
+code_hash = "027c080459c43e7ad60f662508d911fd9e4fbfe50ba6257e18f4951896f34a3e"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.008006+00:00"
+branches = ["resolve", "get_module_name", "_get_id", "_create_node", "_create_edge"]
+
+[[splits]]
+symbol = "_detect_split_points"
+qualified_name = "_detect_split_points"
+file_path = "src/vibetrace/services/trace_service.py"
+status = "approved"
+code_hash = "7ce5801058006c1194cac1007cfde5363b61c93dd8261cd20a6376ffb979c602"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.023997+00:00"
+branches = ["_get_conn", "SplitPointInfo"]
+
+[[splits]]
+symbol = "on_created"
+qualified_name = "CodeChangeHandler.on_created"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "71a2892ee0f24415cca8ddc02f59a652d28987c5590c1545937dd8021977eb87"
+branches_count = 7
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.041126+00:00"
+branches = ["_should_ignore", "_to_rel_path", "index_file", "add_file", "_schedule_post_sync", "_handle_doc_change", "_schedule_post_sync"]
+
+[[splits]]
+symbol = "vibetrace_trace_path"
+qualified_name = "vibetrace_trace_path"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "87a82aad0ad79ea28e95c8f32542e1207a94de4dd900bc2804b95e71837d9e80"
+branches_count = 5
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.058699+00:00"
+branches = ["get_saved_trace_by_name", "trace_execution_path", "notify_ui_focus", "format_trace_path_md", "handle_error"]
+
+[[splits]]
+symbol = "run_saved_trace_endpoint"
+qualified_name = "get_saved_traces_router.run_saved_trace_endpoint"
+file_path = "src/vibetrace/server_api_saved_traces.py"
+status = "approved"
+code_hash = "d749fb2c43773802e9759eb775f11967b07b5e904fa540e655a4afb3e4077f34"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.091811+00:00"
+branches = ["get_saved_trace_by_name", "trace_execution_path"]
+
+[[splits]]
+symbol = "init"
+qualified_name = "ProjectWorkspace.init"
+file_path = "src/vibetrace/federation/project.py"
+status = "approved"
+code_hash = "9f0460eac0d41f0e1ab2b1af78abc05d9f204f9e2bd298ba832710207d44b3a1"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.108383+00:00"
+branches = ["auto_discover_members", "ProjectManifest", "ProjectSettings", "save_project_manifest"]
+
+[[splits]]
+symbol = "search_documentation"
+qualified_name = "search_documentation"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "41c3ab734cbb90721389a115053057908eb6a4d6e4ea1cf1de18f02c7c331d1c"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.125988+00:00"
+branches = ["_get_project_root", "search"]
+
+[[splits]]
+symbol = "vibetrace_audit_splits"
+qualified_name = "vibetrace_audit_splits"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "7e8b8d4016c7ab292fad46574f9ef0b53f4c770c3d92bca6e7395dbd74326ba1"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.144132+00:00"
+branches = ["get_context_for_path", "audit_splits", "format_split_audit_md", "handle_error"]
+
+[[splits]]
+symbol = "vibetrace_audit_security"
+qualified_name = "vibetrace_audit_security"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "47832467261b2ffceb6b14dfd70246d7194cc85df65c3e9e241c7c8585517249"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.160547+00:00"
+branches = ["get_context_for_path", "audit_project", "format_security_audit_md", "handle_error"]
+
+[[splits]]
+symbol = "vibetrace_list_saved_traces"
+qualified_name = "vibetrace_list_saved_traces"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "05e120997c8cf24d263cc38eb1bc3331cb63637b2da0a90cee36121f3da7d813"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.180241+00:00"
+branches = ["list_saved_traces", "format_saved_traces_md", "handle_error"]
+
+[[splits]]
+symbol = "vibetrace_get_code_slice"
+qualified_name = "vibetrace_get_code_slice"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "a3b30867bb066afb870ddb3203c4e82e3150062d0431b142282cdbe7a963f826"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.198252+00:00"
+branches = ["get_code_slice", "notify_ui_focus", "format_code_slice_md", "handle_error"]
+
+[[splits]]
+symbol = "get_vector_store"
+qualified_name = "get_vector_store"
+file_path = "src/vibetrace/indexer/vector_store.py"
+status = "approved"
+code_hash = "f84d932227dc7a3d30d6194f9854771f3a5eed7ee4b4831cd81270c06c674f86"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.217106+00:00"
+branches = ["VectorConfig", "LanceDBVectorStore"]
+
+[[splits]]
+symbol = "on_modified"
+qualified_name = "CodeChangeHandler.on_modified"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "803f2c8e800d9574271783d0c42036ea16a6d499106b250f492fe8be52642d13"
+branches_count = 6
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.235871+00:00"
+branches = ["_should_ignore", "_to_rel_path", "index_file", "_schedule_post_sync", "_handle_doc_change", "_schedule_post_sync"]
+
+[[splits]]
+symbol = "vibetrace_search_docs"
+qualified_name = "vibetrace_search_docs"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "a584623e5263c74e04121d4c9a950efe61305b74a4dfacd15aab08a5b2b6518c"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.253873+00:00"
+branches = ["get_context_for_path", "search", "format_doc_search_md", "handle_error"]
+
+[[splits]]
+symbol = "_resolve_workspace"
+qualified_name = "_resolve_workspace"
+file_path = "src/vibetrace/mcp/tools_project.py"
+status = "approved"
+code_hash = "00c5f30d4a5e5e0c347ac8fc1d8afad5274fab9901f9c62bebae1aefc3ef369c"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.272437+00:00"
+branches = ["find_project_root", "load"]
+
+[[splits]]
+symbol = "vibetrace_list_doc_catalogs"
+qualified_name = "vibetrace_list_doc_catalogs"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "fc3ff97ee30e146326cd95125244666fd9016dfedb5196193910bb90f5a5c912"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.289170+00:00"
+branches = ["get_context_for_path", "list_catalogs", "format_doc_catalogs_md", "handle_error"]
+
+[[splits]]
+symbol = "update_file_hash"
+qualified_name = "IndexerDB.update_file_hash"
+file_path = "src/vibetrace/indexer/db.py"
+status = "approved"
+code_hash = "4328068fc516d94ec7d25d5d2ae356ad900adc2d9ed03f330d861566fbcb32e9"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.308468+00:00"
+branches = ["_clean_path", "_get_conn"]
+
+[[splits]]
+symbol = "_resolve_vector_store"
+qualified_name = "IndexerDB._resolve_vector_store"
+file_path = "src/vibetrace/indexer/db.py"
+status = "approved"
+code_hash = "16d99693b3c54c929161a3a1cb8b36905c8ba805dc9a9915dee36b09bb7a4144"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.325383+00:00"
+branches = ["load_config", "get_vector_store"]
+
+[[splits]]
+symbol = "__init__"
+qualified_name = "CodeChangeHandler.__init__"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "312b7f64a1d22b29681a3f3f0b773de5ef87c7cd289b596d2c1faa9d5e595982"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.344056+00:00"
+branches = ["ModuleResolver", "load_gitignore"]
+
+[[splits]]
+symbol = "vibetrace_get_vibe_bundle"
+qualified_name = "vibetrace_get_vibe_bundle"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "3ae9a77357458e460c6c819a39efeedc6bd071e8fa9afb716709a26e7dfc5191"
+branches_count = 4
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.362617+00:00"
+branches = ["get_context_for_path", "assemble_bundle", "format_vibe_bundle_markdown", "handle_error"]
+
+[[splits]]
+symbol = "post_reindex_endpoint"
+qualified_name = "post_reindex_endpoint"
+file_path = "src/vibetrace/server_api.py"
+status = "approved"
+code_hash = "d6dbcd5b9c64d8bbe2a04017f89c13d567e01ada751c8f8402fe686d9511a906"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.381721+00:00"
+branches = ["ReindexPayload", "execute_reindex"]
+
+[[splits]]
+symbol = "start_watcher_blocking"
+qualified_name = "start_watcher_blocking"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "225bc4e23e42c25f5eb1955d08a9b432c03b0c51aeac77a21e89439d1858e3ec"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.400624+00:00"
+branches = ["get_context_for_path", "start_observer", "stop_observer"]
+
+[[splits]]
+symbol = "get_downstream_reachable_symbols"
+qualified_name = "get_downstream_reachable_symbols"
+file_path = "src/vibetrace/services/trace_service.py"
+status = "approved"
+code_hash = "129cf386d83b540c9b569bf1adaabc33fa67e2b37d8bf634cdb31424e7face42"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.417621+00:00"
+branches = ["_resolve_symbol_candidates", "_get_conn"]
+
+[[splits]]
+symbol = "remove_catalog"
+qualified_name = "remove_catalog"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "d77781543fd294f11e00dbf1ddfcee0bb97e6aeb06c88e30ee8e4889eb6c3503"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.437283+00:00"
+branches = ["_get_project_root", "remove_catalog"]
+
+[[splits]]
+symbol = "_init_vector_store"
+qualified_name = "EmbeddingEngine._init_vector_store"
+file_path = "src/vibetrace/indexer/embeddings.py"
+status = "approved"
+code_hash = "a3c18f15b9fb1088fb40b751ab129d309377350e279ebb653f5a0d2de98c6d68"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.455254+00:00"
+branches = ["load_config", "get_vector_store"]
+
+[[splits]]
+symbol = "vibetrace_search_by_signature"
+qualified_name = "vibetrace_search_by_signature"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "4f3b0e3d8ef175609d2e892e2206d6278213e8d8ebd866636f2f396d3720abe1"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.473416+00:00"
+branches = ["format_signature_search_md", "handle_error"]
+
+[[splits]]
+symbol = "add_catalog"
+qualified_name = "add_catalog"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "387e979c13888d28f1379e4fe5e8bf2d10c933782e922c0939b5c2e59802ffa2"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.491869+00:00"
+branches = ["_get_project_root", "add_path"]
+
+[[splits]]
+symbol = "get_file_hash"
+qualified_name = "IndexerDB.get_file_hash"
+file_path = "src/vibetrace/indexer/db.py"
+status = "approved"
+code_hash = "34155ef63a35441069b662eb527d096817f9490fba0316d5f0a267bda36e0f54"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.510910+00:00"
+branches = ["_clean_path", "_get_conn"]
+
+[[splits]]
+symbol = "get_saved_trace_by_name"
+qualified_name = "get_saved_trace_by_name"
+file_path = "src/vibetrace/services/saved_traces_service.py"
+status = "approved"
+code_hash = "d6291abb3122a7d3f2733868d9da64b00121cea3de08f1b9cc5511b9ff11730d"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.532011+00:00"
+branches = ["_get_conn", "SavedTrace"]
+
+[[splits]]
+symbol = "vibetrace_save_trace"
+qualified_name = "vibetrace_save_trace"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "6d799ff7e0c45f91ca3eec0409ff4232281e862c16b56689d8fbbcb9bb78d0a1"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.550603+00:00"
+branches = ["SavedTraceCreate", "create_saved_trace", "handle_error"]
+
+[[splits]]
+symbol = "add_member"
+qualified_name = "ProjectWorkspace.add_member"
+file_path = "src/vibetrace/federation/project.py"
+status = "approved"
+code_hash = "449b990fff24cf8a9e061190a647fcfb9626ba58c79baaf558c8d0669d1c58e9"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.572313+00:00"
+branches = ["RepoMember", "save_project_manifest", "close"]
+
+[[splits]]
+symbol = "create_saved_trace"
+qualified_name = "create_saved_trace"
+file_path = "src/vibetrace/services/saved_traces_service.py"
+status = "approved"
+code_hash = "a74053c25c97e0b860577ead491635e08c48590cb134a87ae2778d6a04ac4eb9"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.593643+00:00"
+branches = ["_get_conn", "get_saved_trace_by_name"]
+
+[[splits]]
+symbol = "list_saved_traces"
+qualified_name = "list_saved_traces"
+file_path = "src/vibetrace/services/saved_traces_service.py"
+status = "approved"
+code_hash = "3efbd9fd486109bab176ae4756af854bbe09fb971129b7645bae5ca8670297bf"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.612092+00:00"
+branches = ["_get_conn", "SavedTrace"]
+
+[[splits]]
+symbol = "_clear_directory_index"
+qualified_name = "CodeChangeHandler._clear_directory_index"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "051670213e21c9fe19af11a24bab9da17f6754286b39287140c8bb350e2292f6"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.632094+00:00"
+branches = ["get_all_indexed_file_paths", "clear_file", "remove_file"]
+
+[[splits]]
+symbol = "get_saved_trace_by_id"
+qualified_name = "get_saved_trace_by_id"
+file_path = "src/vibetrace/services/saved_traces_service.py"
+status = "approved"
+code_hash = "217192f834c8d6835035deeb377b483100e4020814547b8c9892286a051054a8"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.651153+00:00"
+branches = ["_get_conn", "SavedTrace"]
+
+[[splits]]
+symbol = "main"
+qualified_name = "main"
+file_path = "src/vibetrace/indexer/main.py"
+status = "approved"
+code_hash = "e4913ece8516571874786ad5a55292c5e22e46793c83341cbdefa72929760d53"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.672812+00:00"
+branches = ["get_context_for_path", "reindex_all"]
+
+[[splits]]
+symbol = "vibetrace_delete_saved_trace"
+qualified_name = "vibetrace_delete_saved_trace"
+file_path = "src/vibetrace/mcp/server.py"
+status = "approved"
+code_hash = "cf30e40c69286b5b478fe1d6fce8c1186da5b53883656d0b7ecbcf87fa943518"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.692767+00:00"
+branches = ["delete_saved_trace_by_name", "handle_error"]
+
+[[splits]]
+symbol = "_clear_single_file_index"
+qualified_name = "CodeChangeHandler._clear_single_file_index"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "15c2bb31f8d35a4cdbfd248bf0f374431f4427d7294b689a0a07d656427376a4"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.713475+00:00"
+branches = ["get_file_hash", "remove_file", "clear_file"]
+
+[[splits]]
+symbol = "get_cross_repo_links"
+qualified_name = "FederatedSQLiteEngine.get_cross_repo_links"
+file_path = "src/vibetrace/federation/storage.py"
+status = "approved"
+code_hash = "bc73f7b2639c6c411cd568a4a58ff3293c19f5f2305c355050a3873d2f6e8af5"
+branches_count = 3
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.734236+00:00"
+branches = ["_get_conn", "CrossRepoLinker", "discover_links"]
+
+[[splits]]
+symbol = "remove_member"
+qualified_name = "ProjectWorkspace.remove_member"
+file_path = "src/vibetrace/federation/project.py"
+status = "approved"
+code_hash = "0a3ae9c76a6f2b1689075ff303bc034ea428cd70eec0b881f4a46d5258c3ddd4"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.784690+00:00"
+branches = ["save_project_manifest", "close"]
+
+[[splits]]
+symbol = "_run"
+qualified_name = "CodeChangeHandler._schedule_post_sync._run"
+file_path = "src/vibetrace/indexer/watcher.py"
+status = "approved"
+code_hash = "a97895541148b8209f3a9c0240abc76e4ad69ac74f85bb46d14bda5052d4175d"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:53:17.806236+00:00"
+branches = ["update_centrality_scores", "_notify"]
+
+[[splits]]
+symbol = "list_catalogs"
+qualified_name = "list_catalogs"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "2f23541087ac86762de3d6841d9b175e68b082d192fcef55225b4de47a75449d"
+branches_count = 2
+rationale = "Baseline approval of verified VibeTrace architectural splits"
+reviewed_by = "developer"
+reviewed_at = "2026-10-30T18:54:29.125362+00:00"
+branches = ["list_catalogs", "_get_project_root"]

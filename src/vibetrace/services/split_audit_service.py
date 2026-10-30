@@ -101,10 +101,15 @@ def load_split_baseline(project_root: Path) -> dict[str, dict[str, Any]]:
         baseline: dict[str, dict[str, Any]] = {}
         for item in splits_list:
             sym = item.get("symbol")
+            fp = (item.get("file_path") or "").replace("\\", "/")
             if sym:
-                baseline[sym] = item
+                if fp:
+                    baseline[f"{fp}:{sym}"] = item
+                    if item.get("qualified_name"):
+                        baseline[f"{fp}:{item['qualified_name']}"] = item
+                baseline.setdefault(sym, item)
                 if item.get("qualified_name"):
-                    baseline[item["qualified_name"]] = item
+                    baseline.setdefault(item["qualified_name"], item)
         return baseline
     except Exception:
         return {}
@@ -260,7 +265,13 @@ def audit_splits(db: IndexerDB, project_root: Path, symbol: str | None = None) -
     new_unapproved = 0
 
     for s in splits:
-        rec = baseline.get(s.qualified_name) or baseline.get(s.symbol)
+        fp = s.file_path.replace("\\", "/")
+        rec = (
+            baseline.get(f"{fp}:{s.qualified_name}")
+            or baseline.get(f"{fp}:{s.symbol}")
+            or baseline.get(s.qualified_name)
+            or baseline.get(s.symbol)
+        )
         if rec:
             s.baseline_hash = rec.get("code_hash")
             s.rationale = rec.get("rationale")
@@ -301,10 +312,11 @@ def record_split_approval(
     baseline = load_split_baseline(project_root)
     now_iso = datetime.now(UTC).isoformat()
 
+    norm_fp = file_path.replace("\\", "/")
     new_record = {
         "symbol": symbol,
         "qualified_name": qualified_name,
-        "file_path": file_path,
+        "file_path": norm_fp,
         "status": status,
         "code_hash": code_hash,
         "branches_count": len(branches),
@@ -314,10 +326,14 @@ def record_split_approval(
         "reviewed_at": now_iso,
     }
 
-    baseline[qualified_name] = new_record
+    baseline[f"{norm_fp}:{qualified_name}"] = new_record
     if symbol != qualified_name:
-        baseline[symbol] = new_record
+        baseline[f"{norm_fp}:{symbol}"] = new_record
 
-    # Unique list of records by qualified_name
-    unique_records = {v["qualified_name"]: v for v in baseline.values()}
+    # Unique list of records by (file_path, qualified_name)
+    unique_records: dict[str, dict[str, Any]] = {}
+    for v in baseline.values():
+        if isinstance(v, dict) and v.get("qualified_name"):
+            v_fp = str(v.get("file_path") or "").replace("\\", "/")
+            unique_records[f"{v_fp}:{v['qualified_name']}"] = v
     return save_split_baseline(project_root, list(unique_records.values()))
