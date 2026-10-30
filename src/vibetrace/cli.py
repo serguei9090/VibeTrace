@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from vibetrace.cli_audit import cmd_audit_security, cmd_audit_splits
+from vibetrace.cli_audit import cmd_audit_security, cmd_audit_splits, cmd_review
 from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
@@ -611,6 +611,22 @@ examples:
     p_splits.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
+    p_splits.add_argument(
+        "--approve",
+        action="store_true",
+        help="Approve matching split(s) into .vibetrace/splits.toml baseline",
+    )
+    p_splits.add_argument(
+        "--status",
+        default="approved",
+        choices=["approved", "risk", "ignored"],
+        help="Approval status when using --approve (default: approved)",
+    )
+    p_splits.add_argument(
+        "--rationale",
+        default="Architectural split verified via CLI",
+        help="Rationale saved when approving splits with --approve",
+    )
     p_splits.set_defaults(func=cmd_audit_splits)
 
     p_security = p_audit_sub.add_parser(
@@ -684,6 +700,31 @@ examples:
         help="Disposition tag saved when approving exceptions with --approve",
     )
     p_security.set_defaults(func=cmd_audit_security)
+
+    # review (unified AI code review gate)
+    p_review = sub.add_parser(
+        "review",
+        help="Run unified 1-call AI code review (Security + Split Audit + Caller Guard)",
+    )
+    p_review.add_argument(
+        "path", nargs="?", default=".", help="Project root path (default: current directory)"
+    )
+    p_review.add_argument(
+        "--full",
+        action="store_true",
+        help="Review the entire repository instead of only git-changed files",
+    )
+    p_review.add_argument(
+        "--deps",
+        action="store_true",
+        help="Include OSV dependency lockfile CVE checks in the review",
+    )
+    p_review.add_argument(
+        "--ci",
+        action="store_true",
+        help="Exit with code 1 if any unapproved or modified security/split issues exist",
+    )
+    p_review.set_defaults(func=cmd_review)
 
     # project (federated multi-repo workspace)
     register_project_parser(sub)

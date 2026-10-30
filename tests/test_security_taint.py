@@ -333,3 +333,21 @@ def test_language_aware_rule_filtering_and_initial_seed(tmp_path) -> None:
     assert {"py", "ts", "tsx"}.issubset(RuleCatalogManager.detect_project_languages(db))
     poly_rules = RuleCatalogManager.sync_and_load_rules(db, tmp_path)
     assert any(r.id == "js:CWE-1321-prototype-pollution" for r in poly_rules)
+
+
+def test_unified_review_gate(tmp_path) -> None:
+    """Verifies run_unified_review combines Security, Split Audit, and Caller Guard."""
+    from vibetrace.services.review_service import format_unified_review_md, run_unified_review
+
+    (tmp_path / "app.py").write_text("import os\ndef bad(x):\n    os.system(x)\n", encoding="utf-8")
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(_node("b1", "bad", 2, 3))
+
+    rep = run_unified_review(db, tmp_path, scope="full", check_dependencies=False)
+    assert not rep.passed
+    assert rep.unapproved_security_count == 1
+    assert any("[SECURITY:CRITICAL]" in a for a in rep.actions_required)
+    md = format_unified_review_md(rep)
+    assert "ACTION REQUIRED" in md

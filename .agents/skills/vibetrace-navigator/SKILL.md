@@ -51,6 +51,12 @@ Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), inter-procedural
   uv run vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
   ```
 
+### 6. Unified 1-Call AI Self-Review Gate (`review`)
+Before completing any coding task or committing, run the single unified gate that executes **Security + Inter-Procedural Taint**, **Split Path Audit**, and **Caller Guard** in one pass and outputs an actionable checklist:
+- **MCP Tool:** `vibetrace_review_changes(scope="changed", check_dependencies=False)`
+- **REST API:** `GET /api/review?scope=changed`
+- **CLI:** `uv run vibetrace review` / `uv run vibetrace review --full --ci`
+
 ---
 
 ## Standard 4-Step Surgical Workflow (`Docs -> Locate -> Trace/Impact -> Slice`)

@@ -49,6 +49,7 @@ from vibetrace.mcp.schemas import (
     ReindexInput,
     RemediateVulnerabilityInput,
     ResponseFormat,
+    ReviewChangesInput,
     SaveTraceInput,
     SearchInput,
     SemanticSearchInput,
@@ -771,6 +772,29 @@ async def vibetrace_remediate_vulnerability(params: RemediateVulnerabilityInput)
         return "\n\n---\n\n".join(str(it["ai_fix_prompt"]) for it in items if isinstance(it, dict))
     except Exception as e:
         return handle_error(e, "remediating security vulnerability")
+
+
+@mcp.tool(name="vibetrace_review_changes", annotations=_READ_ONLY)
+async def vibetrace_review_changes(params: ReviewChangesInput) -> str:
+    """Run unified 1-call AI code review combining Security/Taint, Split Audit, and Caller Guard."""
+    try:
+        from vibetrace.services.review_service import (
+            format_unified_review_md,
+            run_unified_review,
+        )
+
+        db, root = get_context_for_path(params.scope_path)
+        report = run_unified_review(
+            db=db,
+            project_root=Path(root),
+            scope=params.scope,
+            check_dependencies=params.check_dependencies,
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+        return format_unified_review_md(report)
+    except Exception as e:
+        return handle_error(e, "running unified AI code review")
 
 
 register_project_tools(mcp)

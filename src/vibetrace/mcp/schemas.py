@@ -686,3 +686,25 @@ class RemediateVulnerabilityInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class ReviewChangesInput(BaseModel):
+    """Input model for unified 1-call AI code review (Security + Splits + Caller Guard)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    scope: Literal["changed", "full"] = Field(
+        default="changed",
+        description=(
+            "Review scope: 'changed' (git working tree/staged files) or 'full' (entire repo)"
+        ),
+    )
+    check_dependencies: bool = Field(
+        default=False,
+        description="Include OSV dependency lockfile CVE checks in the review",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

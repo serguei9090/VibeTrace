@@ -28,6 +28,29 @@ def cmd_audit_splits(args: argparse.Namespace) -> int:
     symbol_filter = getattr(args, "symbol", None)
     report = audit_splits(db, project_root, symbol=symbol_filter)
 
+    if getattr(args, "approve", False):
+        status = getattr(args, "status", "approved")
+        rationale = getattr(args, "rationale", "Architectural split verified via CLI")
+        targets = [
+            s
+            for s in report.splits
+            if (symbol_filter and s.symbol == symbol_filter)
+            or (not symbol_filter and s.status in ("NEW_UNAPPROVED", "MODIFIED_CODE"))
+        ]
+        for s in targets:
+            record_split_approval(
+                project_root=project_root,
+                symbol=s.symbol,
+                qualified_name=s.qualified_name,
+                file_path=s.file_path,
+                code_hash=s.code_hash,
+                branches=[b.target_name for b in s.branches],
+                status=status,
+                rationale=rationale,
+            )
+            print(f"✅ Recorded '{status}' for {s.symbol} ({s.code_hash[:8]})")
+        return 0
+
     is_json = getattr(args, "json", False)
     is_ci = getattr(args, "ci", False)
     is_strict = getattr(args, "strict", False)
@@ -276,4 +299,35 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
             elif choice == "q":
                 break
 
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Runs unified 1-call AI code review combining Security, Split Audit, and Caller Guard."""
+    from vibetrace.services.review_service import (
+        format_unified_review_md,
+        run_unified_review,
+    )
+
+    auto_sync = not getattr(args, "no_sync", False)
+    root_override = getattr(args, "root", None)
+    path_hint = getattr(args, "path", ".")
+
+    db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
+    scope = "full" if getattr(args, "full", False) else "changed"
+    check_deps = getattr(args, "deps", False)
+
+    report = run_unified_review(
+        db=db,
+        project_root=Path(root),
+        scope=scope,
+        check_dependencies=check_deps,
+    )
+    if getattr(args, "json", False):
+        print(report.model_dump_json(indent=2))
+    else:
+        print(safe_str(format_unified_review_md(report)))
+
+    if getattr(args, "ci", False) and not report.passed:
+        return 1
     return 0

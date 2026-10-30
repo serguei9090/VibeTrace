@@ -740,6 +740,24 @@ def post_reindex_endpoint(payload: ReindexPayload | None = None):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/api/review")
+def get_unified_review_endpoint(
+    scope: str = Query(default="changed", description="changed or full"),
+    check_dependencies: bool = Query(default=False),
+):
+    """Run unified 1-call code review combining Security/Taint, Split Audit, and Caller Guard."""
+    from vibetrace.services.review_service import run_unified_review
+
+    root = Path(os.environ.get("VIBETRACE_PROJECT_ROOT", project_root)).resolve()
+    report = run_unified_review(
+        db=db,
+        project_root=root,
+        scope=scope,
+        check_dependencies=check_dependencies,
+    )
+    return report.model_dump()
+
+
 @app.get("/api/skill")
 def get_skill_endpoint():
     """Inspect whether the vibetrace-navigator skill is installed in the project."""
