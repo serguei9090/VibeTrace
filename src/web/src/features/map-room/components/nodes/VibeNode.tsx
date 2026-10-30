@@ -111,6 +111,29 @@ export const VibeNode = memo(({ id, data }: { id?: string; data: VibeNodeData })
               {data.stepBadge}
             </span>
           )}
+          {data.splitBadge && (
+            <span
+              style={{
+                background: "rgba(245, 158, 11, 0.2)",
+                border: "1px solid rgba(245, 158, 11, 0.5)",
+                color: "#fbbf24",
+                fontWeight: 700,
+                fontSize: "10px",
+                padding: "2px 6px",
+                borderRadius: "999px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+              }}
+              title={
+                data.splitBranches && data.splitBranches.length > 0
+                  ? `Branching Point (${data.splitBadge} paths):\n${(data.splitBranches as string[]).join("\n")}`
+                  : `Branching Point: splits into ${data.splitBadge} calls`
+              }
+            >
+              ⑂ {data.splitBadge}
+            </span>
+          )}
           {data.impactBadge && (
             <span
               style={{

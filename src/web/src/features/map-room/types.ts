@@ -46,6 +46,8 @@ export interface VibeNodeData extends Record<string, unknown> {
   isImpact?: boolean;
   stepBadge?: string;
   impactBadge?: string;
+  splitBadge?: string;
+  splitBranches?: string[];
   layoutMode?: LayoutMode;
   viewMode?: ViewMode;
   unrevealedCallees?: number;
@@ -79,6 +81,19 @@ export interface TraceHopData {
   call_line?: number | null;
 }
 
+export interface SplitPointInfo {
+  node_id: string;
+  symbol_name: string;
+  total_outgoing_branches: number;
+  branch_names: string[];
+}
+
+export interface ReachableSymbolsResponse {
+  from_symbol: string;
+  count: number;
+  reachable_symbols: string[];
+}
+
 export interface TracePathResponse {
   from_symbol: string;
   to_symbol: string;
@@ -86,6 +101,7 @@ export interface TracePathResponse {
   hops: TraceHopData[];
   paths?: TraceHopData[][];
   node_ids: string[];
+  split_points?: SplitPointInfo[];
 }
 
 export interface AgentFocusEvent {

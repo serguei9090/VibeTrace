@@ -22,6 +22,7 @@ from vibetrace.services.graph_service import (
     find_symbol_references,
     get_code_slice,
     get_context_for_path,
+    get_downstream_reachable_symbols,
     normalize_path,
     read_file_lines,
     trace_execution_path,
@@ -252,10 +253,27 @@ def get_trace(
     to_symbol: str = Query(..., min_length=1),
     max_depth: int = Query(default=6, ge=1, le=15),
     engine: str = Query(default="bfs", pattern="^(bfs|cte)$"),
+    detect_splits: bool = Query(default=True),
 ):
     """Compute shortest execution tracepath(s) between two symbols via BFS or recursive CTE."""
-    res = trace_execution_path(db, from_symbol, to_symbol, max_depth=max_depth, engine=engine)
+    res = trace_execution_path(
+        db, from_symbol, to_symbol, max_depth=max_depth, engine=engine, detect_splits=detect_splits
+    )
     return res.model_dump()
+
+
+@app.get("/api/reachable")
+def get_reachable_symbols(
+    from_symbol: str = Query(..., min_length=1),
+    max_depth: int = Query(default=8, ge=1, le=15),
+):
+    """Get all downstream reachable symbols from a given start symbol."""
+    symbols = get_downstream_reachable_symbols(db, from_symbol, max_depth=max_depth)
+    return {
+        "from_symbol": from_symbol,
+        "count": len(symbols),
+        "reachable_symbols": symbols,
+    }
 
 
 @app.get("/call-tree")

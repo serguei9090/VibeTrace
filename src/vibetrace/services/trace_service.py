@@ -34,6 +34,15 @@ class TraceHop(BaseModel):
     call_line: int | None = None
 
 
+class SplitPointInfo(BaseModel):
+    """Information about a node where execution branches out into multiple calls."""
+
+    node_id: str
+    symbol_name: str
+    total_outgoing_branches: int
+    branch_names: list[str] = Field(default_factory=list)
+
+
 class TracePathResult(BaseModel):
     """Result of a bidirectional execution tracepath search between two symbols."""
 
@@ -43,6 +52,7 @@ class TracePathResult(BaseModel):
     hops: list[TraceHop] = Field(default_factory=list)
     paths: list[list[TraceHop]] = Field(default_factory=list)
     node_ids: list[str] = Field(default_factory=list)
+    split_points: list[SplitPointInfo] = Field(default_factory=list)
 
 
 class CalleeContract(BaseModel):
@@ -105,6 +115,76 @@ def _resolve_symbol_candidates(
     return candidates[:5]
 
 
+def _detect_split_points(db: IndexerDB, path_node_ids: list[str]) -> list[SplitPointInfo]:
+    """Identify nodes along a path that fan out into multiple downstream branches."""
+    if not path_node_ids:
+        return []
+    split_points: list[SplitPointInfo] = []
+    with db._get_conn() as conn:
+        for nid in path_node_ids:
+            rows = conn.execute(
+                """
+                SELECT n.name, e.relation_type
+                FROM edges e
+                JOIN nodes n ON e.to_node_id = n.id
+                WHERE e.from_node_id = ? AND e.relation_type != 'defines'
+                LIMIT 10
+                """,
+                (nid,),
+            ).fetchall()
+            if len(rows) > 1:
+                cur_node = conn.execute("SELECT name FROM nodes WHERE id = ?", (nid,)).fetchone()
+                cur_name = cur_node["name"] if cur_node else nid
+                branch_names = [f"{r['name']} ({r['relation_type']})" for r in rows[:5]]
+                split_points.append(
+                    SplitPointInfo(
+                        node_id=nid,
+                        symbol_name=cur_name,
+                        total_outgoing_branches=len(rows),
+                        branch_names=branch_names,
+                    )
+                )
+    return split_points
+
+
+def get_downstream_reachable_symbols(
+    db: IndexerDB,
+    from_symbol: str,
+    max_depth: int = 8,
+    from_file: str | None = None,
+) -> list[str]:
+    """Find all unique downstream symbol names reachable from from_symbol using recursive CTE."""
+    start_rows = _resolve_symbol_candidates(db, from_symbol, file_path=from_file)
+    if not start_rows:
+        return []
+
+    start_ids = [r["id"] for r in start_rows]
+    placeholders = ",".join("?" for _ in start_ids)
+
+    query = f"""
+    WITH RECURSIVE reachable(node_id, depth) AS (
+        SELECT to_node_id, 1
+        FROM edges
+        WHERE from_node_id IN ({placeholders})
+        UNION
+        SELECT e.to_node_id, r.depth + 1
+        FROM edges e
+        JOIN reachable r ON e.from_node_id = r.node_id
+        WHERE r.depth < ?
+    )
+    SELECT DISTINCT n.name
+    FROM reachable r
+    JOIN nodes n ON r.node_id = n.id
+    WHERE n.name != ? AND n.name IS NOT NULL
+    ORDER BY n.name ASC
+    """
+
+    params = [*start_ids, max_depth, from_symbol]
+    with db._get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [r["name"] for r in rows if r["name"]]
+
+
 def trace_execution_path(
     db: IndexerDB,
     from_symbol: str,
@@ -113,6 +193,7 @@ def trace_execution_path(
     engine: str = "bfs",
     from_file: str | None = None,
     to_file: str | None = None,
+    detect_splits: bool = True,
 ) -> TracePathResult:
     """Find shortest execution tracepaths between two symbols using BFS or recursive CTE."""
     start_rows = _resolve_symbol_candidates(db, from_symbol, file_path=from_file)
@@ -173,6 +254,7 @@ def trace_execution_path(
                         call_line=c_line,
                     )
                 )
+        split_points = _detect_split_points(db, node_ids) if detect_splits else []
         return TracePathResult(
             from_symbol=from_symbol,
             to_symbol=to_symbol,
@@ -180,6 +262,7 @@ def trace_execution_path(
             hops=hops,
             paths=[hops] if hops else [],
             node_ids=node_ids,
+            split_points=split_points,
         )
 
     node_map: dict[str, TraceNodeInfo] = {}
@@ -340,13 +423,15 @@ def trace_execution_path(
             if h.to_node.id not in unique_node_ids:
                 unique_node_ids.append(h.to_node.id)
 
+    split_points = _detect_split_points(db, unique_node_ids) if detect_splits else []
     return TracePathResult(
         from_symbol=from_symbol,
         to_symbol=to_symbol,
         found=True,
         hops=primary,
-        paths=paths,
+        paths=paths[:3],
         node_ids=unique_node_ids,
+        split_points=split_points,
     )
 
 

@@ -4,6 +4,7 @@ import type {
   RawGraphEdge,
   RawGraphNode,
   SelectedElement,
+  SplitPointInfo,
   TracePathResponse,
   VibeNodeData,
 } from "../types";
@@ -13,6 +14,7 @@ export interface SelectionHighlightResult {
   highlightedEdges: Set<string>;
   impactDepthMap: Map<string, number>;
   traceStepMap: Map<string, number>;
+  splitMap: Map<string, SplitPointInfo>;
 }
 
 export const computeSelectionHighlights = (
@@ -26,6 +28,13 @@ export const computeSelectionHighlights = (
   const highlightedEdges = new Set<string>();
   const impactDepthMap = new Map<string, number>();
   const traceStepMap = new Map<string, number>();
+  const splitMap = new Map<string, SplitPointInfo>();
+
+  if (activeTrace?.split_points) {
+    activeTrace.split_points.forEach((sp) => {
+      splitMap.set(sp.node_id, sp);
+    });
+  }
 
   if (activeTrace?.found && activeTrace.node_ids.length > 0) {
     activeTrace.node_ids.forEach((nid, idx) => {
@@ -39,7 +48,7 @@ export const computeSelectionHighlights = (
       traceStepMap.set(hop.to_node.id, hop.step_index + 1);
       highlightedEdges.add(`${hop.from_node.id}-${hop.to_node.id}-${hop.relation_type}`);
     });
-    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap };
+    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
   }
 
   if (agentFocusNodeIds && agentFocusNodeIds.length > 0 && !selectedElement) {
@@ -52,11 +61,11 @@ export const computeSelectionHighlights = (
         highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
       }
     });
-    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap };
+    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
   }
 
   if (!selectedElement) {
-    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap };
+    return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
   }
 
   if (selectedElement.type === "node") {
@@ -148,7 +157,7 @@ export const computeSelectionHighlights = (
     }
   }
 
-  return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap };
+  return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
 };
 
 export const buildFlowElements = (
@@ -205,6 +214,10 @@ export const buildFlowElements = (
           (impactMode || layoutMode === "impact") &&
           highlightedNodes.has(n.id) &&
           n.id !== selectedElement?.id,
+        splitBadge: highlights.splitMap?.has(n.id)
+          ? `${highlights.splitMap.get(n.id)?.total_outgoing_branches}`
+          : undefined,
+        splitBranches: highlights.splitMap?.get(n.id)?.branch_names,
         layoutMode,
       },
     };

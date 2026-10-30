@@ -161,16 +161,15 @@ const layoutDirectionalGraph = async (
   const activeNodes = highlighted.length > 0 ? highlighted : contentNodes;
   const uniqueActiveNodes = Array.from(new Map(activeNodes.map((n) => [n.id, n])).values());
   const activeIds = new Set(uniqueActiveNodes.map((n) => n.id));
+  const isTrace = mode === "trace";
+  const direction = isTrace ? "RIGHT" : "UP";
+
   const activeEdges = edges.filter(
     (e) =>
       activeIds.has(e.source) &&
       activeIds.has(e.target) &&
-      (e.data as any)?.relation_type !== "defines" &&
-      !e.id.endsWith("-defines")
+      (isTrace || ((e.data as any)?.relation_type !== "defines" && !e.id.endsWith("-defines")))
   );
-
-  const isTrace = mode === "trace";
-  const direction = isTrace ? "RIGHT" : "UP";
 
   const rootGraph = {
     id: "root",
