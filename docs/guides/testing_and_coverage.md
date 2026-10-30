@@ -1,6 +1,6 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 495 / 495 Automated Tests Passing (100% Pass Rate)  
+> **Status:** 498 / 498 Automated Tests Passing (100% Pass Rate)  
 > **Last Verification:** 2026-10-30  
 > **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
 
@@ -74,6 +74,9 @@ All **470 automated tests** in `tests/` pass with zero failures.
 | `test_sarif_export_and_cli_approve` | SARIF 2.1.0 `--sarif` export and CLI `--approve` | Emits valid SARIF 2.1.0 JSON; `--approve` records baseline exceptions. | ✅ PASS |
 | `test_intraprocedural_def_use_taint_and_untainted_local` | Intra-procedural Def-Use variable taint (`dataflow.py`) | Escalates tainted parameter chains (`cmd -> q -> run_cmd`) while blocking false-positive escalation on hardcoded local variables (`untainted_local`). | ✅ PASS |
 | `test_rule_catalog_sync_ttl_and_declarative_rules` | Self-updating rule catalog sync (`rule_sync.py`) + CWE-79/918/295/347/611 | Auto-syncs on SQLite TTL expiry (`[sync] rules_ttl_days`) or `--update`, merges `.vibetrace/rules/*.json`, and runs with zero external binaries required. | ✅ PASS |
+| `test_osv_deduplication_and_moderate_severity` | OSV `/v1/query` hydration + `GHSA`/`PYSEC`/`CVE` alias deduplication | Deduplicates alias records, maps `MODERATE` to `MEDIUM`, and extracts exact patched versions. | ✅ PASS |
+| `test_interprocedural_argument_to_parameter_taint` | Inter-procedural positional argument $\to$ parameter taint (`verify_interprocedural_taint_flow`) | Tracks which specific argument indices carry taint across caller hops; blocks false positives on constant arguments (`untainted_call_arg`) and untainted parameter positions. | ✅ PASS |
+| `test_semgrep_yaml_compiler_and_cwe_top25_rules` | Native Semgrep `.yaml` rule compiler (`pattern`, `pattern-not`, `$METAVAR`, `...`) + 22 CWE Top 25 rules | Compiles and executes community Semgrep YAML rules natively without external binaries. | ✅ PASS |
 
 ---
 

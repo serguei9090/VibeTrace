@@ -205,4 +205,121 @@ RULES_CATALOG: dict[str, SecurityRuleSpec] = {
         non_compliant_example="lxml.etree.XMLParser(resolve_entities=True)",
         compliant_example="lxml.etree.XMLParser(resolve_entities=False, no_network=True)",
     ),
+    # 13. CWE-601: Open Redirect
+    "CWE-601": SecurityRuleSpec(
+        rule_id="CWE-601",
+        cwe_id="CWE-601",
+        severity=Severity.MEDIUM,
+        title="URL Redirection to Untrusted Site ('Open Redirect')",
+        explanation=(
+            "Redirecting users directly to an unvalidated query parameter or request header "
+            "enables phishing attacks and OAuth token theft."
+        ),
+        non_compliant_example="return redirect(request.args.get('next'))",
+        compliant_example="return redirect(url_for('dashboard'))",
+    ),
+    # 14. CWE-943: NoSQL Injection
+    "CWE-943": SecurityRuleSpec(
+        rule_id="CWE-943",
+        cwe_id="CWE-943",
+        severity=Severity.CRITICAL,
+        title="Improper Neutralization of Special Elements in Data Query Logic ('NoSQL Injection')",
+        explanation=(
+            "Using `$where` JavaScript evaluation or unvalidated operator dicts in NoSQL queries "
+            "allows attackers to bypass authentication or execute arbitrary JS in the database."
+        ),
+        non_compliant_example="db.users.find({'$where': f'this.name == \"{user}\"'})",
+        compliant_example="db.users.find({'name': str(user)})",
+    ),
+    # 15. CWE-1321: Prototype Pollution
+    "CWE-1321": SecurityRuleSpec(
+        rule_id="CWE-1321",
+        cwe_id="CWE-1321",
+        severity=Severity.HIGH,
+        title="Improperly Controlled Modification of Object Prototype ('Prototype Pollution')",
+        explanation=(
+            "Mutating `__proto__` or `constructor.prototype` from untrusted keys allows attackers "
+            "to inject properties into the global `Object.prototype`."
+        ),
+        non_compliant_example="target.__proto__[key] = val;",
+        compliant_example="const target = Object.create(null);",
+    ),
+    # 16. CWE-1336: Server-Side Template Injection (SSTI)
+    "CWE-1336": SecurityRuleSpec(
+        rule_id="CWE-1336",
+        cwe_id="CWE-1336",
+        severity=Severity.CRITICAL,
+        title="Improper Neutralization of Special Elements Used in a Template Engine ('SSTI')",
+        explanation=(
+            "Rendering dynamically formatted strings with `render_template_string` or "
+            "`jinja2.Template` allows remote code execution via template expressions."
+        ),
+        non_compliant_example="render_template_string(f'<h1>Hello {user_name}</h1>')",
+        compliant_example="render_template('hello.html', user_name=user_name)",
+    ),
+    # 17. CWE-330: Use of Insufficiently Random Values
+    "CWE-330": SecurityRuleSpec(
+        rule_id="CWE-330",
+        cwe_id="CWE-330",
+        severity=Severity.MEDIUM,
+        title="Use of Insufficiently Random Values",
+        explanation=(
+            "Standard PRNGs (`random.*`, `Math.random()`) are predictable and must not be used "
+            "to generate security tokens, OTPs, session IDs, or cryptographic nonces."
+        ),
+        non_compliant_example="reset_token = str(random.randint(100000, 999999))",
+        compliant_example="reset_token = secrets.token_urlsafe(32)",
+    ),
+    # 18. CWE-377: Insecure Temporary File
+    "CWE-377": SecurityRuleSpec(
+        rule_id="CWE-377",
+        cwe_id="CWE-377",
+        severity=Severity.MEDIUM,
+        title="Insecure Temporary File",
+        explanation=(
+            "`tempfile.mktemp()` is vulnerable to symlink race conditions (TOCTOU) between "
+            "name generation and file creation."
+        ),
+        non_compliant_example="tmp_path = tempfile.mktemp(suffix='.json')",
+        compliant_example="with tempfile.NamedTemporaryFile(suffix='.json') as f: ...",
+    ),
+    # 19. CWE-321: Hard-coded Cryptographic Key
+    "CWE-321": SecurityRuleSpec(
+        rule_id="CWE-321",
+        cwe_id="CWE-321",
+        severity=Severity.CRITICAL,
+        title="Use of Hard-coded Cryptographic Key",
+        explanation=(
+            "Embedding PEM private keys directly in source files compromises all signatures and "
+            "TLS sessions if the repository is leaked."
+        ),
+        non_compliant_example="PRIVATE_KEY = '-----BEGIN RSA PRIVATE KEY-----...'",
+        compliant_example="PRIVATE_KEY = os.environ['SIGNING_PRIVATE_KEY']",
+    ),
+    # 20. CWE-942: Permissive Cross-domain Policy with Untrusted Domains
+    "CWE-942": SecurityRuleSpec(
+        rule_id="CWE-942",
+        cwe_id="CWE-942",
+        severity=Severity.MEDIUM,
+        title="Permissive Cross-domain Policy with Untrusted Domains ('Insecure CORS')",
+        explanation=(
+            "Combining wildcard `allow_origins=['*']` with `allow_credentials=True` exposes "
+            "authenticated endpoints to cross-origin data theft."
+        ),
+        non_compliant_example="CORSMiddleware(app, allow_origins=['*'], allow_credentials=True)",
+        compliant_example="CORSMiddleware(app, allow_origins=['https://app.example.com'])",
+    ),
+    # 21. CWE-489: Active Debug Code
+    "CWE-489": SecurityRuleSpec(
+        rule_id="CWE-489",
+        cwe_id="CWE-489",
+        severity=Severity.MEDIUM,
+        title="Active Debug Code in Production",
+        explanation=(
+            "Running web servers with `debug=True` exposes interactive debuggers and detailed "
+            "stack traces to attackers."
+        ),
+        non_compliant_example="app.run(host='0.0.0.0', debug=True)",
+        compliant_example="app.run(host='0.0.0.0', debug=False)",
+    ),
 }

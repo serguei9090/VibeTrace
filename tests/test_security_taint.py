@@ -205,3 +205,100 @@ def test_rule_catalog_sync_ttl_and_declarative_rules(tmp_path: Path):
     report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
     cwes = {f.cwe_id for f in report.findings}
     assert {"CWE-918", "CWE-295", "CWE-347", "CWE-798"}.issubset(cwes)
+
+
+def test_interprocedural_argument_to_parameter_taint(tmp_path) -> None:
+    """Verifies cross-function positional argument-to-parameter taint propagation."""
+    from vibetrace.security.service import SecurityService
+
+    (tmp_path / "app.py").write_text(
+        "import subprocess\n"
+        "@app.post('/run')\n"
+        "def handle(user_cmd: str):\n"
+        "    run_const('echo hardcoded_safe')\n"
+        "    run_positional('echo safe_param', user_cmd)\n\n"
+        "def run_const(cmd: str):\n"
+        "    subprocess.run(cmd, shell=True)\n\n"
+        "def run_positional(safe_p: str, unsafe_p: str):\n"
+        "    subprocess.run(safe_p, shell=True)\n"
+        "    subprocess.run(unsafe_p, shell=True)\n",
+        encoding="utf-8",
+    )
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(_node("h1", "handle", 3, 5, decorators=["@app.post('/run')"]))
+    db.upsert_node(_node("c1", "run_const", 7, 8))
+    db.upsert_node(_node("p1", "run_positional", 10, 12))
+    db.upsert_edge(Edge(from_node_id="h1", to_node_id="c1", relation_type="calls"))
+    db.upsert_edge(Edge(from_node_id="h1", to_node_id="p1", relation_type="calls"))
+
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    by_line = {f.start_line: f for f in report.findings}
+
+    # Line 8 (`run_const`): caller passed a hardcoded literal -> NOT escalated
+    assert by_line[8].category == FindingCategory.AST_PATTERN
+    assert by_line[8].metadata.get("dataflow") == "untainted_call_arg"
+
+    # Line 11 (`run_positional` safe_p at index 0): caller passed literal -> NOT escalated
+    assert by_line[11].category == FindingCategory.AST_PATTERN
+    assert by_line[11].metadata.get("dataflow") == "untainted_local"
+
+    # Line 12 (`run_positional` unsafe_p at index 1): caller passed `user_cmd` -> ESCALATED!
+    assert by_line[12].category == FindingCategory.TAINT_REACHABILITY
+    assert by_line[12].severity == Severity.CRITICAL
+    assert by_line[12].metadata.get("taint_vars") == ["user_cmd", "unsafe_p"]
+
+
+def test_semgrep_yaml_compiler_and_cwe_top25_rules(tmp_path) -> None:
+    """Verifies Semgrep YAML compilation (pattern, pattern-not, $METAVAR) and CWE Top 25."""
+    from vibetrace.security.service import SecurityService
+
+    rules_dir = tmp_path / ".vibetrace" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    (rules_dir / "custom_semgrep.yaml").write_text(
+        "rules:\n"
+        "  - id: custom.semgrep.dangerous-exec\n"
+        "    pattern: dangerous_exec($CMD, ..., force=True)\n"
+        '    pattern-not: dangerous_exec("safe_op", ..., force=True)\n'
+        "    message: Semgrep metavariable rule matched dangerous_exec\n"
+        "    severity: ERROR\n"
+        "    languages: [python]\n"
+        "    cwe: CWE-78\n",
+        encoding="utf-8",
+    )
+
+    (tmp_path / "app.py").write_text(
+        "import random, tempfile\n"
+        "def endpoints(request, user_input):\n"
+        '    dangerous_exec("safe_op", timeout=5, force=True)\n'
+        "    dangerous_exec(user_input, timeout=5, force=True)\n"
+        "    redirect(request.args.get('next'))\n"
+        "    db.users.find({'$where': user_input})\n"
+        "    render_template_string(f'Hello {user_input}')\n"
+        "    reset_token = random.randint(1000, 9999)\n"
+        "    tmp = tempfile.mktemp()\n"
+        "    app.run(host='0.0.0.0', debug=True)\n"
+        "    aws = 'AKIAIOSFODNN7EXAMPLE'\n",
+        encoding="utf-8",
+    )
+    db = IndexerDB(str(tmp_path / ".vibetrace" / "vibetrace.db"))
+    db.upsert_node(_node("v1", "endpoints", 2, 11))
+
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    lines = {f.start_line for f in report.findings}
+    cwes = {f.cwe_id for f in report.findings}
+
+    # Line 3 matched `pattern-not`, so it is suppressed; Line 4 matched `pattern`!
+    assert 3 not in lines
+    assert 4 in lines
+    assert {
+        "CWE-78",
+        "CWE-601",
+        "CWE-943",
+        "CWE-1336",
+        "CWE-330",
+        "CWE-377",
+        "CWE-489",
+        "CWE-798",
+    }.issubset(cwes)

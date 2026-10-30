@@ -1,9 +1,10 @@
-"""Intra-procedural Def-Use variable taint analyzer for sink argument provenance."""
+"""Intra- and inter-procedural Def-Use variable taint analyzer for argument provenance."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 _IDENT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _ASSIGN_RE = re.compile(
@@ -52,39 +53,63 @@ def _extract_params(header_text: str) -> list[str]:
     return params
 
 
-def verify_sink_taint_flow(
-    project_root: Path,
-    file_path: str,
-    func_start_line: int,
-    func_end_line: int,
-    sink_line: int,
+def _split_top_level_args(arg_str: str) -> list[str]:
+    """Splits a call's argument list on top-level commas, respecting quotes and nested parens."""
+    args: list[str] = []
+    cur: list[str] = []
+    depth = 0
+    in_quote: str | None = None
+    for ch in arg_str:
+        if in_quote:
+            cur.append(ch)
+            if ch == in_quote:
+                in_quote = None
+        elif ch in ('"', "'", "`"):
+            in_quote = ch
+            cur.append(ch)
+        elif ch in ("(", "[", "{"):
+            depth += 1
+            cur.append(ch)
+        elif ch in (")", "]", "}"):
+            if depth > 0:
+                depth -= 1
+                cur.append(ch)
+            else:
+                break
+        elif ch == "," and depth == 0:
+            args.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    tail = "".join(cur).strip()
+    if tail:
+        args.append(tail)
+    return args
+
+
+def _propagate_function_def_use(
+    lines: list[str],
+    s_idx: int,
+    stop_idx: int,
     sanitizers: frozenset[str],
-) -> tuple[bool, list[str]]:
-    """Checks whether untrusted parameters or sources flow into the sink call on `sink_line`.
-
-    Returns `(is_tainted, variable_chain)`. If a function only passes untainted local constants
-    to the sink (e.g. `cmd = 'ls'; os.system(cmd)`), returns `(False, [])`.
-    """
-    abs_path = (project_root / file_path).resolve()
-    try:
-        lines = abs_path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return True, []
-
-    s_idx = max(0, func_start_line - 1)
-    e_idx = min(len(lines), func_end_line)
-    k_idx = max(s_idx, min(len(lines) - 1, sink_line - 1))
-    if s_idx >= len(lines):
-        return True, []
-
-    # 1. Seed taint from function parameters
-    header_slice = " ".join(lines[s_idx : min(e_idx, s_idx + 4)])
+    tainted_param_indices: dict[int, list[str]] | None = None,
+) -> tuple[list[str], dict[str, list[str]], set[str]]:
+    """Propagates Def-Use taint from function header at `s_idx` down to `stop_idx`."""
+    header_slice = " ".join(lines[s_idx : min(len(lines), s_idx + 4)])
     params = _extract_params(header_slice)
-    tainted: dict[str, list[str]] = {p: [p] for p in params}
+    tainted: dict[str, list[str]] = {}
     untainted_locals: set[str] = set()
 
-    # 2. Propagate Def-Use assignments from function start up to sink line
-    for idx in range(s_idx + 1, k_idx):
+    for idx, p in enumerate(params):
+        if tainted_param_indices is None:
+            tainted[p] = [p]
+        elif idx in tainted_param_indices:
+            prefix = tainted_param_indices[idx]
+            tainted[p] = [*prefix, p] if p not in prefix else list(prefix)
+        else:
+            untainted_locals.add(p)
+
+    for idx in range(s_idx + 1, stop_idx):
         line = lines[idx].split("#", 1)[0].strip()
         if not line or "==" in line.split("=", 1)[0]:
             continue
@@ -112,12 +137,39 @@ def verify_sink_taint_flow(
             tainted.pop(lhs, None)
             untainted_locals.add(lhs)
 
-    # 3. Inspect sink line argument provenance
+    return params, tainted, untainted_locals
+
+
+def verify_sink_taint_flow(
+    project_root: Path,
+    file_path: str,
+    func_start_line: int,
+    func_end_line: int,
+    sink_line: int,
+    sanitizers: frozenset[str],
+    tainted_param_indices: dict[int, list[str]] | None = None,
+) -> tuple[bool, list[str]]:
+    """Checks whether tainted parameters or external sources flow into `sink_line`."""
+    abs_path = (project_root / file_path).resolve()
+    try:
+        lines = abs_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return True, []
+
+    s_idx = max(0, func_start_line - 1)
+    e_idx = min(len(lines), func_end_line)
+    k_idx = max(s_idx, min(len(lines) - 1, sink_line - 1))
+    if s_idx >= len(lines) or e_idx <= s_idx:
+        return True, []
+
+    params, tainted, untainted_locals = _propagate_function_def_use(
+        lines, s_idx, k_idx, sanitizers, tainted_param_indices
+    )
+
     sink_text = lines[k_idx].split("#", 1)[0]
     if any(src in sink_text for src in _DIRECT_SOURCES):
         return True, ["untrusted_input"]
 
-    # Extract arguments inside the sink call parentheses
     arg_part = sink_text.split("(", 1)[1] if "(" in sink_text else sink_text
     sink_idents = [tok for tok in _IDENT_RE.findall(arg_part) if tok not in _KEYWORDS]
 
@@ -125,10 +177,103 @@ def verify_sink_taint_flow(
         if tok in tainted:
             return True, tainted[tok]
 
-    # If the sink only references known untainted local variables (or has no tainted vars at all)
     if untainted_locals and any(tok in untainted_locals for tok in sink_idents):
         return False, []
     if params and not any(tok in tainted for tok in sink_idents):
         return False, []
 
     return True, []
+
+
+def verify_interprocedural_taint_flow(
+    project_root: Path,
+    path_nodes: list[dict[str, Any]],
+    sink_file_path: str,
+    sink_line: int,
+    sanitizers: frozenset[str],
+) -> tuple[bool, list[str], str]:
+    """Traces argument-to-parameter taint across a multi-hop call path `source -> ... -> sink`.
+
+    Returns `(is_tainted, variable_chain, reason)` where `reason` is `"tainted"`,
+    `"untainted_call_arg"`, or `"untainted_local"`.
+    """
+    # Filter to concrete function/method hops with line bounds
+    hops = [
+        n
+        for n in path_nodes
+        if n.get("kind") in ("function", "method")
+        and n.get("file_path")
+        and n.get("start_line")
+        and n.get("end_line")
+    ]
+    if not hops:
+        return True, [], "tainted"
+
+    tainted_params: dict[int, list[str]] | None = None
+
+    # Walk caller hops (0 .. len-2) to map tainted call arguments -> callee parameter indices
+    for i in range(len(hops) - 1):
+        caller = hops[i]
+        callee = hops[i + 1]
+        callee_name = str(callee["name"]).split(".")[-1]
+        c_path = (project_root / str(caller["file_path"])).resolve()
+        try:
+            c_lines = c_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            tainted_params = None
+            continue
+
+        s_idx = max(0, int(caller["start_line"]) - 1)
+        e_idx = min(len(c_lines), int(caller["end_line"]))
+        call_re = re.compile(rf"\b{re.escape(callee_name)}\s*\((.*)$")
+
+        call_line_idx: int | None = None
+        call_arg_tail = ""
+        for idx in range(s_idx, e_idx):
+            code_part = c_lines[idx].split("#", 1)[0]
+            m = call_re.search(code_part)
+            if m and not code_part.lstrip().startswith(("def ", "function ", "func ", "fn ")):
+                call_line_idx = idx
+                call_arg_tail = m.group(1)
+                break
+
+        if call_line_idx is None:
+            tainted_params = None
+            continue
+
+        _, caller_tainted, _ = _propagate_function_def_use(
+            c_lines, s_idx, call_line_idx, sanitizers, tainted_params
+        )
+        args = _split_top_level_args(call_arg_tail)
+        if not args:
+            tainted_params = None
+            continue
+
+        next_tainted_params: dict[int, list[str]] = {}
+        for arg_idx, arg_expr in enumerate(args):
+            if any(f"{san}(" in arg_expr or f".{san}(" in arg_expr for san in sanitizers):
+                continue
+            if any(src in arg_expr for src in _DIRECT_SOURCES):
+                next_tainted_params[arg_idx] = ["untrusted_input"]
+                continue
+            arg_idents = [tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS]
+            for tok in arg_idents:
+                if tok in caller_tainted:
+                    next_tainted_params[arg_idx] = caller_tainted[tok]
+                    break
+
+        if not next_tainted_params:
+            return False, [], "untainted_call_arg"
+        tainted_params = next_tainted_params
+
+    sink_hop = hops[-1]
+    is_tainted, chain = verify_sink_taint_flow(
+        project_root=project_root,
+        file_path=sink_file_path,
+        func_start_line=int(sink_hop["start_line"]),
+        func_end_line=int(sink_hop["end_line"]),
+        sink_line=sink_line,
+        sanitizers=sanitizers,
+        tainted_param_indices=tainted_params,
+    )
+    return is_tainted, chain, ("tainted" if is_tainted else "untainted_local")

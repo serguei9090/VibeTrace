@@ -12,11 +12,24 @@ from collections import deque
 from pathlib import Path
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.security.dataflow import verify_sink_taint_flow
+from vibetrace.security.dataflow import verify_interprocedural_taint_flow
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
 MAX_DEPTH = 8
-TAINT_CWES = {"CWE-78", "CWE-95", "CWE-502", "CWE-89", "CWE-22", "CWE-79", "CWE-918", "CWE-611"}
+TAINT_CWES = {
+    "CWE-78",
+    "CWE-95",
+    "CWE-502",
+    "CWE-89",
+    "CWE-22",
+    "CWE-79",
+    "CWE-918",
+    "CWE-611",
+    "CWE-601",
+    "CWE-943",
+    "CWE-1321",
+    "CWE-1336",
+}
 SANITIZERS = frozenset(
     {"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval", "is_relative_to"}
 )
@@ -84,16 +97,16 @@ class TaintEngine:
                 continue
             sink_node = nodes[sink_id]
             if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
-                is_tainted, var_chain = verify_sink_taint_flow(
+                path_nodes = [dict(nodes[nid]) for nid in path if nid in nodes]
+                is_tainted, var_chain, reason = verify_interprocedural_taint_flow(
                     project_root=project_root,
-                    file_path=finding.file_path,
-                    func_start_line=int(sink_node["start_line"]),
-                    func_end_line=int(sink_node["end_line"]),
+                    path_nodes=path_nodes,
+                    sink_file_path=finding.file_path,
                     sink_line=finding.start_line,
                     sanitizers=sanitizers,
                 )
                 if not is_tainted:
-                    finding.metadata["dataflow"] = "untainted_local"
+                    finding.metadata["dataflow"] = reason
                     continue
                 if var_chain:
                     finding.metadata["taint_vars"] = var_chain
