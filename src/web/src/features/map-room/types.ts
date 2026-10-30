@@ -137,7 +137,7 @@ export interface SecurityFindingUI {
   id: string;
   rule_id: string;
   cwe_id: string;
-  category: "ast_pattern" | "taint_reachability" | "package_cve";
+  category: "ast_pattern" | "taint_reachability" | "package_cve" | "iac_misconfig" | "git_secret";
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
   title: string;
   message: string;
@@ -154,7 +154,10 @@ export interface SecurityFindingUI {
   rationale?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
-  metadata?: { taint_path?: string[] } & Record<string, unknown>;
+  metadata?: { taint_path?: string[]; tainted_variables?: Record<string, string[]> } & Record<
+    string,
+    unknown
+  >;
 }
 
 export interface SecurityAuditReportUI {
@@ -167,4 +170,48 @@ export interface SecurityAuditReportUI {
   modified_count: number;
   approved_count: number;
   findings: SecurityFindingUI[];
+}
+
+export interface UntestedSymbolUI {
+  symbol: string;
+  file_path: string;
+  start_line: number;
+}
+
+export interface CoverageGateReportUI {
+  threshold_pct: number;
+  enforced: boolean;
+  passed: boolean;
+  total_target_symbols: number;
+  tested_symbols_count: number;
+  ast_symbol_coverage_pct: number;
+  line_coverage_pct?: number | null;
+  effective_coverage_pct: number;
+  coverage_source: string;
+  untested_symbols: UntestedSymbolUI[];
+}
+
+export interface UnifiedReviewReportUI {
+  scope: "changed" | "full";
+  passed: boolean;
+  changed_files: string[];
+  unapproved_security_count: number;
+  modified_security_count: number;
+  new_splits_count: number;
+  modified_splits_count: number;
+  modified_symbols_with_callers: number;
+  coverage_gate: CoverageGateReportUI;
+  security_findings: SecurityFindingUI[];
+  actionable_splits: Array<{
+    node_id: string;
+    symbol: string;
+    qualified_name: string;
+    file_path: string;
+    start_line: number;
+    end_line: number;
+    code_hash: string;
+    branches_count: number;
+    status: string;
+  }>;
+  actions_required: string[];
 }

@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   RefreshCw,
   Search,
+  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
@@ -45,6 +46,8 @@ interface MapHeaderProps {
   lastAgentEvent: AgentFocusEvent | null;
   onToggleDocs?: () => void;
   isDocsOpen?: boolean;
+  onToggleReview?: () => void;
+  isReviewOpen?: boolean;
   selectedElement?: SelectedElement | null;
   rawNodes?: RawGraphNode[];
   rawEdges?: RawGraphEdge[];
@@ -74,6 +77,8 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   lastAgentEvent,
   onToggleDocs,
   isDocsOpen,
+  onToggleReview,
+  isReviewOpen,
   selectedElement,
   rawNodes,
   rawEdges,
@@ -327,6 +332,18 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           >
             <BookOpen size={15} color={isDocsOpen ? "#a5b4fc" : undefined} />
             Docs
+          </button>
+        )}
+
+        {onToggleReview && (
+          <button
+            type="button"
+            className={`vibe-btn ${isReviewOpen ? "vibe-btn-active" : ""}`}
+            onClick={onToggleReview}
+            title="Toggle Unified AI Quality Gate (Security, Splits, Test Coverage)"
+          >
+            <ShieldCheck size={15} color={isReviewOpen ? "#34d399" : "#6ee7b7"} />
+            Quality Gate
           </button>
         )}
       </div>

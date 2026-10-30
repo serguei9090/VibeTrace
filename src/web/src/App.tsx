@@ -12,6 +12,7 @@ import { DistrictNode } from "./features/map-room/components/nodes/DistrictNode"
 import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNode";
 import { PackageNode } from "./features/map-room/components/nodes/PackageNode";
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
+import { QualityGateDrawer } from "./features/map-room/components/QualityGateDrawer";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
@@ -77,6 +78,7 @@ export default function App() {
     fetchGraph,
   } = useMapRoomState();
   const [docsDrawerOpen, setDocsDrawerOpen] = useState(false);
+  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
 
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
@@ -114,6 +116,8 @@ export default function App() {
         lastAgentEvent={lastAgentEvent}
         onToggleDocs={() => setDocsDrawerOpen((prev) => !prev)}
         isDocsOpen={docsDrawerOpen}
+        onToggleReview={() => setReviewDrawerOpen((prev) => !prev)}
+        isReviewOpen={reviewDrawerOpen}
         selectedElement={selectedElement}
         rawNodes={rawData.current.nodes}
         rawEdges={rawData.current.edges}
@@ -204,6 +208,14 @@ export default function App() {
           isOpen={docsDrawerOpen}
           onClose={() => setDocsDrawerOpen(false)}
           apiUrl={API_URL}
+        />
+
+        <QualityGateDrawer
+          isOpen={reviewDrawerOpen}
+          onClose={() => setReviewDrawerOpen(false)}
+          apiUrl={API_URL}
+          rawNodes={rawData.current.nodes}
+          onFocusNode={onFocusNode}
         />
 
         <FilterPanel

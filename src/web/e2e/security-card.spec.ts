@@ -16,7 +16,10 @@ const finding = (filePath: string) => ({
   compliant_snippet: "subprocess.run([x])",
   remediation_guidance: "Avoid the shell.",
   status: "UNAPPROVED",
-  metadata: { taint_path: ["handler", "sink"] },
+  metadata: {
+    taint_path: ["handler", "sink"],
+    tainted_variables: { handler: ["cmd", "user_input"] },
+  },
 });
 
 test.describe("Security audit card", () => {
@@ -66,6 +69,8 @@ test.describe("Security audit card", () => {
     await row.click();
 
     await expect(page.getByText("Reachable from untrusted input: handler → sink")).toBeVisible();
+    await expect(page.getByText(/Tainted vars:/)).toBeVisible();
+    await expect(page.getByText(/handler\(cmd, user_input\)/)).toBeVisible();
 
     await page.getByRole("button", { name: "Show path" }).click();
     await expect.poll(() => traceUrl).toContain("from_symbol=handler");
@@ -81,5 +86,67 @@ test.describe("Security audit card", () => {
     expect(approvePayload?.tag).toBe("no-alternative");
     await expect(page.getByText(/Approved \[no-alternative\]:/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve exception" })).toHaveCount(0);
+  });
+
+  test("opens Unified AI Quality Gate drawer from header", async ({ page }) => {
+    await page.route("**/api/review**", async (route) => {
+      await route.fulfill({
+        json: {
+          passed: true,
+          scope: "changed",
+          changed_files: ["src/vibetrace/indexer/main.py"],
+          action_required_count: 0,
+          split_report: {
+            total_splits: 0,
+            unapproved_count: 0,
+            modified_count: 0,
+            approved_count: 0,
+            splits: [],
+          },
+          security_report: {
+            total_findings: 0,
+            critical_count: 0,
+            high_count: 0,
+            medium_count: 0,
+            low_count: 0,
+            unapproved_count: 0,
+            modified_count: 0,
+            approved_count: 0,
+            findings: [],
+          },
+          coverage_report: {
+            passed: true,
+            threshold_pct: 80.0,
+            coverage_pct: 92.5,
+            total_target_symbols: 40,
+            tested_symbols_count: 37,
+            untested_symbols_count: 3,
+            source: "ast_callgraph",
+            untested_symbols: [
+              {
+                symbol_id: "sym-1",
+                qualified_name: "reindex_all",
+                file_path: "src/vibetrace/indexer/main.py",
+                line: 42,
+              },
+            ],
+          },
+          remediation_summary: [
+            "✅ All changed files pass split integrity, security/IaC/secret checks, and the 80% test coverage Quality Gate.",
+          ],
+        },
+      });
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+
+    const gateBtn = page.getByRole("button", { name: "Quality Gate" });
+    await expect(gateBtn).toBeVisible({ timeout: 15000 });
+    await gateBtn.click();
+
+    await expect(page.getByText("Unified AI Quality Gate")).toBeVisible();
+    await expect(page.getByText("92.5%")).toBeVisible();
+    await expect(page.getByText("AST Call-Graph Reachability")).toBeVisible();
   });
 });

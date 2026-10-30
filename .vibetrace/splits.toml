@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T19:21:15.997256+00:00"
+updated_at = "2026-10-30T19:45:37.693056+00:00"
 total_records = 125
 
 [[splits]]
@@ -599,12 +599,12 @@ symbol = "App"
 qualified_name = "App"
 file_path = "src/web/src/App.tsx"
 status = "approved"
-code_hash = "01c7229d7352a4a4509e60c7806884edf852b0ca50dd3b3dd4254595fe178790"
-branches_count = 9
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "c34f2b115e7f62dc8febf4d05b60a6b6f2daac12da5cbb0e79fd836af25d7b22"
+branches_count = 10
+rationale = "Root React App shell orchestrating Map Room panels, QualityGateDrawer, and DocCatalogDrawer"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.449482+00:00"
-branches = ["useMapRoomState", "MapHeader", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "DocsExplorerDrawer", "FilterPanel"]
+reviewed_at = "2026-10-30T19:45:37.692045+00:00"
+branches = ["useMapRoomState", "MapHeader", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "DocsExplorerDrawer", "QualityGateDrawer", "FilterPanel"]
 
 [[splits]]
 symbol = "analyze_file_dependencies"

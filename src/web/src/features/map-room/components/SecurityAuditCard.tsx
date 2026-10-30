@@ -146,6 +146,18 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
                 <ShieldAlert size={13} color={color} />
               )}
               <span style={{ color, fontWeight: 700 }}>{f.severity}</span>
+              <span
+                style={{
+                  fontSize: 9,
+                  padding: "1px 5px",
+                  borderRadius: 4,
+                  background: "rgba(99, 102, 241, 0.2)",
+                  color: "#c7d2fe",
+                  textTransform: "uppercase",
+                }}
+              >
+                {f.category.replace("_", " ")}
+              </span>
               <span style={{ flex: 1 }}>
                 {f.cwe_id} · {f.title} (L{f.start_line})
               </span>
@@ -173,6 +185,15 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
                     )}
                   </div>
                 )}
+                {f.metadata?.tainted_variables &&
+                  Object.keys(f.metadata.tainted_variables).length > 0 && (
+                    <div style={{ fontSize: 10.5, color: "#cbd5e1" }}>
+                      Tainted Def-Use variables:{" "}
+                      {Object.entries(f.metadata.tainted_variables)
+                        .map(([fn, vars]) => `${fn}(${vars.join(", ")})`)
+                        .join(" → ")}
+                    </div>
+                  )}
                 {f.remediation_guidance && <div>{f.remediation_guidance}</div>}
                 {f.non_compliant_snippet && (
                   <pre style={{ margin: 0, color: "#fca5a5", whiteSpace: "pre-wrap" }}>
