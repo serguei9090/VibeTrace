@@ -75,8 +75,11 @@ test.describe("Security audit card", () => {
     const clip = await page.evaluate(() => navigator.clipboard.readText());
     expect(clip).toContain("CWE-78");
 
+    await page.getByLabel("Disposition tag").selectOption("no-alternative");
     await page.getByRole("button", { name: "Approve exception" }).click();
     await expect.poll(() => approvePayload?.finding_id).toBe("SEC-CWE-78-abc");
+    expect(approvePayload?.tag).toBe("no-alternative");
+    await expect(page.getByText(/Approved \[no-alternative\]:/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve exception" })).toHaveCount(0);
   });
 });

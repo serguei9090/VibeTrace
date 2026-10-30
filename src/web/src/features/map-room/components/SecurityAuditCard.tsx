@@ -47,6 +47,7 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
   const [findings, setFindings] = useState<SecurityFindingUI[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [rationale, setRationale] = useState("Security review verified");
+  const [tag, setTag] = useState("risk-accepted");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -89,10 +90,11 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
         severity: f.severity,
         rationale: rationale || "Security review verified",
         status: "APPROVED",
+        tag,
         reviewed_by: "developer",
       });
       setFindings((prev) =>
-        prev.map((x) => (x.id === f.id ? { ...x, status: "APPROVED", rationale } : x))
+        prev.map((x) => (x.id === f.id ? { ...x, status: "APPROVED", tag, rationale } : x))
       );
     } finally {
       setBusyId(null);
@@ -182,6 +184,11 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
                     {f.compliant_snippet}
                   </pre>
                 )}
+                {approved && (f.rationale || f.tag) && (
+                  <div style={{ color: "#34d399" }}>
+                    Approved{f.tag ? ` [${f.tag}]` : ""}: {f.rationale}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button type="button" onClick={() => copyPrompt(f)}>
                     {copiedId === f.id ? <Check size={11} /> : <ClipboardCopy size={11} />} Copy AI
@@ -189,6 +196,17 @@ export const SecurityAuditCard: React.FC<SecurityAuditCardProps> = ({
                   </button>
                   {!approved && (
                     <>
+                      <select
+                        aria-label="Disposition tag"
+                        value={tag}
+                        onChange={(e) => setTag(e.target.value)}
+                        style={{ fontSize: 11 }}
+                      >
+                        <option value="risk-accepted">risk-accepted</option>
+                        <option value="no-alternative">no-alternative</option>
+                        <option value="false-positive">false-positive</option>
+                        <option value="compensating-control">compensating-control</option>
+                      </select>
                       <input
                         aria-label="Approval rationale"
                         value={rationale}

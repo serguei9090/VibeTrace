@@ -80,9 +80,13 @@ def format_security_audit_md(report: Any) -> str:
             )
 
         if f.rationale:
+            tag_prefix = f"[{f.tag}] " if getattr(f, "tag", None) else ""
             lines.extend(
                 [
-                    f"> **Exception Rationale:** {f.rationale} (Reviewed by `{f.reviewed_by}`)",
+                    (
+                        f"> **Exception Rationale:** {tag_prefix}{f.rationale} "
+                        f"(Reviewed by `{f.reviewed_by}`)"
+                    ),
                     "",
                 ]
             )

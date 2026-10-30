@@ -152,6 +152,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
 
     if getattr(args, "approve", False):
         rationale = getattr(args, "rationale", "Security review verified via CLI")
+        tag = getattr(args, "tag", "risk-accepted")
         approved_now = 0
         for f in report.findings:
             if f.status != "APPROVED":
@@ -167,6 +168,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
                     reviewed_by="cli-user",
                     category=str(getattr(f.category, "value", f.category)),
                     symbol_name=f.symbol_name,
+                    tag=tag,
                 )
                 approved_now += 1
         print(

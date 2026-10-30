@@ -39,7 +39,10 @@ _DUMMY_SECRET_VALS = {
 
 _JS_LANGS = ("javascript", "typescript", "tsx")
 _SAFE_SQL_INTERPS = {"placeholders", "placeholder", "qmarks", "alias", "table", "table_name"}
-_NOSEC_RE = re.compile(r"(?:#|//)\s*nosec\b", re.IGNORECASE)
+_NOSEC_RE = re.compile(
+    r"(?:#|//)\s*(?:nosec|vibetrace:ignore)\b(?:\s*\[([a-z0-9_-]+)\])?(?:\s*:\s*(.+))?",
+    re.IGNORECASE,
+)
 
 
 def _is_static_str_expr(node: Node) -> bool:
@@ -108,13 +111,19 @@ class AstSecurityScanner:
             lang=parser_wrapper.language_name,
         )
 
-        return [
-            f
-            for f in findings
-            if not _NOSEC_RE.search(
-                "\n".join(lines[max(0, f.start_line - 1) : min(len(lines), f.end_line)])
-            )
-        ]
+        kept: list[SecurityFinding] = []
+        for f in findings:
+            slice_text = "\n".join(lines[max(0, f.start_line - 1) : min(len(lines), f.end_line)])
+            m = _NOSEC_RE.search(slice_text)
+            if not m:
+                kept.append(f)
+            elif m.group(1) or m.group(2):
+                f.status = "APPROVED"
+                f.tag = (m.group(1) or "inline-ignore").lower()
+                f.rationale = (m.group(2) or "Approved via inline tag").strip()
+                f.reviewed_by = "inline-tag"
+                kept.append(f)
+        return kept
 
     @classmethod
     def _visit_node(

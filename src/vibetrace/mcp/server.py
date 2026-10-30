@@ -730,6 +730,7 @@ async def vibetrace_approve_security_exception(params: ApproveSecurityExceptionI
             severity=params.severity,
             status=params.status,
             reviewed_by=params.reviewed_by,
+            tag=params.tag,
         )
         msg = {
             "status": "ok",

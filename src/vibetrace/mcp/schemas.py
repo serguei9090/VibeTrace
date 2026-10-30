@@ -653,6 +653,13 @@ class ApproveSecurityExceptionInput(BaseModel):
     rationale: str = Field(..., description="Explanation or justification for accepting this risk")
     severity: str = Field(default="HIGH", description="Severity tier: CRITICAL, HIGH, MEDIUM, LOW")
     status: str = Field(default="APPROVED", description="Status: APPROVED or RISK")
+    tag: str | None = Field(
+        default="risk-accepted",
+        description=(
+            "Disposition tag: no-alternative | risk-accepted | "
+            "false-positive | compensating-control"
+        ),
+    )
     reviewed_by: str = Field(default="agent", description="Reviewer identifier or agent name")
     scope_path: str = Field(default=".", description="Project root path")
     response_format: ResponseFormat = Field(

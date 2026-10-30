@@ -426,6 +426,19 @@ def test_nosec_and_false_positive_precision(tmp_path: Path):
     assert ts_findings[0].start_line == 3
     assert "execFileSync" in (ts_findings[0].compliant_snippet or "")
 
+    (tmp_path / "tagged.py").write_text(
+        "import os\n"
+        "def run_vendor(x):\n"
+        "    os.system(x)  # nosec [no-alternative]: vendor CLI has no library API\n",
+        encoding="utf-8",
+    )
+    tagged = AstSecurityScanner.scan_file("tagged.py", tmp_path)
+    assert len(tagged) == 1
+    assert tagged[0].status == "APPROVED"
+    assert tagged[0].tag == "no-alternative"
+    assert tagged[0].rationale == "vendor CLI has no library API"
+    assert tagged[0].reviewed_by == "inline-tag"
+
 
 def test_go_and_rust_security_rules(tmp_path: Path):
     (tmp_path / "main.go").write_text(

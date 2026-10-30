@@ -79,6 +79,7 @@ class SecurityApprovePayload(BaseModel):
     reviewed_by: str = "developer"
     category: str = "ast_pattern"
     symbol_name: str | None = None
+    tag: str | None = None
 
 
 class SecurityRemediatePayload(BaseModel):
@@ -379,6 +380,7 @@ def approve_security_exception_endpoint(payload: SecurityApprovePayload):
         reviewed_by=payload.reviewed_by,
         category=payload.category,
         symbol_name=payload.symbol_name,
+        tag=payload.tag,
     )
     return {"status": "ok", "baseline_file": ".vibetrace/security.toml"}
 

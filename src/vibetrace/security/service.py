@@ -94,6 +94,7 @@ class SecurityService:
         reviewed_by: str = "developer",
         category: str = "ast_pattern",
         symbol_name: str | None = None,
+        tag: str | None = None,
     ) -> None:
         """Records an approved exception in .vibetrace/security.toml."""
         SecurityBaselineManager.record_exception(
@@ -108,6 +109,7 @@ class SecurityService:
             reviewed_by=reviewed_by,
             category=category,
             symbol_name=symbol_name,
+            tag=tag,
         )
 
     @classmethod

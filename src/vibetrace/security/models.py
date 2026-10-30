@@ -55,6 +55,13 @@ class SecurityFinding(BaseModel):
     status: str = Field(
         default="UNAPPROVED", description="UNAPPROVED | APPROVED | MODIFIED_CODE | RISK"
     )
+    tag: str | None = Field(
+        default=None,
+        description=(
+            "Disposition tag: no-alternative | risk-accepted | "
+            "false-positive | compensating-control"
+        ),
+    )
     rationale: str | None = Field(
         default=None, description="User explanation if approved as baseline exception"
     )

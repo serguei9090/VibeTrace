@@ -677,6 +677,12 @@ examples:
         default="Security review verified via CLI",
         help="Rationale saved when approving security exceptions with --approve",
     )
+    p_security.add_argument(
+        "--tag",
+        default="risk-accepted",
+        choices=["no-alternative", "risk-accepted", "false-positive", "compensating-control"],
+        help="Disposition tag saved when approving exceptions with --approve",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     # project (federated multi-repo workspace)

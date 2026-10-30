@@ -75,10 +75,13 @@ class SecurityBaselineManager:
                     report.modified_count += 1
                 else:
                     f.status = match.get("status", "APPROVED")
+                    f.tag = match.get("tag") or f.tag
                     f.rationale = match.get("rationale")
                     f.reviewed_by = match.get("reviewed_by")
                     f.reviewed_at = match.get("reviewed_at")
                     report.approved_count += 1
+            elif f.status == "APPROVED":
+                report.approved_count += 1
             else:
                 f.status = "UNAPPROVED"
                 report.unapproved_count += 1
@@ -110,6 +113,7 @@ class SecurityBaselineManager:
         reviewed_by: str = "developer",
         category: str = "ast_pattern",
         symbol_name: str | None = None,
+        tag: str | None = None,
     ) -> None:
         """Appends or updates a security exception in .vibetrace/security.toml."""
         path = cls.get_baseline_path(project_root)
@@ -134,6 +138,7 @@ class SecurityBaselineManager:
             "code_hash": code_hash,
             "severity": severity,
             "status": status,
+            "tag": tag or "",
             "rationale": rationale,
             "reviewed_by": reviewed_by,
             "reviewed_at": now_iso,
@@ -168,6 +173,8 @@ class SecurityBaselineManager:
             lines.append(f'code_hash = "{_escape_toml_str(exc.get("code_hash", ""))}"')
             lines.append(f'severity = "{_escape_toml_str(exc.get("severity", "HIGH"))}"')
             lines.append(f'status = "{_escape_toml_str(exc.get("status", "APPROVED"))}"')
+            if exc.get("tag"):
+                lines.append(f'tag = "{_escape_toml_str(exc.get("tag", ""))}"')
             lines.append(f'rationale = "{_escape_toml_str(exc.get("rationale", ""))}"')
             lines.append(f'reviewed_by = "{_escape_toml_str(exc.get("reviewed_by", "developer"))}"')
             lines.append(f'reviewed_at = "{_escape_toml_str(exc.get("reviewed_at", now_iso))}"')

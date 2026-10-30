@@ -150,6 +150,7 @@ export interface SecurityFindingUI {
   compliant_snippet?: string | null;
   remediation_guidance?: string | null;
   status: "UNAPPROVED" | "APPROVED" | "MODIFIED_CODE" | "RISK";
+  tag?: string | null;
   rationale?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
