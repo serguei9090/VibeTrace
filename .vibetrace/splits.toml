@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T19:45:37.693056+00:00"
+updated_at = "2026-10-30T20:08:36.888427+00:00"
 total_records = 125
 
 [[splits]]
@@ -95,12 +95,12 @@ symbol = "CodeInspectorDrawer"
 qualified_name = "CodeInspectorDrawer"
 file_path = "src/web/src/features/map-room/components/CodeInspectorDrawer.tsx"
 status = "approved"
-code_hash = "c57254a09351904852ae5f4b802f5f5a88a1a7019e0b8fe1949ec54fa49a5002"
+code_hash = "073b35ca593187c5f60b491302e4723cbb978a7fe5e0f015e82f070407052939"
 branches_count = 4
-rationale = "Verified security & Map Room split orchestration"
+rationale = "3-Workspace UI architecture (Map Room, Quality Gate Dashboard, Docs RAG)"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.192334+00:00"
-branches = ["CallerGuardBadge (src/web/src/features/map-room/components/CallerGuardBadge.tsx)", "VibeBundleButton (src/web/src/features/map-room/components/VibeBundleButton.tsx)", "SplitAuditCard (src/web/src/features/map-room/components/SplitAuditCard.tsx)", "SecurityAuditCard (src/web/src/features/map-room/components/SecurityAuditCard.tsx)"]
+reviewed_at = "2026-10-30T20:08:36.799223+00:00"
+branches = ["CallerGuardBadge", "VibeBundleButton", "SplitAuditCard", "SecurityAuditCard"]
 
 [[splits]]
 symbol = "applyLayoutAndFilters"
@@ -599,12 +599,12 @@ symbol = "App"
 qualified_name = "App"
 file_path = "src/web/src/App.tsx"
 status = "approved"
-code_hash = "c34f2b115e7f62dc8febf4d05b60a6b6f2daac12da5cbb0e79fd836af25d7b22"
+code_hash = "e299961e957c768d848809718eac6de573cb4a1d0a842792152cc9eba2716815"
 branches_count = 10
-rationale = "Root React App shell orchestrating Map Room panels, QualityGateDrawer, and DocCatalogDrawer"
+rationale = "3-Workspace UI architecture (Map Room, Quality Gate Dashboard, Docs RAG)"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T19:45:37.692045+00:00"
-branches = ["useMapRoomState", "MapHeader", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "DocsExplorerDrawer", "QualityGateDrawer", "FilterPanel"]
+reviewed_at = "2026-10-30T20:08:36.887362+00:00"
+branches = ["useMapRoomState", "MapHeader", "DashboardView", "DocsWorkspaceView", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "FilterPanel"]
 
 [[splits]]
 symbol = "analyze_file_dependencies"

@@ -133,10 +133,10 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
       position="top-right"
       className="glass-panel"
       style={{
-        width: "420px",
+        width: "430px",
         maxHeight: "calc(100vh - 120px)",
-        marginTop: "88px",
-        marginRight: "215px",
+        marginTop: "130px",
+        marginRight: "16px",
         padding: "14px",
         display: "flex",
         flexDirection: "column",

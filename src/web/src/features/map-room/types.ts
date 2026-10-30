@@ -1,5 +1,6 @@
 export type LayoutMode = "map" | "trace" | "impact";
 export type ViewMode = "explorer" | "full";
+export type WorkspaceMode = "map" | "dashboard" | "docs";
 
 export interface RawGraphNode {
   id: string;

@@ -21,10 +21,13 @@ import type {
   SelectedElement,
   TracePathResponse,
   ViewMode,
+  WorkspaceMode,
 } from "../types";
 import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
+  workspaceMode: WorkspaceMode;
+  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
   filter: string;
   onFilterChange: (val: string) => void;
   loading: boolean;
@@ -44,10 +47,6 @@ interface MapHeaderProps {
   followAgent: boolean;
   onToggleFollowAgent: (enabled: boolean) => void;
   lastAgentEvent: AgentFocusEvent | null;
-  onToggleDocs?: () => void;
-  isDocsOpen?: boolean;
-  onToggleReview?: () => void;
-  isReviewOpen?: boolean;
   selectedElement?: SelectedElement | null;
   rawNodes?: RawGraphNode[];
   rawEdges?: RawGraphEdge[];
@@ -56,6 +55,8 @@ interface MapHeaderProps {
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
+  workspaceMode,
+  onWorkspaceModeChange,
   filter,
   onFilterChange,
   loading,
@@ -63,7 +64,6 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   totalSymbols,
   totalEdges,
   visibleSymbols,
-  layoutMode,
   viewMode,
   onViewModeChange,
   onResetToRoots,
@@ -75,10 +75,6 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   followAgent,
   onToggleFollowAgent,
   lastAgentEvent,
-  onToggleDocs,
-  isDocsOpen,
-  onToggleReview,
-  isReviewOpen,
   selectedElement,
   rawNodes,
   rawEdges,
@@ -124,14 +120,16 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
     <header className="vibe-header glass-panel">
       {/* Brand & Hierarchy Sidebar Toggle */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <button
-          type="button"
-          className={`vibe-btn vibe-btn-icon ${isSidebarOpen ? "vibe-btn-active" : ""}`}
-          onClick={onToggleSidebar}
-          title={isSidebarOpen ? "Close Code Hierarchy Sidebar" : "Open Code Hierarchy Sidebar"}
-        >
-          {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
-        </button>
+        {workspaceMode === "map" && (
+          <button
+            type="button"
+            className={`vibe-btn vibe-btn-icon ${isSidebarOpen ? "vibe-btn-active" : ""}`}
+            onClick={onToggleSidebar}
+            title={isSidebarOpen ? "Close Code Hierarchy Sidebar" : "Open Code Hierarchy Sidebar"}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Activity size={20} color="#6366f1" />
@@ -147,66 +145,91 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             }}
           >
             <span>VIBETRACE</span>
-            <span
-              style={{
-                fontSize: "10px",
-                fontWeight: 600,
-                color: "#a5b4fc",
-                background: "rgba(99, 102, 241, 0.15)",
-                padding: "2px 7px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
-                letterSpacing: "0.05em",
-              }}
-            >
-              {layoutMode === "trace"
-                ? "TRACEPATH"
-                : layoutMode === "impact"
-                  ? "BLAST RADIUS"
-                  : viewMode === "explorer"
-                    ? "EXPLORER"
-                    : "FULL MAP"}
-            </span>
           </h2>
         </div>
       </div>
 
-      {/* Explorer vs Full Map Segmented Switch */}
-      <div className="vibe-segmented-control" style={{ flexShrink: 0 }}>
+      {/* Primary 3-Workspace Switcher */}
+      <div
+        role="tablist"
+        aria-label="Primary Workspace Mode"
+        className="vibe-segmented-control"
+        style={{ flexShrink: 0 }}
+      >
         <button
           type="button"
-          className={`vibe-segment-btn ${viewMode === "explorer" ? "active" : ""}`}
-          onClick={() => onViewModeChange("explorer")}
-          title="On-demand progressive disclosure: start with entrypoints and expand branches"
+          role="tab"
+          aria-selected={workspaceMode === "map"}
+          className={`vibe-segment-btn ${workspaceMode === "map" ? "active" : ""}`}
+          onClick={() => onWorkspaceModeChange("map")}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
         >
-          Hierarchical Explorer
+          <Layers size={13} />
+          Map Room
         </button>
         <button
           type="button"
-          className={`vibe-segment-btn ${viewMode === "full" ? "active" : ""}`}
-          onClick={() => onViewModeChange("full")}
-          title="Bird's-eye view of all symbols and districts"
+          role="tab"
+          aria-selected={workspaceMode === "dashboard"}
+          className={`vibe-segment-btn ${workspaceMode === "dashboard" ? "active" : ""}`}
+          onClick={() => onWorkspaceModeChange("dashboard")}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
         >
-          Full Map
+          <ShieldCheck size={13} color="#34d399" />
+          Quality Gate
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workspaceMode === "docs"}
+          className={`vibe-segment-btn ${workspaceMode === "docs" ? "active" : ""}`}
+          onClick={() => onWorkspaceModeChange("docs")}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <BookOpen size={13} color="#a855f7" />
+          Docs
         </button>
       </div>
 
-      {/* Reset to roots in explorer mode */}
-      {viewMode === "explorer" && (
-        <button
-          type="button"
-          className="vibe-btn"
-          onClick={onResetToRoots}
-          title="Reset canvas back to root entrypoints (main & endpoints)"
-          style={{ flexShrink: 0 }}
-        >
-          <Sparkles size={14} color="#818cf8" />
-          Roots
-        </button>
+      {/* Map Room Specific Controls */}
+      {workspaceMode === "map" && (
+        <>
+          <div className="vibe-segmented-control" style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              className={`vibe-segment-btn ${viewMode === "explorer" ? "active" : ""}`}
+              onClick={() => onViewModeChange("explorer")}
+              title="On-demand progressive disclosure: start with entrypoints and expand branches"
+            >
+              Hierarchical Explorer
+            </button>
+            <button
+              type="button"
+              className={`vibe-segment-btn ${viewMode === "full" ? "active" : ""}`}
+              onClick={() => onViewModeChange("full")}
+              title="Bird's-eye view of all symbols and districts"
+            >
+              Full Map
+            </button>
+          </div>
+
+          {viewMode === "explorer" && (
+            <button
+              type="button"
+              className="vibe-btn"
+              onClick={onResetToRoots}
+              title="Reset canvas back to root entrypoints (main & endpoints)"
+              style={{ flexShrink: 0 }}
+            >
+              <Sparkles size={14} color="#818cf8" />
+              Roots
+            </button>
+          )}
+        </>
       )}
 
       {/* Active Branch Breadcrumbs (Explorer Mode) */}
-      {viewMode === "explorer" && breadcrumbs.length > 1 && (
+      {workspaceMode === "map" && viewMode === "explorer" && breadcrumbs.length > 1 && (
         <div
           style={{
             display: "flex",
@@ -273,44 +296,46 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
       )}
 
       {/* Search Bar */}
-      <div style={{ position: "relative", flexShrink: 1, minWidth: 160, maxWidth: 240 }}>
-        <Search
-          size={15}
-          style={{
-            position: "absolute",
-            left: 11,
-            top: 10,
-            color: "var(--text-dim)",
-          }}
-        />
-        <input
-          className="vibe-input"
-          type="text"
-          placeholder="Search symbols..."
-          value={filter}
-          onChange={(e) => onFilterChange(e.target.value)}
-          style={{ width: "100%" }}
-        />
-        {filter && (
-          <button
-            type="button"
-            onClick={() => onFilterChange("")}
+      {workspaceMode === "map" && (
+        <div style={{ position: "relative", flexShrink: 1, minWidth: 160, maxWidth: 240 }}>
+          <Search
+            size={15}
             style={{
               position: "absolute",
-              right: 8,
-              top: 9,
-              background: "transparent",
-              border: "none",
+              left: 11,
+              top: 10,
               color: "var(--text-dim)",
-              cursor: "pointer",
             }}
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
+          />
+          <input
+            className="vibe-input"
+            type="text"
+            placeholder="Search symbols..."
+            value={filter}
+            onChange={(e) => onFilterChange(e.target.value)}
+            style={{ width: "100%" }}
+          />
+          {filter && (
+            <button
+              type="button"
+              onClick={() => onFilterChange("")}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: 9,
+                background: "transparent",
+                border: "none",
+                color: "var(--text-dim)",
+                cursor: "pointer",
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Action Buttons: Sync Graph & Docs */}
+      {/* Action Buttons: Sync Graph */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <button
           type="button"
@@ -322,30 +347,6 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           <RefreshCw size={15} className={loading ? "spin" : ""} />
           {loading ? "Syncing..." : "Sync Graph"}
         </button>
-
-        {onToggleDocs && (
-          <button
-            type="button"
-            className={`vibe-btn ${isDocsOpen ? "vibe-btn-active" : ""}`}
-            onClick={onToggleDocs}
-            title="Toggle Architecture Documentation"
-          >
-            <BookOpen size={15} color={isDocsOpen ? "#a5b4fc" : undefined} />
-            Docs
-          </button>
-        )}
-
-        {onToggleReview && (
-          <button
-            type="button"
-            className={`vibe-btn ${isReviewOpen ? "vibe-btn-active" : ""}`}
-            onClick={onToggleReview}
-            title="Toggle Unified AI Quality Gate (Security, Splits, Test Coverage)"
-          >
-            <ShieldCheck size={15} color={isReviewOpen ? "#34d399" : "#6ee7b7"} />
-            Quality Gate
-          </button>
-        )}
       </div>
 
       {/* Active Tracepath Pill */}

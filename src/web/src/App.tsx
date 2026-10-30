@@ -3,7 +3,8 @@ import "@xyflow/react/dist/style.css";
 import "./App.css";
 
 import { useCallback, useState } from "react";
-import { DocsExplorerDrawer } from "./features/docs/components/DocsExplorerDrawer";
+import { DashboardView } from "./features/dashboard/components/DashboardView";
+import { DocsWorkspaceView } from "./features/docs/components/DocsWorkspaceView";
 import { CanvasAutoFitter } from "./features/map-room/components/CanvasAutoFitter";
 import { CodeInspectorDrawer } from "./features/map-room/components/CodeInspectorDrawer";
 import { FilterPanel } from "./features/map-room/components/FilterPanel";
@@ -12,12 +13,11 @@ import { DistrictNode } from "./features/map-room/components/nodes/DistrictNode"
 import { FileGroupNode } from "./features/map-room/components/nodes/FileGroupNode";
 import { PackageNode } from "./features/map-room/components/nodes/PackageNode";
 import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
-import { QualityGateDrawer } from "./features/map-room/components/QualityGateDrawer";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
 import { API_URL, useMapRoomState } from "./features/map-room/hooks/useMapRoomState";
-import type { ViewMode } from "./features/map-room/types";
+import type { ViewMode, WorkspaceMode } from "./features/map-room/types";
 
 const nodeTypes = {
   vibeNode: VibeNode,
@@ -77,8 +77,7 @@ export default function App() {
     rawData,
     fetchGraph,
   } = useMapRoomState();
-  const [docsDrawerOpen, setDocsDrawerOpen] = useState(false);
-  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("map");
 
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
@@ -90,9 +89,21 @@ export default function App() {
     [setViewMode, setIsSidebarOpen]
   );
 
+  const handleSwitchToMapAndFocus = useCallback(
+    (nodeId: string) => {
+      setWorkspaceMode("map");
+      setTimeout(() => {
+        onFocusNode(nodeId);
+      }, 60);
+    },
+    [onFocusNode]
+  );
+
   return (
     <div className="graph-container">
       <MapHeader
+        workspaceMode={workspaceMode}
+        onWorkspaceModeChange={setWorkspaceMode}
         filter={filter}
         onFilterChange={setFilter}
         loading={loading}
@@ -114,10 +125,6 @@ export default function App() {
         followAgent={followAgent}
         onToggleFollowAgent={setFollowAgent}
         lastAgentEvent={lastAgentEvent}
-        onToggleDocs={() => setDocsDrawerOpen((prev) => !prev)}
-        isDocsOpen={docsDrawerOpen}
-        onToggleReview={() => setReviewDrawerOpen((prev) => !prev)}
-        isReviewOpen={reviewDrawerOpen}
         selectedElement={selectedElement}
         rawNodes={rawData.current.nodes}
         rawEdges={rawData.current.edges}
@@ -125,113 +132,113 @@ export default function App() {
         onFocusNode={onFocusNode}
       />
 
-      <TreeSidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        rawNodes={rawData.current.nodes}
-        rawEdges={rawData.current.edges}
-        revealedNodeIds={revealedNodeIds}
-        onToggleNodeVisibility={onToggleNodeVisibility}
-        onFocusNode={onFocusNode}
-        onExpandNodeConnections={onExpandNodeConnections}
-        onResetToRoots={onResetToRoots}
-        showAnonymous={showAnonymous}
-        onToggleAnonymous={setShowAnonymous}
-      />
-
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onNodeDoubleClick={onNodeDoubleClick}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
-        fitView
-        fitViewOptions={{ padding: 0.35 }}
-        onlyRenderVisibleElements
-        minZoom={0.05}
-        maxZoom={2.0}
-      >
-        <Controls />
-        <MiniMap
-          nodeStrokeWidth={3}
-          zoomable
-          pannable
-          style={{
-            backgroundColor: "#0d0d10",
-            border: "1px solid rgba(99, 102, 241, 0.3)",
-            width: 220,
-            height: 160,
-            bottom: 20,
-            right: 20,
-          }}
-          nodeColor={(n: any) => {
-            if (n.data?.kind === "class") return "#a855f7";
-            if (n.data?.kind === "interface") return "#10b981";
-            if (n.data?.kind === "endpoint") return "#f59e0b";
-            return "#6366f1";
-          }}
-          maskColor="rgba(0, 0, 0, 0.7)"
-        />
-        <Background color="#1a1b23" gap={20} size={1} />
-
-        <StatusOverlays loading={loading} error={error} onRetry={() => fetchGraph()} />
-        <CanvasAutoFitter layoutMode={layoutMode} nodeCount={nodes.length} />
-
-        <TracePathBar
-          apiUrl={API_URL}
-          nodes={rawData.current.nodes}
-          activeTrace={activeTrace}
-          onTraceResult={handleTraceResult}
-          isSidebarOpen={isSidebarOpen}
-        />
-
-        <CodeInspectorDrawer
-          apiUrl={API_URL}
-          selectedElement={selectedElement}
-          rawNodes={rawData.current.nodes}
-          rawEdges={rawData.current.edges}
-          revealedNodeIds={revealedNodeIds}
-          onClose={() => setSelectedElement(null)}
-          onFocusNode={onFocusNode}
-          onExpandCallees={onExpandCallees}
-          onExpandCallers={onExpandCallers}
-          onExpandNodeConnections={onExpandNodeConnections}
-          onShowTracePath={showTracePath}
-        />
-
-        <DocsExplorerDrawer
-          isOpen={docsDrawerOpen}
-          onClose={() => setDocsDrawerOpen(false)}
-          apiUrl={API_URL}
-        />
-
-        <QualityGateDrawer
-          isOpen={reviewDrawerOpen}
-          onClose={() => setReviewDrawerOpen(false)}
+      {workspaceMode === "dashboard" && (
+        <DashboardView
           apiUrl={API_URL}
           rawNodes={rawData.current.nodes}
-          onFocusNode={onFocusNode}
+          onSwitchToMapAndFocus={handleSwitchToMapAndFocus}
         />
+      )}
 
-        <FilterPanel
-          activeFilters={activeFilters}
-          onToggleFilter={toggleFilter}
-          activeEdgeTypes={activeEdgeTypes}
-          onToggleEdgeType={toggleEdgeType}
-          showPrivate={showPrivate}
-          onTogglePrivate={setShowPrivate}
-          impactMode={impactMode}
-          onToggleImpact={handleImpactToggle}
-          layoutMode={layoutMode}
-          onLayoutModeChange={handleLayoutModeChange}
-          isSidebarOpen={isSidebarOpen}
-        />
-      </ReactFlow>
+      {workspaceMode === "docs" && <DocsWorkspaceView apiUrl={API_URL} />}
+
+      {workspaceMode === "map" && (
+        <>
+          <TreeSidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            rawNodes={rawData.current.nodes}
+            rawEdges={rawData.current.edges}
+            revealedNodeIds={revealedNodeIds}
+            onToggleNodeVisibility={onToggleNodeVisibility}
+            onFocusNode={onFocusNode}
+            onExpandNodeConnections={onExpandNodeConnections}
+            onResetToRoots={onResetToRoots}
+            showAnonymous={showAnonymous}
+            onToggleAnonymous={setShowAnonymous}
+          />
+
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onEdgeClick={onEdgeClick}
+            onPaneClick={onPaneClick}
+            fitView
+            fitViewOptions={{ padding: 0.35 }}
+            onlyRenderVisibleElements
+            minZoom={0.05}
+            maxZoom={2.0}
+          >
+            <Controls />
+            <MiniMap
+              nodeStrokeWidth={3}
+              zoomable
+              pannable
+              style={{
+                backgroundColor: "#0d0d10",
+                border: "1px solid rgba(99, 102, 241, 0.3)",
+                width: 220,
+                height: 160,
+                bottom: 20,
+                right: 20,
+              }}
+              nodeColor={(n: any) => {
+                if (n.data?.kind === "class") return "#a855f7";
+                if (n.data?.kind === "interface") return "#10b981";
+                if (n.data?.kind === "endpoint") return "#f59e0b";
+                return "#6366f1";
+              }}
+              maskColor="rgba(0, 0, 0, 0.7)"
+            />
+            <Background color="#1a1b23" gap={20} size={1} />
+
+            <StatusOverlays loading={loading} error={error} onRetry={() => fetchGraph()} />
+            <CanvasAutoFitter layoutMode={layoutMode} nodeCount={nodes.length} />
+
+            <TracePathBar
+              apiUrl={API_URL}
+              nodes={rawData.current.nodes}
+              activeTrace={activeTrace}
+              onTraceResult={handleTraceResult}
+              isSidebarOpen={isSidebarOpen}
+            />
+
+            <CodeInspectorDrawer
+              apiUrl={API_URL}
+              selectedElement={selectedElement}
+              rawNodes={rawData.current.nodes}
+              rawEdges={rawData.current.edges}
+              revealedNodeIds={revealedNodeIds}
+              onClose={() => setSelectedElement(null)}
+              onFocusNode={onFocusNode}
+              onExpandCallees={onExpandCallees}
+              onExpandCallers={onExpandCallers}
+              onExpandNodeConnections={onExpandNodeConnections}
+              onShowTracePath={showTracePath}
+            />
+
+            <FilterPanel
+              activeFilters={activeFilters}
+              onToggleFilter={toggleFilter}
+              activeEdgeTypes={activeEdgeTypes}
+              onToggleEdgeType={toggleEdgeType}
+              showPrivate={showPrivate}
+              onTogglePrivate={setShowPrivate}
+              impactMode={impactMode}
+              onToggleImpact={handleImpactToggle}
+              layoutMode={layoutMode}
+              onLayoutModeChange={handleLayoutModeChange}
+              isSidebarOpen={isSidebarOpen}
+            />
+          </ReactFlow>
+        </>
+      )}
     </div>
   );
 }

@@ -62,7 +62,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onLayoutModeChange,
   isSidebarOpen = false,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [openSections, setOpenSections] = useState({
     layout: true,
     symbols: true,
