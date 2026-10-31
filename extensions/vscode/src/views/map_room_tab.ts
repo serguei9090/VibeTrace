@@ -4,16 +4,18 @@ let activePanel: vscode.WebviewPanel | null = null;
 
 export function openMapRoomTab(
   context: vscode.ExtensionContext,
-  daemonUrl: string
+  daemonUrl: string,
+  title = "VibeTrace: Map Room & Quality Gate"
 ): vscode.WebviewPanel {
   if (activePanel) {
+    activePanel.title = title;
     activePanel.reveal(vscode.ViewColumn.One);
     return activePanel;
   }
 
   activePanel = vscode.window.createWebviewPanel(
     "vibetrace.mapRoomTab",
-    "VibeTrace: Architecture Map",
+    title,
     vscode.ViewColumn.One,
     {
       enableScripts: true,

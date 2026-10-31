@@ -1,16 +1,35 @@
 import * as vscode from "vscode";
-import type { CallerGuardReport, VibeTraceApiClient } from "../client/api_client.js";
+import type {
+  CallerGuardReport,
+  TracePathResponse,
+  VibeTraceApiClient,
+} from "../client/api_client.js";
 
 export class VibeTraceContextMenuProvider {
   private apiClient: VibeTraceApiClient;
   private onRefreshRequested: () => void;
+  private onTraceDiscovered?: (trace: TracePathResponse) => void;
 
-  constructor(apiClient: VibeTraceApiClient, onRefreshRequested: () => void) {
+  constructor(
+    apiClient: VibeTraceApiClient,
+    onRefreshRequested: () => void,
+    onTraceDiscovered?: (trace: TracePathResponse) => void
+  ) {
     this.apiClient = apiClient;
     this.onRefreshRequested = onRefreshRequested;
+    this.onTraceDiscovered = onTraceDiscovered;
   }
 
   public registerCommands(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "vibetrace.tracePath",
+        async (fromSymbol?: string, toSymbol?: string) => {
+          await this.handleTracePath(fromSymbol, toSymbol);
+        }
+      )
+    );
+
     context.subscriptions.push(
       vscode.commands.registerCommand(
         "vibetrace.copySlice",
@@ -48,6 +67,72 @@ export class VibeTraceContextMenuProvider {
           await this.handleReindex(targetPath);
         }
       )
+    );
+  }
+
+  public async handleTracePath(fromSymbol?: string, toSymbol?: string): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    let from = fromSymbol || this.getSymbolUnderCursor(editor);
+
+    if (!from) {
+      from = await vscode.window.showInputBox({
+        title: "VibeTrace: Trace Execution Path (Source)",
+        prompt: "Enter the source function, class, or HTTP route",
+        placeHolder: "e.g. GET /api/orders, handle_request, login",
+      });
+    }
+
+    if (!from) {
+      return;
+    }
+
+    let to = toSymbol;
+    if (!to) {
+      to = await vscode.window.showInputBox({
+        title: "VibeTrace: Trace Execution Path (Target)",
+        prompt: `Enter destination symbol to trace from '${from}'`,
+        placeHolder: "e.g. Database.query, send_email, HTTPAdapter.send",
+      });
+    }
+
+    if (!to) {
+      return;
+    }
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `VibeTrace: Tracing path '${from}' -> '${to}'...`,
+        cancellable: false,
+      },
+      async () => {
+        const trace = await this.apiClient.getTrace(from, to);
+        if (!trace || !trace.found || !trace.hops || trace.hops.length === 0) {
+          vscode.window.showWarningMessage(
+            `VibeTrace: No execution path found between '${from}' and '${to}'.`
+          );
+          return;
+        }
+
+        if (this.onTraceDiscovered) {
+          this.onTraceDiscovered(trace);
+        }
+
+        const hopCount = trace.hops.length;
+        const choice = await vscode.window.showInformationMessage(
+          `VibeTrace: Discovered ${hopCount}-hop path between '${from}' and '${to}'! (Inspected in Active Trace sidebar)`,
+          "Jump to First Call Site",
+          "Open Map Room Tab"
+        );
+
+        if (choice === "Jump to First Call Site") {
+          const firstHop = trace.hops[0];
+          const line = firstHop.call_line || firstHop.from_node?.start_line || 1;
+          await this.navigateToFile(firstHop.from_node.file_path, line);
+        } else if (choice === "Open Map Room Tab") {
+          vscode.commands.executeCommand("vibetrace.openMapRoomTab");
+        }
+      }
     );
   }
 

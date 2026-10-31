@@ -30,10 +30,18 @@
     "onLanguage:go",
     "onLanguage:rust",
     "onLanguage:csharp",
+    "onView:vibetrace.traceView",
+    "onView:vibetrace.reviewView",
     "onView:vibetrace.mapRoomView"
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "vibetrace.tracePath",
+        "title": "VibeTrace: Trace Execution Path...",
+        "category": "VibeTrace",
+        "icon": "$(arrow-swap)"
+      },
       {
         "command": "vibetrace.inspectCallers",
         "title": "VibeTrace: Inspect Blast Radius Callers",
@@ -59,6 +67,30 @@
         "icon": "$(graph)"
       },
       {
+        "command": "vibetrace.openMapRoomTab",
+        "title": "VibeTrace: Open Map Room Tab",
+        "category": "VibeTrace",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "vibetrace.openQualityGateTab",
+        "title": "VibeTrace: Open Quality Gate Tab",
+        "category": "VibeTrace",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "vibetrace.refreshReview",
+        "title": "VibeTrace: Refresh Scan Issues & Quality Gate",
+        "category": "VibeTrace",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vibetrace.clearTrace",
+        "title": "VibeTrace: Clear Active Trace",
+        "category": "VibeTrace",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "vibetrace.refreshProject",
         "title": "VibeTrace: Refresh Project Federation",
         "category": "VibeTrace",
@@ -73,6 +105,11 @@
     ],
     "menus": {
       "editor/context": [
+        {
+          "command": "vibetrace.tracePath",
+          "group": "vibetrace@0",
+          "when": "editorTextFocus"
+        },
         {
           "command": "vibetrace.inspectCallers",
           "group": "vibetrace@1",
@@ -90,6 +127,26 @@
         }
       ],
       "view/title": [
+        {
+          "command": "vibetrace.clearTrace",
+          "when": "view == vibetrace.traceView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vibetrace.openMapRoomTab",
+          "when": "view == vibetrace.traceView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vibetrace.refreshReview",
+          "when": "view == vibetrace.reviewView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vibetrace.openQualityGateTab",
+          "when": "view == vibetrace.reviewView",
+          "group": "navigation@2"
+        },
         {
           "command": "vibetrace.refreshProject",
           "when": "view == vibetrace.mapRoomView",
@@ -113,6 +170,16 @@
     },
     "views": {
       "vibetrace-explorer": [
+        {
+          "type": "tree",
+          "id": "vibetrace.traceView",
+          "name": "Active Execution Trace"
+        },
+        {
+          "type": "tree",
+          "id": "vibetrace.reviewView",
+          "name": "Scan Issues & Quality Gate"
+        },
         {
           "type": "webview",
           "id": "vibetrace.mapRoomView",

@@ -84,6 +84,16 @@ export class VibeTraceCodeLensProvider implements vscode.CodeLensProvider {
           command: "vibetrace.inspectCallers",
           arguments: [sym.name, filePath, report],
         };
+
+        const traceLens = new vscode.CodeLens(range);
+        traceLens.command = {
+          title: "$(arrow-swap) Trace",
+          tooltip: `Trace execution paths starting from '${sym.name}'`,
+          command: "vibetrace.tracePath",
+          arguments: [sym.name],
+        };
+        lenses.push(lens);
+        lenses.push(traceLens);
       } else {
         lens.command = {
           title: `$(symbol-function) VibeTrace: ${sym.name}`,
@@ -91,9 +101,8 @@ export class VibeTraceCodeLensProvider implements vscode.CodeLensProvider {
           command: "vibetrace.reindex",
           arguments: [filePath],
         };
+        lenses.push(lens);
       }
-
-      lenses.push(lens);
     }
 
     return lenses;

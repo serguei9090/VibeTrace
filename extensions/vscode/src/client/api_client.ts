@@ -87,6 +87,86 @@ export interface ReindexResponse {
   files_indexed?: number;
 }
 
+export interface TraceHopNode {
+  id: string;
+  name: string;
+  qualified_name: string;
+  kind: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  signature?: string | null;
+}
+
+export interface TraceHopData {
+  step_index: number;
+  from_node: TraceHopNode;
+  to_node: TraceHopNode;
+  relation_type: string;
+  call_line: number;
+}
+
+export interface SplitPointInfo {
+  node_id: string;
+  symbol_name: string;
+  total_outgoing_branches: number;
+  branch_names: string[];
+}
+
+export interface TracePathResponse {
+  from_symbol: string;
+  to_symbol: string;
+  found: boolean;
+  hops: TraceHopData[];
+  paths?: TraceHopData[][];
+  node_ids: string[];
+  split_points?: SplitPointInfo[];
+  activeRouteIndex?: number;
+}
+
+export interface SecurityFinding {
+  id: string;
+  rule_id: string;
+  category: "taint" | "ast_rule" | "gitleaks" | "iac" | "cve";
+  cwe?: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+  title: string;
+  description: string;
+  file_path: string;
+  line_number: number;
+  code_snippet?: string;
+  status: "unapproved" | "approved" | "modified";
+}
+
+export interface ArchitecturalSplit {
+  symbol_name: string;
+  file_path: string;
+  line_number: number;
+  branch_count: number;
+  status: "unapproved" | "approved" | "modified";
+  hash?: string;
+}
+
+export interface UnifiedReviewReport {
+  scope: string;
+  passed: boolean;
+  changed_files: string[];
+  unapproved_security_count: number;
+  modified_security_count: number;
+  total_security_count: number;
+  new_splits_count: number;
+  modified_splits_count: number;
+  total_splits_count: number;
+  approved_splits_count: number;
+  modified_symbols_with_callers: number;
+  security_findings: SecurityFinding[];
+  all_security_findings: SecurityFinding[];
+  actionable_splits: ArchitecturalSplit[];
+  all_splits: ArchitecturalSplit[];
+  caller_guards: CallerGuardReport[];
+  actions_required: string[];
+}
+
 export class VibeTraceApiClient {
   private baseUrl: string;
 
@@ -260,6 +340,47 @@ export class VibeTraceApiClient {
         return null;
       }
       return (await resp.json()) as ReindexResponse;
+    } catch {
+      return null;
+    }
+  }
+
+  public async getTrace(
+    fromSymbol: string,
+    toSymbol: string,
+    maxDepth = 6,
+    engine = "bfs"
+  ): Promise<TracePathResponse | null> {
+    try {
+      const params = new URLSearchParams({
+        from_symbol: fromSymbol,
+        to_symbol: toSymbol,
+        max_depth: String(maxDepth),
+        engine,
+        detect_splits: "true",
+      });
+      const resp = await fetch(`${this.baseUrl}/api/trace?${params.toString()}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        return null;
+      }
+      return (await resp.json()) as TracePathResponse;
+    } catch {
+      return null;
+    }
+  }
+
+  public async getReview(scope = "changed"): Promise<UnifiedReviewReport | null> {
+    try {
+      const params = new URLSearchParams({ scope });
+      const resp = await fetch(`${this.baseUrl}/api/review?${params.toString()}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) {
+        return null;
+      }
+      return (await resp.json()) as UnifiedReviewReport;
     } catch {
       return null;
     }

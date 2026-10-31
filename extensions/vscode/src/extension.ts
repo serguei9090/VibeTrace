@@ -7,6 +7,8 @@ import { VibeTraceDiagnosticsProvider } from "./providers/diagnostics_provider.j
 import { VibeTraceDaemonManager } from "./server/daemon_manager.js";
 import { openMapRoomTab } from "./views/map_room_tab.js";
 import { VibeTraceMapRoomWebviewProvider } from "./views/map_room_webview.js";
+import { VibeTraceReviewTreeProvider } from "./views/review_tree_provider.js";
+import { VibeTraceTraceTreeProvider } from "./views/trace_tree_provider.js";
 
 let wsClient: VibeTraceWsClient | null = null;
 let diagnosticsProvider: VibeTraceDiagnosticsProvider | null = null;
@@ -38,12 +40,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   daemonManager = new VibeTraceDaemonManager(apiClient);
   context.subscriptions.push(daemonManager);
 
-  // Providers
+  // Native Tree View Providers
+  const traceTreeProvider = new VibeTraceTraceTreeProvider();
+  const reviewTreeProvider = new VibeTraceReviewTreeProvider(apiClient);
+
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("vibetrace.traceView", traceTreeProvider)
+  );
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("vibetrace.reviewView", reviewTreeProvider)
+  );
+
+  // In-Editor & CodeLens Providers
   const codeLensProvider = new VibeTraceCodeLensProvider(apiClient);
   diagnosticsProvider = new VibeTraceDiagnosticsProvider(apiClient);
-  const contextMenuProvider = new VibeTraceContextMenuProvider(apiClient, () => {
-    codeLensProvider.refresh();
-  });
+  const contextMenuProvider = new VibeTraceContextMenuProvider(
+    apiClient,
+    () => {
+      codeLensProvider.refresh();
+      reviewTreeProvider.refresh();
+    },
+    (trace) => {
+      traceTreeProvider.setTrace(trace);
+      vscode.commands.executeCommand("vibetrace.traceView.focus");
+    }
+  );
 
   const mapRoomProvider = new VibeTraceMapRoomWebviewProvider(apiClient, daemonUrl, () =>
     openMapRoomTab(context, apiClient.getBaseUrl())
@@ -75,7 +96,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   context.subscriptions.push(
     vscode.commands.registerCommand("vibetrace.openMapRoomTab", () => {
-      openMapRoomTab(context, apiClient.getBaseUrl());
+      openMapRoomTab(context, apiClient.getBaseUrl(), "VibeTrace: Map Room");
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("vibetrace.openQualityGateTab", () => {
+      openMapRoomTab(context, apiClient.getBaseUrl(), "VibeTrace: Quality Gate");
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("vibetrace.refreshReview", () => {
+      reviewTreeProvider.refresh();
+      diagnosticsProvider?.invalidateReviewCache();
+      if (vscode.window.activeTextEditor?.document) {
+        diagnosticsProvider?.checkDocument(vscode.window.activeTextEditor.document);
+      }
+      vscode.window.showInformationMessage("VibeTrace: Refreshed scan issues & quality gate.");
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("vibetrace.clearTrace", () => {
+      traceTreeProvider.setTrace(null);
     })
   );
 

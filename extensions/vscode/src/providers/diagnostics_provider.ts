@@ -1,10 +1,17 @@
 import * as vscode from "vscode";
-import type { CallerGuardReport, VibeTraceApiClient } from "../client/api_client.js";
+import type {
+  ArchitecturalSplit,
+  CallerGuardReport,
+  SecurityFinding,
+  UnifiedReviewReport,
+  VibeTraceApiClient,
+} from "../client/api_client.js";
 
 export class VibeTraceDiagnosticsProvider implements vscode.Disposable {
   private collection: vscode.DiagnosticCollection;
   private apiClient: VibeTraceApiClient;
   private disposables: vscode.Disposable[] = [];
+  private lastReviewCache: { timestamp: number; report: UnifiedReviewReport } | null = null;
 
   constructor(apiClient: VibeTraceApiClient) {
     this.apiClient = apiClient;
@@ -13,6 +20,7 @@ export class VibeTraceDiagnosticsProvider implements vscode.Disposable {
 
     this.disposables.push(
       vscode.workspace.onDidSaveTextDocument((doc) => {
+        this.invalidateReviewCache();
         this.checkDocument(doc);
       })
     );
@@ -29,6 +37,22 @@ export class VibeTraceDiagnosticsProvider implements vscode.Disposable {
     if (vscode.window.activeTextEditor?.document) {
       this.checkDocument(vscode.window.activeTextEditor.document);
     }
+  }
+
+  public invalidateReviewCache(): void {
+    this.lastReviewCache = null;
+  }
+
+  private async getCachedReview(): Promise<UnifiedReviewReport | null> {
+    const now = Date.now();
+    if (this.lastReviewCache && now - this.lastReviewCache.timestamp < 4000) {
+      return this.lastReviewCache.report;
+    }
+    const report = await this.apiClient.getReview("changed");
+    if (report) {
+      this.lastReviewCache = { timestamp: now, report };
+    }
+    return report;
   }
 
   public async checkStagedSafety(): Promise<void> {
@@ -95,16 +119,63 @@ export class VibeTraceDiagnosticsProvider implements vscode.Disposable {
       return;
     }
 
-    const text = document.getText();
-    const symbols = this.extractTopSymbols(text, document.languageId);
-    if (symbols.length === 0) {
-      this.collection.delete(document.uri);
-      return;
+    const diagnostics: vscode.Diagnostic[] = [];
+    const filePath = document.uri.fsPath.replace(/\\/g, "/");
+
+    // 1. Check Review Findings (Security Taint, Gitleaks, IaC & Splits)
+    const review = await this.getCachedReview();
+    if (review) {
+      const matchPath = (p: string) => {
+        const norm = p.replace(/\\/g, "/");
+        return filePath.endsWith(norm) || norm.endsWith(filePath);
+      };
+
+      // Security findings
+      const fileFindings = (review.security_findings || []).filter((f) => matchPath(f.file_path));
+      for (const finding of fileFindings) {
+        const lineIdx = Math.max(0, (finding.line_number || 1) - 1);
+        const lineText = document.lineCount > lineIdx ? document.lineAt(lineIdx).text : "";
+        const range = new vscode.Range(lineIdx, 0, lineIdx, Math.max(lineText.length, 1));
+
+        let severity = vscode.DiagnosticSeverity.Warning;
+        if (finding.severity === "CRITICAL" || finding.severity === "HIGH") {
+          severity = vscode.DiagnosticSeverity.Error;
+        } else if (finding.severity === "LOW" || finding.severity === "INFO") {
+          severity = vscode.DiagnosticSeverity.Information;
+        }
+
+        const cweTag = finding.cwe ? ` [${finding.cwe}]` : "";
+        const diag = new vscode.Diagnostic(
+          range,
+          `VibeTrace Security${cweTag}: ${finding.title} — ${finding.description}`,
+          severity
+        );
+        diag.source = "VibeTrace Security";
+        diag.code = finding.rule_id || finding.cwe || "security-finding";
+        diagnostics.push(diag);
+      }
+
+      // Architectural splits
+      const fileSplits = (review.actionable_splits || []).filter((s) => matchPath(s.file_path));
+      for (const split of fileSplits) {
+        const lineIdx = Math.max(0, (split.line_number || 1) - 1);
+        const lineText = document.lineCount > lineIdx ? document.lineAt(lineIdx).text : "";
+        const range = new vscode.Range(lineIdx, 0, lineIdx, Math.max(lineText.length, 1));
+
+        const diag = new vscode.Diagnostic(
+          range,
+          `VibeTrace Split Tripwire: '${split.symbol_name}' has ${split.branch_count} branches (${split.status}). Review or approve in .vibetrace/splits.toml.`,
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag.source = "VibeTrace Architecture";
+        diag.code = "architectural-split";
+        diagnostics.push(diag);
+      }
     }
 
-    const diagnostics: vscode.Diagnostic[] = [];
-    const filePath = document.uri.fsPath;
-
+    // 2. Caller Guard Blast Radius Check for top symbols
+    const text = document.getText();
+    const symbols = this.extractTopSymbols(text, document.languageId);
     for (const sym of symbols) {
       const report: CallerGuardReport | null = await this.apiClient.getCallerGuard(
         sym.name,
@@ -125,7 +196,7 @@ export class VibeTraceDiagnosticsProvider implements vscode.Disposable {
         `VibeTrace High Blast Radius: '${sym.name}' has ${report.total_callers} callers${crossMsg}. Modifying its signature may break callers. ${report.safety_advisory}`,
         vscode.DiagnosticSeverity.Warning
       );
-      diag.source = "VibeTrace";
+      diag.source = "VibeTrace Blast";
       diag.code = "high-blast-radius";
       diagnostics.push(diag);
     }
