@@ -31,7 +31,22 @@ TAINT_CWES = {
     "CWE-1336",
 }
 SANITIZERS = frozenset(
-    {"quote", "escape", "escape_string", "resolve", "safe_load", "literal_eval", "is_relative_to"}
+    {
+        "quote",
+        "escape",
+        "escape_string",
+        "resolve",
+        "safe_load",
+        "literal_eval",
+        "is_relative_to",
+        "sanitize",
+        "validator",
+        "clean",
+        "encodeURIComponent",
+        "DOMPurify",
+        "bleach",
+        "html.escape",
+    }
 )
 _SOURCE_DECORATOR_RE = re.compile(
     r"(\.(get|post|put|patch|delete|route|websocket)\b|click\.(command|group)|\.tool\b)"

@@ -11,7 +11,20 @@ _ASSIGN_RE = re.compile(
     r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?=\s*(.+)$"
 )
 _FUNC_PARAMS_RE = re.compile(r"(?:def|function|func|fn)\s+[A-Za-z0-9_]+\s*\(([^)]*)\)")
-_DIRECT_SOURCES = ("request.", "req.", "sys.argv", "os.environ", "input(", "process.argv")
+_DIRECT_SOURCES = (
+    "request.",
+    "req.",
+    "sys.argv",
+    "os.environ",
+    "input(",
+    "process.argv",
+    "params.",
+    "query.",
+    "body.",
+    "c.req.",
+    "headers.",
+    "searchParams.",
+)
 _KEYWORDS = {
     "def",
     "return",
