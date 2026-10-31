@@ -282,13 +282,24 @@ examples:
     # summary
     p_sum = sub.add_parser(
         "summary",
-        help="Get structural outline of a file",
+        help="Get structural outline of a file or a token-budgeted repo map",
         description=(
             "Extract all functions, classes, methods, signatures, "
-            "and visibility decorators in a file."
+            "or generate a PageRank centrality repo map within a token budget."
         ),
     )
-    p_sum.add_argument("file_path", help="File path to summarize")
+    p_sum.add_argument(
+        "file_path",
+        nargs="?",
+        default=".",
+        help="File or directory path to summarize (default: . for full repo map)",
+    )
+    p_sum.add_argument(
+        "--budget",
+        type=int,
+        default=None,
+        help="Maximum token budget for PageRank centrality-ranked repo map (e.g. 512, 1024, 2048)",
+    )
     p_sum.add_argument(
         "--limit", type=int, default=100, help="Maximum number of symbols to list (default: 100)"
     )

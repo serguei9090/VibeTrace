@@ -318,6 +318,10 @@ For centralized team servers, monorepos, and cloud multi-tenancy:
 - **Unified PostgreSQL (`pgvector`)**: Store relational graph, AST entities, and vector embeddings in a single centralized PostgreSQL cluster with HNSW indices.
 - **Zero Code Modification**: Because AST extraction and MCP tools interface through abstract storage contracts, transitioning to PostgreSQL requires updating only the connection config in `.vibetrace.toml`.
 
+### 3. Planned Intelligence: Optional Cross-Encoder Re-Ranking (`vibetrace[rerank]`)
+- **Optional Plugin Extra**: For conceptual prose searches where exact identifiers are unknown, installable via `uv tool install "vibetrace[rerank]"` or `pip install "vibetrace[rerank]"`.
+- **Two-Stage Re-Ranking**: Uses an ONNX-quantized cross-encoder (`flashrank` with `ms-marco-TinyBERT-L-2-v2`) to re-score the top-30 RRF candidates via `--rerank` without sacrificing the sub-second core baseline.
+
 ---
 
 ## 🛠️ Development & Contributing

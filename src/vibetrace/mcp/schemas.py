@@ -27,13 +27,18 @@ class StructuralSummaryInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
 
     file_path: str = Field(
-        ...,
-        description="Path to the file to analyze (e.g., 'src/parser.py')",
-        min_length=1,
+        default=".",
+        description="Path to file or directory to analyze (e.g. 'src/parser.py' or '.')",
     )
     scope_path: str = Field(
         default=".",
         description="Project root or relevant path to scope the search context (defaults to CWD)",
+    )
+    budget_tokens: int | None = Field(
+        default=None,
+        description="Max token budget for PageRank centrality-ranked repo map (e.g. 512, 1024).",
+        ge=64,
+        le=8192,
     )
     limit: int = Field(
         default=100,

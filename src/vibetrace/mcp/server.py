@@ -106,9 +106,23 @@ _DESTRUCTIVE = ToolAnnotations(
 
 @mcp.tool(name="vibetrace_get_structural_summary", annotations=_READ_ONLY)
 async def vibetrace_get_structural_summary(params: StructuralSummaryInput) -> str:
-    """Get a concise structural summary of a file (classes, functions, methods)."""
+    """Get a concise structural summary of a file or a token-budgeted PageRank repo map."""
     try:
         db, root = _get_context_for_path(params.scope_path or params.file_path)
+
+        if params.budget_tokens is not None:
+            from vibetrace.services.repo_map_service import RepoMapService
+
+            repo_map = RepoMapService.generate_budgeted_repo_map(
+                db=db,
+                scope_path=params.file_path or ".",
+                budget_tokens=params.budget_tokens,
+                project_root=Path(root),
+            )
+            if params.response_format == ResponseFormat.JSON:
+                return json.dumps(repo_map, indent=2)
+            return repo_map["formatted_map"]
+
         norm_path = _normalize_path(params.file_path, root)
         total, rows = db.get_file_structure(norm_path, params.limit, params.offset)
 

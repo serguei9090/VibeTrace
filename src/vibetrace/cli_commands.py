@@ -346,6 +346,20 @@ def cmd_summary(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(
         args.file_path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
     )
+
+    budget = getattr(args, "budget", None)
+    if budget is not None:
+        from vibetrace.services.repo_map_service import RepoMapService
+
+        res = RepoMapService.generate_budgeted_repo_map(
+            db, scope_path=args.file_path, budget_tokens=budget, project_root=Path(root)
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(res["formatted_map"])
+        return 0
+
     norm_path = normalize_path(args.file_path, root)
     total, rows = db.get_file_structure(norm_path, args.limit, args.offset)
     if args.json:

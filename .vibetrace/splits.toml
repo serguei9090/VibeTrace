@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T14:57:09.287580+00:00"
-total_records = 126
+updated_at = "2026-10-31T16:00:15.684524+00:00"
+total_records = 127
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -707,12 +707,12 @@ symbol = "vibetrace_get_structural_summary"
 qualified_name = "vibetrace_get_structural_summary"
 file_path = "src/vibetrace/mcp/server.py"
 status = "approved"
-code_hash = "d8decdfda8ecb6dabc2f8cfbd1d1f4d7929776c1594266c913d283bf296a04fb"
-branches_count = 3
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "9a2ac9683784701122b965320c504a3280c06ba912c5ab187cf908cf100b1b98"
+branches_count = 4
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.578654+00:00"
-branches = ["notify_ui_focus", "format_structural_summary_md", "handle_error"]
+reviewed_at = "2026-10-31T16:00:15.655668+00:00"
+branches = ["generate_budgeted_repo_map", "notify_ui_focus", "format_structural_summary_md", "handle_error"]
 
 [[splits]]
 symbol = "cmd_hooks"
@@ -791,12 +791,12 @@ symbol = "cmd_summary"
 qualified_name = "cmd_summary"
 file_path = "src/vibetrace/cli_commands.py"
 status = "approved"
-code_hash = "43dfaff0fe238fdf46ab4779c479112c66a019d956b86a761b1f05612b7adce8"
-branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "ea58c1c0db387a74e414f69712cc0a0467a84dd347fb0f2b0e837328d14c1ac2"
+branches_count = 5
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.685486+00:00"
-branches = ["get_context_for_path", "normalize_path", "safe_str", "format_structural_summary_md"]
+reviewed_at = "2026-10-31T16:00:15.683520+00:00"
+branches = ["get_context_for_path", "generate_budgeted_repo_map", "normalize_path", "safe_str", "format_structural_summary_md"]
 
 [[splits]]
 symbol = "on_moved"
@@ -1517,3 +1517,15 @@ rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
 reviewed_at = "2026-10-31T14:57:09.262477+00:00"
 branches = ["parse_scip_symbol_name", "Node", "upsert_node", "Edge", "upsert_edge"]
+
+[[splits]]
+symbol = "generate_budgeted_repo_map"
+qualified_name = "RepoMapService.generate_budgeted_repo_map"
+file_path = "src/vibetrace/services/repo_map_service.py"
+status = "approved"
+code_hash = "1e8c2ed7585cfdd651b8e309121e2484235623d09b237923a4ff795b77a0648e"
+branches_count = 6
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T16:00:15.623432+00:00"
+branches = ["_clean_path", "_get_conn", "estimate_tokens", "estimate_tokens", "estimate_tokens", "estimate_tokens"]
