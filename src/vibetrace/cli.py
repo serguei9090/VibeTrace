@@ -716,6 +716,8 @@ examples:
     )
     p_review.add_argument(
         "--deps",
+        "--check-deps",
+        dest="deps",
         action="store_true",
         help="Include OSV dependency lockfile CVE checks in the review",
     )

@@ -56,6 +56,7 @@ export const DashboardTriageTables: React.FC<DashboardTriageTablesProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [splitFilter, setSplitFilter] = useState<"all" | "actionable">("all");
   const [secFilter, setSecFilter] = useState<"all" | "actionable">("all");
+  const [secCategoryFilter, setSecCategoryFilter] = useState<string>("all");
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const untestedList: UntestedSymbolUI[] = report.coverage_gate?.untested_symbols || [];
@@ -85,6 +86,7 @@ export const DashboardTriageTables: React.FC<DashboardTriageTablesProps> = ({
     const q = searchQuery.trim().toLowerCase();
     return allSecurityFindings.filter((f) => {
       if (secFilter === "actionable" && f.status === "APPROVED") return false;
+      if (secCategoryFilter !== "all" && f.category !== secCategoryFilter) return false;
       if (!q) return true;
       return (
         f.title.toLowerCase().includes(q) ||
@@ -93,7 +95,7 @@ export const DashboardTriageTables: React.FC<DashboardTriageTablesProps> = ({
         f.category.toLowerCase().includes(q)
       );
     });
-  }, [allSecurityFindings, secFilter, searchQuery]);
+  }, [allSecurityFindings, secFilter, secCategoryFilter, searchQuery]);
 
   return (
     <div
@@ -205,6 +207,16 @@ export const DashboardTriageTables: React.FC<DashboardTriageTablesProps> = ({
                 onClick={() => setSecFilter("actionable")}
               >
                 Unapproved ({allSecurityFindings.filter((f) => f.status !== "APPROVED").length})
+              </button>
+              <button
+                type="button"
+                className={`vibe-segment-btn ${secCategoryFilter === "package_cve" ? "active" : ""}`}
+                onClick={() =>
+                  setSecCategoryFilter(secCategoryFilter === "package_cve" ? "all" : "package_cve")
+                }
+                title="Toggle OSV Dependency CVEs Only"
+              >
+                CVEs ({allSecurityFindings.filter((f) => f.category === "package_cve").length})
               </button>
             </div>
           )}
