@@ -53,6 +53,22 @@ def cmd_index(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(
         target, auto_sync=False, root_override=getattr(args, "root", None)
     )
+
+    if getattr(args, "scip", None):
+        from vibetrace.indexer.scip_importer import ScipImporter
+
+        scip_file = Path(args.scip).resolve()
+        stats = ScipImporter.import_scip_file(scip_file, db, Path(root))
+        if args.json:
+            print(json.dumps({"status": "ok", "scip": stats}, indent=2))
+        else:
+            print(
+                f"✅ Imported SCIP index from `{scip_file.name}`: "
+                f"{stats['nodes_imported']} symbols, {stats['edges_imported']} references "
+                f"across {stats['files_processed']} file(s)."
+            )
+        return 0
+
     from vibetrace.services.reindex_service import ReindexService
 
     res = ReindexService.execute_reindex(

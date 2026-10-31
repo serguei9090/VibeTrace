@@ -100,6 +100,12 @@ examples:
         default=False,
         help="Skip synchronizing local documentation catalogs",
     )
+    p_idx.add_argument(
+        "--scip",
+        type=str,
+        default=None,
+        help="Import external SCIP index file (.json or .scip dump)",
+    )
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_idx.set_defaults(func=cmd_index)
 

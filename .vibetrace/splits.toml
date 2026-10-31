@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T01:36:40.942393+00:00"
-total_records = 125
+updated_at = "2026-10-31T14:57:09.287580+00:00"
+total_records = 126
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -839,12 +839,12 @@ symbol = "cmd_index"
 qualified_name = "cmd_index"
 file_path = "src/vibetrace/cli_commands.py"
 status = "approved"
-code_hash = "3f240b93928726664ae80438e329fdb6f31e2660bac70376e2fa36fb3772d175"
-branches_count = 2
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "8efe970946eec4804711449cfa83d336ce8d1ece97347095ec33441cb4e768f4"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.745837+00:00"
-branches = ["get_context_for_path", "execute_reindex"]
+reviewed_at = "2026-10-31T14:57:09.286578+00:00"
+branches = ["get_context_for_path", "import_scip_file", "execute_reindex"]
 
 [[splits]]
 symbol = "vibetrace_impact_analysis"
@@ -1505,3 +1505,15 @@ rationale = "Baseline approval of verified VibeTrace architectural splits"
 reviewed_by = "developer"
 reviewed_at = "2026-10-30T18:54:29.125362+00:00"
 branches = ["list_catalogs", "_get_project_root"]
+
+[[splits]]
+symbol = "import_scip_json_dict"
+qualified_name = "ScipImporter.import_scip_json_dict"
+file_path = "src/vibetrace/indexer/scip_importer.py"
+status = "approved"
+code_hash = "f3721324e3c103d2654632578c1197b99ebd35b3f3f901bcaa2f71e27fbde49a"
+branches_count = 5
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T14:57:09.262477+00:00"
+branches = ["parse_scip_symbol_name", "Node", "upsert_node", "Edge", "upsert_edge"]
