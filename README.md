@@ -7,6 +7,36 @@
 
 > **Philosophy**: Structural Truth > Statistical Guessing
 
+> [!IMPORTANT]
+> ### 🤖 AI Agent Quick-Install & Onboarding Directive
+> If an AI Coding Assistant (Antigravity, Cursor, Claude, Cline, or Codex) is reading this file to install VibeTrace into a project, execute the following autonomous commands in the workspace root:
+> 
+> ```bash
+> # 1. Install VibeTrace globally
+> uv tool install vibetrace   # or: pip install vibetrace
+> 
+> # 2. Initialize project: builds Tree-sitter AST index & installs .agents/skills/vibetrace-navigator
+> vibetrace init
+> 
+> # 3. Verify Quality Gate & Security Baseline
+> vibetrace review --ci
+> ```
+> Once initialized, add the FastMCP server command `vibetrace mcp --path .` to your agent configuration to enable surgical token slicing, caller guards, and bidirectional execution tracepaths.
+
+<details>
+<summary>📋 <strong>Prompt Your AI Assistant (1-Click Copy-Paste)</strong></summary>
+
+Copy and paste this instruction into your AI coding assistant (Cursor, Antigravity, Claude, or Cline):
+
+```text
+Please install and set up VibeTrace in this project:
+1. Run `uv tool install vibetrace` (or `pip install vibetrace`) to install the CLI.
+2. Run `vibetrace init` in the project root to index the codebase, create `.vibetrace.toml`, and install the `vibetrace-navigator` skill in `.agents/skills/`.
+3. Add VibeTrace to our agent MCP configuration using the command: `vibetrace mcp --path <workspace_path>`.
+4. Run `vibetrace review --ci` to confirm all security, split integrity, and test coverage gates pass.
+```
+</details>
+
 **VibeTrace** is an intelligent code analysis and navigation engine that treats your codebase as a living execution nervous system. Instead of relying solely on probabilistic embedding models that miss call hierarchies or hallucinate links, VibeTrace builds a deterministic relational graph of your code using Tree-sitter AST extraction, SQLite FTS5 lexical ranking, and bidirectional BFS pathfinding with exact 1-indexed call-site line numbers.
 
 Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Cursor, Cline) and developers working across massive codebases.
@@ -144,24 +174,58 @@ vibetrace serve
 
 ---
 
-## 🤖 Configuring AI Agents (Claude Desktop, Cursor, Antigravity, Cline)
+## 🤖 Configuring AI Agents (Antigravity, Cursor, Claude, Cline)
 
-Add VibeTrace to your agent's MCP configuration (`claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings):
+Add VibeTrace to your agent's MCP configuration:
 
+#### Antigravity IDE (`~/.gemini/antigravity/mcp_config.json` or project `.gemini/mcp.json`)
 ```json
 {
   "mcpServers": {
     "vibetrace": {
       "command": "vibetrace",
-      "args": ["mcp", "--path", "/path/to/your/project"]
+      "args": ["mcp", "--path", "${workspaceFolder}"]
     }
   }
 }
 ```
 
-The agent gains access to 20 surgical code intelligence tools:
-- `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget)
+#### Claude Desktop (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "vibetrace": {
+      "command": "vibetrace",
+      "args": ["mcp", "--path", "/absolute/path/to/your/project"]
+    }
+  }
+}
+```
+
+#### Cursor (`Settings > Features > MCP`)
+- **Name:** `vibetrace`
+- **Type:** `command`
+- **Command:** `vibetrace mcp --path .`
+
+#### Cline / Roo Code (VS Code MCP Settings)
+```json
+{
+  "mcpServers": {
+    "vibetrace": {
+      "command": "vibetrace",
+      "args": ["mcp", "--path", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+The agent gains access to 24 surgical FastMCP code intelligence tools:
+- `vibetrace_review_changes` (Unified 1-call review: Security, Taint, Split Integrity, Caller Guard & 80% Test Gate)
+- `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
 - `vibetrace_check_caller_guard` (Pre-flight caller inspection and blast-radius advisory)
+- `vibetrace_audit_security` (Polyglot AST scanner, inter-procedural taint reachability, secrets & IaC)
+- `vibetrace_remediate_vulnerability` (Generate compliant code templates for security findings)
+- `vibetrace_approve_security_exception` (Record baseline exceptions in `.vibetrace/security.toml`)
 - `vibetrace_audit_splits` (Scan codebase for execution bifurcations and check status against baseline)
 - `vibetrace_approve_split` (Approve a split path into `.vibetrace/splits.toml` with SHA-256 hash)
 - `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope)
@@ -258,21 +322,87 @@ For centralized team servers, monorepos, and cloud multi-tenancy:
 
 ## 🛠️ Development & Contributing
 
+### 1. Local Development Setup
+
 ```bash
 git clone https://github.com/serguei9090/VibeTrace.git
 cd VibeTrace
 
-# Install dependencies
+# Install Python dependencies using uv
 uv sync
 
-# Run the full test suite (420+ tests across 56 audit rounds)
+# Install git pre-commit hooks via lefthook
+lefthook install
+
+# (Optional) Install frontend UI dependencies
+cd src/web && bun install && cd ../..
+```
+
+---
+
+### 2. Verification & Quality Gates
+
+Before committing any changes, run the mandatory verification pipeline:
+
+```bash
+# 1. Run full test suite
 uv run pytest
 
-# Lint and format
-uv run ruff check .
+# 2. Lint and format code
+uv run ruff check --fix .
 uv run ruff format .
 uv run pyright
+
+# 3. Verify Unified AI Quality Gate (80% Test Coverage + 0 High Sec + 0 Splits)
+uv run vibetrace review --ci
 ```
+
+---
+
+### 3. Conventional Commit Strategy
+
+Use structured [Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+<type>(<scope>): <imperative description>
+```
+* `feat`: A new feature or capability.
+* `fix`: A bug fix.
+* `refactor`: Restructuring code without changing external behavior.
+* `perf`: Performance optimizations.
+* `test`: Adding or correcting tests.
+* `docs`: Documentation updates.
+* `chore`: Maintenance, version bumps, or dependency updates.
+
+---
+
+### 4. Updating the Changelog
+
+Document all user-facing changes in [`CHANGELOG.md`](CHANGELOG.md) under the `[Unreleased]` section following the [Keep a Changelog](https://keepachangelog.com/) standard:
+* `Added`: New capabilities, CLI flags, or MCP tools.
+* `Changed`: Modifications to existing functionality.
+* `Fixed`: Bug fixes and error resolutions.
+* `Security`: Vulnerability patches or rule updates.
+
+---
+
+### 5. Releasing to PyPI (Trusted Publishing)
+
+Releases are automated via GitHub Actions with PyPI Trusted Publishing (OIDC). To publish a new release:
+
+1. **Bump Version:** Update `version = "X.Y.Z"` in `pyproject.toml`.
+2. **Update Changelog:** In [`CHANGELOG.md`](CHANGELOG.md), convert `[Unreleased]` into `[X.Y.Z] - YYYY-MM-DD`.
+3. **Commit & Tag:**
+   ```bash
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "chore(release): vX.Y.Z"
+   git tag -a vX.Y.Z -m "Release vX.Y.Z"
+   ```
+4. **Push Release:**
+   ```bash
+   git push origin main --tags
+   ```
+5. **Automated Publishing:** GitHub Actions triggers `.github/workflows/publish.yml`, builds the wheel via `uv build`, and securely publishes to PyPI without long-lived API tokens.
 
 ---
 
