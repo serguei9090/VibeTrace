@@ -105,6 +105,7 @@ export interface TracePathResponse {
   paths?: TraceHopData[][];
   node_ids: string[];
   split_points?: SplitPointInfo[];
+  activeRouteIndex?: number;
 }
 
 export interface AgentFocusEvent {

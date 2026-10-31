@@ -131,6 +131,7 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
     const nodeIds = [chosenPath[0].from_node.id, ...chosenPath.map((h) => h.to_node.id)];
     onTraceResult({
       ...activeTrace,
+      activeRouteIndex: idx,
       hops: chosenPath,
       node_ids: nodeIds,
     });
@@ -477,22 +478,28 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
           <span style={{ fontSize: "11px", color: "var(--text-dim)", fontWeight: 600 }}>
             Alternative Routes ({activeTrace.paths.length}):
           </span>
-          {activeTrace.paths.map((p, idx) => (
-            <button
-              key={p.map((h) => `${h.from_node.id}->${h.to_node.id}`).join("|")}
-              type="button"
-              onClick={() => selectRoute(idx)}
-              className={`vibe-btn vibe-btn-sm ${selectedRouteIdx === idx ? "vibe-btn-active" : ""}`}
-              style={{
-                fontSize: "11px",
-                padding: "2px 8px",
-                background: selectedRouteIdx === idx ? "#10b981" : "rgba(255, 255, 255, 0.06)",
-                color: selectedRouteIdx === idx ? "#ffffff" : "var(--text-main)",
-              }}
-            >
-              Route {idx + 1} ({p.length} {p.length === 1 ? "hop" : "hops"})
-            </button>
-          ))}
+          {activeTrace.paths.map((p, idx) => {
+            const isSelected = (activeTrace.activeRouteIndex ?? selectedRouteIdx) === idx;
+            const routeColor = idx === 1 ? "#f59e0b" : idx === 2 ? "#ec4899" : "#6366f1";
+            return (
+              <button
+                key={p.map((h) => `${h.from_node.id}->${h.to_node.id}`).join("|")}
+                type="button"
+                onClick={() => selectRoute(idx)}
+                className={`vibe-btn vibe-btn-sm ${isSelected ? "vibe-btn-active" : ""}`}
+                style={{
+                  fontSize: "11px",
+                  padding: "2px 8px",
+                  background: isSelected ? routeColor : "rgba(255, 255, 255, 0.06)",
+                  borderColor: isSelected ? routeColor : "rgba(255, 255, 255, 0.12)",
+                  color: isSelected ? "#ffffff" : "var(--text-main)",
+                  fontWeight: isSelected ? 700 : 500,
+                }}
+              >
+                Route {idx + 1} ({p.length} {p.length === 1 ? "hop" : "hops"})
+              </button>
+            );
+          })}
         </div>
       )}
 

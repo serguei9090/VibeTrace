@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T16:00:15.684524+00:00"
+updated_at = "2026-10-31T16:07:43.059051+00:00"
 total_records = 127
 
 [[splits]]
@@ -107,12 +107,12 @@ symbol = "applyLayoutAndFilters"
 qualified_name = "useMapRoomState.applyLayoutAndFilters"
 file_path = "src/web/src/features/map-room/hooks/useMapRoomState.ts"
 status = "approved"
-code_hash = "35be7e29af73e5ea8c3963da2fa370b8000476c846256f731799727999dc7ad6"
+code_hash = "ed285bf1b2cdf6ef2159d823a3ad39b9212e2102ff5ba65fd52ca41a141e3458"
 branches_count = 6
-rationale = "Verified security & Map Room split orchestration"
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.218754+00:00"
-branches = ["buildPackageGraph (src/web/src/features/map-room/utils/packageGraph.ts)", "layoutPackageGraph (src/web/src/features/map-room/utils/elkLayout.ts)", "computeSelectionHighlights (src/web/src/features/map-room/utils/graphTraversal.ts)", "buildFlowElements (src/web/src/features/map-room/utils/graphTraversal.ts)", "calculateUnrevealedNeighbors (src/web/src/features/map-room/utils/treeHierarchy.ts)", "getLayoutedElements (src/web/src/features/map-room/utils/elkLayout.ts)"]
+reviewed_at = "2026-10-31T16:07:43.059051+00:00"
+branches = ["buildPackageGraph", "layoutPackageGraph", "computeSelectionHighlights", "buildFlowElements", "calculateUnrevealedNeighbors", "getLayoutedElements"]
 
 [[splits]]
 symbol = "cmd_audit_splits"

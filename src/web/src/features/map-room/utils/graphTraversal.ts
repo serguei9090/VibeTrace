@@ -37,11 +37,19 @@ export const computeSelectionHighlights = (
   }
 
   if (activeTrace?.found && activeTrace.node_ids.length > 0) {
-    activeTrace.node_ids.forEach((nid, idx) => {
+    const activeRouteIndex = activeTrace.activeRouteIndex ?? 0;
+    const currentHops = activeTrace.paths?.[activeRouteIndex] ?? activeTrace.hops;
+
+    const routeNodeIds = [
+      currentHops[0]?.from_node?.id,
+      ...currentHops.map((h) => h.to_node.id),
+    ].filter(Boolean);
+
+    routeNodeIds.forEach((nid, idx) => {
       highlightedNodes.add(nid);
       traceStepMap.set(nid, idx + 1);
     });
-    activeTrace.hops.forEach((hop) => {
+    currentHops.forEach((hop) => {
       highlightedNodes.add(hop.from_node.id);
       highlightedNodes.add(hop.to_node.id);
       traceStepMap.set(hop.from_node.id, hop.step_index);
@@ -169,7 +177,8 @@ export const buildFlowElements = (
   impactMode: boolean,
   layoutMode: LayoutMode,
   highlights: SelectionHighlightResult,
-  activeEdgeTypes?: Set<string>
+  activeEdgeTypes?: Set<string>,
+  activeTrace?: TracePathResponse | null
 ): { flowNodes: Node<VibeNodeData>[]; flowEdges: Edge[] } => {
   const { highlightedNodes, highlightedEdges } = highlights;
   const searchActive = searchTerm.length > 0;
@@ -263,7 +272,18 @@ export const buildFlowElements = (
       let markerColor = "rgba(148, 163, 184, 0.4)";
 
       if (isHighlighted) {
-        stroke = layoutMode === "trace" ? "#10b981" : "#818cf8";
+        if (activeTrace?.found) {
+          const rIndex = activeTrace.activeRouteIndex ?? 0;
+          if (rIndex === 1) {
+            stroke = "#f59e0b"; // Route 2 (Vibrant Amber)
+          } else if (rIndex === 2) {
+            stroke = "#ec4899"; // Route 3 (Vibrant Pink)
+          } else {
+            stroke = "#6366f1"; // Route 1 (Vibrant Indigo)
+          }
+        } else {
+          stroke = layoutMode === "trace" ? "#10b981" : "#818cf8";
+        }
         strokeWidth = 3;
         markerColor = stroke;
       } else {

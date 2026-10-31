@@ -387,7 +387,8 @@ export function useMapRoomState() {
       impactMode,
       layoutMode,
       highlights,
-      activeEdgeTypes
+      activeEdgeTypes,
+      activeTrace
     );
 
     // Compute unrevealed neighbor counts for progressive disclosure

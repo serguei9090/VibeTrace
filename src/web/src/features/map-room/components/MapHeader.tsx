@@ -549,6 +549,25 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
               }}
             >
               <span style={{ fontWeight: 600, color: "#818cf8" }}>Trace:</span>
+              {activeTrace.paths && activeTrace.paths.length > 1 && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                    background:
+                      activeTrace.activeRouteIndex === 1
+                        ? "#f59e0b"
+                        : activeTrace.activeRouteIndex === 2
+                          ? "#ec4899"
+                          : "#6366f1",
+                    color: "#fff",
+                  }}
+                >
+                  Route {(activeTrace.activeRouteIndex ?? 0) + 1}/{activeTrace.paths.length}
+                </span>
+              )}
               <span>
                 {activeTrace.from_symbol} ➔ {activeTrace.to_symbol}
               </span>
