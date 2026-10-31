@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T17:12:08.873553+00:00"
+updated_at = "2026-10-31T17:23:47.592083+00:00"
 total_records = 130
 
 [[splits]]
@@ -1547,11 +1547,11 @@ symbol = "get_summary_endpoint"
 qualified_name = "get_summary_endpoint"
 file_path = "src/vibetrace/server_api.py"
 status = "approved"
-code_hash = "cf5b3be09a09b5cc92f00be0d62d5fdf2f4a700d9077d3facd576b7e88aeb9eb"
+code_hash = "d6ed276548ba5acd6c65fc787d61c2c3a3f80b07e145370de04265f09a691c0b"
 branches_count = 2
 rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T17:12:08.838764+00:00"
+reviewed_at = "2026-10-31T17:23:47.591559+00:00"
 branches = ["generate_budgeted_repo_map", "normalize_path"]
 
 [[splits]]
