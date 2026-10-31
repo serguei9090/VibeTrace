@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.1.5] - 2026-10-31
+
 ### Added
+- **Multi-Route Visual Path Toggling in Map Room**: Interactive route selection chips (`Route 1: Indigo`, `Route 2: Amber`, `Route 3: Pink`) enabling side-by-side comparison of execution path bifurcations and fallback routines directly in the WebGL macro graph.
+- **Dynamic Token-Budget Repo Map (`summary --budget <tokens>`)**: PageRank centrality pruning algorithm that fits repository architecture summaries to the agent's exact requested token budget envelope across CLI and FastMCP (`vibetrace_get_structural_summary`).
 - **Federated Multi-Repo UI**: Workspace badge and interactive member repository dropdown in Map Room header displaying member counts, index health, and cross-repo contract link totals.
 - **Lockfile Dependency CVE Auditing**: Real-time batch vulnerability scanning for `uv.lock`, `package.json`, and `Cargo.lock` using Google's free public OSV.dev API with local SQLite 24h caching (`vibetrace review --deps`).
 - **Open SCIP Ingestion Engine**: Support for ingesting compiler-accurate SCIP protobuf/JSON indices (`vibetrace index --scip index.scip`) with automatic symbol and edge resolution into SQLite.
