@@ -1,8 +1,12 @@
+import axios from "axios";
 import {
   Activity,
   BookOpen,
+  ChevronDown,
   ChevronRight,
   Code,
+  FolderGit2,
+  GitBranch,
   Layers,
   PanelLeftClose,
   PanelLeftOpen,
@@ -12,10 +16,11 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type {
   AgentFocusEvent,
   LayoutMode,
+  ProjectStatusUI,
   RawGraphEdge,
   RawGraphNode,
   SelectedElement,
@@ -26,6 +31,7 @@ import type {
 import { AgentRadarBadge } from "./AgentRadarBadge";
 
 interface MapHeaderProps {
+  apiUrl?: string;
   workspaceMode: WorkspaceMode;
   onWorkspaceModeChange: (mode: WorkspaceMode) => void;
   filter: string;
@@ -55,6 +61,7 @@ interface MapHeaderProps {
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
+  apiUrl = "http://127.0.0.1:8000",
   workspaceMode,
   onWorkspaceModeChange,
   filter,
@@ -81,6 +88,26 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   revealedNodeIds,
   onFocusNode,
 }) => {
+  const [projectStatus, setProjectStatus] = useState<ProjectStatusUI | null>(null);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    axios
+      .get<ProjectStatusUI>(`${apiUrl}/api/project`)
+      .then((res) => {
+        if (mounted && res.data) {
+          setProjectStatus(res.data);
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully if endpoint is unreachable
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [apiUrl]);
+
   const breadcrumbs = useMemo(() => {
     if (
       !selectedElement ||
@@ -131,7 +158,7 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           </button>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
           <Activity size={20} color="#6366f1" />
           <h2
             style={{
@@ -146,6 +173,166 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
           >
             <span>VIBETRACE</span>
           </h2>
+
+          {projectStatus && (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setShowProjectDropdown((prev) => !prev)}
+                className="vibe-stat-chip"
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "2px 8px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  background: projectStatus.is_federated
+                    ? "rgba(168, 85, 247, 0.15)"
+                    : "rgba(255, 255, 255, 0.05)",
+                  borderColor: projectStatus.is_federated
+                    ? "rgba(168, 85, 247, 0.35)"
+                    : "rgba(255, 255, 255, 0.1)",
+                  color: projectStatus.is_federated ? "#e9d5ff" : "rgba(255, 255, 255, 0.7)",
+                }}
+                title={
+                  projectStatus.is_federated
+                    ? `Federated Multi-Repo: ${projectStatus.project_name} (${projectStatus.member_count} repos)`
+                    : `Project: ${projectStatus.project_name}`
+                }
+              >
+                {projectStatus.is_federated ? (
+                  <GitBranch size={12} color="#c084fc" />
+                ) : (
+                  <FolderGit2 size={12} color="#94a3b8" />
+                )}
+                <span>{projectStatus.project_name}</span>
+                {projectStatus.is_federated && (
+                  <span style={{ opacity: 0.7, fontSize: "10px" }}>
+                    ({projectStatus.member_count} repos)
+                  </span>
+                )}
+                <ChevronDown size={10} style={{ opacity: 0.6 }} />
+              </button>
+
+              {showProjectDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: 6,
+                    background: "#0f172a",
+                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    borderRadius: 8,
+                    padding: "8px",
+                    width: 280,
+                    zIndex: 1000,
+                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                      paddingBottom: 4,
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    }}
+                  >
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#e2e8f0" }}>
+                      {projectStatus.is_federated ? "Federated Member Repos" : "Project Workspace"}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: projectStatus.is_federated ? "#c084fc" : "#94a3b8",
+                      }}
+                    >
+                      {projectStatus.storage}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      maxHeight: 200,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {projectStatus.members.map((m) => (
+                      <div
+                        key={m.name}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "4px 6px",
+                          borderRadius: 4,
+                          background: "rgba(255, 255, 255, 0.03)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: m.exists ? "#34d399" : "#f87171",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: "#f1f5f9",
+                              textOverflow: "ellipsis",
+                              overflow: "hidden",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {m.name}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "10px", color: "#94a3b8", flexShrink: 0 }}>
+                          {m.node_count ?? 0} symbols
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {projectStatus.is_federated && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        paddingTop: 4,
+                        borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                        fontSize: "10px",
+                        color: "#94a3b8",
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>Cross-repo contracts:</span>
+                      <strong style={{ color: "#38bdf8" }}>
+                        {projectStatus.cross_repo_link_count} links
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

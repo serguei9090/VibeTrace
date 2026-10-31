@@ -235,3 +235,32 @@ export interface UnifiedReviewReportUI {
   }>;
   actions_required: string[];
 }
+
+export interface ProjectMemberUI {
+  name: string;
+  path: string;
+  database_path: string;
+  exists: boolean;
+  node_count?: number;
+  edge_count?: number;
+  is_indexed?: boolean;
+}
+
+export interface CrossRepoLinkUI {
+  source_repo: string;
+  source_symbol: string;
+  target_repo: string;
+  target_symbol: string;
+  link_type: string;
+}
+
+export interface ProjectStatusUI {
+  is_federated: boolean;
+  project_name: string;
+  storage: string;
+  manifest_path?: string;
+  member_count: number;
+  members: ProjectMemberUI[];
+  cross_repo_link_count: number;
+  links?: CrossRepoLinkUI[];
+}
