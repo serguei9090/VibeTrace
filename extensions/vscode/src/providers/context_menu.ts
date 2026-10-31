@@ -108,11 +108,10 @@ export class VibeTraceContextMenuProvider {
     let from = fromSymbol || this.getSymbolUnderCursor(editor);
 
     if (!from) {
-      from = await vscode.window.showInputBox({
-        title: "VibeTrace: Trace Execution Path (Source)",
-        prompt: "Enter the source function, class, or HTTP route",
-        placeHolder: "e.g. GET /api/orders, handle_request, login",
-      });
+      from = await this.promptSymbolWithAutocomplete(
+        "VibeTrace: Trace Execution Path (Source)",
+        "Search source symbol or route (e.g. 'handle_request', 'GET /api')..."
+      );
     }
 
     if (!from) {
@@ -121,11 +120,10 @@ export class VibeTraceContextMenuProvider {
 
     let to = toSymbol;
     if (!to) {
-      to = await vscode.window.showInputBox({
-        title: "VibeTrace: Trace Execution Path (Target)",
-        prompt: `Enter destination symbol to trace from '${from}'`,
-        placeHolder: "e.g. Database.query, send_email, HTTPAdapter.send",
-      });
+      to = await this.promptSymbolWithAutocomplete(
+        `VibeTrace: Trace Destination from '${from}'`,
+        "Search target symbol or route (type to autocomplete)..."
+      );
     }
 
     if (!to) {
@@ -167,6 +165,76 @@ export class VibeTraceContextMenuProvider {
         }
       }
     );
+  }
+
+  private async promptSymbolWithAutocomplete(
+    title: string,
+    placeholder: string
+  ): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const qp = vscode.window.createQuickPick<vscode.QuickPickItem & { symbol?: string }>();
+      qp.title = title;
+      qp.placeholder = placeholder;
+      qp.matchOnDescription = true;
+      qp.matchOnDetail = true;
+
+      let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+      // Populate initial top symbols
+      this.apiClient.searchSymbols("", 15).then((results) => {
+        qp.items = results.map((r) => ({
+          label: `$(${r.kind === "class" ? "symbol-class" : "symbol-function"}) ${r.name}`,
+          description: `${r.file_path}:${r.start_line}`,
+          detail: r.signature || r.qualified_name,
+          symbol: r.name,
+        }));
+      });
+
+      qp.onDidChangeValue((val) => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          qp.busy = true;
+          try {
+            const results = await this.apiClient.searchSymbols(val.trim(), 20);
+            const items: Array<vscode.QuickPickItem & { symbol?: string }> = results.map((r) => ({
+              label: `$(${r.kind === "class" ? "symbol-class" : "symbol-function"}) ${r.name}`,
+              description: `${r.file_path}:${r.start_line}`,
+              detail: r.signature || r.qualified_name,
+              symbol: r.name,
+            }));
+
+            if (
+              val.trim() &&
+              !results.some((r) => r.name.toLowerCase() === val.trim().toLowerCase())
+            ) {
+              items.unshift({
+                label: `$(search) Trace to '${val.trim()}'`,
+                description: "Custom target symbol or route",
+                symbol: val.trim(),
+              });
+            }
+
+            qp.items = items;
+          } finally {
+            qp.busy = false;
+          }
+        }, 150);
+      });
+
+      qp.onDidAccept(() => {
+        const selected = qp.selectedItems[0];
+        const res = selected?.symbol || qp.value.trim();
+        qp.hide();
+        resolve(res || undefined);
+      });
+
+      qp.onDidHide(() => {
+        qp.dispose();
+        resolve(undefined);
+      });
+
+      qp.show();
+    });
   }
 
   private async handleCopySlice(uri?: vscode.Uri): Promise<void> {

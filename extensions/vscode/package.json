@@ -2,7 +2,7 @@
   "name": "vibetrace-vscode",
   "displayName": "VibeTrace - Code Intelligence & Blast Radius Guard",
   "description": "Local AI code graph intelligence, surgical code slicing, blast-radius caller guards, and embedded Map Room for VS Code.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "vibetrace",
   "license": "MIT",
   "repository": {
@@ -126,32 +126,45 @@
         "icon": "$(sync)"
       }
     ],
+    "submenus": [
+      {
+        "id": "vibetrace.contextSubmenu",
+        "label": "VibeTrace",
+        "icon": "$(graph)"
+      }
+    ],
     "menus": {
       "editor/context": [
         {
-          "command": "vibetrace.tracePath",
-          "group": "vibetrace@0",
+          "submenu": "vibetrace.contextSubmenu",
+          "group": "vibetrace@1",
           "when": "editorTextFocus"
+        }
+      ],
+      "vibetrace.contextSubmenu": [
+        {
+          "command": "vibetrace.tracePath",
+          "group": "1_trace@1"
         },
         {
           "command": "vibetrace.inspectCallers",
-          "group": "vibetrace@1",
-          "when": "editorTextFocus"
+          "group": "2_guard@1"
         },
         {
           "command": "vibetrace.copySlice",
-          "group": "vibetrace@2",
-          "when": "editorTextFocus"
+          "group": "3_context@1"
         },
         {
           "command": "vibetrace.bundleContext",
-          "group": "vibetrace@3",
-          "when": "editorTextFocus"
+          "group": "3_context@2"
         },
         {
           "command": "vibetrace.copyRepoMap",
-          "group": "vibetrace@4",
-          "when": "editorTextFocus"
+          "group": "3_context@3"
+        },
+        {
+          "command": "vibetrace.openMapRoomTab",
+          "group": "4_view@1"
         }
       ],
       "view/title": [

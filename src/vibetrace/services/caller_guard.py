@@ -36,6 +36,7 @@ class CallerGuardReport(BaseModel):
     target_line: int | None = None
     target_signature: str | None = None
     total_callers: int = 0
+    risk_level: str = "LOW"
     callers: list[CallerSite] = Field(default_factory=list)
     alternative_candidates: list[str] = Field(default_factory=list)
     safety_advisory: str = ""
@@ -161,13 +162,24 @@ class CallerGuardService:
                 f"symbol(s) found: {', '.join(alt_candidates)}]"
             )
 
+        total = len(caller_sites)
+        if total == 0:
+            risk = "LOW"
+        elif total <= 3:
+            risk = "LOW"
+        elif total <= 10:
+            risk = "MEDIUM"
+        else:
+            risk = "HIGH"
+
         return CallerGuardReport(
             found=True,
             symbol=clean_name,
             file_path=rel_file,
             target_line=s_line,
             target_signature=sig,
-            total_callers=len(caller_sites),
+            total_callers=total,
+            risk_level=risk,
             callers=caller_sites,
             alternative_candidates=alt_candidates,
             safety_advisory=advisory,

@@ -176,6 +176,17 @@ export interface BudgetedRepoMapResult {
   formatted_map: string;
 }
 
+export interface SymbolSearchResult {
+  id: string;
+  name: string;
+  qualified_name: string;
+  kind: string;
+  file_path: string;
+  start_line: number;
+  end_line?: number;
+  signature?: string | null;
+}
+
 export class VibeTraceApiClient {
   private baseUrl: string;
 
@@ -436,6 +447,31 @@ export class VibeTraceApiClient {
       return resp.ok;
     } catch {
       return false;
+    }
+  }
+
+  public async searchSymbols(query: string, limit = 25): Promise<SymbolSearchResult[]> {
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        limit: String(limit),
+      });
+      const resp = await fetch(`${this.baseUrl}/api/search?${params.toString()}`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!resp.ok) {
+        return [];
+      }
+      const data = await resp.json();
+      if (Array.isArray(data)) {
+        return data as SymbolSearchResult[];
+      }
+      if (data && Array.isArray(data.code)) {
+        return data.code as SymbolSearchResult[];
+      }
+      return [];
+    } catch {
+      return [];
     }
   }
 }

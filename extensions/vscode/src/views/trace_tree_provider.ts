@@ -53,6 +53,7 @@ export class TraceTreeItem extends vscode.TreeItem {
 export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<TraceTreeItem> {
   // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
   private _onDidChangeTreeData: vscode.EventEmitter<TraceTreeItem | undefined | void> =
+    // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
     new vscode.EventEmitter<TraceTreeItem | undefined | void>();
   // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
   readonly onDidChangeTreeData: vscode.Event<TraceTreeItem | undefined | void> =

@@ -61,21 +61,19 @@ export class VibeTraceCodeLensProvider implements vscode.CodeLensProvider {
 
       const lens = new vscode.CodeLens(range);
       if (report?.found) {
-        const total = report.total_callers;
+        const total = report.total_callers || 0;
         const cross = report.cross_repo_callers ? report.cross_repo_callers.length : 0;
+        const risk = (
+          report.risk_level || (total > 10 ? "HIGH" : total > 3 ? "MEDIUM" : "LOW")
+        ).toUpperCase();
         let title: string;
 
         if (total === 0) {
           title = "$(check) 0 Callers (Leaf)";
         } else {
           const crossTag = cross > 0 ? ` [${cross} Cross-Repo]` : "";
-          const icon =
-            report.risk_level === "HIGH"
-              ? "$(error)"
-              : report.risk_level === "MEDIUM"
-                ? "$(warning)"
-                : "$(info)";
-          title = `${icon} ▲ ${total} Caller${total > 1 ? "s" : ""}${crossTag} (${report.risk_level} Risk)`;
+          const icon = risk === "HIGH" ? "$(error)" : risk === "MEDIUM" ? "$(warning)" : "$(info)";
+          title = `${icon} ▲ ${total} Caller${total > 1 ? "s" : ""}${crossTag} (${risk} Risk)`;
         }
 
         lens.command = {

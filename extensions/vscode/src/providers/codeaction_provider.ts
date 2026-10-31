@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import type { VibeTraceApiClient } from "../client/api_client.js";
 
 export class VibeTraceCodeActionProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [

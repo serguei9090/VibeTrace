@@ -32,6 +32,7 @@ export class ReviewTreeItem extends vscode.TreeItem {
 export class VibeTraceReviewTreeProvider implements vscode.TreeDataProvider<ReviewTreeItem> {
   // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
   private _onDidChangeTreeData: vscode.EventEmitter<ReviewTreeItem | undefined | void> =
+    // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
     new vscode.EventEmitter<ReviewTreeItem | undefined | void>();
   // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
   readonly onDidChangeTreeData: vscode.Event<ReviewTreeItem | undefined | void> =
