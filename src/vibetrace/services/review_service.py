@@ -8,6 +8,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.quality.models import QualityFinding
+from vibetrace.quality.service import QualityService
 from vibetrace.security.models import SecurityFinding
 from vibetrace.security.service import SecurityService
 from vibetrace.services.caller_guard import (
@@ -28,6 +30,9 @@ class UnifiedReviewReport(BaseModel):
     unapproved_security_count: int = 0
     modified_security_count: int = 0
     total_security_count: int = 0
+    unapproved_quality_count: int = 0
+    modified_quality_count: int = 0
+    total_quality_count: int = 0
     new_splits_count: int = 0
     modified_splits_count: int = 0
     total_splits_count: int = 0
@@ -36,6 +41,7 @@ class UnifiedReviewReport(BaseModel):
     coverage_gate: CoverageGateReport = Field(default_factory=CoverageGateReport)
     security_findings: list[SecurityFinding] = Field(default_factory=list)
     all_security_findings: list[SecurityFinding] = Field(default_factory=list)
+    quality_findings: list[QualityFinding] = Field(default_factory=list)
     actionable_splits: list[ArchitecturalSplit] = Field(default_factory=list)
     all_splits: list[ArchitecturalSplit] = Field(default_factory=list)
     caller_guards: list[CallerGuardReport] = Field(default_factory=list)
@@ -115,7 +121,23 @@ def run_unified_review(
     unapproved_sec = sum(1 for f in active_sec if f.status == "UNAPPROVED")
     modified_sec = sum(1 for f in active_sec if f.status == "MODIFIED")
 
-    # 2. Architectural Split Path Audit
+    # 2. Code Quality & Cognitive Complexity Audit
+    qual_report = QualityService.audit_project(
+        db=db,
+        project_root=project_root,
+        file_list=target_files,
+        complexity_threshold=15,
+        include_tests=False,
+    )
+    active_qual: list[QualityFinding] = []
+    for f in qual_report.findings:
+        if f.status in ("UNAPPROVED", "MODIFIED_CODE"):
+            active_qual.append(f)
+
+    unapproved_qual = sum(1 for f in active_qual if f.status == "UNAPPROVED")
+    modified_qual = sum(1 for f in active_qual if f.status == "MODIFIED_CODE")
+
+    # 3. Architectural Split Path Audit
     file_ranges = parse_git_diff_line_ranges(diff_text) if diff_text else {}
     split_report = audit_splits(db, project_root)
     active_splits: list[ArchitecturalSplit] = []
@@ -163,6 +185,11 @@ def run_unified_review(
             "`vibetrace_approve_security_exception("
             f"finding_id='{f.id}', tag='...', rationale='...')`."
         )
+    for f in active_qual[:5]:
+        actions.append(
+            f"[QUALITY:{f.severity.value}] {f.rule_id} at `{f.file_path}:L{f.start_line}` "
+            f"(ID: `{f.id}`): {f.title} -> Refactor or approve into .vibetrace/quality.toml."
+        )
     for s in active_splits[:10]:
         actions.append(
             f"[SPLIT:{s.status}] `{s.symbol}` at `{s.file_path}:L{s.start_line}` "
@@ -185,6 +212,8 @@ def run_unified_review(
     passed = (
         (unapproved_sec == 0)
         and (modified_sec == 0)
+        and (unapproved_qual == 0)
+        and (modified_qual == 0)
         and (new_splits == 0)
         and (mod_splits == 0)
         and cov_gate.passed
@@ -197,6 +226,9 @@ def run_unified_review(
         unapproved_security_count=unapproved_sec,
         modified_security_count=modified_sec,
         total_security_count=sec_report.total_findings,
+        unapproved_quality_count=unapproved_qual,
+        modified_quality_count=modified_qual,
+        total_quality_count=qual_report.total_findings,
         new_splits_count=new_splits,
         modified_splits_count=mod_splits,
         total_splits_count=split_report.total_splits,
@@ -205,6 +237,7 @@ def run_unified_review(
         coverage_gate=cov_gate,
         security_findings=active_sec,
         all_security_findings=sec_report.findings,
+        quality_findings=active_qual,
         actionable_splits=active_splits,
         all_splits=split_report.splits,
         caller_guards=with_callers,
@@ -226,6 +259,10 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
         (
             f"- **🛡️ Security, IaC & Git Secrets:** {report.unapproved_security_count} unapproved, "
             f"{report.modified_security_count} modified"
+        ),
+        (
+            f"- **✨ Code Quality & Complexity:** {report.unapproved_quality_count} unapproved, "
+            f"{report.modified_quality_count} modified"
         ),
         (
             f"- **🔀 Architectural Splits:** {report.new_splits_count} new unapproved, "

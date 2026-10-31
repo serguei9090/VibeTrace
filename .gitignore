@@ -71,6 +71,8 @@ test-results/
 # VibeTrace local storage & vectors
 .vibetrace/*
 !.vibetrace/splits.toml
+!.vibetrace/security.toml
+!.vibetrace/quality.toml
 vibetrace_context/
 *.lance/
 *.lance
@@ -80,6 +82,7 @@ vibetrace_context/
 .codannaignore
 .fastembed_cache
 .last_review_hash
+.scannerwork/
 
 
 

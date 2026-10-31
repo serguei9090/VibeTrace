@@ -1,0 +1,3107 @@
+# .vibetrace/quality.toml
+# Code quality exceptions and approved complexity baseline.
+# Last updated: 2026-10-31T19:15:47Z
+
+[quality]
+version = "1.0"
+default_complexity_threshold = 15
+
+[[exceptions]]
+id = "QUAL-S3776-9aaa67b4a46e"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli.py"
+symbol_name = "build_parser"
+code_hash = "1ecaf6915fc2d4a4169200f8119ba16f5f1d61f409a5343dbd12cd129678ddb9"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-f9bd09b25dee"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_commands.py"
+symbol_name = "cmd_trace"
+code_hash = "d55380bee3042c3388e7cf16128ba306ac3956c1d07a2e8ff49aa6a7296cec8b"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 23.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-bd64b7c8214b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_commands.py"
+symbol_name = "cmd_hooks"
+code_hash = "1062c5e2d6d4ae8956c2791e4128af7a8eb5cd24408bc3e59045dca1db5381fc"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 24.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-45b0615c32a9"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_docs.py"
+symbol_name = "_cmd_docs_catalog"
+code_hash = "5eced80bd01292bcf9373810a6db0e75b00463f9ab5a4728d25846f09643c6be"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 49.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-53d47e12462a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_project.py"
+symbol_name = "cmd_project"
+code_hash = "e05b67b9b0b6482a6ba3d105f3daba0edaaeebff2d620db90178a6d8f2db3a1c"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-f2555eefe8d1"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_project.py"
+symbol_name = "_cmd_project_index"
+code_hash = "74129816e378d8a35944548ebb392b739d333f9713a97675a06606fb1e9e754b"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 20.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-e0f41ccf7d39"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/cli_project.py"
+symbol_name = "_cmd_project_guard"
+code_hash = "e7c4b1e6c5423c1371939406c9e3ad5c93a950b00ae02ef689d9680f595b54c8"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-0ac98cf24866"
+rule_id = "python:S134"
+file_path = "src/vibetrace/cli_project.py"
+symbol_name = "_cmd_project_index"
+code_hash = "ba187159c6bc461fbf01a447b47f39751e5640538c28759635fbd9141d17c7ee"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-896fe68d3d1a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/server_api.py"
+symbol_name = "search_nodes_endpoint"
+code_hash = "02c16ae216d890bd5a9a1610d6bc18a33949d0ec82395e8e46d8ac058abf3af2"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-c7159f6752e4"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/docs/chunker.py"
+symbol_name = "chunk_markdown"
+code_hash = "0b14b9791447fd774436047e1d9c531672d091bd0079ea76b0fdf8f02fe28af8"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-9c268c039d7e"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/docs/chunker.py"
+symbol_name = "chunk_text"
+code_hash = "9ddde14c5f2e5e4dbf81cbdd76fe8dc8b516ac4e12e98a23ec2f6cf699cde5b9"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 18.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-08646623994d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/docs/chunker.py"
+symbol_name = "chunk_pdf"
+code_hash = "b16387eb6321550dc3d9c2538ab71a624951c4a96f545bbb457520beaa3c8021"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 26.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-f2b921cbcdda"
+rule_id = "python:S134"
+file_path = "src/vibetrace/docs/chunker.py"
+symbol_name = "chunk_pdf"
+code_hash = "4578bf51dca4907ccbc496624d693dcc5f78715e4e3030ad74dad768f2570dca"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-df2a672b9f80"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/docs/service.py"
+symbol_name = "index_catalog"
+code_hash = "09e5d40e9d3b409672a3d5568b878d0943051f777aad620968449849d92a7642"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 53.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-99548d95c15a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/docs/service.py"
+symbol_name = "search"
+code_hash = "ee95deeb412977573a067d4799a319222e3e890ff2501c722f81f8755fb11596"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-08ae3f10c648"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/docs/service.py"
+symbol_name = "index_catalog"
+code_hash = "3bbc1a0f064f5123ab7eb800c28d24bf129dae085786cd79a1ce10edd91c079c"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+
+[[exceptions]]
+id = "QUAL-S134-0bb958b787f8"
+rule_id = "python:S134"
+file_path = "src/vibetrace/docs/service.py"
+symbol_name = "index_catalog"
+code_hash = "2ca874ed03b15b3a9e6576cbcc229cefdcb151d1e4f17425ab8037bd3b23279c"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-8611c082fd9e"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/federation/config.py"
+symbol_name = "auto_discover_members"
+code_hash = "5ad90ce3ed1a747455243532ac14f3bc32ab6f37f7bed804bd9b603cadad4e2f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 18.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-ee1c8e4ef1be"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/federation/cross_repo_linker.py"
+symbol_name = "discover_links"
+code_hash = "972208e56d941fb0f72e12395df2e5502ac364abb245fb9e53a2665a19923c37"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-afb96807378b"
+rule_id = "python:S134"
+file_path = "src/vibetrace/federation/cross_repo_linker.py"
+symbol_name = "discover_links"
+code_hash = "770f920f7944d573e0530caad3237f7bb7d5b15ff1ffb45668bd484069996970"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-b2cc0bcebb9b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "get_member_statuses"
+code_hash = "ebe33b3d83ef536ee9cc1e74e1703c4ada39c91d79ac1e0c051e9127170cf3b9"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 20.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-91ab51aa5f06"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "get_cross_repo_guard"
+code_hash = "48ba1ac098e7ae4445d3d2d411cdbcd45eb56ab9a2250a6dd0b21cf3650ada20"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 36.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-781924e5e8bb"
+rule_id = "python:S134"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "get_member_statuses"
+code_hash = "ac0ab9603d79cae1c40e832aa38124a9ba7215b76665e5dac82ca451d6546c54"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-5a8962240104"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "search"
+code_hash = "3f642e34bd69f2df1ba15d1bf6dc8c17b8ce875dbfa5de1e92094f9f8a3e1eea"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+
+[[exceptions]]
+id = "QUAL-S134-ee807820d8c9"
+rule_id = "python:S134"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "search"
+code_hash = "7003fec9a33753ed36870e7bc6c7d7a84c8309dc188727ca7b52cacfc4530d86"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-c7ed913da4bf"
+rule_id = "python:S134"
+file_path = "src/vibetrace/federation/storage.py"
+symbol_name = "get_cross_repo_guard"
+code_hash = "836c82c9fa634613540a5a4728cddef23a4c7e775fb63d54b495a12ab8596efe"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-678eeb3a29e8"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/db_queries.py"
+symbol_name = "search_lexical"
+code_hash = "b9e0277407d8984abd9b21f05402237866027d864ef82613966657d0db1dde53"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-36228142f4ae"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/embeddings.py"
+symbol_name = "search_semantic"
+code_hash = "dbf45367b3e1fb2a58530efc82aea0b95c5e7884864b9e6c72440bd4bc2ad40f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 23.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-37bd4d9e2d51"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/git_utils.py"
+symbol_name = "get_git_delta"
+code_hash = "cabb5111d9990fe7e3e6884313f08f2007b36213273d6c78e48552fd49843ece"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+metric_value = 48.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-726c01877731"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/git_utils.py"
+symbol_name = "get_git_delta"
+code_hash = "c7d0771408d0a0bcd3687986d760857113b71ed5610b8014fd4c04bedbe1c17e"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:37Z"
+
+[[exceptions]]
+id = "QUAL-S134-9afbddbfa186"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/git_utils.py"
+symbol_name = "get_git_delta"
+code_hash = "0b349d52cddd0ea10a5e12854a743b4fbc6fee537e4985cc4cc65a25aec8f4c1"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-49b8de3ad53b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "_inject_lefthook_hook"
+code_hash = "428023ee37c83552d582187de53e03c5bfad3be494b2ee6c7b8e9e05bb734b47"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-e50f7d74b1db"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "_clean_lefthook_content"
+code_hash = "a163da0c5d5dc90852e366f3ec9770d24ea509a05b2ffdbe2b68a86a52c9321e"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 60.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-488fe7275b30"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "install_git_hooks"
+code_hash = "095ea653e88dd734559a8b6836f2ca02b2cf771a8ac4d9924cd09b116bc5fc29"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-7188b4686175"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "uninstall_hooks"
+code_hash = "11a3164367961f9eb197cda30ddc2714ea281d3dfed2fa7a5cad8505149eb361"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 24.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-d2a96d299ce2"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "_inject_lefthook_hook"
+code_hash = "e44e98f2593ed118955e57b674134d2946c543125f3a8fab1c09a99704bc9315"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-546e0f439ada"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "_clean_lefthook_content"
+code_hash = "a71a0dc3b4484e52885f87c0c5f17e74af968651c1b088b785fe1ef6dbc1ed27"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 7.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-33b0a3763c15"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/hooks.py"
+symbol_name = "uninstall_hooks"
+code_hash = "88e6f4985b6fec5b22949b9dc16ed594bf3157b52b1fdb88d0414007621b5429"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-c2579823bfd4"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/lsp_bridge.py"
+symbol_name = "resolve_unresolved_edges"
+code_hash = "44f249346d9249b6371bf949c9b082763953d562a73a5a559197c5dc8bf7d350"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-7ff3cec1b66d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/lsp_bridge.py"
+symbol_name = "_reader_loop"
+code_hash = "9393472ac63f998ad6abde1f3f63604cf27f7d749349afe58615740675625e83"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 27.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-b4aeb57cb521"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/lsp_bridge.py"
+symbol_name = "_reader_loop"
+code_hash = "a7baa3a5b298caa7efc7d954f01e2796f4773e073515484404b235e730345afc"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-a7596816334f"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/lsp_bridge.py"
+symbol_name = "resolve_unresolved_edges"
+code_hash = "ca5cc2339c89388fbfdb752df795feab9fcc3f3c4019a3efe499dbe39a738f28"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-6df23f1d4737"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/main.py"
+symbol_name = "index_file"
+code_hash = "4cbb8463430fd1d8bdaeccc6ba38361bad7d5d410ff08652556110fea6f2c8c5"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-7f821e179791"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/main.py"
+symbol_name = "reindex_all"
+code_hash = "fe5f2adfdfbc637215af2a9d11507fd651d8a9b952c38c31b4f015babcf76bab"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 129.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-3928fe172f83"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/main.py"
+symbol_name = "reindex_all"
+code_hash = "3f51557966e28c767970960f1952bd98605b55367b22235567d65c731eb220bf"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-158b786bc51f"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_detect_go_modules"
+code_hash = "8ab9794f8ea1588bbabad1118973d1873f7ce83e9bd70e0cf5495762a46da672"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 25.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-c6f5f507649d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_detect_cargo_packages"
+code_hash = "4af1b6d9d39aa579ad1b7d4b8356dd1d5260be294d222ec7f7c20dbff26bdd18"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 26.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-858520f90ccd"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "resolve"
+code_hash = "56e1bb392cb0fa3f262af8ddbb6ad46d6e0993c9dc2e9699727ee170b46babea"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 60.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-deb371f592e6"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_resolve_relative"
+code_hash = "cb92282e113107794f9e023fdd4defeb3ec5f7a490c8c75282d10fae6f41e6f0"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-03b83377d17c"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_match_known_file"
+code_hash = "c3518eb11f36f02d5a5713a5f00a430e48fac124fe16439fec5c6a3c61be8ad5"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 34.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-1874ee1bada6"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_detect_go_modules"
+code_hash = "d8a0aff116154fe33dbd4a714eb7efd60d575a0d630eb961f35a1392a4c0f703"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 6.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-b75551e20541"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "_detect_cargo_packages"
+code_hash = "b01029e5bcc73701a4f0c0fadd4d9f91bf50d00d2330cd2bb50df588bc3c30a6"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 6.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-afc954146e0d"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/resolver.py"
+symbol_name = "resolve"
+code_hash = "a80982bfedbc2743c35e6664404b25bb0b63a96b212751863b9053ee2f5c703f"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:38Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-58fd0c66498d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/scip_importer.py"
+symbol_name = "import_scip_json_dict"
+code_hash = "b44837f894c30a4b3ec1da6ff66db06831770dbf1274bcd27834ec29a48be21f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 40.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-e807ecef422f"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/scip_importer.py"
+symbol_name = "import_scip_json_dict"
+code_hash = "4f777ce750c6185629c10c0dd4e397665e4b5c65f68992875ca4c6c052c597b6"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-fe8325791899"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/vector_store.py"
+symbol_name = "upsert_embeddings"
+code_hash = "9ef3ff2753febed4828d5b5dad8eec3652c96e0ae32237ce56d003e929372927"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-96a53884ddd4"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/watcher.py"
+symbol_name = "_handle_doc_change"
+code_hash = "bedfd1457fd135f5aebd640c85bb90ef1ce1f52bb0b404d8eb2f46bd09e705b5"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-f9c90b4defa4"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/watcher.py"
+symbol_name = "_index_directory_tree"
+code_hash = "e78af79303ea12a45195df3d0874bafffc1f27ac46269bc9d8e94ae7845a0571"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-1db82cbb8033"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/mcp/formatters.py"
+symbol_name = "format_structural_summary_md"
+code_hash = "d710c876ea19b9a9ff4e166186c073c28cd4fc45efd3cc2ae09a9c3b1a3d4a26"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 21.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-d93c29d915f0"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/mcp/formatters.py"
+symbol_name = "format_semantic_search_md"
+code_hash = "7768b70030f2e75edd135e63942ede1496c72a0fdadccd27a80216cea1c1a5cc"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-0c344a2453f6"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/mcp/formatters.py"
+symbol_name = "format_code_slice_md"
+code_hash = "7dc867512546ae3d6b9cca6098a63e45c62bf538e367ac78bcd04169ed6a5a34"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-c9b83db2397b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/mcp/formatters.py"
+symbol_name = "format_dependencies_md"
+code_hash = "10e6183e13601af2d4975a59616cfcc0b7d0601a02d8c31aaba0beb4c762742b"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 26.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-ef26d1b5f3b7"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/mcp/formatters.py"
+symbol_name = "format_saved_traces_md"
+code_hash = "7368bc17a9b5af3d6fa9a82fd08a2f23048f67f51154d42d05cecb746ec2e962"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-d34a08c18448"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/quality/baseline.py"
+symbol_name = "apply_baseline_to_findings"
+code_hash = "27e4ae4b5e97d093d4568522f12fac5897615cd2a8cbd3642be57119393b7518"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 21.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-9dc8b78c240c"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/quality/baseline.py"
+symbol_name = "record_exception"
+code_hash = "3025a3967edfa65061a49f6ff0ab02a3c41386ad8c6df8b4ff705ccda683a53d"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 25.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-cc0bdcbf9b4e"
+rule_id = "python:S134"
+file_path = "src/vibetrace/quality/baseline.py"
+symbol_name = "apply_baseline_to_findings"
+code_hash = "dbe250b37cd49862c1b3b38ee7c5fc73d1250af61f63cff67dc754ed6b6ceea4"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-008fba522b49"
+rule_id = "python:S107"
+file_path = "src/vibetrace/quality/baseline.py"
+symbol_name = "record_exception"
+code_hash = "3025a3967edfa65061a49f6ff0ab02a3c41386ad8c6df8b4ff705ccda683a53d"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 15.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-dbfdd5181911"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/quality/complexity.py"
+symbol_name = "analyze_python_complexities"
+code_hash = "fe13ff445cfb7c0e96b136645f3de2974419289553265ac441f9eb877126ac76"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-415d15f2c5f9"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/quality/service.py"
+symbol_name = "audit_project"
+code_hash = "033fe525fcc6979d934f0bd3bdc87140afbe86ef7f732114aa526424376e3547"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 28.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-aa16bfd4a437"
+rule_id = "python:S107"
+file_path = "src/vibetrace/quality/service.py"
+symbol_name = "record_exception"
+code_hash = "63d9edf89e6d6d6b213412012cf40436745e5ed194d0d9a340b6835be3e2a033"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 15.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-df287fe100bd"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/quality/smells.py"
+symbol_name = "visit_If"
+code_hash = "fb6e4e6e19b9d82d2dc2c4ca8a2280856189b69af56f896001a02016141905ac"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 23.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-c2fef1320fef"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_command_injection"
+code_hash = "a1b998629d14deb333811377456e7d8035f67572b03938b3fa922a35eab90c71"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 80.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-de1ff2578db5"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_hardcoded_secrets"
+code_hash = "3ee5072012e811f92db701cdad71f895c60b1d3b8aa2cf0b53f0779a06e83e6f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 25.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-2e3d3b2d0c4d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_weak_crypto"
+code_hash = "20d2556ad39679b1f827453a44f36de005f11c0f79f8502c90a05805e733c916"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-1bbfe0d155ab"
+rule_id = "python:S107"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_create_finding"
+code_hash = "18acb6d20e836f5e6003855d32776aaf24dd9611d1d53f268d0f9edb01b8c1da"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 8.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S1066-d1532c848f87"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_command_injection"
+code_hash = "b224b3d44589b836aadcb762a2e280d61eaf4e2ef16911163bb801bd712b86c6"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+
+[[exceptions]]
+id = "QUAL-S134-e3054c13960c"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_command_injection"
+code_hash = "57ec8f335e25b08938ee225143a4f3fea877e4eec144d1ec6bda76a719c7231c"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-8c95fd2983d4"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/security/ast_scanner.py"
+symbol_name = "_check_eval_injection"
+code_hash = "22178f3f3c9f8203b5188f2992505fa8aedd4531fd0be5e2f3d2d5f6b5606dff"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+
+[[exceptions]]
+id = "QUAL-S3776-1b6ea67e82ff"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/baseline.py"
+symbol_name = "apply_baseline_to_findings"
+code_hash = "e8ff3f8091c3ccbecee4e464a84905b6e16e5ba4ecb7ba8e92894da978a6de0f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 22.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-5ff77ccdadae"
+rule_id = "python:S107"
+file_path = "src/vibetrace/security/baseline.py"
+symbol_name = "record_exception"
+code_hash = "121837e6edc263aa01fcc4cce63107485a4c5104041fe551f9dc08bc8280dcf6"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 13.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-8b0a3782575c"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/dataflow.py"
+symbol_name = "_split_top_level_args"
+code_hash = "b33b48ad6c31ddc8f465781e66845bd1ad749b55c5c1f7a8517cfa7457ff1179"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 28.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-a2fb5a268e79"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/dataflow.py"
+symbol_name = "_propagate_function_def_use"
+code_hash = "969d4c81fe438c56cd7d78a8fbdfb69a9b41dc1bcd949b3a6bfecd2c54e68a01"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 28.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-7bb31563df7b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/dataflow.py"
+symbol_name = "verify_interprocedural_taint_flow"
+code_hash = "e69796cc91e29cd9916daf4f3a28e53755f220c8bbc147e2f9fad864867cd153"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 34.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-78a7267cb18c"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/dataflow.py"
+symbol_name = "verify_interprocedural_taint_flow"
+code_hash = "9a1d4ef45f94fa93b2ee91d9be37b62fa65d3aefae9b4d547cabd4b7b1c0646b"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-8f73043c7a9d"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/git_secret_scanner.py"
+symbol_name = "_scan_patch_text"
+code_hash = "0d08c6f02bcf0aef0032a5a7efd4b89c78f417eae6d53358aa45391e35bcf4e9"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 33.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-3e86b163f86f"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/iac_scanner.py"
+symbol_name = "_scan_dockerfile"
+code_hash = "5aa6886bdbe1c82dcf983af92a6f6244b4c605918f593cd6f70c9375309e8130"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-d0ac73f88c5b"
+rule_id = "python:S107"
+file_path = "src/vibetrace/security/iac_scanner.py"
+symbol_name = "_make_finding"
+code_hash = "6fb51584bf97f9ba8c5ec5ac26e58ca2f8b1998ebb002306d14df9ffcc2fc637"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 10.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-afe2b26e6cd5"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/lockfile_parser.py"
+symbol_name = "parse_all_lockfiles"
+code_hash = "9257c26548f9109419b94c89f62d7da50533bfb52a6f4feb07e981014041d62c"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 18.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-26519173c87d"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/lockfile_parser.py"
+symbol_name = "parse_bun_lock"
+code_hash = "36ab6df4e0d51258c9cf8095b60c51fc427bbb978b53a556bf11d0aa3b903384"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-fedbf20700fa"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/osv_client.py"
+symbol_name = "query_vulnerabilities"
+code_hash = "e28c194edcbf814cb6ae35039e3064c7da66e9ded250cbbd386923126581ffc2"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 24.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-60279a0545a3"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/osv_client.py"
+symbol_name = "_osv_to_finding"
+code_hash = "bcb2b0bd582d54ec0841fd9380ea4b22a69f0a16f2519db737f4757ec814e7be"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 26.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-f12d3cf533c7"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/osv_client.py"
+symbol_name = "query_vulnerabilities"
+code_hash = "3732399dfa7cc7e2ca860579bd90a0c78a0800ec79df8a4c3d332cf74bc6fcd7"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-5598cfbc2bf9"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/osv_client.py"
+symbol_name = "_fetch_from_osv"
+code_hash = "4f071bffe26a9e22301847803f25c6eb40a3079a984143e2e86c3d0b72c594e5"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-3f48c38e7440"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/osv_client.py"
+symbol_name = "_osv_to_finding"
+code_hash = "68bc213437ae1dd154088b268d795ac235f373e4f4f0bb9b082e5df743f1a7e6"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:39Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-7bfd25423596"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "parse_semgrep_yaml"
+code_hash = "2ac451c348fe30e495bba2373feb60c28550f99c96fbeb830cdf064f1e149966"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 35.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-a0480460b016"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "sync_and_load_rules"
+code_hash = "7fb9565c23b617f79ef55a086a2bdf1e495ca9983e98d61faa3eb841b57aecb8"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 38.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-859ca7ea9800"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "_refresh_from_feed"
+code_hash = "03750d1069cee254364651c2141296d9b4eeec7f11e04e2d21d88329df7dcd44"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 27.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-a57f19227fa0"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "_rule_from_dict"
+code_hash = "8f29a48dc70d1a8eb96ed65d1127b88821034062231c4c1fa1aaddffec29c35e"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 41.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-45b6482850e9"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "scan_file_with_rules"
+code_hash = "dde6f8ba6033306d0efb280e8f25344ecefff70c8f733bd8d0573c8120653570"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 29.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-b7fcd809083c"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "parse_semgrep_yaml"
+code_hash = "b79f8eeec25db0124bd8f2b9dd1f3cb7213c25887507dfe683d4ccd26dbc1d96"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+
+[[exceptions]]
+id = "QUAL-S134-9f9c69037078"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "parse_semgrep_yaml"
+code_hash = "abd9d907741fc6d66f5fa9168f522d4de523cac95f2afa52ec64efded9160e4d"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-5dcd4a9a47c7"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "sync_and_load_rules"
+code_hash = "c21883be82494e60843bad11bb7864db0ad9af30eb38440f4caef1e8f716621e"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-e99aae17239c"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "_refresh_from_feed"
+code_hash = "7e4f80d111282603b807e2261292982241ec970e0745f6b5460e032d7815a0ee"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-802238f4c924"
+rule_id = "python:S134"
+file_path = "src/vibetrace/security/rule_sync.py"
+symbol_name = "_rule_from_dict"
+code_hash = "611deeb5ee817e72092e589170ba31634e15bb9e45ecf6b29cd6d5bf7f6d8ebb"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-1a6f33a04f1a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/service.py"
+symbol_name = "audit_project"
+code_hash = "9df999c7633af275c517a13ae99005bd210af76ffc9ad1394efe8f917ea6f2e4"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 20.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-9621ce7dd1e0"
+rule_id = "python:S107"
+file_path = "src/vibetrace/security/service.py"
+symbol_name = "audit_project"
+code_hash = "9df999c7633af275c517a13ae99005bd210af76ffc9ad1394efe8f917ea6f2e4"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 10.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S107-793d426cfeff"
+rule_id = "python:S107"
+file_path = "src/vibetrace/security/service.py"
+symbol_name = "record_exception"
+code_hash = "bcaf2412e03a4cadaf3fc11315c5e41d600a2ebcb15df7ef143c4c2c22a42bf3"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 13.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-fd27ed9a64e0"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/security/taint_engine.py"
+symbol_name = "_path_from_source"
+code_hash = "17d7cfc389807a75a9095081fb2793f6885d24fbc4b0e470d6596d601355a73f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-ba5b8d18951b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/caller_guard.py"
+symbol_name = "get_caller_guard"
+code_hash = "108e3bc362e2625e543067451de4c4d33aaf24ae13fc4d0646c6058b01590b33"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 33.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-58a89493cdbe"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/caller_guard.py"
+symbol_name = "get_staged_caller_guard"
+code_hash = "d5ec41f66b4b050b984f9e004ef66072e62399447614c9ab0cc32670580d1f89"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 20.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-b124b533fee5"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/caller_guard.py"
+symbol_name = "get_staged_caller_guard"
+code_hash = "9a554febb5db40118a1f52afbb75350b86568e3c127f8ad1052f93231ba2f56f"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-a00cb5065028"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/call_tree_service.py"
+symbol_name = "build_call_tree"
+code_hash = "0ba641cac35811997153619e87062839f1bba8c3758ee665ebe33e5109ec9892"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 21.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-de176b90fa5f"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/call_tree_service.py"
+symbol_name = "format_call_tree_md"
+code_hash = "482efd91224740578413361932d66b4c60e8fa947bf3c656291759c9fe2bda43"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 37.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-9b733eee17a3"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/call_tree_service.py"
+symbol_name = "_render_ascii"
+code_hash = "2c8ee1383127f578c75375749e9d9d450c78c0735060e07a417b63eb494adf70"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 19.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-ca3954912d2c"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/coverage_service.py"
+symbol_name = "_parse_external_line_coverage"
+code_hash = "42d6955f16291aa0c4142323b14b9c341a7a610768ffdd8823f6fdd6d992ae84"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 66.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-176292782f41"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/coverage_service.py"
+symbol_name = "evaluate_coverage_gate"
+code_hash = "3250a6c213ef9c9b180b1c2c3ecf05198afd67c7fa262ab79dde66ce998ce335"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 46.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-2731e3854151"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/coverage_service.py"
+symbol_name = "_parse_external_line_coverage"
+code_hash = "cbe6bb7b6fcdf1b029adbd7186c7dbe90c2944f3d5fde8177905c6f20107ff79"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-a203417d233e"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/coverage_service.py"
+symbol_name = "evaluate_coverage_gate"
+code_hash = "3250a6c213ef9c9b180b1c2c3ecf05198afd67c7fa262ab79dde66ce998ce335"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 8.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S134-67ea97fa15b7"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/coverage_service.py"
+symbol_name = "evaluate_coverage_gate"
+code_hash = "d848be86fe315aad44a4585871709f52d21f61d427e7e5462e2ed7c879be82d7"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-0528a0900afd"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "get_context_for_path"
+code_hash = "df51c6876f1f732ac4ecd01d91cc17374f54ae0636b2aa32088408fce7d8e644"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 29.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-74de7f75d6dc"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "compute_impact_analysis"
+code_hash = "257ab9fa5e0aafde34191576f5dc1d902e75de1a83da7c05c4f184dec1f84d97"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-cf47cdc2e1f8"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "get_context_for_path"
+code_hash = "f5b10fc5e384730aba95cfff59810badb492c48b759f061a74e989906b1274b2"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-91f64e0b915a"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "traverse"
+code_hash = "95ad362df07dee116b1a315941a85781d19ed433a847dfe13caa61b699aa153e"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 8.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S1066-84635a0256ba"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "compute_impact_analysis"
+code_hash = "6045fe8006187c25fb84f489cde239e6fb3934e49c8d9b153590b4098ca01f6c"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+
+[[exceptions]]
+id = "QUAL-S134-6becf8401e28"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/graph_service.py"
+symbol_name = "compute_impact_analysis"
+code_hash = "d0bea8fe0c6b42e7f92a9d816bb0cd9e475ec42c3ecc3df6550bc160be2670f9"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-aabd32e6018a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/hybrid_search.py"
+symbol_name = "hybrid_search"
+code_hash = "23391aa09644d1ce5e2b420186020ffe84d9f886a124bd37b80c05fe1aa2334a"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:40Z"
+metric_value = 35.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-4aa4b906b43f"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/reindex_service.py"
+symbol_name = "execute_reindex"
+code_hash = "fd35729b8cd28056f43fe2f3958ad08b047e2151cddb962b68191f342366bace"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 28.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-52634b05b711"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/reindex_service.py"
+symbol_name = "execute_reindex"
+code_hash = "fd35729b8cd28056f43fe2f3958ad08b047e2151cddb962b68191f342366bace"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 9.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S134-c274689ea652"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/reindex_service.py"
+symbol_name = "execute_reindex"
+code_hash = "475fb68abaa061791b1d34ab9d174b55d6ed26687a7925d58e8b8302bfdc0347"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-7ec863c35c94"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/repo_map_service.py"
+symbol_name = "generate_budgeted_repo_map"
+code_hash = "da9c8b833d614789f9272be7a41bef5b7bf96e09af3faeb0a3bbe13a06e29a9b"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 18.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-d47f37510bdd"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/review_service.py"
+symbol_name = "run_unified_review"
+code_hash = "90228462d120c299dbc3356d5627ec4e5ffaf7664ae985bc0a7f6d2f7265bff2"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 36.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-c3349597f3f4"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/split_audit_service.py"
+symbol_name = "load_split_baseline"
+code_hash = "9a795b8d0e67bee36c8a8399579fa3a5c01a475e80352007d905098f5fee2107"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 16.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-29d82eb6578a"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/split_audit_service.py"
+symbol_name = "load_split_baseline"
+code_hash = "f9851a63b4fd24ead18aad201712aadaf7d52c37d652bd254f87b123f447c77d"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-0b1e0db308d6"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/split_audit_service.py"
+symbol_name = "record_split_approval"
+code_hash = "f05ec77119c55a6513024975c373fc2d0249128f4729ea7751f813e17b97d8e8"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 9.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-13b810d54b60"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/trace_service.py"
+symbol_name = "trace_execution_path"
+code_hash = "fe44b97d6e2374666f908ab6e647338dd7add6b30d9381326d0eb60ea4ea1ea0"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 117.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-8e97c23f3952"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/trace_service.py"
+symbol_name = "get_code_slice"
+code_hash = "ffc63d61f5293416d7aee289a0c6b0e4d7406c097934e30faf31a4c0ea0e67db"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 21.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S107-1f2da5d69cbe"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/trace_service.py"
+symbol_name = "trace_execution_path"
+code_hash = "fe44b97d6e2374666f908ab6e647338dd7add6b30d9381326d0eb60ea4ea1ea0"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 8.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S134-9347802f3325"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/trace_service.py"
+symbol_name = "trace_execution_path"
+code_hash = "176aeff8697e021abf4fceff77d15527cb3b9e430cb51f0f7697ea71e931e4e9"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-f90c4c257e78"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+symbol_name = "_find_sibling_test"
+code_hash = "ce56e1f9e3d99eae8162821c49fd111953e71ce6e4f6d53dd502431b6438b52b"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 68.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-2749ea614d31"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+symbol_name = "_format_bundle_prompt"
+code_hash = "af713352d8b361f7dac43a41141cc2cfe18fdf6a8f2b2d64b04ddecc7f722cce"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 23.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-26106810dfef"
+rule_id = "python:S134"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+symbol_name = "_find_sibling_test"
+code_hash = "0b1afd197d92e5bc53d48f0913956eb814e8444651d265aad830dec6bdfdc273"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 6.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-441f0bbfd1e1"
+rule_id = "python:S107"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+symbol_name = "_format_bundle_prompt"
+code_hash = "af713352d8b361f7dac43a41141cc2cfe18fdf6a8f2b2d64b04ddecc7f722cce"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 8.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-e54ca2def771"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_record_ts_val_type"
+code_hash = "6f817e16684218bc5f328e13f8174ec8866da514e8895efa02dff3c73c921828"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 69.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-5d4d5bb70a3b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_resolve_call_target"
+code_hash = "90284ccb843fce77be70556e8aedd2e639ae43fac9189b9bc147512d7a7fdd00"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 85.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-d22456c28289"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_record_ts_val_type"
+code_hash = "a1c3c798afb94ec6d1687ed84c430d21032240a6340fcdd29a06cce921082d5b"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-51c71e747167"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_resolve_call_target"
+code_hash = "49f3d4a17de698bed2768b654fa9062bf5b29cd547a782a11d50554bce5fe40b"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-970110c524f3"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_resolve_call_target"
+code_hash = "3dd2ea0122af76f0de58a36304ed94fb4770add81e2fbe8095f1e79a29035d3a"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+
+[[exceptions]]
+id = "QUAL-S134-fcc709732a4d"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_find_go_symbol_file"
+code_hash = "4e849bdedb56a6cf73f5d8d39ee7765bb93c801cfcc4f5cd02c2bbd28033acf7"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:41Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-9dea88f2c4a3"
+rule_id = "python:S107"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_create_node"
+code_hash = "1bb6e241fd074c0c774460f51983b9eefc22d6560d6efd0dd8d319727c6af666"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:42Z"
+metric_value = 12.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S107-c2f5427977b7"
+rule_id = "python:S107"
+file_path = "src/vibetrace/indexer/parsers/base.py"
+symbol_name = "_add_node"
+code_hash = "024c5cb5025b3be36a40e4d3340709edcdc95372bc028d29d0a19c03389f727a"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:42Z"
+metric_value = 10.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-5f64f09b8abc"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/generic_parser.py"
+symbol_name = "extract"
+code_hash = "54d15486a074a177642a704f83384412eb279a8f513c9453b2f1227ab8828feb"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:42Z"
+metric_value = 741.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-4397e15b680a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/generic_parser.py"
+symbol_name = "traverse"
+code_hash = "1e8637225c2a331d7f1e7bee0f8c43f18be8a29c4c3dec1686525986fc3a6ce1"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:42Z"
+metric_value = 422.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-9d273f9bb727"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/generic_parser.py"
+symbol_name = "traverse"
+code_hash = "a36c8713b608a5e21483cf870087e0511389375c1904a2e84a0448a900eb5815"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:43Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-4813a68b68d8"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/generic_parser.py"
+symbol_name = "traverse"
+code_hash = "b6f977323584bfd5bcb56313eaa7f4e93893aa542161f426435a52d5b9b58322"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:42Z"
+
+[[exceptions]]
+id = "QUAL-S3776-28c83bc9e654"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "extract"
+code_hash = "7a5dde2c955655f988e7b41d0fe8b02d4ae3746d360fa8b468766501a730c5a4"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:43Z"
+metric_value = 907.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-5f6c181d6c50"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "traverse"
+code_hash = "ed55d3fd44abbfb9d21ad01b3a3142d66d77cdee79835a9a2d208db018b482c4"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:43Z"
+metric_value = 317.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-86ffbc2876e8"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "extract"
+code_hash = "19624730858427baf07f1b60eaea6ba049cf8c541960b07304cfbe1e45d06361"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:43Z"
+
+[[exceptions]]
+id = "QUAL-S134-0bec59255699"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "extract"
+code_hash = "9667babc2531f67a9962060df3ce47821f7611a6fe929da65c879826042af656"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:43Z"
+metric_value = 6.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-bff195c599ad"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "traverse"
+code_hash = "9fa35bbaf5c72e171a0657b941beaca24082ca059759f0999a16c526310099a0"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 7.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-85325c6779a5"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/go_parser.py"
+symbol_name = "traverse"
+code_hash = "90769c9b33625f4a5f0c4275e955396ebfcf51d54550124ec7a50f37ae6897d4"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+
+[[exceptions]]
+id = "QUAL-S3776-1f8a3a9f555b"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "_handle_es_import"
+code_hash = "22c590c96307ad7eef31b032a54cca0c791d874d45228a50d35aaa04341e7064"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 24.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-ea16fbecb202"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "_handle_es_export"
+code_hash = "f762d69a46ebf654e2a68a1cd694a3e0f9e00b6f8c34c72cf2ba55b2ca80d000"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 94.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-37c6bf44e5f1"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "extract"
+code_hash = "25c5d54c3d2c352631751d55147b87b90294fef2068aab8824d66ed5a831ce0c"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 504.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-9392ae2f1a37"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "traverse"
+code_hash = "5546fb0480e85918b610dbe5381ac9ead1b61b65b0cf0f1f556a81444db2049f"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 284.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-bde08d8135cd"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "_handle_require"
+code_hash = "980018f8e112f9c99dfb2d8bbe16d0afca62f4c22cfa32266559d7fe5ba6c1c7"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-67c0256f940a"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "_handle_es_export"
+code_hash = "fc3662885b88d3a60e0d2441cd707ecc574bd30441270e17e448cf017a1e835d"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-687c95e1553f"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "_handle_es_export"
+code_hash = "982d1eef21acc63efc0b319d3e88b1619b507a4ff815ff7ffaa89c415d2c7dfa"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:44Z"
+
+[[exceptions]]
+id = "QUAL-S134-2d3acb7a8d84"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "extract"
+code_hash = "10be584cbcf0434f1018556e838be9b43607488d55349915e291162078e6b324"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 7.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-17e1e1c22ea1"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "traverse"
+code_hash = "b24d538b84754a0fe4d0ed6a60d962c71c7c4473d01ed6f972837d461db00455"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+
+[[exceptions]]
+id = "QUAL-S134-c0fe7b13b4c7"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/js_parser.py"
+symbol_name = "traverse"
+code_hash = "184a5ac651e1e4c2621bd7619eae90f006276071016e28cd6a50d7cbf16c5eea"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-afee16ebcf1c"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "extract"
+code_hash = "c74547a7c599788844dcf132e3af9906fcf561619cb3d495c00b111d6983cfd0"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 71.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-a9f5c8b42e26"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_with_statement"
+code_hash = "ab65ed230f08fa09fc925dfdcc26adf38934f1a9d624cbe384a2808d02b5bd22"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 25.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-d8e9d773ec58"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_traverse"
+code_hash = "2546f3daccdda89687d6a3edf35c53f993b7584686cdbbe6fdcb1df87f8f6499"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 47.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-9a5ec512bdce"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_definition"
+code_hash = "64cf9308d551dff9f42174efe5d8c8be4b18a7892307923b2fd18b02a4571d11"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 83.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-b9a3533be2ca"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_import"
+code_hash = "5a156d53ac50a1b91f657ae3f8a203eeae6acc1c8b2f2952c8e6d6fa2a0ba3f6"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+metric_value = 71.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-643b21d3e15c"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_extract_docstring"
+code_hash = "74a9fc5a12d6cd4802458014faace74b8687b34eb35467053c0144e68bf3f550"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:45Z"
+
+[[exceptions]]
+id = "QUAL-S134-0cc14de488c8"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "extract"
+code_hash = "2e286ff28eeac1722635d419276aa01b18a56d5e6848b10cd19172193a4163c4"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 10.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-5b1ffaa316dc"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_extract_param_types"
+code_hash = "c55607c06ec38c00e02482df484ea3ad3b1798815b09729400a2a3b69e3ed61d"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-df62e3e12e66"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_with_statement"
+code_hash = "590a108c175c1cf82757b72365f158f1a825e7e5872c3e8bb399ccddbd45e84f"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-f3d1642addd8"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_traverse"
+code_hash = "52c1abae0f19497efe3da7e5e42ffae4c93ad3d92db4301e70afbd0eadf25828"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-29e727ae307c"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_dictionary"
+code_hash = "f28d9d0cf58a479a1cf8013156ae9219f1c572a09a0bbc2eafa13add2a554414"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-9648a6124380"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_definition"
+code_hash = "d853936cade89ae6890c0e4e0f83c9a9b2955e51d1f9a4749f03598070a7ef03"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+
+[[exceptions]]
+id = "QUAL-S134-220e3e1bb310"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_definition"
+code_hash = "e0244002f0e1c69b2112c3982a984a387c6b7dd5ba6093e5c2e551e3e46eaa13"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S1066-d693e2cdb66e"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_extract_pattern_references"
+code_hash = "b37f7089196c2f465c5c522dfcc1ca128f1fdaa0485b7d13fb3076d3f45174af"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+
+[[exceptions]]
+id = "QUAL-S134-42af1875cef2"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_extract_pattern_references"
+code_hash = "e6de4b569e50bd9b633f614cf52c749391229f3111084c61308df6d1b7516a87"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S134-e8eb4c6d820b"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/python_parser.py"
+symbol_name = "_handle_import"
+code_hash = "7f5ba04536bb879736aae7b5c5e574fd500ab8c0203a7f7742f27e276a08782a"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 5.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-b0cfb85febcd"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/route_extractor.py"
+symbol_name = "extract_python_routes"
+code_hash = "7cdfedfbeb6a959e8d4a4dfeeb8a9b8da9c1827caaf5ee1b16670db85f54f5d0"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 49.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-da2b49356057"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/route_extractor.py"
+symbol_name = "extract_js_endpoint_route"
+code_hash = "c76c0ebc8e40b8293771bc3afe644cfe2a9d9cec4872e327af4a352cc8db56f3"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 23.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S134-d31fbd2c37a7"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/route_extractor.py"
+symbol_name = "extract_python_routes"
+code_hash = "3362551eefcae5e63c929a0922958590782612110b9035962453f89744647ac2"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S107-79ea468f8699"
+rule_id = "python:S107"
+file_path = "src/vibetrace/indexer/parsers/route_extractor.py"
+symbol_name = "extract_js_endpoint_route"
+code_hash = "c76c0ebc8e40b8293771bc3afe644cfe2a9d9cec4872e327af4a352cc8db56f3"
+severity = "LOW"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 14.0
+metric_threshold = 7.0
+
+[[exceptions]]
+id = "QUAL-S3776-fe8c79733826"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/rust_parser.py"
+symbol_name = "extract"
+code_hash = "7973a4019371c24333828f476d8a332646776c48ee756b17d648fb0b14a31560"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:46Z"
+metric_value = 402.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S3776-27f9a231ffc2"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/rust_parser.py"
+symbol_name = "traverse"
+code_hash = "698de466c2ad37bd3768b204cf5da5f6ad4b37de06f75f3ab0f1d4b899256d46"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:47Z"
+metric_value = 229.0
+metric_threshold = 15.0
+
+[[exceptions]]
+id = "QUAL-S1066-23259d3b37c3"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/rust_parser.py"
+symbol_name = "extract"
+code_hash = "0d0964ffaa5a3fac0fe6c045861c487429632e8a4efff5133321f383ad7052a4"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:47Z"
+
+[[exceptions]]
+id = "QUAL-S1066-cf8ce4bad504"
+rule_id = "python:S1066"
+file_path = "src/vibetrace/indexer/parsers/rust_parser.py"
+symbol_name = "traverse"
+code_hash = "5e1029be08cd20768aa8c7000851543a0bd1ab4769933c0a503b353c307320b3"
+severity = "MEDIUM"
+category = "code_smell"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:47Z"
+
+[[exceptions]]
+id = "QUAL-S134-710b1e5dd3e5"
+rule_id = "python:S134"
+file_path = "src/vibetrace/indexer/parsers/rust_parser.py"
+symbol_name = "traverse"
+code_hash = "afcd67a4345b914a8bd41c748aa02065f7d25ae958d2ea9436edd262a74ed1a9"
+severity = "MEDIUM"
+category = "maintainability"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:47Z"
+metric_value = 4.0
+metric_threshold = 3.0
+
+[[exceptions]]
+id = "QUAL-S3776-614d2f2d060a"
+rule_id = "python:S3776"
+file_path = "src/vibetrace/indexer/parsers/__init__.py"
+symbol_name = "get_parser"
+code_hash = "0f1ef26185df302b6ac4f5c31bd3ad0d214d747c10788562bd22407a119a3939"
+severity = "HIGH"
+category = "complexity"
+status = "APPROVED"
+tag = "intentional"
+rationale = "CLI parser and review coordinator approved baseline"
+reviewed_by = "cli-user"
+reviewed_at = "2026-10-31T19:15:47Z"
+metric_value = 22.0
+metric_threshold = 15.0

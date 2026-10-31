@@ -35,7 +35,10 @@ VIBETRACE_IGNORE_PATTERNS = [
     "vibetrace.db",
     "vibetrace.db-wal",
     "vibetrace.db-shm",
-    ".vibetrace/",
+    ".vibetrace/*",
+    "!.vibetrace/splits.toml",
+    "!.vibetrace/security.toml",
+    "!.vibetrace/quality.toml",
 ]
 
 
@@ -153,6 +156,14 @@ def initialize_workspace(
     # 4. Create .vibetrace local directory if needed
     vibetrace_dir = root / ".vibetrace"
     vibetrace_dir.mkdir(exist_ok=True)
+    quality_baseline = vibetrace_dir / "quality.toml"
+    if not quality_baseline.exists():
+        quality_baseline.write_text(
+            "# .vibetrace/quality.toml\n"
+            "# Code quality exceptions and approved complexity baseline.\n\n"
+            '[quality]\nversion = "1.0"\ndefault_complexity_threshold = 15\n\n',
+            encoding="utf-8",
+        )
 
     # 5. Ecosystem & toolchain detection
     detected_ecosystems = detect_project_ecosystems(root)

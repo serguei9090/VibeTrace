@@ -45,13 +45,16 @@ body {
 
 /* Modern Input */
 .vibe-input {
-  background: rgba(255, 255, 255, 0.05);
+  background: #1e2029;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 8px 12px 8px 36px;
-  color: white;
+  color: #f8fafc;
   font-size: 14px;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
   width: 300px;
 }
 
@@ -59,7 +62,7 @@ body {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--accent-glow);
-  background: rgba(255, 255, 255, 0.08);
+  background: #282a36;
 }
 
 /* Modern Button */
@@ -75,18 +78,27 @@ body {
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
-  transition:
-    transform 0.1s ease,
-    opacity 0.2s ease;
+  transition: opacity 0.2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vibe-button {
+    transition:
+      transform 0.1s ease,
+      opacity 0.2s ease;
+  }
+
+  .vibe-button:hover {
+    transform: translateY(-1px);
+  }
+
+  .vibe-button:active {
+    transform: translateY(0);
+  }
 }
 
 .vibe-button:hover {
   opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.vibe-button:active {
-  transform: translateY(0);
 }
 
 .vibe-button:disabled {
@@ -119,8 +131,10 @@ body {
 }
 
 /* Animations */
-.spin {
-  animation: spin 1s linear infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .spin {
+    animation: spin 1s linear infinite;
+  }
 }
 
 @keyframes spin {
@@ -137,22 +151,22 @@ body {
   background-color: #0a0b0e;
 }
 
-.react-flow__controls {
-  box-shadow: none !important;
-  border: 1px solid var(--border-color) !important;
-  background: var(--panel-bg) !important;
-  border-radius: 8px !important;
+#root .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  border-radius: 8px;
   overflow: hidden;
 }
 
-.react-flow__controls-button {
-  border-bottom: 1px solid var(--border-color) !important;
-  background: transparent !important;
-  fill: var(--text-main) !important;
+#root .react-flow__controls-button {
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  fill: var(--text-main);
 }
 
-.react-flow__controls-button:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
+#root .react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .react-flow__edge-path {

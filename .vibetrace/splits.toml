@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T17:23:47.592083+00:00"
-total_records = 130
+updated_at = "2026-10-31T23:28:19.968452+00:00"
+total_records = 159
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -83,12 +83,12 @@ symbol = "cmd_audit_security"
 qualified_name = "cmd_audit_security"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "10f1726194cf4846d7b0485e0b1d8474f1426e6414e9b61e687d0cb3aaf8783d"
-branches_count = 11
-rationale = "Verified security & Map Room split orchestration"
+code_hash = "4e41c03146ac415511a5ddbbda1c6bb83f54a6c7c140cbc25bf9217c26e439d8"
+branches_count = 7
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.180304+00:00"
-branches = ["get_context_for_path (src/vibetrace/services/graph_service.py)", "audit_project (src/vibetrace/security/service.py)", "record_exception (src/vibetrace/security/service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "format_security_audit_sarif (src/vibetrace/security/formatters.py)", "safe_str (src/vibetrace/services/graph_service.py)", "format_security_audit_md (src/vibetrace/security/formatters.py)", "build_remediation_bundle (src/vibetrace/security/service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "safe_str (src/vibetrace/services/graph_service.py)", "record_exception (src/vibetrace/security/service.py)"]
+reviewed_at = "2026-10-31T23:28:18.688432+00:00"
+branches = ["get_context_for_path", "audit_project", "_handle_security_bulk_approve", "_render_security_output", "_handle_security_ai_fix", "_evaluate_security_ci_gate", "_run_security_interactive_triage"]
 
 [[splits]]
 symbol = "CodeInspectorDrawer"
@@ -119,12 +119,12 @@ symbol = "cmd_audit_splits"
 qualified_name = "cmd_audit_splits"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "704e88f8e07a55290cf4d01154c451725d38614e78a93640369bf37db7f2721b"
+code_hash = "e652e96d0be5a8f38cbd96f157ff140893a09ca583ae2d817b887613493f117d"
 branches_count = 7
-rationale = "CLI split audit handler supporting non-interactive --approve, CI mode, and TTY triage"
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:02:59.666232+00:00"
-branches = ["get_context_for_path", "audit_splits", "record_split_approval", "safe_str", "format_split_audit_md", "record_split_approval", "record_split_approval"]
+reviewed_at = "2026-10-31T23:28:18.844616+00:00"
+branches = ["get_context_for_path", "audit_splits", "_handle_split_bulk_approve", "safe_str", "format_split_audit_md", "_evaluate_split_ci_gate", "_run_split_interactive_triage"]
 
 [[splits]]
 symbol = "sync_and_load_rules"
@@ -239,35 +239,35 @@ symbol = "initialize_workspace"
 qualified_name = "initialize_workspace"
 file_path = "src/vibetrace/skill_installer.py"
 status = "approved"
-code_hash = "8691528cb4aa56f6ddf9c74dcfe5a164402d703f792f762696420cddc6553531"
+code_hash = "096fbeac23121b841dd09983a6059cf95975a5e82bbe4289ec204c7b8e0dd5a1"
 branches_count = 13
-rationale = "Verified workspace initialization and security rule seed"
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:39:04.188114+00:00"
-branches = ["configure_gitignore (src/vibetrace/skill_installer.py)", "install_skill (src/vibetrace/skill_installer.py)", "save_default_config (src/vibetrace/config.py)", "detect_project_ecosystems (src/vibetrace/skill_installer.py)", "add_path (src/vibetrace/docs/service.py)", "DocDB (src/vibetrace/docs/db.py)", "index_catalog (src/vibetrace/docs/service.py)", "install_hooks (src/vibetrace/indexer/hooks.py)", "IndexerDB (src/vibetrace/indexer/db.py)", "reindex_all (src/vibetrace/indexer/main.py)", "update_centrality_scores (src/vibetrace/indexer/db.py)", "get_graph_data (src/vibetrace/indexer/db.py)", "sync_and_load_rules (src/vibetrace/security/rule_sync.py)"]
+reviewed_at = "2026-10-31T23:28:18.544176+00:00"
+branches = ["configure_gitignore", "install_skill", "save_default_config", "detect_project_ecosystems", "add_path", "DocDB", "index_catalog", "install_hooks", "IndexerDB", "reindex_all", "update_centrality_scores", "get_graph_data", "sync_and_load_rules"]
 
 [[splits]]
 symbol = "run_unified_review"
 qualified_name = "run_unified_review"
 file_path = "src/vibetrace/services/review_service.py"
 status = "approved"
-code_hash = "1a9639f057f24c66277095314de84011c010360a4653868546de65b722bb8dfd"
-branches_count = 7
-rationale = "Fast review caching and single-pass metrics"
+code_hash = "185a6c595a765af0ea36b8ca2afb96b8d515e681d83e5da91d7feb00148ca5c1"
+branches_count = 8
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T01:36:34.040174+00:00"
-branches = ["_detect_git_changed_files", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "evaluate_coverage_gate", "UnifiedReviewReport"]
+reviewed_at = "2026-10-31T23:28:18.748320+00:00"
+branches = ["_detect_git_changed_files", "audit_project", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "evaluate_coverage_gate", "UnifiedReviewReport"]
 
 [[splits]]
 symbol = "cmd_review"
 qualified_name = "cmd_review"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "83f4e227efd3205f87975cb4005a9b8e515398775ec0aa6323dffd8771b87167"
+code_hash = "c14aefa58c87dd54c9cf1f012b90d145ca297e771b204b2ca136eddbfff6159c"
 branches_count = 4
-rationale = "CLI review handler supporting --min-coverage, --strict, --json, and --ci"
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T17:29:28.615663+00:00"
+reviewed_at = "2026-10-31T23:28:18.938853+00:00"
 branches = ["get_context_for_path", "run_unified_review", "safe_str", "format_unified_review_md"]
 
 [[splits]]
@@ -371,11 +371,11 @@ symbol = "get_caller_guard"
 qualified_name = "CallerGuardService.get_caller_guard"
 file_path = "src/vibetrace/services/caller_guard.py"
 status = "approved"
-code_hash = "a9cc1adec282990ace38a6c535a1d7be3a3cc853f0caebe29b2cd6f92fbc53d5"
+code_hash = "b2e85382b9beb2621d29b54fcd1a59dbe83295c233fa6905772d7fe2997d1deb"
 branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.233972+00:00"
+reviewed_at = "2026-10-31T23:28:18.589580+00:00"
 branches = ["CallerGuardReport", "read_file_lines", "CallerSite", "CallerGuardReport"]
 
 [[splits]]
@@ -1565,3 +1565,351 @@ rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
 reviewed_at = "2026-10-31T17:12:08.873016+00:00"
 branches = ["GET **/api/review**", "GET /"]
+
+[[splits]]
+symbol = "cmd_audit_quality"
+qualified_name = "cmd_audit_quality"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "0eaa02b8d4f8b6a9a7aee46ec101e64247392d509e6db0bc25dd658d8e885888"
+branches_count = 10
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:18.627159+00:00"
+branches = ["get_context_for_path", "audit_project", "from_finding", "record_exception", "safe_str", "format_quality_audit_sarif", "safe_str", "format_quality_audit_md", "_evaluate_quality_ci_gate", "_run_quality_interactive_triage"]
+
+[[splits]]
+symbol = "visit_If"
+qualified_name = "PythonSmellsVisitor.visit_If"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "84152ee3fc71dd9c6958e00b9f883daf5b05e609e4bbb25e07855275d7a2f055"
+branches_count = 8
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:18.796271+00:00"
+branches = ["_check_mergeable_if", "_check_block_unreachable", "_check_block_unreachable", "_get_snippet", "_hash_snippet", "QualityFinding", "_check_mergeable_if", "_check_block_unreachable"]
+
+[[splits]]
+symbol = "_audit_single_file"
+qualified_name = "_audit_single_file"
+file_path = "src/vibetrace/quality/service.py"
+status = "approved"
+code_hash = "0cd4646d91d7284ea0371bb8eb06ae8cd4842123eac4c165998868a1e285f91c"
+branches_count = 8
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:18.895249+00:00"
+branches = ["analyze_css_quality", "analyze_ts_quality", "analyze_docker_quality", "analyze_python_complexities", "_check_inline_suppression", "analyze_python_smells", "_check_inline_suppression", "_check_inline_suppression"]
+
+[[splits]]
+symbol = "visit_Compare"
+qualified_name = "PythonSmellsVisitor.visit_Compare"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "aad196b9fdd9f6b348dab3a64ea04eac297384d8a82d6143025ecc47dbdba449"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:18.985171+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "record_exception"
+qualified_name = "QualityBaselineManager.record_exception"
+file_path = "src/vibetrace/quality/baseline.py"
+status = "approved"
+code_hash = "4ab5e0d4459dc9511f4a97e7044e556d4bfa068f84064893a9aaf2a1012a259b"
+branches_count = 4
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.014153+00:00"
+branches = ["get_baseline_path", "QualityExceptionRecord", "_upsert_exception_entry", "_serialize_quality_toml"]
+
+[[splits]]
+symbol = "_check_empty_function"
+qualified_name = "PythonSmellsVisitor._check_empty_function"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "57145ec3dde791f26b5f538f065d5958bb34c1aae26fa84b2ea82948d94f803f"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.040564+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_evaluate_duplicate_commands"
+qualified_name = "DockerQualityAnalyzer._evaluate_duplicate_commands"
+file_path = "src/vibetrace/quality/docker_analyzer.py"
+status = "approved"
+code_hash = "9536e3f2082c58790bd08c6a36a277ce74bbe4cad373fab86117994224f35cab"
+branches_count = 6
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.072779+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet", "_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_function_param_count"
+qualified_name = "PythonSmellsVisitor._check_function_param_count"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "260782d420111f0619702b90410943d1552f6ba3e63b9ffebfc985af5f431878"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.110393+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_check_mutable_defaults"
+qualified_name = "PythonSmellsVisitor._check_mutable_defaults"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "3c9b8a66b0db057792fee2bed8da7f6a0da7d704ac408cc384ff3094f2f9e539"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.154112+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_record_duplicate_dict_key"
+qualified_name = "PythonSmellsVisitor._record_duplicate_dict_key"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "78a407cb65f8e56364190a5eef643a16bab8b2d67b41cf734e2d625b12d274d5"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.193459+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_check_mergeable_if"
+qualified_name = "PythonSmellsVisitor._check_mergeable_if"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "08ef1c673ca72db03e8776d828d51cd0eb2cd402f8a04b07d4462ff0e024c8ed"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.225119+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_check_floating_promise"
+qualified_name = "TypeScriptQualityAnalyzer._check_floating_promise"
+file_path = "src/vibetrace/quality/ts_analyzer.py"
+status = "approved"
+code_hash = "68601d0eb5677f942f4375ab50d058c8f011382a4f1958411210402baba748c1"
+branches_count = 4
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.260855+00:00"
+branches = ["_get_node_text", "_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_block_unreachable"
+qualified_name = "PythonSmellsVisitor._check_block_unreachable"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "a5f08f38eb597f731945b66ba9c7566dfd57dd6651ef6d10ca02a16ba113a2e4"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.294980+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_check_transition_property"
+qualified_name = "CSSQualityAnalyzer._check_transition_property"
+file_path = "src/vibetrace/quality/css_analyzer.py"
+status = "approved"
+code_hash = "1141c16db8450394ea5d2ce04710997636df383b56878703c16d9b4e8defa8d2"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.327455+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_contrast"
+qualified_name = "CSSQualityAnalyzer._check_contrast"
+file_path = "src/vibetrace/quality/css_analyzer.py"
+status = "approved"
+code_hash = "ab5f86ccd6df76ba53b55640873d4877022236d769e3e16d45babf9a2f96d594"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.369804+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_important"
+qualified_name = "CSSQualityAnalyzer._check_important"
+file_path = "src/vibetrace/quality/css_analyzer.py"
+status = "approved"
+code_hash = "eb74fb5eb342c9c41123075877d3575d739f17144f9e4bae0cb90bd708e6d13a"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.403373+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_reduced_motion"
+qualified_name = "CSSQualityAnalyzer._check_reduced_motion"
+file_path = "src/vibetrace/quality/css_analyzer.py"
+status = "approved"
+code_hash = "c76f473a82157c893f0d4c08047d91216d3c188f95d9f374307fdfe92c46db6e"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.430959+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_explicit_any"
+qualified_name = "TypeScriptQualityAnalyzer._check_explicit_any"
+file_path = "src/vibetrace/quality/ts_analyzer.py"
+status = "approved"
+code_hash = "0f2fcf457625476c2060e8ddfbd6a058d1c416166134b579c5e247fdac74bba0"
+branches_count = 4
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.462596+00:00"
+branches = ["_get_node_text", "_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_jsx_click_events"
+qualified_name = "TypeScriptQualityAnalyzer._check_jsx_click_events"
+file_path = "src/vibetrace/quality/ts_analyzer.py"
+status = "approved"
+code_hash = "4c4f9d9026a535af32e9e3074f8d12eee7296146131ea08d767cb95d9b3bd653"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.504881+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_handle_single_quality_triage"
+qualified_name = "_handle_single_quality_triage"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "432a8a5669c1adab586775fedf8f4a229563967fff00e5b996ccca9104796cbb"
+branches_count = 2
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.540475+00:00"
+branches = ["from_finding", "record_exception"]
+
+[[splits]]
+symbol = "_check_jsx_img_alt"
+qualified_name = "TypeScriptQualityAnalyzer._check_jsx_img_alt"
+file_path = "src/vibetrace/quality/ts_analyzer.py"
+status = "approved"
+code_hash = "8a8b8c534507b01b1d4c7d9a24c9eb6b04bb83699e3c556bab1126f3c719ae1e"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.573599+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_add_instruction"
+qualified_name = "DockerQualityAnalyzer._check_add_instruction"
+file_path = "src/vibetrace/quality/docker_analyzer.py"
+status = "approved"
+code_hash = "c24ff3f6a4f6f537ed5b4326f55dac0ef028ed58422fb0eaebc33dde6e8106e0"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.606752+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_check_workdir_instruction"
+qualified_name = "DockerQualityAnalyzer._check_workdir_instruction"
+file_path = "src/vibetrace/quality/docker_analyzer.py"
+status = "approved"
+code_hash = "05038d7d2937fc5847820f21e7f684f081a8bcb7d1435dd620ab9a8068e82733"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.642694+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "audit_project"
+qualified_name = "QualityService.audit_project"
+file_path = "src/vibetrace/quality/service.py"
+status = "approved"
+code_hash = "e1e46fb23de4198bd0e296540d88d344abd040d184deb9db49f30ffa77a42b61"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.675981+00:00"
+branches = ["_collect_source_files", "_audit_single_file", "apply_baseline_to_findings"]
+
+[[splits]]
+symbol = "apply_baseline_to_findings"
+qualified_name = "QualityBaselineManager.apply_baseline_to_findings"
+file_path = "src/vibetrace/quality/baseline.py"
+status = "approved"
+code_hash = "979f57d10e04a2c821db53d5469ff41838fdf14ad8b76db38fef97630e54146f"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.716024+00:00"
+branches = ["load_baseline", "QualityAuditReport", "_reconcile_finding_status"]
+
+[[splits]]
+symbol = "_render_security_output"
+qualified_name = "_render_security_output"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "e0f20da54e0ff4b5bc3b279d1db3f12776341df068e65cb7bc74b41ec3e5ed36"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.759680+00:00"
+branches = ["format_security_audit_sarif", "safe_str", "format_security_audit_md"]
+
+[[splits]]
+symbol = "_handle_security_ai_fix"
+qualified_name = "_handle_security_ai_fix"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "81d77622ad84a5db0c42cd09a1d858f7679d1ddfee4fbfeffa26cc81188ad81c"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.809094+00:00"
+branches = ["build_remediation_bundle", "safe_str", "safe_str"]
+
+[[splits]]
+symbol = "_handle_security_bulk_approve"
+qualified_name = "_handle_security_bulk_approve"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "22bf4a3c0ce6d921aad6d0731188e50d4506b0078e5076b8b67b97a23fd18226"
+branches_count = 2
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.915173+00:00"
+branches = ["record_exception", "safe_str"]
+
+[[splits]]
+symbol = "_check_inline_suppression"
+qualified_name = "_check_inline_suppression"
+file_path = "src/vibetrace/quality/service.py"
+status = "approved"
+code_hash = "fa1c2b12522490a6ae1ec1015177ed0a64596e7e355e685f5f29acd493243596"
+branches_count = 2
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T23:28:19.968452+00:00"
+branches = ["resolve_canonical_rule_id", "_is_suppressed_by_line"]

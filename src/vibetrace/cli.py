@@ -5,7 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from vibetrace.cli_audit import cmd_audit_security, cmd_audit_splits, cmd_review
+from vibetrace.cli_audit import (
+    cmd_audit_quality,
+    cmd_audit_security,
+    cmd_audit_splits,
+    cmd_review,
+)
 from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
@@ -717,6 +722,66 @@ examples:
         help="Disposition tag saved when approving exceptions with --approve",
     )
     p_security.set_defaults(func=cmd_audit_security)
+
+    p_quality = p_audit_sub.add_parser(
+        "quality",
+        help="Audit code for cognitive complexity and clean code smells",
+    )
+    p_quality.add_argument(
+        "--file", default=None, help="Filter audit to a specific file or directory"
+    )
+    p_quality.add_argument(
+        "--ci",
+        action="store_true",
+        help="Run in CI mode (fails on unapproved or modified quality issues)",
+    )
+    p_quality.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail CI on MEDIUM severity issues (e.g. S1066 mergeable ifs, S134 deep nesting)",
+    )
+    p_quality.add_argument(
+        "--fail-on",
+        default="HIGH",
+        choices=["HIGH", "MEDIUM", "LOW"],
+        help="Minimum severity threshold to trigger non-zero CI exit (default: HIGH)",
+    )
+    p_quality.add_argument(
+        "--threshold",
+        type=int,
+        default=15,
+        help="Maximum allowable cognitive complexity score per function (default: 15)",
+    )
+    p_quality.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_quality.add_argument(
+        "--sarif",
+        action="store_true",
+        help="Output audit report in OASIS SARIF 2.1.0 JSON format for GitHub Code Scanning / IDEs",
+    )
+    p_quality.add_argument(
+        "--include-tests",
+        action="store_true",
+        help="Include test directories and test files in quality audit",
+    )
+    p_quality.add_argument(
+        "--approve",
+        action="store_true",
+        help="Approve current unapproved findings into .vibetrace/quality.toml baseline",
+    )
+    p_quality.add_argument(
+        "--rationale",
+        default="Code quality review verified via CLI",
+        help="Rationale saved when approving quality exceptions with --approve",
+    )
+    p_quality.add_argument(
+        "--tag",
+        default="intentional",
+        choices=["intentional", "legacy", "perf-critical"],
+        help="Disposition tag saved when approving exceptions with --approve",
+    )
+    p_quality.set_defaults(func=cmd_audit_quality)
 
     # review (unified AI code review gate)
     p_review = sub.add_parser(
