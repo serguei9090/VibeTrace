@@ -2,8 +2,13 @@
   "name": "vibetrace-vscode",
   "displayName": "VibeTrace - Code Intelligence & Blast Radius Guard",
   "description": "Local AI code graph intelligence, surgical code slicing, blast-radius caller guards, and embedded Map Room for VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "publisher": "vibetrace",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/serguei9090/VibeTrace.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
