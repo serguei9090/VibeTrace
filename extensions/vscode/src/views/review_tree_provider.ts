@@ -1,11 +1,5 @@
 import * as vscode from "vscode";
-import type {
-  ArchitecturalSplit,
-  CallerGuardReport,
-  SecurityFinding,
-  UnifiedReviewReport,
-  VibeTraceApiClient,
-} from "../client/api_client.js";
+import type { UnifiedReviewReport, VibeTraceApiClient } from "../client/api_client.js";
 
 export type ReviewCategory = "category_security" | "category_splits" | "category_blast";
 
@@ -36,9 +30,11 @@ export class ReviewTreeItem extends vscode.TreeItem {
 }
 
 export class VibeTraceReviewTreeProvider implements vscode.TreeDataProvider<ReviewTreeItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<ReviewTreeItem | undefined | null | void> =
-    new vscode.EventEmitter<ReviewTreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<ReviewTreeItem | undefined | null | void> =
+  // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
+  private _onDidChangeTreeData: vscode.EventEmitter<ReviewTreeItem | undefined | void> =
+    new vscode.EventEmitter<ReviewTreeItem | undefined | void>();
+  // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
+  readonly onDidChangeTreeData: vscode.Event<ReviewTreeItem | undefined | void> =
     this._onDidChangeTreeData.event;
 
   private apiClient: VibeTraceApiClient;

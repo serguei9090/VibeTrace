@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-31T16:07:43.059051+00:00"
-total_records = 127
+updated_at = "2026-10-31T17:12:08.873553+00:00"
+total_records = 130
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -1529,3 +1529,39 @@ rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
 reviewed_at = "2026-10-31T16:00:15.623432+00:00"
 branches = ["_clean_path", "_get_conn", "estimate_tokens", "estimate_tokens", "estimate_tokens", "estimate_tokens"]
+
+[[splits]]
+symbol = "<anonymous:L26>"
+qualified_name = "<anonymous:L25>.<anonymous:L26>"
+file_path = "src/web/e2e/security-card.spec.ts"
+status = "approved"
+code_hash = "ab56910edf05f4c22f4d448294b99090daf9845313cf6330eddd5b9580948a28"
+branches_count = 3
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T17:12:08.797500+00:00"
+branches = ["GET **/api/security/audit**", "GET **/api/security/approve", "GET /"]
+
+[[splits]]
+symbol = "get_summary_endpoint"
+qualified_name = "get_summary_endpoint"
+file_path = "src/vibetrace/server_api.py"
+status = "approved"
+code_hash = "cf5b3be09a09b5cc92f00be0d62d5fdf2f4a700d9077d3facd576b7e88aeb9eb"
+branches_count = 2
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T17:12:08.838764+00:00"
+branches = ["generate_budgeted_repo_map", "normalize_path"]
+
+[[splits]]
+symbol = "<anonymous:L91>"
+qualified_name = "<anonymous:L25>.<anonymous:L91>"
+file_path = "src/web/e2e/security-card.spec.ts"
+status = "approved"
+code_hash = "5f88b56bf487027aefa93c6ad65f737447bc0022620586d2c8290f5a31e9a77a"
+branches_count = 2
+rationale = "Architectural split verified via CLI"
+reviewed_by = "developer"
+reviewed_at = "2026-10-31T17:12:08.873016+00:00"
+branches = ["GET **/api/review**", "GET /"]

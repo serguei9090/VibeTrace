@@ -703,11 +703,23 @@ def get_dependencies_endpoint(
 
 @app.get("/api/summary")
 def get_summary_endpoint(
-    file_path: str = Query(..., min_length=1),
+    file_path: str = Query(default=".", min_length=1),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    budget: int | None = Query(default=None, ge=50, le=32000),
 ):
-    """Get structural outline (functions, classes, methods) of an indexed file."""
+    """Get structural outline of a file or a token-budgeted repo map."""
+    if budget is not None:
+        from vibetrace.services.repo_map_service import RepoMapService
+
+        res = RepoMapService.generate_budgeted_repo_map(
+            db, scope_path=file_path, budget_tokens=budget, project_root=Path(project_root)
+        )
+        return {
+            "scope": file_path,
+            **res,
+        }
+
     norm_path = normalize_path(file_path, Path(project_root))
     if db.get_file_hash(norm_path) is None and not db.get_nodes_in_file(norm_path):
         raise HTTPException(status_code=404, detail=f"File not indexed: '{file_path}'")

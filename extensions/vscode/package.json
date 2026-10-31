@@ -91,6 +91,24 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "vibetrace.copyRepoMap",
+        "title": "VibeTrace: Copy Token-Budgeted Repo Map",
+        "category": "VibeTrace",
+        "icon": "$(book)"
+      },
+      {
+        "command": "vibetrace.investigateWithAi",
+        "title": "VibeTrace: Ask AI to Investigate Finding",
+        "category": "VibeTrace",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "vibetrace.approveSplit",
+        "title": "VibeTrace: Approve Architectural Split",
+        "category": "VibeTrace",
+        "icon": "$(shield)"
+      },
+      {
         "command": "vibetrace.refreshProject",
         "title": "VibeTrace: Refresh Project Federation",
         "category": "VibeTrace",
@@ -124,6 +142,11 @@
           "command": "vibetrace.bundleContext",
           "group": "vibetrace@3",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "vibetrace.copyRepoMap",
+          "group": "vibetrace@4",
+          "when": "editorTextFocus"
         }
       ],
       "view/title": [
@@ -138,6 +161,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "vibetrace.copyRepoMap",
+          "when": "view == vibetrace.traceView",
+          "group": "navigation@3"
+        },
+        {
           "command": "vibetrace.refreshReview",
           "when": "view == vibetrace.reviewView",
           "group": "navigation@1"
@@ -146,6 +174,11 @@
           "command": "vibetrace.openQualityGateTab",
           "when": "view == vibetrace.reviewView",
           "group": "navigation@2"
+        },
+        {
+          "command": "vibetrace.copyRepoMap",
+          "when": "view == vibetrace.reviewView",
+          "group": "navigation@3"
         },
         {
           "command": "vibetrace.refreshProject",

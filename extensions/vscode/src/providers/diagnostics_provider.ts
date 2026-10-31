@@ -1,8 +1,6 @@
 import * as vscode from "vscode";
 import type {
-  ArchitecturalSplit,
   CallerGuardReport,
-  SecurityFinding,
   UnifiedReviewReport,
   VibeTraceApiClient,
 } from "../client/api_client.js";

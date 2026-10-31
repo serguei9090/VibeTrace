@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { TraceHopData, TracePathResponse } from "../client/api_client.js";
 
-export type TraceItemType = "header" | "hop" | "empty";
+export type TraceItemType = "header" | "route" | "hop" | "empty";
 
 export class TraceTreeItem extends vscode.TreeItem {
   constructor(
@@ -10,13 +10,23 @@ export class TraceTreeItem extends vscode.TreeItem {
     public readonly itemType: TraceItemType,
     public readonly hopData?: TraceHopData,
     public readonly filePath?: string,
-    public readonly line?: number
+    public readonly line?: number,
+    public readonly routeIndex?: number
   ) {
     super(label, collapsibleState);
 
     if (itemType === "header") {
       this.iconPath = new vscode.ThemeIcon("arrow-swap");
       this.contextValue = "traceHeader";
+    } else if (itemType === "route") {
+      this.contextValue = "traceRoute";
+      if (routeIndex !== undefined) {
+        this.command = {
+          command: "vibetrace.selectRoute",
+          title: "Select Route",
+          arguments: [routeIndex],
+        };
+      }
     } else if (itemType === "hop") {
       this.iconPath = new vscode.ThemeIcon("debug-step-over");
       this.contextValue = "traceHop";
@@ -41,15 +51,33 @@ export class TraceTreeItem extends vscode.TreeItem {
 }
 
 export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<TraceTreeItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<TraceTreeItem | undefined | null | void> =
-    new vscode.EventEmitter<TraceTreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<TraceTreeItem | undefined | null | void> =
+  // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
+  private _onDidChangeTreeData: vscode.EventEmitter<TraceTreeItem | undefined | void> =
+    new vscode.EventEmitter<TraceTreeItem | undefined | void>();
+  // biome-ignore lint/suspicious/noConfusingVoidType: standard VS Code TreeDataProvider pattern
+  readonly onDidChangeTreeData: vscode.Event<TraceTreeItem | undefined | void> =
     this._onDidChangeTreeData.event;
 
   private currentTrace: TracePathResponse | null = null;
 
   public setTrace(trace: TracePathResponse | null): void {
     this.currentTrace = trace;
+    if (this.currentTrace?.paths && this.currentTrace.paths.length > 0) {
+      if (this.currentTrace.activeRouteIndex === undefined) {
+        this.currentTrace.activeRouteIndex = 0;
+      }
+      this.currentTrace.hops =
+        this.currentTrace.paths[this.currentTrace.activeRouteIndex] || this.currentTrace.hops;
+    }
+    this._onDidChangeTreeData.fire();
+  }
+
+  public selectRoute(routeIndex: number): void {
+    if (!this.currentTrace?.paths?.[routeIndex]) {
+      return;
+    }
+    this.currentTrace.activeRouteIndex = routeIndex;
+    this.currentTrace.hops = this.currentTrace.paths[routeIndex];
     this._onDidChangeTreeData.fire();
   }
 
@@ -96,6 +124,35 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
     if (element.itemType === "header" && this.currentTrace) {
       const hops = this.currentTrace.hops || [];
       const items: TraceTreeItem[] = [];
+
+      // If multiple routes exist, display route switcher items first
+      if (this.currentTrace.paths && this.currentTrace.paths.length > 1) {
+        const activeIdx = this.currentTrace.activeRouteIndex ?? 0;
+        for (let r = 0; r < this.currentTrace.paths.length; r++) {
+          const routeHops = this.currentTrace.paths[r];
+          const isActive = r === activeIdx;
+          const tag = r === 0 ? "Direct / Shortest" : r === 1 ? "Alternative" : "Secondary";
+          const routeItem = new TraceTreeItem(
+            `${isActive ? "▶ " : ""}Route ${r + 1}: ${tag} (${routeHops.length} hops)`,
+            vscode.TreeItemCollapsibleState.None,
+            "route",
+            undefined,
+            undefined,
+            undefined,
+            r
+          );
+          routeItem.iconPath = new vscode.ThemeIcon(
+            isActive ? "pass-filled" : "circle-outline",
+            r === 0
+              ? new vscode.ThemeColor("charts.blue")
+              : r === 1
+                ? new vscode.ThemeColor("charts.orange")
+                : new vscode.ThemeColor("charts.purple")
+          );
+          routeItem.tooltip = `Click to switch to Route ${r + 1} (${tag}, ${routeHops.length} hops)`;
+          items.push(routeItem);
+        }
+      }
 
       for (let i = 0; i < hops.length; i++) {
         const hop = hops[i];

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { VibeTraceApiClient } from "./client/api_client.js";
 import { VibeTraceWsClient } from "./client/ws_client.js";
+import { VibeTraceCodeActionProvider } from "./providers/codeaction_provider.js";
 import { VibeTraceCodeLensProvider } from "./providers/codelens_provider.js";
 import { VibeTraceContextMenuProvider } from "./providers/context_menu.js";
 import { VibeTraceDiagnosticsProvider } from "./providers/diagnostics_provider.js";
@@ -70,12 +71,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     openMapRoomTab(context, apiClient.getBaseUrl())
   );
 
-  // Register CodeLens for each language selector
+  // Register CodeLens & CodeActions for each language selector
+  const codeActionProvider = new VibeTraceCodeActionProvider();
   for (const lang of SUPPORTED_LANGUAGES) {
     context.subscriptions.push(
       vscode.languages.registerCodeLensProvider(
         { language: lang, scheme: "file" },
         codeLensProvider
+      )
+    );
+    context.subscriptions.push(
+      vscode.languages.registerCodeActionsProvider(
+        { language: lang, scheme: "file" },
+        codeActionProvider,
+        {
+          providedCodeActionKinds: VibeTraceCodeActionProvider.providedCodeActionKinds,
+        }
       )
     );
   }
@@ -87,6 +98,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Register Commands
   contextMenuProvider.registerCommands(context);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("vibetrace.selectRoute", (routeIndex: number) => {
+      traceTreeProvider.selectRoute(routeIndex);
+    })
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("vibetrace.openMapRoom", () => {

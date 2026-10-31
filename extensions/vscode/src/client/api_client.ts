@@ -167,6 +167,15 @@ export interface UnifiedReviewReport {
   actions_required: string[];
 }
 
+export interface BudgetedRepoMapResult {
+  scope: string;
+  budget_tokens: number;
+  estimated_tokens: number;
+  included_symbols: number;
+  pruned_symbols: number;
+  formatted_map: string;
+}
+
 export class VibeTraceApiClient {
   private baseUrl: string;
 
@@ -383,6 +392,50 @@ export class VibeTraceApiClient {
       return (await resp.json()) as UnifiedReviewReport;
     } catch {
       return null;
+    }
+  }
+
+  public async getBudgetedRepoMap(
+    budget = 500,
+    scope = "."
+  ): Promise<BudgetedRepoMapResult | null> {
+    try {
+      const params = new URLSearchParams({
+        budget: String(budget),
+        file_path: scope,
+      });
+      const resp = await fetch(`${this.baseUrl}/api/summary?${params.toString()}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        return null;
+      }
+      return (await resp.json()) as BudgetedRepoMapResult;
+    } catch {
+      return null;
+    }
+  }
+
+  public async approveSplit(
+    symbol: string,
+    filePath: string,
+    rationale = "Approved in VS Code"
+  ): Promise<boolean> {
+    try {
+      const resp = await fetch(`${this.baseUrl}/api/splits/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          file_path: filePath,
+          status: "approved",
+          rationale,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      return resp.ok;
+    } catch {
+      return false;
     }
   }
 }

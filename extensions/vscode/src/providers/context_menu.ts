@@ -68,6 +68,39 @@ export class VibeTraceContextMenuProvider {
         }
       )
     );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("vibetrace.copyRepoMap", async () => {
+        await this.handleCopyRepoMap();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "vibetrace.investigateWithAi",
+        async (diagnostic: vscode.Diagnostic, documentUri?: vscode.Uri, kind?: string) => {
+          await this.handleInvestigateWithAi(diagnostic, documentUri, kind);
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "vibetrace.copyRemediationPrompt",
+        async (diagnostic: vscode.Diagnostic, documentUri?: vscode.Uri) => {
+          await this.handleCopyRemediationPrompt(diagnostic, documentUri);
+        }
+      )
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "vibetrace.approveSplit",
+        async (diagnostic?: vscode.Diagnostic, documentUri?: vscode.Uri) => {
+          await this.handleApproveSplit(diagnostic, documentUri);
+        }
+      )
+    );
   }
 
   public async handleTracePath(fromSymbol?: string, toSymbol?: string): Promise<void> {
@@ -107,7 +140,7 @@ export class VibeTraceContextMenuProvider {
       },
       async () => {
         const trace = await this.apiClient.getTrace(from, to);
-        if (!trace || !trace.found || !trace.hops || trace.hops.length === 0) {
+        if (!trace?.found || !trace.hops || trace.hops.length === 0) {
           vscode.window.showWarningMessage(
             `VibeTrace: No execution path found between '${from}' and '${to}'.`
           );
@@ -423,6 +456,167 @@ export class VibeTraceContextMenuProvider {
       editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
     } catch (err) {
       vscode.window.showErrorMessage(`VibeTrace: Unable to open ${filePath}: ${err}`);
+    }
+  }
+
+  public async handleCopyRepoMap(): Promise<void> {
+    const items = [
+      {
+        label: "$(zap) 250 Tokens",
+        description: "Tight context for small edits / bug fixes",
+        budget: 250,
+      },
+      {
+        label: "$(layers) 500 Tokens",
+        description: "Standard balanced architecture overview (Default)",
+        budget: 500,
+      },
+      {
+        label: "$(list-tree) 1,000 Tokens",
+        description: "Detailed outline with key classes & handlers",
+        budget: 1000,
+      },
+      {
+        label: "$(database) 2,000 Tokens",
+        description: "Comprehensive workspace repository map",
+        budget: 2000,
+      },
+    ];
+
+    const pick = await vscode.window.showQuickPick(items, {
+      title: "VibeTrace: Copy Token-Budgeted Repo Map",
+      placeHolder: "Select maximum token budget for PageRank centrality pruning",
+    });
+
+    if (!pick) {
+      return;
+    }
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `VibeTrace: Generating ${pick.budget}-token PageRank repo map...`,
+        cancellable: false,
+      },
+      async () => {
+        const res = await this.apiClient.getBudgetedRepoMap(pick.budget);
+        if (!res?.formatted_map) {
+          vscode.window.showErrorMessage("VibeTrace: Failed to generate budgeted repo map.");
+          return;
+        }
+
+        await vscode.env.clipboard.writeText(res.formatted_map);
+        vscode.window.showInformationMessage(
+          `VibeTrace: Repo map (~${res.estimated_tokens} tokens, ${res.pruned_symbols} symbols pruned) copied to clipboard! Ready to paste into AI chat.`
+        );
+      }
+    );
+  }
+
+  public async handleInvestigateWithAi(
+    diagnostic: vscode.Diagnostic,
+    documentUri?: vscode.Uri,
+    kind = "security"
+  ): Promise<void> {
+    const uri = documentUri || vscode.window.activeTextEditor?.document.uri;
+    const filePath = uri?.fsPath || "unknown_file";
+    const line = diagnostic.range ? diagnostic.range.start.line + 1 : 1;
+
+    let codeSnippet = "";
+    if (vscode.window.activeTextEditor?.document) {
+      const doc = vscode.window.activeTextEditor.document;
+      const start = Math.max(0, line - 5);
+      const end = Math.min(doc.lineCount - 1, line + 5);
+      const lines: string[] = [];
+      for (let l = start; l <= end; l++) {
+        const prefix = l + 1 === line ? ">>> " : "    ";
+        lines.push(`${prefix}${l + 1}: ${doc.lineAt(l).text}`);
+      }
+      codeSnippet = lines.join("\n");
+    }
+
+    const prompt = [
+      `### VibeTrace Code Intelligence Finding (${kind.toUpperCase()})`,
+      `- **File:** \`${filePath}\` (Line ${line})`,
+      `- **Rule / Code:** \`${diagnostic.code || "VibeTrace Finding"}\``,
+      `- **Diagnostic Message:** ${diagnostic.message}`,
+      "",
+      "```code",
+      codeSnippet,
+      "```",
+      "",
+      "**Task for AI Assistant:**",
+      "1. Analyze this finding and trace the root cause.",
+      "2. Check if this is an authentic vulnerability, taint sink, or architectural split tripwire.",
+      "3. Provide the exact minimal, edge-case-correct code diff to fix it safely without breaking callers.",
+    ].join("\n");
+
+    await vscode.env.clipboard.writeText(prompt);
+
+    // Attempt native AI chat integration
+    try {
+      await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt });
+    } catch {
+      // Fallback
+    }
+
+    vscode.window
+      .showInformationMessage(
+        "VibeTrace: Ground-truth AI investigation prompt copied to clipboard! (Pasted to AI Chat if available)",
+        "View in Problems"
+      )
+      .then((choice) => {
+        if (choice === "View in Problems") {
+          vscode.commands.executeCommand("workbench.actions.view.problems");
+        }
+      });
+  }
+
+  public async handleCopyRemediationPrompt(
+    diagnostic: vscode.Diagnostic,
+    documentUri?: vscode.Uri
+  ): Promise<void> {
+    await this.handleInvestigateWithAi(diagnostic, documentUri, "security");
+  }
+
+  public async handleApproveSplit(
+    diagnostic?: vscode.Diagnostic,
+    documentUri?: vscode.Uri
+  ): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    const uri = documentUri || editor?.document.uri;
+    const filePath = uri?.fsPath || "";
+
+    let symbol: string | undefined;
+    if (diagnostic?.message) {
+      const m = /'([^']+)'/.exec(diagnostic.message);
+      if (m?.[1]) {
+        symbol = m[1];
+      }
+    }
+    if (!symbol) {
+      symbol = this.getSymbolUnderCursor(editor);
+    }
+
+    if (!symbol) {
+      symbol = await vscode.window.showInputBox({
+        title: "VibeTrace: Approve Architectural Split",
+        prompt: "Enter symbol name of the split to record in .vibetrace/splits.toml",
+      });
+    }
+
+    if (!symbol) return;
+
+    const ok = await this.apiClient.approveSplit(symbol, filePath);
+    if (ok) {
+      this.onRefreshRequested();
+      vscode.window.showInformationMessage(
+        `VibeTrace: Split for '${symbol}' recorded as approved in .vibetrace/splits.toml.`
+      );
+    } else {
+      vscode.window.showErrorMessage(
+        `VibeTrace: Failed to record split approval for '${symbol}'. Is the daemon running?`
+      );
     }
   }
 }
