@@ -27,12 +27,17 @@ class UnifiedReviewReport(BaseModel):
     changed_files: list[str] = Field(default_factory=list)
     unapproved_security_count: int = 0
     modified_security_count: int = 0
+    total_security_count: int = 0
     new_splits_count: int = 0
     modified_splits_count: int = 0
+    total_splits_count: int = 0
+    approved_splits_count: int = 0
     modified_symbols_with_callers: int = 0
     coverage_gate: CoverageGateReport = Field(default_factory=CoverageGateReport)
     security_findings: list[SecurityFinding] = Field(default_factory=list)
+    all_security_findings: list[SecurityFinding] = Field(default_factory=list)
     actionable_splits: list[ArchitecturalSplit] = Field(default_factory=list)
+    all_splits: list[ArchitecturalSplit] = Field(default_factory=list)
     caller_guards: list[CallerGuardReport] = Field(default_factory=list)
     actions_required: list[str] = Field(default_factory=list)
 
@@ -84,12 +89,14 @@ def run_unified_review(
     changed_files, diff_text = _detect_git_changed_files(project_root)
 
     # 1. Security, IaC, Git Secret & Inter-Procedural Taint Audit
+    target_files = sorted(changed_files) if norm_scope == "changed" and changed_files else None
     sec_report = SecurityService.audit_project(
         db=db,
         project_root=project_root,
+        file_list=target_files,
         check_dependencies=check_dependencies,
         analyze_taint=True,
-        git_commit_depth=100 if norm_scope == "full" else 10,
+        git_commit_depth=25 if norm_scope == "full" else 5,
     )
     active_sec: list[SecurityFinding] = []
     for f in sec_report.findings:
@@ -189,12 +196,17 @@ def run_unified_review(
         changed_files=sorted(changed_files),
         unapproved_security_count=unapproved_sec,
         modified_security_count=modified_sec,
+        total_security_count=sec_report.total_findings,
         new_splits_count=new_splits,
         modified_splits_count=mod_splits,
+        total_splits_count=split_report.total_splits,
+        approved_splits_count=split_report.approved_count,
         modified_symbols_with_callers=len(with_callers),
         coverage_gate=cov_gate,
         security_findings=active_sec,
+        all_security_findings=sec_report.findings,
         actionable_splits=active_splits,
+        all_splits=split_report.splits,
         caller_guards=with_callers,
         actions_required=actions,
     )

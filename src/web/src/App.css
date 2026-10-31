@@ -81,8 +81,8 @@ body {
   height: 60px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px;
+  gap: 8px;
+  padding: 0 14px;
   position: absolute;
   top: 14px;
   left: 16px;
@@ -90,6 +90,11 @@ body {
   z-index: 20;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.vibe-header::-webkit-scrollbar {
+  display: none;
 }
 
 /* Unified Button Standard */

@@ -36,6 +36,7 @@ class SecurityService:
         db: IndexerDB,
         project_root: Path,
         file_filter: str | None = None,
+        file_list: list[str] | None = None,
         check_dependencies: bool = True,
         force_update_cves: bool = False,
         analyze_taint: bool = True,
@@ -47,6 +48,10 @@ class SecurityService:
 
         if file_filter:
             target_files = [file_filter]
+        elif file_list is not None:
+            target_files = (
+                file_list if include_tests else [f for f in file_list if not cls._is_test_path(f)]
+            )
         else:
             with db._get_conn() as conn:
                 cursor = conn.execute(

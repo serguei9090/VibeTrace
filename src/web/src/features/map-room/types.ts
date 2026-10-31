@@ -198,11 +198,15 @@ export interface UnifiedReviewReportUI {
   changed_files: string[];
   unapproved_security_count: number;
   modified_security_count: number;
+  total_security_count?: number;
   new_splits_count: number;
   modified_splits_count: number;
+  total_splits_count?: number;
+  approved_splits_count?: number;
   modified_symbols_with_callers: number;
   coverage_gate: CoverageGateReportUI;
   security_findings: SecurityFindingUI[];
+  all_security_findings?: SecurityFindingUI[];
   actionable_splits: Array<{
     node_id: string;
     symbol: string;
@@ -212,7 +216,22 @@ export interface UnifiedReviewReportUI {
     end_line: number;
     code_hash: string;
     branches_count: number;
+    branches?: string[];
     status: string;
+    rationale?: string | null;
+  }>;
+  all_splits?: Array<{
+    node_id: string;
+    symbol: string;
+    qualified_name: string;
+    file_path: string;
+    start_line: number;
+    end_line: number;
+    code_hash: string;
+    branches_count: number;
+    branches?: string[];
+    status: string;
+    rationale?: string | null;
   }>;
   actions_required: string[];
 }

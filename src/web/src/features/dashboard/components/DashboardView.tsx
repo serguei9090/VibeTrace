@@ -10,12 +10,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import type {
-  RawGraphNode,
-  SecurityAuditReportUI,
-  SecurityFindingUI,
-  UnifiedReviewReportUI,
-} from "../../map-room/types";
+import type { RawGraphNode, SecurityFindingUI, UnifiedReviewReportUI } from "../../map-room/types";
 import { DashboardTriageTables, type SplitItemUI } from "./DashboardTriageTables";
 
 interface DashboardViewProps {
@@ -24,67 +19,34 @@ interface DashboardViewProps {
   onSwitchToMapAndFocus: (nodeId: string) => void;
 }
 
-interface SplitsAuditResponseUI {
-  total_splits: number;
-  unapproved_count: number;
-  modified_count: number;
-  approved_count: number;
-  splits: SplitItemUI[];
-}
+const reviewCache = new Map<string, UnifiedReviewReportUI>();
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   apiUrl,
   rawNodes,
   onSwitchToMapAndFocus,
 }) => {
-  const [scope, setScope] = useState<"changed" | "full">("full");
+  const [scope, setScope] = useState<"changed" | "full">("changed");
   const [checkDeps, setCheckDeps] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [report, setReport] = useState<UnifiedReviewReportUI | null>(null);
-  const [allSplits, setAllSplits] = useState<SplitItemUI[]>([]);
-  const [allSecurityFindings, setAllSecurityFindings] = useState<SecurityFindingUI[]>([]);
-  const [splitsSummary, setSplitsSummary] = useState({
-    total: 0,
-    approved: 0,
-    unapproved: 0,
-    modified: 0,
-  });
+  const [report, setReport] = useState<UnifiedReviewReportUI | null>(
+    () => reviewCache.get("changed:false") || null
+  );
 
-  const fetchAll = useCallback(
-    async (targetScope: "changed" | "full", includeDeps: boolean) => {
+  const fetchReview = useCallback(
+    async (targetScope: "changed" | "full", includeDeps: boolean, force = false) => {
+      const cacheKey = `${targetScope}:${includeDeps}`;
+      if (!force && reviewCache.has(cacheKey)) {
+        setReport(reviewCache.get(cacheKey) || null);
+        return;
+      }
       setLoading(true);
       try {
-        const [revRes, splitsRes, secRes] = await Promise.all([
-          axios.get<UnifiedReviewReportUI>(`${apiUrl}/api/review`, {
-            params: { scope: targetScope, check_dependencies: includeDeps },
-          }),
-          axios
-            .get<SplitsAuditResponseUI>(`${apiUrl}/api/splits/audit`)
-            .catch(() => ({ data: null })),
-          axios
-            .get<SecurityAuditReportUI>(`${apiUrl}/api/security/audit`, {
-              params: { skip_deps: !includeDeps },
-            })
-            .catch(() => ({ data: null })),
-        ]);
-
+        const revRes = await axios.get<UnifiedReviewReportUI>(`${apiUrl}/api/review`, {
+          params: { scope: targetScope, check_dependencies: includeDeps },
+        });
+        reviewCache.set(cacheKey, revRes.data);
         setReport(revRes.data);
-        if (splitsRes.data) {
-          setAllSplits(splitsRes.data.splits || []);
-          setSplitsSummary({
-            total: splitsRes.data.total_splits || 0,
-            approved: splitsRes.data.approved_count || 0,
-            unapproved: splitsRes.data.unapproved_count || 0,
-            modified: splitsRes.data.modified_count || 0,
-          });
-        } else {
-          setAllSplits(revRes.data.actionable_splits || []);
-        }
-        if (secRes.data) {
-          setAllSecurityFindings(secRes.data.findings || []);
-        } else {
-          setAllSecurityFindings(revRes.data.security_findings || []);
-        }
       } catch {
         // keep last report if offline
       } finally {
@@ -95,8 +57,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   useEffect(() => {
-    fetchAll(scope, checkDeps);
-  }, [scope, checkDeps, fetchAll]);
+    fetchReview(scope, checkDeps);
+  }, [scope, checkDeps, fetchReview]);
 
   const handleInspectOnMap = (sym: string, filePath?: string) => {
     const match =
@@ -119,7 +81,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       status,
       rationale: "Verified via Quality Gate Dashboard",
     });
-    await fetchAll(scope, checkDeps);
+    reviewCache.clear();
+    await fetchReview(scope, checkDeps, true);
   };
 
   const handleApproveSecurity = async (finding: SecurityFindingUI, tag: string) => {
@@ -135,7 +98,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       tag,
       rationale: "Accepted via Quality Gate Dashboard",
     });
-    await fetchAll(scope, checkDeps);
+    reviewCache.clear();
+    await fetchReview(scope, checkDeps, true);
   };
 
   const cg = report?.coverage_gate;
@@ -145,6 +109,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const secIssueCount =
     (report?.unapproved_security_count || 0) + (report?.modified_security_count || 0);
   const splitIssueCount = (report?.new_splits_count || 0) + (report?.modified_splits_count || 0);
+  const allSplits: SplitItemUI[] = report?.all_splits || report?.actionable_splits || [];
+  const allSecurityFindings: SecurityFindingUI[] =
+    report?.all_security_findings || report?.security_findings || [];
+  const totalSplits = report?.total_splits_count ?? allSplits.length;
+  const approvedSplits = report?.approved_splits_count ?? totalSplits - splitIssueCount;
 
   return (
     <main
@@ -253,7 +222,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             className="vibe-btn vibe-btn-primary"
-            onClick={() => fetchAll(scope, checkDeps)}
+            onClick={() => fetchReview(scope, checkDeps, true)}
             disabled={loading}
           >
             <RefreshCw size={14} className={loading ? "spin" : ""} />
@@ -295,7 +264,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {secIssueCount === 0 ? "0 Unapproved" : `${secIssueCount} Actionable`}
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 4 }}>
-            {allSecurityFindings.length} total findings tracked in{" "}
+            {report?.total_security_count ?? allSecurityFindings.length} total findings tracked in{" "}
             <code>.vibetrace/security.toml</code>
           </div>
         </div>
@@ -322,13 +291,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               color: splitIssueCount === 0 ? "#6ee7b7" : "#fdba74",
             }}
           >
-            {splitIssueCount === 0
-              ? `${splitsSummary.approved || splitsSummary.total} Verified`
-              : `${splitIssueCount} Tripwires`}
+            {splitIssueCount === 0 ? `${approvedSplits} Verified` : `${splitIssueCount} Tripwires`}
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 4 }}>
-            {splitsSummary.total} multi-route bifurcations hashed in{" "}
-            <code>.vibetrace/splits.toml</code>
+            {totalSplits} multi-route bifurcations hashed in <code>.vibetrace/splits.toml</code>
           </div>
         </div>
 
@@ -416,7 +382,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           report={report}
           allSplits={allSplits}
           allSecurityFindings={allSecurityFindings}
-          onRefresh={() => fetchAll(scope, checkDeps)}
+          onRefresh={() => fetchReview(scope, checkDeps, true)}
           onApproveSplit={handleApproveSplit}
           onApproveSecurity={handleApproveSecurity}
           onInspectSymbolOnMap={handleInspectOnMap}

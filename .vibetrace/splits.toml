@@ -3,7 +3,7 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-10-30T20:08:36.888427+00:00"
+updated_at = "2026-10-31T01:36:40.942393+00:00"
 total_records = 125
 
 [[splits]]
@@ -167,12 +167,12 @@ symbol = "audit_project"
 qualified_name = "SecurityService.audit_project"
 file_path = "src/vibetrace/security/service.py"
 status = "approved"
-code_hash = "9fdd7cdaec19f177a8fe0f5f17f6f818c6a332a3d77d40983737190e85ad9814"
-branches_count = 12
-rationale = "Approve updated splits"
+code_hash = "982c34e5a2877348ada1985830f2f4e4d4ba597be13cd379a4bc9c212b66f761"
+branches_count = 13
+rationale = "Added target_files list filtering for performance"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T19:21:15.975254+00:00"
-branches = ["_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "apply_baseline_to_findings"]
+reviewed_at = "2026-10-31T01:36:27.001729+00:00"
+branches = ["_is_test_path", "_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "apply_baseline_to_findings"]
 
 [[splits]]
 symbol = "_rule_from_dict"
@@ -251,11 +251,11 @@ symbol = "run_unified_review"
 qualified_name = "run_unified_review"
 file_path = "src/vibetrace/services/review_service.py"
 status = "approved"
-code_hash = "222272a502875cef4eb3af8c77cf66d05c89df64b562eab18e769b814636d382"
+code_hash = "1a9639f057f24c66277095314de84011c010360a4653868546de65b722bb8dfd"
 branches_count = 7
-rationale = "Approve updated splits"
+rationale = "Fast review caching and single-pass metrics"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T19:21:15.996229+00:00"
+reviewed_at = "2026-10-31T01:36:34.040174+00:00"
 branches = ["_detect_git_changed_files", "audit_project", "parse_git_diff_line_ranges", "audit_splits", "get_staged_caller_guard", "evaluate_coverage_gate", "UnifiedReviewReport"]
 
 [[splits]]
@@ -1151,11 +1151,11 @@ symbol = "on_modified"
 qualified_name = "CodeChangeHandler.on_modified"
 file_path = "src/vibetrace/indexer/watcher.py"
 status = "approved"
-code_hash = "803f2c8e800d9574271783d0c42036ea16a6d499106b250f492fe8be52642d13"
+code_hash = "52b3ad6a6b531433cd5b879ab53979d8edf42ef512e340a33699f3649dbfa464"
 branches_count = 6
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Force=False hash checking to debounce watcher updates"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:17.235871+00:00"
+reviewed_at = "2026-10-31T01:36:40.941391+00:00"
 branches = ["_should_ignore", "_to_rel_path", "index_file", "_schedule_post_sync", "_handle_doc_change", "_schedule_post_sync"]
 
 [[splits]]

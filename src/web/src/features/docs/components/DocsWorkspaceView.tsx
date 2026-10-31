@@ -12,32 +12,51 @@ interface DocsWorkspaceViewProps {
 
 type ScopeType = "local" | "global" | "all";
 
+let cachedCatalogs: DocCatalog[] | null = null;
+const cachedSearches = new Map<string, DocChunk[]>();
+
 export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) => {
   const [searchQuery, setSearchQuery] = useState("architecture");
   const [searchScope, setSearchScope] = useState<ScopeType>("all");
-  const [searchResults, setSearchResults] = useState<DocChunk[]>([]);
+  const [searchResults, setSearchResults] = useState<DocChunk[]>(
+    () => cachedSearches.get("architecture:all") || []
+  );
   const [searching, setSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(() => cachedSearches.has("architecture:all"));
 
-  const [catalogs, setCatalogs] = useState<DocCatalog[]>([]);
+  const [catalogs, setCatalogs] = useState<DocCatalog[]>(() => cachedCatalogs || []);
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [indexingCatalog, setIndexingCatalog] = useState<string | null>(null);
 
-  const fetchCatalogs = useCallback(async () => {
-    try {
-      setLoadingCatalogs(true);
-      const res = await axios.get<DocCatalog[]>(`${apiUrl}/api/docs/catalogs`);
-      setCatalogs(res.data);
-    } catch {
-      setCatalogs([]);
-    } finally {
-      setLoadingCatalogs(false);
-    }
-  }, [apiUrl]);
+  const fetchCatalogs = useCallback(
+    async (force = false) => {
+      if (!force && cachedCatalogs) {
+        setCatalogs(cachedCatalogs);
+        return;
+      }
+      try {
+        setLoadingCatalogs(true);
+        const res = await axios.get<DocCatalog[]>(`${apiUrl}/api/docs/catalogs`);
+        cachedCatalogs = res.data;
+        setCatalogs(res.data);
+      } catch {
+        setCatalogs([]);
+      } finally {
+        setLoadingCatalogs(false);
+      }
+    },
+    [apiUrl]
+  );
 
   const executeSearch = useCallback(
-    async (queryText: string, scopeVal: ScopeType) => {
+    async (queryText: string, scopeVal: ScopeType, force = false) => {
       if (!queryText.trim()) return;
+      const key = `${queryText.trim()}:${scopeVal}`;
+      if (!force && cachedSearches.has(key)) {
+        setSearchResults(cachedSearches.get(key) || []);
+        setHasSearched(true);
+        return;
+      }
       try {
         setSearching(true);
         setHasSearched(true);
@@ -48,6 +67,7 @@ export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) 
             limit: 16,
           },
         });
+        cachedSearches.set(key, res.data);
         setSearchResults(res.data);
       } catch {
         setSearchResults([]);
@@ -65,7 +85,7 @@ export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) 
 
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    executeSearch(searchQuery, searchScope);
+    executeSearch(searchQuery, searchScope, true);
   };
 
   const handleIndexCatalog = async (catalogName?: string, isGlobal = false) => {
@@ -77,7 +97,9 @@ export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) 
         global_scope: isGlobal,
         force: false,
       });
-      await fetchCatalogs();
+      cachedCatalogs = null;
+      cachedSearches.clear();
+      await fetchCatalogs(true);
     } finally {
       setIndexingCatalog(null);
     }

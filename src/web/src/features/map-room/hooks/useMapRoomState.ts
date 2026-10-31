@@ -83,10 +83,10 @@ export function useMapRoomState() {
   const [followAgent, setFollowAgent] = useState(true);
   const [activeTrace, setActiveTrace] = useState<TracePathResponse | null>(null);
 
-  const fetchGraphRef = useRef<() => void>(() => {});
+  const fetchGraphRef = useRef<(silent?: boolean) => void>(() => {});
   const { lastAgentEvent } = useVibeSync({
     wsUrl: WS_URL,
-    onRefresh: useCallback(() => fetchGraphRef.current(), []),
+    onRefresh: useCallback(() => fetchGraphRef.current(true), []),
   });
 
   const rawData = useRef<GraphData>({ nodes: [], edges: [] });
@@ -502,8 +502,10 @@ export function useMapRoomState() {
     onExplorePackage,
   ]);
 
-  const fetchGraph = useCallback(async () => {
-    setLoading(true);
+  const fetchGraph = useCallback(async (silent = false) => {
+    if (!silent || rawData.current.nodes.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await axios.get(`${API_URL}/graph`);
@@ -513,14 +515,6 @@ export function useMapRoomState() {
       }
       rawData.current = res.data;
       cachedLayout.current = null;
-      try {
-        const sec = await axios.get<SecurityAuditReportUI>(`${API_URL}/api/security/audit`, {
-          params: { skip_deps: true },
-        });
-        securityFindings.current = sec.data.findings.filter((f) => f.status !== "APPROVED");
-      } catch {
-        securityFindings.current = []; // security badges are optional; graph still renders
-      }
       setLastUpdate(new Date().toLocaleTimeString());
 
       // Seed initial roots on first load
@@ -535,6 +529,18 @@ export function useMapRoomState() {
       if (res.data.nodes.length === 0) {
         setError("Database is empty. Did you run the indexer?");
       }
+
+      // Fetch security badges asynchronously in the background without blocking graph render
+      axios
+        .get<SecurityAuditReportUI>(`${API_URL}/api/security/audit`, {
+          params: { skip_deps: true },
+        })
+        .then((sec) => {
+          securityFindings.current = sec.data.findings.filter((f) => f.status !== "APPROVED");
+        })
+        .catch(() => {
+          securityFindings.current = [];
+        });
     } catch (err: any) {
       console.error("Failed to fetch graph", err);
       setError(err.message || "Failed to fetch graph");

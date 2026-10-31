@@ -127,7 +127,7 @@ class CodeChangeHandler(FileSystemEventHandler):
             src_path,
             project_root=self.root_path,
             resolver=self.resolver,
-            force=True,
+            force=False,
         )
         if indexed:
             print(f"File modified: {rel_path}")
