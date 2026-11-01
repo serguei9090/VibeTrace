@@ -561,5 +561,3 @@ def test_quality_rule_sync_and_catalog_caching() -> None:
     assert spec is not None
     assert spec.rule_id == "typescript:S2589"
     assert "gratuitous" in spec.title.lower() or "boolean" in spec.title.lower()
-
-

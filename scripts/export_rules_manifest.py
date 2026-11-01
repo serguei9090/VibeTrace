@@ -39,9 +39,7 @@ def fetch_all_sonar_rules(
     languages: str = TARGET_LANGS,
 ) -> list[dict[str, Any]]:
     """Fetches all rules across target languages using paginated SonarQube REST API."""
-    auth_header = (
-        f"Basic {base64.b64encode(f'{token}:'.encode('ascii')).decode('ascii')}"
-    )
+    auth_header = f"Basic {base64.b64encode(f'{token}:'.encode('ascii')).decode('ascii')}"
     all_rules: list[dict[str, Any]] = []
     page = 1
     page_size = 500

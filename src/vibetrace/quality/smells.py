@@ -415,10 +415,7 @@ class PythonSmellsVisitor(ast.NodeVisitor):
     def visit_IfExp(self, node: ast.IfExp) -> None:
         """S3358: Nested ternary operators."""
         # Check if any branch of this IfExp contains another IfExp
-        has_nested = any(
-            isinstance(sub, ast.IfExp)
-            for sub in (node.body, node.test, node.orelse)
-        )
+        has_nested = any(isinstance(sub, ast.IfExp) for sub in (node.body, node.test, node.orelse))
         if has_nested:
             spec_3358 = QUALITY_RULES_CATALOG.get("S3358")
             end_l = getattr(node, "end_lineno", node.lineno)
@@ -434,8 +431,7 @@ class PythonSmellsVisitor(ast.NodeVisitor):
                     category=QualityCategory.MAINTAINABILITY,
                     severity=QualitySeverity.MEDIUM,
                     title=(
-                        "Extract this nested conditional expression into an "
-                        "independent statement."
+                        "Extract this nested conditional expression into an independent statement."
                     ),
                     message=(
                         "Nesting ternary conditional expressions degrades readability. "

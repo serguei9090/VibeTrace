@@ -418,12 +418,7 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
         aliases=["nested-ternary", "python:S3358", "nested-conditional-expression"],
         non_compliant_example="res = 'a' if cond1 else ('b' if cond2 else 'c')\n",
         compliant_example=(
-            "if cond1:\n"
-            "    res = 'a'\n"
-            "elif cond2:\n"
-            "    res = 'b'\n"
-            "else:\n"
-            "    res = 'c'\n"
+            "if cond1:\n    res = 'a'\nelif cond2:\n    res = 'b'\nelse:\n    res = 'c'\n"
         ),
     ),
 }

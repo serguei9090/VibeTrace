@@ -27,9 +27,7 @@ DEFAULT_QUALITY_RULES_FEED_URL = (
     "src/vibetrace/resources/quality_rules_catalog.json"
 )
 
-BUNDLED_CATALOG_PATH = (
-    Path(__file__).parent.parent / "resources" / "quality_rules_catalog.json"
-)
+BUNDLED_CATALOG_PATH = Path(__file__).parent.parent / "resources" / "quality_rules_catalog.json"
 
 _SEVERITY_MAP: dict[str, QualitySeverity] = {
     "BLOCKER": QualitySeverity.HIGH,
@@ -207,9 +205,7 @@ class QualityRuleCatalogManager:
             if "threshold" in params and str(params["threshold"]).isdigit():
                 thresh = int(params["threshold"])
 
-            rspec_id = (
-                f"RSPEC-{clean_key.lstrip('S')}" if clean_key.startswith("S") else clean_key
-            )
+            rspec_id = f"RSPEC-{clean_key.lstrip('S')}" if clean_key.startswith("S") else clean_key
             spec = QualityRuleSpec(
                 rule_id=raw_key,
                 rspec_id=rspec_id,
