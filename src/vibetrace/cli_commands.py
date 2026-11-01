@@ -628,3 +628,33 @@ def cmd_dependencies(args: argparse.Namespace) -> int:
             )
         )
     return 0
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    """CLI handler for predictive test selection based on modified AST symbols."""
+    auto_sync = not getattr(args, "no_sync", False)
+    db, root = get_context_for_path(
+        args.path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
+    )
+
+    from vibetrace.services.predictive_test_service import PredictiveTestService
+
+    target_symbols = [args.symbol] if getattr(args, "symbol", None) else None
+    staged = getattr(args, "staged", False)
+    dry_run = getattr(args, "dry_run", False)
+    runner_override = getattr(args, "runner", None)
+
+    report = PredictiveTestService.resolve_impacted_tests(
+        db=db,
+        project_root=root,
+        staged=staged,
+        target_symbols=target_symbols,
+    )
+
+    if getattr(args, "json", False):
+        print(report.model_dump_json(indent=2))
+        return 0
+
+    return PredictiveTestService.execute_impacted_tests(
+        report=report, dry_run=dry_run, runner_override=runner_override
+    )

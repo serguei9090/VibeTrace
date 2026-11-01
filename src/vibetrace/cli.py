@@ -27,6 +27,7 @@ from vibetrace.cli_commands import (
     cmd_skill,
     cmd_slice,
     cmd_summary,
+    cmd_test,
     cmd_trace,
 )
 from vibetrace.cli_project import register_project_parser
@@ -606,6 +607,46 @@ examples:
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
     p_bundle.set_defaults(func=cmd_bundle)
+
+    # test (predictive test selection)
+    p_test = sub.add_parser(
+        "test",
+        help="Execute only tests impacted by modified symbols",
+        description=(
+            "Select and execute tests impacted by git-changed symbols or specified targets."
+        ),
+    )
+    p_test.add_argument(
+        "--impacted",
+        action="store_true",
+        default=True,
+        help="Find and run tests impacted by uncommitted or staged changes (default: True)",
+    )
+    p_test.add_argument(
+        "--staged",
+        action="store_true",
+        help="Only analyze git staged changes instead of all working changes",
+    )
+    p_test.add_argument(
+        "--symbol",
+        default=None,
+        help="Target symbol name to find impacted tests for",
+    )
+    p_test.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List impacted tests and generated command without executing",
+    )
+    p_test.add_argument(
+        "--runner",
+        default=None,
+        choices=["pytest", "bun", "go", "cargo"],
+        help="Override test runner executable",
+    )
+    p_test.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_test.set_defaults(func=cmd_test)
 
     # audit (architectural pattern & split triage)
     p_audit = sub.add_parser(
