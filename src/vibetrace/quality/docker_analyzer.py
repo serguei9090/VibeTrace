@@ -110,64 +110,64 @@ class DockerQualityAnalyzer:
                 )
             )
 
+    def _report_duplicate_instructions(self, locations: list[tuple[int, str]], symbol: str) -> None:
+        if len(locations) <= 1:
+            return
+        spec = QUALITY_RULES_CATALOG.get("S6504")
+        for line_no, line_text in locations[:-1]:
+            fid = self._make_finding_id("S6504", line_no, f"duplicate_{symbol.lower()}")
+            self.findings.append(
+                QualityFinding(
+                    id=fid,
+                    rule_id="docker:S6504",
+                    rspec_id="RSPEC-6504",
+                    category=QualityCategory.RELIABILITY,
+                    severity=QualitySeverity.HIGH,
+                    title=f"Multiple '{symbol}' instructions defined in the same build stage.",
+                    message=(
+                        f"Only the last '{symbol}' instruction takes effect. "
+                        f"This earlier '{symbol}' is dead configuration "
+                        "and will be ignored by Docker."
+                    ),
+                    file_path=self.file_path,
+                    start_line=line_no,
+                    end_line=line_no,
+                    symbol_name=symbol,
+                    code_hash=self._hash_snippet(line_text),
+                    non_compliant_snippet=line_text.strip(),
+                    compliant_snippet=spec.compliant_example if spec else None,
+                    remediation_guidance=spec.explanation if spec else None,
+                )
+            )
+
     def _evaluate_duplicate_commands(
         self, cmd_locations: list[tuple[int, str]], entrypoint_locations: list[tuple[int, str]]
     ) -> None:
         """docker:S6504: Flags duplicate CMD or ENTRYPOINT in the same stage."""
-        spec = QUALITY_RULES_CATALOG.get("S6504")
+        self._report_duplicate_instructions(cmd_locations, "CMD")
+        self._report_duplicate_instructions(entrypoint_locations, "ENTRYPOINT")
 
-        if len(cmd_locations) > 1:
-            # All except the last CMD are dead/overridden code
-            for line_no, line_text in cmd_locations[:-1]:
-                fid = self._make_finding_id("S6504", line_no, "duplicate_cmd")
-                self.findings.append(
-                    QualityFinding(
-                        id=fid,
-                        rule_id="docker:S6504",
-                        rspec_id="RSPEC-6504",
-                        category=QualityCategory.RELIABILITY,
-                        severity=QualitySeverity.HIGH,
-                        title="Multiple 'CMD' instructions defined in the same build stage.",
-                        message=(
-                            "Only the last 'CMD' instruction takes effect. This earlier 'CMD' "
-                            "is dead configuration and will be ignored by Docker."
-                        ),
-                        file_path=self.file_path,
-                        start_line=line_no,
-                        end_line=line_no,
-                        symbol_name="CMD",
-                        code_hash=self._hash_snippet(line_text),
-                        non_compliant_snippet=line_text.strip(),
-                        compliant_snippet=spec.compliant_example if spec else None,
-                        remediation_guidance=spec.explanation if spec else None,
-                    )
-                )
-
-        if len(entrypoint_locations) > 1:
-            for line_no, line_text in entrypoint_locations[:-1]:
-                fid = self._make_finding_id("S6504", line_no, "duplicate_entrypoint")
-                self.findings.append(
-                    QualityFinding(
-                        id=fid,
-                        rule_id="docker:S6504",
-                        rspec_id="RSPEC-6504",
-                        category=QualityCategory.RELIABILITY,
-                        severity=QualitySeverity.HIGH,
-                        title="Multiple 'ENTRYPOINT' instructions defined in the same build stage.",
-                        message=(
-                            "Only the last 'ENTRYPOINT' instruction takes effect. This earlier "
-                            "instruction is dead configuration and will be ignored by Docker."
-                        ),
-                        file_path=self.file_path,
-                        start_line=line_no,
-                        end_line=line_no,
-                        symbol_name="ENTRYPOINT",
-                        code_hash=self._hash_snippet(line_text),
-                        non_compliant_snippet=line_text.strip(),
-                        compliant_snippet=spec.compliant_example if spec else None,
-                        remediation_guidance=spec.explanation if spec else None,
-                    )
-                )
+    def _dispatch_instruction(
+        self,
+        inst: str,
+        args: str,
+        line_no: int,
+        raw_line: str,
+        stage_cmds: list[tuple[int, str]],
+        stage_entrypoints: list[tuple[int, str]],
+    ) -> None:
+        if inst == "FROM":
+            self._evaluate_duplicate_commands(stage_cmds, stage_entrypoints)
+            stage_cmds.clear()
+            stage_entrypoints.clear()
+        elif inst == "CMD":
+            stage_cmds.append((line_no, raw_line))
+        elif inst == "ENTRYPOINT":
+            stage_entrypoints.append((line_no, raw_line))
+        elif inst == "ADD":
+            self._check_add_instruction(line_no, raw_line, args)
+        elif inst == "WORKDIR":
+            self._check_workdir_instruction(line_no, raw_line, args)
 
     def analyze(self) -> list[QualityFinding]:
         """Scans Dockerfile lines across multi-stage build definitions."""
@@ -183,19 +183,7 @@ class DockerQualityAnalyzer:
             inst = parts[0].upper()
             args = parts[1] if len(parts) > 1 else ""
 
-            if inst == "FROM":
-                # New stage begins; check duplicates from previous stage
-                self._evaluate_duplicate_commands(stage_cmds, stage_entrypoints)
-                stage_cmds.clear()
-                stage_entrypoints.clear()
-            elif inst == "CMD":
-                stage_cmds.append((line_no, raw_line))
-            elif inst == "ENTRYPOINT":
-                stage_entrypoints.append((line_no, raw_line))
-            elif inst == "ADD":
-                self._check_add_instruction(line_no, raw_line, args)
-            elif inst == "WORKDIR":
-                self._check_workdir_instruction(line_no, raw_line, args)
+            self._dispatch_instruction(inst, args, line_no, raw_line, stage_cmds, stage_entrypoints)
 
         # Flush final stage
         self._evaluate_duplicate_commands(stage_cmds, stage_entrypoints)

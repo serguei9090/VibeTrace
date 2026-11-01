@@ -341,9 +341,12 @@ class PythonParser(LanguageParser):
                             is_enum = True
                             break
 
-        kind = (
-            "function" if node.type == "function_definition" else ("enum" if is_enum else "class")
-        )
+        if node.type == "function_definition":
+            kind = "function"
+        elif is_enum:
+            kind = "enum"
+        else:
+            kind = "class"
 
         params_node = node.child_by_field_name("parameters")
         if params_node:
@@ -468,17 +471,16 @@ class PythonParser(LanguageParser):
         called_name = self._get_text(func_node)
 
         # Dynamic heuristic: getattr(obj, "method") or getattr(obj, "method")()
-        g_call = (
-            node
-            if called_name == "getattr"
-            else (
-                func_node
-                if func_node.type == "call"
-                and (sf := func_node.child_by_field_name("function"))
-                and self._get_text(sf) == "getattr"
-                else None
-            )
-        )
+        if called_name == "getattr":
+            g_call = node
+        elif (
+            func_node.type == "call"
+            and (sf := func_node.child_by_field_name("function"))
+            and self._get_text(sf) == "getattr"
+        ):
+            g_call = func_node
+        else:
+            g_call = None
         if g_call and (s_args := g_call.child_by_field_name("arguments")):
             args = [c for c in s_args.children if c.type not in ("(", ")", ",")]
             if len(args) >= 2 and args[1].type == "string":

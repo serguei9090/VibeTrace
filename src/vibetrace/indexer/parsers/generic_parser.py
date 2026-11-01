@@ -264,19 +264,18 @@ class GenericParser(LanguageParser):
                             ret_text = self._get_text(ret_node).strip()
                             if ret_text:
                                 signature = f"{signature} -> {ret_text}"
+                    if is_func:
+                        node_kind = "function"
+                    elif node.type in ("enum_declaration", "enum_specifier"):
+                        node_kind = "enum"
+                    else:
+                        node_kind = "class"
+
                     nodes.append(
                         self._create_node(
                             node_id,
                             name.split(".")[-1],
-                            (
-                                "function"
-                                if is_func
-                                else (
-                                    "enum"
-                                    if node.type in ("enum_declaration", "enum_specifier")
-                                    else "class"
-                                )
-                            ),
+                            node_kind,
                             file_path,
                             node,
                             signature=signature,

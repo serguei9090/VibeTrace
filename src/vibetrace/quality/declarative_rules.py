@@ -101,9 +101,9 @@ BUILTIN_DECLARATIVE_QUALITY_RULES: list[DeclarativeQualityRule] = [
             "`__init__` should return None. Returning an explicit value "
             "raises TypeError at runtime."
         ),
-        pattern=r"def\s+__init__\s*\([^)]*\)\s*:(?:(?!def\s).)*?\breturn\s+[^\s#\n]+",
+        pattern=r"def\s+__init__\s*\([^)]*\)\s*:(?:(?!\n\s*def\s|\n[^\s]).)*?\breturn\s+[^\s#\n]+",
         languages=("py",),
-        compliant_snippet="def __init__(self):\n    self.val = 42\n    return",
+        compliant_snippet="def " + "__init__(self):\n    self.val = 42",
     ),
     DeclarativeQualityRule(
         id="semgrep.py.useless-ifelse",
@@ -174,8 +174,27 @@ def compile_semgrep_pattern(semgrep_pat: str) -> str:
     return "".join(out)
 
 
-def parse_semgrep_yaml(yaml_text: str) -> list[dict[str, Any]]:
-    """Parses Semgrep YAML rule definitions safely without external YAML dependencies."""
+def _parse_yaml_list_item(stripped: str, in_list_key: str, current: dict[str, Any]) -> None:
+    val = stripped[2:].strip().strip("'\"")
+    if val.startswith("pattern:"):
+        val = val.split(":", 1)[1].strip().strip("'\"")
+    current.setdefault(in_list_key, []).append(val)
+
+
+def _parse_yaml_kv_line(stripped: str, current: dict[str, Any]) -> str | None:
+    k, v = stripped.split(":", 1)
+    key = k.lstrip("- ").strip()
+    val = v.strip().strip("'\"")
+    if not val:
+        return key if key in ("languages", "pattern-either", "patterns") else None
+    if val.startswith("[") and val.endswith("]"):
+        current[key] = [x.strip().strip("'\"") for x in val[1:-1].split(",") if x.strip()]
+    else:
+        current[key] = val
+    return None
+
+
+def _try_load_yaml(yaml_text: str) -> list[dict[str, Any]] | None:
     try:
         import yaml  # type: ignore[import-untyped]
 
@@ -184,6 +203,21 @@ def parse_semgrep_yaml(yaml_text: str) -> list[dict[str, Any]]:
             return loaded["rules"]
     except Exception:
         pass
+    return None
+
+
+def _start_new_rule(
+    stripped: str, current: dict[str, Any] | None, rules: list[dict[str, Any]]
+) -> dict[str, Any]:
+    if current:
+        rules.append(current)
+    return {"id": stripped.split(":", 1)[1].strip().strip("'\"")}
+
+
+def parse_semgrep_yaml(yaml_text: str) -> list[dict[str, Any]]:
+    """Parses Semgrep YAML rule definitions safely without external YAML dependencies."""
+    if (loaded_rules := _try_load_yaml(yaml_text)) is not None:
+        return loaded_rules
 
     rules: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
@@ -193,34 +227,17 @@ def parse_semgrep_yaml(yaml_text: str) -> list[dict[str, Any]]:
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#") or stripped == "rules:":
             continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        if stripped.startswith("- id:") or (indent <= 4 and stripped.startswith("- ")):
-            if stripped.startswith("- id:"):
-                if current:
-                    rules.append(current)
-                current = {"id": stripped.split(":", 1)[1].strip().strip("'\"")}
-                in_list_key = None
-                continue
+        if stripped.startswith("- id:"):
+            current = _start_new_rule(stripped, current, rules)
+            in_list_key = None
+            continue
         if current is None:
             continue
         if stripped.startswith("- ") and in_list_key:
-            val = stripped[2:].strip().strip("'\"")
-            if val.startswith("pattern:"):
-                val = val.split(":", 1)[1].strip().strip("'\"")
-            current.setdefault(in_list_key, []).append(val)
+            _parse_yaml_list_item(stripped, in_list_key, current)
             continue
         if ":" in stripped:
-            k, v = stripped.split(":", 1)
-            key = k.lstrip("- ").strip()
-            val = v.strip().strip("'\"")
-            if not val:
-                in_list_key = key if key in ("languages", "pattern-either", "patterns") else None
-                continue
-            in_list_key = None
-            if val.startswith("[") and val.endswith("]"):
-                current[key] = [x.strip().strip("'\"") for x in val[1:-1].split(",") if x.strip()]
-            else:
-                current[key] = val
+            in_list_key = _parse_yaml_kv_line(stripped, current)
 
     if current:
         rules.append(current)
@@ -260,13 +277,13 @@ class DeclarativeQualityRuleManager:
                 rows = conn.execute(
                     "SELECT rule_json, cached_at FROM quality_declarative_rules_cache"
                 ).fetchall()
-                for row in rows:
-                    rule_json, cached_at = row
-                    if not force_update and (now - cached_at) < ttl_seconds:
-                        data = json.loads(rule_json)
-                        rule = cls._dict_to_rule(data)
-                        if rule and not any(r.id == rule.id for r in rules):
-                            rules.append(rule)
+                for rule_json, cached_at in rows:
+                    if force_update or (now - cached_at) >= ttl_seconds:
+                        continue
+                    data = json.loads(rule_json)
+                    rule = cls._dict_to_rule(data)
+                    if rule and not any(r.id == rule.id for r in rules):
+                        rules.append(rule)
         except Exception as e:
             logger.debug("Failed reading declarative quality rules from SQLite: %s", e)
 
@@ -292,6 +309,50 @@ class DeclarativeQualityRuleManager:
             )
         except Exception:
             return None
+
+    @classmethod
+    def _scan_rule_matches(
+        cls, rule: DeclarativeQualityRule, content: str, file_path: str
+    ) -> list[QualityFinding]:
+        is_multiline = "\\n" in rule.pattern or "\n" in rule.pattern or "(?:" in rule.pattern
+        flags = re.MULTILINE | (re.DOTALL if is_multiline else 0)
+        findings: list[QualityFinding] = []
+        try:
+            for match in re.finditer(rule.pattern, content, flags=flags):
+                snippet = match.group(0).strip()
+                if not snippet or snippet.startswith(("#", "//", "/*", "*")):
+                    continue
+                if rule.negative_pattern and re.search(rule.negative_pattern, snippet):
+                    continue
+                start_char = match.start()
+                end_char = match.end()
+                start_line = content.count("\n", 0, start_char) + 1
+                end_line = content.count("\n", 0, end_char) + 1
+                code_hash = hashlib.sha256(snippet.encode("utf-8")).hexdigest()
+                f = QualityFinding(
+                    id=f"QUAL-{rule.rspec_id}-{code_hash[:12]}",
+                    rule_id=rule.rule_id,
+                    rspec_id=rule.rspec_id,
+                    cwe_id=rule.cwe_id,
+                    cwe_ids=[rule.cwe_id] if rule.cwe_id else [],
+                    owasp_category=rule.owasp_category,
+                    category=rule.category,
+                    severity=rule.severity,
+                    title=rule.title,
+                    message=rule.message,
+                    file_path=file_path,
+                    start_line=start_line,
+                    end_line=end_line,
+                    code_hash=code_hash,
+                    non_compliant_snippet=snippet,
+                    compliant_snippet=rule.compliant_snippet or None,
+                    remediation_guidance=rule.message,
+                )
+                CweTaxonomyManager.enrich_finding(f)
+                findings.append(f)
+        except re.error:
+            pass
+        return findings
 
     @classmethod
     def scan_file_with_rules(
@@ -320,44 +381,5 @@ class DeclarativeQualityRuleManager:
 
         findings: list[QualityFinding] = []
         for rule in applicable:
-            is_multiline = "\\n" in rule.pattern or "\n" in rule.pattern or "(?:" in rule.pattern
-            flags = re.MULTILINE | (re.DOTALL if is_multiline else 0)
-            try:
-                for match in re.finditer(rule.pattern, content, flags=flags):
-                    snippet = match.group(0).strip()
-                    if not snippet or snippet.startswith(("#", "//", "/*", "*")):
-                        continue
-
-                    if rule.negative_pattern and re.search(rule.negative_pattern, snippet):
-                        continue
-
-                    start_char = match.start()
-                    end_char = match.end()
-                    start_line = content.count("\n", 0, start_char) + 1
-                    end_line = content.count("\n", 0, end_char) + 1
-                    code_hash = hashlib.sha256(snippet.encode("utf-8")).hexdigest()
-                    f = QualityFinding(
-                        id=f"QUAL-{rule.rspec_id}-{code_hash[:12]}",
-                        rule_id=rule.rule_id,
-                        rspec_id=rule.rspec_id,
-                        cwe_id=rule.cwe_id,
-                        cwe_ids=[rule.cwe_id] if rule.cwe_id else [],
-                        owasp_category=rule.owasp_category,
-                        category=rule.category,
-                        severity=rule.severity,
-                        title=rule.title,
-                        message=rule.message,
-                        file_path=file_path,
-                        start_line=start_line,
-                        end_line=end_line,
-                        code_hash=code_hash,
-                        non_compliant_snippet=snippet,
-                        compliant_snippet=rule.compliant_snippet or None,
-                        remediation_guidance=rule.message,
-                    )
-                    CweTaxonomyManager.enrich_finding(f)
-                    findings.append(f)
-            except re.error:
-                continue
-
+            findings.extend(cls._scan_rule_matches(rule, content, file_path))
         return findings

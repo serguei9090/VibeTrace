@@ -79,6 +79,50 @@ class TaintEngine:
     """Annotates AST findings with source-to-sink call paths from the indexed call graph."""
 
     @classmethod
+    def _process_candidate(
+        cls,
+        finding: SecurityFinding,
+        nodes: dict[str, Any],
+        callers: dict[str, list[str]],
+        sanitizers: frozenset[str],
+        project_root: Path | None,
+    ) -> None:
+        sink_id = cls._enclosing_node_id(nodes, finding)
+        if sink_id is None:
+            return
+        path = cls._path_from_source(nodes, callers, sink_id, sanitizers)
+        if path is None:
+            return
+        sink_node = nodes[sink_id]
+        if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
+            path_nodes = [dict(nodes[nid]) for nid in path if nid in nodes]
+            is_tainted, var_chain, reason = verify_interprocedural_taint_flow(
+                project_root=project_root,
+                path_nodes=path_nodes,
+                sink_file_path=finding.file_path,
+                sink_line=finding.start_line,
+                sanitizers=sanitizers,
+            )
+            if not is_tainted:
+                finding.metadata["dataflow"] = reason
+                return
+            if var_chain:
+                finding.metadata["taint_vars"] = var_chain
+        finding.category = FindingCategory.TAINT_REACHABILITY
+        finding.severity = _bump(finding.severity)
+        finding.symbol_name = nodes[sink_id]["name"]
+        finding.metadata["taint_path"] = [nodes[n]["name"] for n in path]
+        finding.metadata["taint_path_node_ids"] = path
+        if project_root is not None:
+            slices = cls.slice_taint_path(finding, project_root, nodes)
+            if slices:
+                finding.metadata["taint_slices"] = slices
+        finding.message = (
+            f"{finding.message} Reachable from untrusted entry point "
+            f"`{nodes[path[0]]['name']}` via {' -> '.join(nodes[n]['name'] for n in path)}."
+        )
+
+    @classmethod
     def analyze(
         cls,
         db: IndexerDB,
@@ -105,40 +149,8 @@ class TaintEngine:
                 callers.setdefault(r["to_node_id"], []).append(r["from_node_id"])
 
         for finding in candidates:
-            sink_id = cls._enclosing_node_id(nodes, finding)
-            if sink_id is None:
-                continue
-            path = cls._path_from_source(nodes, callers, sink_id, sanitizers)
-            if path is None:
-                continue
-            sink_node = nodes[sink_id]
-            if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
-                path_nodes = [dict(nodes[nid]) for nid in path if nid in nodes]
-                is_tainted, var_chain, reason = verify_interprocedural_taint_flow(
-                    project_root=project_root,
-                    path_nodes=path_nodes,
-                    sink_file_path=finding.file_path,
-                    sink_line=finding.start_line,
-                    sanitizers=sanitizers,
-                )
-                if not is_tainted:
-                    finding.metadata["dataflow"] = reason
-                    continue
-                if var_chain:
-                    finding.metadata["taint_vars"] = var_chain
-            finding.category = FindingCategory.TAINT_REACHABILITY
-            finding.severity = _bump(finding.severity)
-            finding.symbol_name = nodes[sink_id]["name"]
-            finding.metadata["taint_path"] = [nodes[n]["name"] for n in path]
-            finding.metadata["taint_path_node_ids"] = path
-            if project_root is not None:
-                slices = cls.slice_taint_path(finding, project_root, nodes)
-                if slices:
-                    finding.metadata["taint_slices"] = slices
-            finding.message = (
-                f"{finding.message} Reachable from untrusted entry point "
-                f"`{nodes[path[0]]['name']}` via {' -> '.join(nodes[n]['name'] for n in path)}."
-            )
+            cls._process_candidate(finding, nodes, callers, sanitizers, project_root)
+
         return findings
 
     @classmethod

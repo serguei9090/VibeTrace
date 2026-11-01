@@ -108,6 +108,69 @@ class QualityRuleCatalogManager:
         return None
 
     @classmethod
+    def _check_sqlite_cache(
+        cls, db: IndexerDB, feed_url: str, now: int, ttl_seconds: int
+    ) -> QualityCatalogSyncResult | None:
+        try:
+            cls._init_cache_table(db)
+            with db._get_conn() as conn:
+                query = (
+                    "SELECT manifest_json, rules_count, cached_at "
+                    "FROM quality_rules_cache WHERE feed_url = ?"
+                )
+                row = conn.execute(query, (feed_url,)).fetchone()
+                if not row:
+                    return None
+                manifest_json, rules_count, cached_at = row
+                if (now - cached_at) >= ttl_seconds:
+                    return None
+                data = json.loads(manifest_json)
+                cls._hydrate_catalog(data.get("rules", []), data.get("ruff_rules"))
+                return QualityCatalogSyncResult(
+                    rules_loaded=rules_count,
+                    source="cache",
+                    cached_at=cached_at,
+                    languages=data.get("languages", []),
+                )
+        except Exception as e:
+            logger.debug("SQLite cache check failed: %s", e)
+            return None
+
+    @classmethod
+    def _resolve_manifest(
+        cls, feed_url: str, force_update: bool
+    ) -> tuple[dict[str, Any] | None, str]:
+        if force_update:
+            manifest = cls._fetch_remote_manifest(feed_url)
+            if manifest:
+                return manifest, "network"
+        manifest = cls._load_bundled_manifest()
+        if manifest:
+            return manifest, "bundled"
+        manifest = cls._fetch_remote_manifest(feed_url)
+        if manifest:
+            return manifest, "network"
+        return None, "builtin"
+
+    @classmethod
+    def _save_to_sqlite(
+        cls, db: IndexerDB, feed_url: str, manifest: dict[str, Any], count: int, now: int
+    ) -> None:
+        try:
+            cls._init_cache_table(db)
+            with db._get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO quality_rules_cache
+                    (feed_url, manifest_json, rules_count, cached_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (feed_url, json.dumps(manifest), count, now),
+                )
+        except Exception as e:
+            logger.debug("Failed saving quality manifest to SQLite: %s", e)
+
+    @classmethod
     def sync_catalog(
         cls,
         db: IndexerDB | None = None,
@@ -121,68 +184,21 @@ class QualityRuleCatalogManager:
 
         # 1. Check local SQLite cache if DB provided and not force_update
         if db is not None and not force_update:
-            try:
-                cls._init_cache_table(db)
-                with db._get_conn() as conn:
-                    query = (
-                        "SELECT manifest_json, rules_count, cached_at "
-                        "FROM quality_rules_cache WHERE feed_url = ?"
-                    )
-                    row = conn.execute(query, (feed_url,)).fetchone()
-                    if row:
-                        manifest_json, rules_count, cached_at = row
-                        if (now - cached_at) < ttl_seconds:
-                            data = json.loads(manifest_json)
-                            cls._hydrate_catalog(data.get("rules", []), data.get("ruff_rules"))
-                            return QualityCatalogSyncResult(
-                                rules_loaded=rules_count,
-                                source="cache",
-                                cached_at=cached_at,
-                                languages=data.get("languages", []),
-                            )
-            except Exception as e:
-                logger.debug("SQLite cache check failed: %s", e)
+            cached_res = cls._check_sqlite_cache(db, feed_url, now, ttl_seconds)
+            if cached_res:
+                return cached_res
 
-        # 2. Try fetching from remote feed if forced
-        manifest: dict[str, Any] | None = None
-        source = "bundled"
-        if force_update:
-            manifest = cls._fetch_remote_manifest(feed_url)
-            if manifest:
-                source = "network"
+        # 2. Resolve manifest from remote or bundled source
+        manifest, source = cls._resolve_manifest(feed_url, force_update)
 
-        # 3. Fallback to bundled packaged manifest
-        if manifest is None:
-            manifest = cls._load_bundled_manifest()
-            if manifest:
-                source = "bundled"
-
-        # 4. If bundled is missing or empty, attempt network fetch
-        if manifest is None:
-            manifest = cls._fetch_remote_manifest(feed_url)
-            if manifest:
-                source = "network"
-
-        # 4. If we have a manifest, store in SQLite and hydrate into catalog
+        # 3. If we have a manifest, store in SQLite and hydrate into catalog
         if manifest and "rules" in manifest:
             rules = manifest.get("rules", [])
             count = len(rules)
             cls._hydrate_catalog(rules, manifest.get("ruff_rules"))
 
             if db is not None:
-                try:
-                    cls._init_cache_table(db)
-                    with db._get_conn() as conn:
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO quality_rules_cache
-                            (feed_url, manifest_json, rules_count, cached_at)
-                            VALUES (?, ?, ?, ?)
-                            """,
-                            (feed_url, json.dumps(manifest), count, now),
-                        )
-                except Exception as e:
-                    logger.debug("Failed saving quality manifest to SQLite: %s", e)
+                cls._save_to_sqlite(db, feed_url, manifest, count, now)
 
             return QualityCatalogSyncResult(
                 rules_loaded=count,
@@ -191,12 +207,39 @@ class QualityRuleCatalogManager:
                 languages=manifest.get("languages", []),
             )
 
-        # 5. Fallback to native hardcoded catalog
+        # 4. Fallback to native hardcoded catalog
         return QualityCatalogSyncResult(
             rules_loaded=len(QUALITY_RULES_CATALOG),
             source="builtin",
             cached_at=now,
             languages=["py", "css", "ts", "docker"],
+        )
+
+    @classmethod
+    def _build_rule_spec(cls, r: dict[str, Any], clean_key: str, raw_key: str) -> QualityRuleSpec:
+        sev_str = r.get("severity", "MAJOR")
+        type_str = r.get("type", "CODE_SMELL")
+        name = r.get("name", clean_key)
+        desc = r.get("desc", name)
+        params = r.get("params") or {}
+        thresh: int | None = None
+        if "threshold" in params and str(params["threshold"]).isdigit():
+            thresh = int(params["threshold"])
+
+        cwes: list[str] = r.get("cwes") or []
+        rspec_id = f"RSPEC-{clean_key.lstrip('S')}" if clean_key.startswith("S") else clean_key
+        return QualityRuleSpec(
+            rule_id=raw_key,
+            rspec_id=rspec_id,
+            severity=_SEVERITY_MAP.get(sev_str, QualitySeverity.MEDIUM),
+            category=_CATEGORY_MAP.get(type_str, QualityCategory.CODE_SMELL),
+            title=name,
+            explanation=desc,
+            non_compliant_example="",
+            compliant_example="",
+            default_threshold=thresh,
+            aliases=r.get("tags", []),
+            cwe_ids=cwes,
         )
 
     @classmethod
@@ -214,30 +257,7 @@ class QualityRuleCatalogManager:
             if clean_key in QUALITY_RULES_CATALOG:
                 continue
 
-            sev_str = r.get("severity", "MAJOR")
-            type_str = r.get("type", "CODE_SMELL")
-            name = r.get("name", clean_key)
-            desc = r.get("desc", name)
-            params = r.get("params") or {}
-            thresh: int | None = None
-            if "threshold" in params and str(params["threshold"]).isdigit():
-                thresh = int(params["threshold"])
-
-            cwes: list[str] = r.get("cwes") or []
-            rspec_id = f"RSPEC-{clean_key.lstrip('S')}" if clean_key.startswith("S") else clean_key
-            spec = QualityRuleSpec(
-                rule_id=raw_key,
-                rspec_id=rspec_id,
-                severity=_SEVERITY_MAP.get(sev_str, QualitySeverity.MEDIUM),
-                category=_CATEGORY_MAP.get(type_str, QualityCategory.CODE_SMELL),
-                title=name,
-                explanation=desc,
-                non_compliant_example="",
-                compliant_example="",
-                default_threshold=thresh,
-                aliases=r.get("tags", []),
-                cwe_ids=cwes,
-            )
+            spec = cls._build_rule_spec(r, clean_key, raw_key)
             QUALITY_RULES_CATALOG[clean_key] = spec
             QUALITY_RULES_CATALOG[raw_key] = spec
             register_rule_alias(clean_key, clean_key)

@@ -156,11 +156,12 @@ class RustParser(LanguageParser):
                     name = self._get_text(name_node)
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)
-                    kind = (
-                        "trait"
-                        if node.type == "trait_item"
-                        else ("enum" if node.type == "enum_item" else "struct")
-                    )
+                    if node.type == "trait_item":
+                        kind = "trait"
+                    elif node.type == "enum_item":
+                        kind = "enum"
+                    else:
+                        kind = "struct"
                     nodes.append(
                         self._create_node(
                             node_id,

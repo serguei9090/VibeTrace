@@ -132,6 +132,53 @@ def install_skill(
     return installed_paths
 
 
+def _init_docs_catalog(root: Path, db_path: Path, no_index: bool) -> tuple[bool, int]:
+    """Auto-registers and indexes core docs catalog if docs/ exists."""
+    docs_dir = root / "docs"
+    if not docs_dir.is_dir():
+        return False, 0
+    try:
+        from vibetrace.docs.db import DocDB
+        from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+        DocCatalogManager.add_path("core", "docs", project_root=root)
+        doc_chunks = 0
+        if not no_index:
+            doc_db = DocDB(db_path)
+            res_docs = DocIndexService.index_catalog("core", ["docs"], doc_db, root)
+            doc_chunks = res_docs.get("chunks", 0)
+        return True, doc_chunks
+    except Exception:
+        return False, 0
+
+
+def _run_initial_indexing(db_path: Path, root: Path) -> tuple[int, int, int]:
+    """Runs initial AST indexing and rule catalog synchronization."""
+    db = IndexerDB(str(db_path))
+    reindex_all(db, str(root), verbose=False, project_root=root)
+    db.update_centrality_scores()
+    graph_stats = db.get_graph_data()
+    indexed_nodes = len(graph_stats.get("nodes", []))
+    indexed_edges = len(graph_stats.get("edges", []))
+    try:
+        from vibetrace.security.rule_sync import RuleCatalogManager
+
+        RuleCatalogManager.sync_and_load_rules(db, root)
+    except Exception:
+        pass
+
+    quality_rules = 0
+    try:
+        from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+
+        sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
+        quality_rules = sync_res.rules_loaded
+    except Exception:
+        pass
+
+    return indexed_nodes, indexed_edges, quality_rules
+
+
 def initialize_workspace(
     project_root: Path | str,
     no_index: bool = False,
@@ -169,23 +216,8 @@ def initialize_workspace(
     detected_ecosystems = detect_project_ecosystems(root)
 
     # 6. Auto-register docs catalog if docs/ directory exists
-    doc_catalog_registered = False
-    doc_chunks_indexed = 0
     db_path = vibetrace_dir / "vibetrace.db"
-    docs_dir = root / "docs"
-    if docs_dir.is_dir():
-        try:
-            from vibetrace.docs.db import DocDB
-            from vibetrace.docs.service import DocCatalogManager, DocIndexService
-
-            DocCatalogManager.add_path("core", "docs", project_root=root)
-            doc_catalog_registered = True
-            if not no_index:
-                doc_db = DocDB(db_path)
-                res_docs = DocIndexService.index_catalog("core", ["docs"], doc_db, root)
-                doc_chunks_indexed = res_docs.get("chunks", 0)
-        except Exception:
-            doc_catalog_registered = False
+    doc_catalog_registered, doc_chunks_indexed = _init_docs_catalog(root, db_path, no_index)
 
     # 7. Configure Git / Lefthook hooks if requested
     hooks_installed = False
@@ -202,30 +234,11 @@ def initialize_workspace(
     # 8. Run initial indexing if requested
     indexed_nodes = 0
     indexed_edges = 0
+    quality_rules_loaded = 0
 
     if not no_index:
-        db = IndexerDB(str(db_path))
-        reindex_all(db, str(root), verbose=False, project_root=root)
-        db.update_centrality_scores()
-        graph_stats = db.get_graph_data()
-        indexed_nodes = len(graph_stats.get("nodes", []))
-        indexed_edges = len(graph_stats.get("edges", []))
-        try:
-            from vibetrace.security.rule_sync import RuleCatalogManager
-
-            RuleCatalogManager.sync_and_load_rules(db, root)
-        except Exception:
-            pass
-
-        try:
-            from vibetrace.quality.rule_sync import QualityRuleCatalogManager
-
-            sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
-            quality_rules_loaded = sync_res.rules_loaded
-        except Exception:
-            quality_rules_loaded = 0
+        indexed_nodes, indexed_edges, quality_rules_loaded = _run_initial_indexing(db_path, root)
     else:
-        # Even with no_index, warm the local quality rules from bundled/cache
         try:
             from vibetrace.quality.rule_sync import QualityRuleCatalogManager
 

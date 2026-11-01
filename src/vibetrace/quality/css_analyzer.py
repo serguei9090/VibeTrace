@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from vibetrace.quality.models import (
     QualityCategory,
@@ -42,6 +42,107 @@ class _CSSRuleBlock:
     declarations: list[_CSSDeclaration]
 
 
+@dataclass
+class _CSSBlockParser:
+    source_lines: list[str]
+    blocks: list[_CSSRuleBlock] = field(default_factory=list)
+    current_media: str | None = None
+    current_selector: str = ""
+    current_decls: list[_CSSDeclaration] = field(default_factory=list)
+    block_start: int = 1
+    in_rule: bool = False
+    pending_prop: str | None = None
+    pending_val_parts: list[str] = field(default_factory=list)
+    pending_start_line: int = 1
+    pending_raw_lines: list[str] = field(default_factory=list)
+
+    def _flush_pending_decl(self) -> None:
+        if self.pending_prop is not None:
+            self.current_decls.append(
+                _CSSDeclaration(
+                    property_name=self.pending_prop.lower(),
+                    property_value=" ".join(self.pending_val_parts).strip(),
+                    line_number=self.pending_start_line,
+                    raw_line="\n".join(self.pending_raw_lines),
+                )
+            )
+            self.pending_prop = None
+            self.pending_val_parts.clear()
+            self.pending_raw_lines.clear()
+
+    def _handle_closing_brace(self, idx: int) -> None:
+        if self.in_rule:
+            self.blocks.append(
+                _CSSRuleBlock(
+                    selector=self.current_selector.strip(),
+                    start_line=self.block_start,
+                    end_line=idx,
+                    media_query=self.current_media,
+                    declarations=list(self.current_decls),
+                )
+            )
+            self.in_rule = False
+            self.current_selector = ""
+            self.current_decls.clear()
+            self.pending_prop = None
+            self.pending_val_parts.clear()
+            self.pending_raw_lines.clear()
+        else:
+            self.current_media = None
+
+    def _handle_decl_line(self, line: str, stripped: str, idx: int) -> None:
+        if self.pending_prop is not None:
+            self.pending_val_parts.append(stripped.rstrip(";"))
+            self.pending_raw_lines.append(line)
+            if ";" in stripped:
+                self._flush_pending_decl()
+            return
+
+        if ":" not in stripped:
+            return
+
+        prop_name, _, val_part = stripped.partition(":")
+        prop_name = prop_name.strip()
+        val_part = val_part.strip()
+        if ";" in val_part:
+            self.current_decls.append(
+                _CSSDeclaration(
+                    property_name=prop_name.lower(),
+                    property_value=val_part.rstrip(";").strip(),
+                    line_number=idx,
+                    raw_line=line,
+                )
+            )
+            return
+
+        self.pending_prop = prop_name
+        self.pending_val_parts = [val_part] if val_part else []
+        self.pending_start_line = idx
+        self.pending_raw_lines = [line]
+
+    def parse(self) -> list[_CSSRuleBlock]:
+        for idx, line in enumerate(self.source_lines, start=1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("/*") or stripped.startswith("*"):
+                continue
+            if stripped.startswith("@media"):
+                if m := _MEDIA_START_RE.search(stripped):
+                    self.current_media = m.group(1).strip()
+                continue
+            if "}" in stripped:
+                self._handle_closing_brace(idx)
+                continue
+            if "{" in stripped:
+                self.current_selector = stripped.split("{")[0].strip()
+                self.block_start = idx
+                self.in_rule = True
+                continue
+            if self.in_rule:
+                self._handle_decl_line(line, stripped, idx)
+
+        return self.blocks
+
+
 class CSSQualityAnalyzer:
     """Parses CSS and audits declarations for maintainability and accessibility defects."""
 
@@ -60,93 +161,7 @@ class CSSQualityAnalyzer:
 
     def _parse_blocks(self) -> list[_CSSRuleBlock]:
         """Tokenizes CSS into rule blocks with selector, media context, and declarations."""
-        blocks: list[_CSSRuleBlock] = []
-        current_media: str | None = None
-        current_selector: str = ""
-        current_decls: list[_CSSDeclaration] = []
-        block_start = 1
-        in_rule = False
-
-        pending_prop: str | None = None
-        pending_val_parts: list[str] = []
-        pending_start_line: int = 1
-        pending_raw_lines: list[str] = []
-
-        for idx, line in enumerate(self.source_lines, start=1):
-            stripped = line.strip()
-
-            # Skip comments or empty lines
-            if not stripped or stripped.startswith("/*") or stripped.startswith("*"):
-                continue
-
-            if stripped.startswith("@media"):
-                if m := _MEDIA_START_RE.search(stripped):
-                    current_media = m.group(1).strip()
-                continue
-
-            if "}" in stripped:
-                if in_rule:
-                    blocks.append(
-                        _CSSRuleBlock(
-                            selector=current_selector.strip(),
-                            start_line=block_start,
-                            end_line=idx,
-                            media_query=current_media,
-                            declarations=list(current_decls),
-                        )
-                    )
-                    in_rule = False
-                    current_selector = ""
-                    current_decls.clear()
-                    pending_prop = None
-                    pending_val_parts.clear()
-                    pending_raw_lines.clear()
-                else:
-                    current_media = None
-                continue
-
-            if "{" in stripped:
-                current_selector = stripped.split("{")[0].strip()
-                block_start = idx
-                in_rule = True
-                continue
-
-            if in_rule:
-                if pending_prop is not None:
-                    pending_val_parts.append(stripped.rstrip(";"))
-                    pending_raw_lines.append(line)
-                    if ";" in stripped:
-                        current_decls.append(
-                            _CSSDeclaration(
-                                property_name=pending_prop.lower(),
-                                property_value=" ".join(pending_val_parts).strip(),
-                                line_number=pending_start_line,
-                                raw_line="\n".join(pending_raw_lines),
-                            )
-                        )
-                        pending_prop = None
-                        pending_val_parts.clear()
-                        pending_raw_lines.clear()
-                elif ":" in stripped:
-                    prop_name, _, val_part = stripped.partition(":")
-                    prop_name = prop_name.strip()
-                    val_part = val_part.strip()
-                    if ";" in val_part:
-                        current_decls.append(
-                            _CSSDeclaration(
-                                property_name=prop_name.lower(),
-                                property_value=val_part.rstrip(";").strip(),
-                                line_number=idx,
-                                raw_line=line,
-                            )
-                        )
-                    else:
-                        pending_prop = prop_name
-                        pending_val_parts = [val_part] if val_part else []
-                        pending_start_line = idx
-                        pending_raw_lines = [line]
-
-        return blocks
+        return _CSSBlockParser(source_lines=self.source_lines).parse()
 
     def _check_important(self, block: _CSSRuleBlock, decl: _CSSDeclaration) -> None:
         """css:S9423: Remove this '!important' and resolve the specificity conflict instead."""

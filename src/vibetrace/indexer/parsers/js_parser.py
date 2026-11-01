@@ -345,21 +345,18 @@ class JavaScriptParser(LanguageParser):
                     self._record_ts_val_type(ln_t, rn, ctx)
                     if ln_t in ("module.exports", "exports") and rn.type == "object":
                         for c in rn.children:
-                            sym = (
-                                self._get_text(c)
-                                if c.type
-                                in (
-                                    "shorthand_property_identifier",
-                                    "shorthand_property_identifier_pattern",
-                                )
-                                else (
-                                    self._get_text(v)
-                                    if c.type == "pair"
-                                    and (v := c.child_by_field_name("value"))
-                                    and v.type == "identifier"
-                                    else None
-                                )
-                            )
+                            sym: str | None = None
+                            if c.type in (
+                                "shorthand_property_identifier",
+                                "shorthand_property_identifier_pattern",
+                            ):
+                                sym = self._get_text(c)
+                            elif (
+                                c.type == "pair"
+                                and (v := c.child_by_field_name("value"))
+                                and v.type == "identifier"
+                            ):
+                                sym = self._get_text(v)
                             if sym:
                                 for ex_n in nodes:
                                     if ex_n.name == sym:

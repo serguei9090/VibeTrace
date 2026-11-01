@@ -133,16 +133,17 @@ class TypeScriptQualityAnalyzer:
         """Extracts key-value pairs of attributes in a JSX opening or self-closing element."""
         attrs: dict[str, str] = {}
         for child in element_node.children:
-            if child.type == "jsx_attribute":
-                prop_name = ""
-                prop_val = ""
-                for attr_child in child.children:
-                    if attr_child.type == "property_identifier":
-                        prop_name = self._get_node_text(attr_child).lower()
-                    elif attr_child.type in ("string", "jsx_expression"):
-                        prop_val = self._get_node_text(attr_child).strip("\"'{ }")
-                if prop_name:
-                    attrs[prop_name] = prop_val
+            if child.type != "jsx_attribute":
+                continue
+            prop_name = ""
+            prop_val = ""
+            for attr_child in child.children:
+                if attr_child.type == "property_identifier":
+                    prop_name = self._get_node_text(attr_child).lower()
+                elif attr_child.type in ("string", "jsx_expression"):
+                    prop_val = self._get_node_text(attr_child).strip("\"'{ }")
+            if prop_name:
+                attrs[prop_name] = prop_val
         return attrs
 
     def _check_jsx_img_alt(self, tag_name: str, attrs: dict[str, str], node: Node) -> None:

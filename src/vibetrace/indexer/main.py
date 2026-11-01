@@ -143,11 +143,12 @@ def reindex_all(
     from vibetrace.config import load_config
 
     target_path = Path(target_path_str).resolve()
-    eff_root = (
-        project_root.resolve()
-        if project_root
-        else (target_path if target_path.is_dir() else target_path.parent)
-    )
+    if project_root:
+        eff_root = project_root.resolve()
+    elif target_path.is_dir():
+        eff_root = target_path
+    else:
+        eff_root = target_path.parent
 
     failed: list[str] = []
     cfg = load_config(eff_root)

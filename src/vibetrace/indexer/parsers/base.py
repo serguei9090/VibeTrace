@@ -371,7 +371,12 @@ class LanguageParser(ABC):
         call_line: int | None = None,
     ) -> Edge:
         """Create an edge between two nodes, optionally recording the 1-indexed call line."""
-        line = call_line if call_line is not None else (node.start_point[0] + 1 if node else None)
+        if call_line is not None:
+            line = call_line
+        elif node is not None:
+            line = node.start_point[0] + 1
+        else:
+            line = None
         return Edge(from_node_id=from_id, to_node_id=to_id, relation_type=relation, call_line=line)
 
     def _add_node(

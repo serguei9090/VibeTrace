@@ -89,7 +89,8 @@ def _split_top_level_args(arg_str: str) -> list[str]:
             cur.append(ch)
             if ch == in_quote:
                 in_quote = None
-        elif ch in ('"', "'", "`"):
+            continue
+        if ch in ('"', "'", "`"):
             in_quote = ch
             cur.append(ch)
         elif ch in ("(", "[", "{"):
@@ -110,6 +111,31 @@ def _split_top_level_args(arg_str: str) -> list[str]:
     if tail:
         args.append(tail)
     return args
+
+
+def _eval_helper_call_contract(
+    rhs: str,
+    contracts_map: dict[str, Any] | None,
+    tainted: dict[str, list[str]],
+) -> tuple[bool, list[str] | None]:
+    """Evaluates whether an RHS helper call sanitizes or propagates taint to the return value."""
+    if not contracts_map:
+        return False, None
+    call_m = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)", rhs)
+    if not call_m:
+        return False, None
+    contract = contracts_map.get(call_m.group(1))
+    if not contract:
+        return False, None
+    if contract.is_sanitizer:
+        return True, None
+    raw_args = _split_top_level_args(call_m.group(2))
+    for arg_idx, arg_expr in enumerate(raw_args):
+        arg_idents = [tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS]
+        for tok in arg_idents:
+            if tok in tainted and contract.param_taints_return.get(arg_idx, True):
+                return True, tainted[tok]
+    return True, None
 
 
 def _propagate_function_def_use(
@@ -156,42 +182,17 @@ def _propagate_function_def_use(
             continue
 
         # Check if RHS invokes a helper function with a known Taint Contract
-        call_m = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)", rhs)
-        if call_m and contracts_map:
-            callee_name = call_m.group(1)
-            contract = contracts_map.get(callee_name)
-            if contract:
-                if contract.is_sanitizer:
-                    tainted.pop(lhs, None)
-                    untainted_locals.add(lhs)
-                    continue
-                raw_args = _split_top_level_args(call_m.group(2))
-                taints_return = False
-                matched_arg_chain: list[str] | None = None
-                for arg_idx, arg_expr in enumerate(raw_args):
-                    arg_idents = [
-                        tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS
-                    ]
-                    for tok in arg_idents:
-                        if tok in tainted:
-                            if contract.param_taints_return.get(arg_idx, True):
-                                taints_return = True
-                                matched_arg_chain = tainted[tok]
-                                break
-                    if taints_return:
-                        break
-                if taints_return and matched_arg_chain:
-                    tainted[lhs] = (
-                        [*matched_arg_chain, lhs]
-                        if lhs not in matched_arg_chain
-                        else matched_arg_chain
-                    )
-                    untainted_locals.discard(lhs)
-                    continue
-                else:
-                    tainted.pop(lhs, None)
-                    untainted_locals.add(lhs)
-                    continue
+        handled, matched_arg_chain = _eval_helper_call_contract(rhs, contracts_map, tainted)
+        if handled:
+            if matched_arg_chain:
+                tainted[lhs] = (
+                    [*matched_arg_chain, lhs] if lhs not in matched_arg_chain else matched_arg_chain
+                )
+                untainted_locals.discard(lhs)
+            else:
+                tainted.pop(lhs, None)
+                untainted_locals.add(lhs)
+            continue
 
         matched_taint = next((tainted[tok] for tok in rhs_idents if tok in tainted), None)
         if matched_taint is not None:
@@ -249,6 +250,41 @@ def verify_sink_taint_flow(
         return False, []
 
     return True, []
+
+
+def _is_callee_sanitizer(callee: dict[str, Any], project_root: Path, callee_name: str) -> bool:
+    """Checks whether the callee function contract marks it as a sanitizer."""
+    callee_path = (project_root / str(callee.get("file_path", ""))).resolve()
+    if not callee_path.is_file():
+        return False
+    try:
+        callee_content = callee_path.read_text(encoding="utf-8", errors="replace")
+        callee_contracts = TaintContractManager.analyze_source_code(
+            callee_content, str(callee["file_path"])
+        )
+        callee_contract = callee_contracts.get(callee_name)
+        return bool(callee_contract and callee_contract.is_sanitizer)
+    except Exception:
+        return False
+
+
+def _resolve_next_tainted_params(
+    args: list[str], sanitizers: frozenset[str], caller_tainted: dict[str, list[str]]
+) -> dict[int, list[str]]:
+    """Calculates tainted parameters forwarded to callee."""
+    next_tainted: dict[int, list[str]] = {}
+    for arg_idx, arg_expr in enumerate(args):
+        if any(f"{san}(" in arg_expr or f".{san}(" in arg_expr for san in sanitizers):
+            continue
+        if any(src in arg_expr for src in _DIRECT_SOURCES):
+            next_tainted[arg_idx] = ["untrusted_input"]
+            continue
+        arg_idents = [tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS]
+        for tok in arg_idents:
+            if tok in caller_tainted:
+                next_tainted[arg_idx] = caller_tainted[tok]
+                break
+    return next_tainted
 
 
 def verify_interprocedural_taint_flow(
@@ -323,32 +359,10 @@ def verify_interprocedural_taint_flow(
             tainted_params = None
             continue
 
-        callee_path = (project_root / str(callee.get("file_path", ""))).resolve()
-        if callee_path.is_file():
-            try:
-                callee_content = callee_path.read_text(encoding="utf-8", errors="replace")
-                callee_contracts = TaintContractManager.analyze_source_code(
-                    callee_content, str(callee["file_path"])
-                )
-                callee_contract = callee_contracts.get(callee_name)
-                if callee_contract and callee_contract.is_sanitizer:
-                    return False, [], "sanitized_callee"
-            except Exception:
-                pass
+        if _is_callee_sanitizer(callee, project_root, callee_name):
+            return False, [], "sanitized_callee"
 
-        next_tainted_params: dict[int, list[str]] = {}
-        for arg_idx, arg_expr in enumerate(args):
-            if any(f"{san}(" in arg_expr or f".{san}(" in arg_expr for san in sanitizers):
-                continue
-            if any(src in arg_expr for src in _DIRECT_SOURCES):
-                next_tainted_params[arg_idx] = ["untrusted_input"]
-                continue
-            arg_idents = [tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS]
-            for tok in arg_idents:
-                if tok in caller_tainted:
-                    next_tainted_params[arg_idx] = caller_tainted[tok]
-                    break
-
+        next_tainted_params = _resolve_next_tainted_params(args, sanitizers, caller_tainted)
         if not next_tainted_params:
             return False, [], "untainted_call_arg"
         tainted_params = next_tainted_params
