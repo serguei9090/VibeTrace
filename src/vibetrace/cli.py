@@ -595,8 +595,25 @@ examples:
             "One-shot token-bounded task context bundle for AI pair programming (<= 1,500 tokens)."
         ),
     )
-    p_bundle.add_argument("intent", help="Natural language task intent or query")
+    p_bundle.add_argument(
+        "intent", nargs="?", default="", help="Natural language task intent or query"
+    )
     p_bundle.add_argument("--symbol", default=None, help="Explicit target symbol override")
+    p_bundle.add_argument(
+        "--session",
+        default=None,
+        help="Session identifier for multi-turn adaptive sliding window tracking",
+    )
+    p_bundle.add_argument(
+        "--focus",
+        default=None,
+        help="Shift active focus symbol down the call-stack in an active session",
+    )
+    p_bundle.add_argument(
+        "--reset-session",
+        action="store_true",
+        help="Reset and clear an existing multi-turn adaptive session",
+    )
     p_bundle.add_argument(
         "--budget",
         type=int,

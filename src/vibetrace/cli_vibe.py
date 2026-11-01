@@ -68,9 +68,39 @@ def cmd_bundle(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
 
+    session_id = getattr(args, "session", None)
+    if session_id and getattr(args, "reset_session", False):
+        from vibetrace.services.vibe_bundle import AdaptiveSessionManager
+
+        ok = AdaptiveSessionManager.reset_session(root, session_id)
+        if getattr(args, "json", False):
+            print(json.dumps({"status": "reset" if ok else "not_found", "session_id": session_id}))
+        else:
+            msg = f"Reset session '{session_id}'." if ok else f"Session '{session_id}' not found."
+            print(msg)
+        return 0 if ok else 1
+
     intent = getattr(args, "intent", "")
     target_symbol = getattr(args, "symbol", None)
+    focus_symbol = getattr(args, "focus", None) or target_symbol
     budget = getattr(args, "budget", 1500)
+
+    if session_id:
+        from vibetrace.services.vibe_bundle import AdaptiveSessionManager
+
+        res = AdaptiveSessionManager.process_session_turn(
+            db=db,
+            root=root,
+            session_id=session_id,
+            intent=intent,
+            focus_symbol=focus_symbol,
+            token_budget=budget,
+        )
+        if getattr(args, "json", False):
+            print(res.model_dump_json(indent=2))
+        else:
+            print(safe_str(res.bundle.formatted_prompt))
+        return 0
 
     bundle = VibeBundleService.assemble_bundle(
         db=db,

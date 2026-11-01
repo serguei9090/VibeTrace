@@ -6,7 +6,9 @@ and sibling test patterns into a compact token-bounded payload (<= 1,500 tokens)
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -385,3 +387,157 @@ class VibeBundleService:
 
         joined = "\n".join(sections)
         return truncate_to_tokens(joined, budget)
+
+
+class AdaptiveSessionState(BaseModel):
+    """Tracks active multi-turn exploration path and sliding token window."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    session_id: str
+    root_symbol: str
+    root_file: str | None = None
+    current_focus: str
+    current_file: str | None = None
+    active_path: list[str] = Field(default_factory=list)
+    history_stack: list[str] = Field(default_factory=list)
+    pinned_symbols: list[str] = Field(default_factory=list)
+    pruned_symbols: list[str] = Field(default_factory=list)
+    token_budget: int = 1500
+    turn_count: int = 1
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+
+
+class AdaptiveBundleResult(BaseModel):
+    """Result of an adaptive sliding-window session turn."""
+
+    session: AdaptiveSessionState
+    bundle: VibeBundle
+    pruned_symbols: list[str] = Field(default_factory=list)
+
+
+class AdaptiveSessionManager:
+    """Manages session checkpoints and sliding call-graph context for coding agents."""
+
+    @classmethod
+    def get_session_dir(cls, root: Path) -> Path:
+        s_dir = root / ".vibetrace" / "sessions"
+        s_dir.mkdir(parents=True, exist_ok=True)
+        return s_dir
+
+    @classmethod
+    def get_session_path(cls, root: Path, session_id: str) -> Path:
+        safe_id = "".join(c for c in session_id if c.isalnum() or c in ("-", "_"))
+        return cls.get_session_dir(root) / f"{safe_id}.json"
+
+    @classmethod
+    def load_session(cls, root: Path, session_id: str) -> AdaptiveSessionState | None:
+        p = cls.get_session_path(root, session_id)
+        if not p.is_file():
+            return None
+        try:
+            raw = json.loads(p.read_text(encoding="utf-8"))
+            return AdaptiveSessionState(**raw)
+        except Exception:
+            return None
+
+    @classmethod
+    def save_session(cls, root: Path, state: AdaptiveSessionState) -> None:
+        p = cls.get_session_path(root, state.session_id)
+        p.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+
+    @classmethod
+    def reset_session(cls, root: Path, session_id: str) -> bool:
+        p = cls.get_session_path(root, session_id)
+        if p.is_file():
+            try:
+                p.unlink()
+                return True
+            except OSError:
+                return False
+        return False
+
+    @classmethod
+    def process_session_turn(
+        cls,
+        db: IndexerDB,
+        root: Path,
+        session_id: str,
+        intent: str,
+        focus_symbol: str | None = None,
+        token_budget: int = 1500,
+    ) -> AdaptiveBundleResult:
+        """Executes a multi-turn adaptive context step with dynamic tree pruning."""
+        state = cls.load_session(root, session_id)
+        clean_intent = intent.strip() if intent else ""
+
+        if state is None:
+            # Turn 1: initialize new session
+            resolved_init = focus_symbol
+            if not resolved_init:
+                hits = hybrid_search(db, clean_intent, limit=1)
+                resolved_init = hits[0].name if hits else "root"
+
+            state = AdaptiveSessionState(
+                session_id=session_id,
+                root_symbol=resolved_init,
+                current_focus=resolved_init,
+                active_path=[resolved_init],
+                history_stack=[resolved_init],
+                pinned_symbols=[resolved_init],
+                token_budget=token_budget,
+                turn_count=1,
+            )
+        else:
+            state.turn_count += 1
+            state.token_budget = token_budget
+            new_target = focus_symbol
+            if not new_target and clean_intent:
+                hits = hybrid_search(db, clean_intent, limit=1)
+                if hits:
+                    new_target = hits[0].name
+
+            if new_target and new_target != state.current_focus:
+                if new_target not in state.active_path:
+                    state.active_path.append(new_target)
+                if new_target not in state.history_stack:
+                    state.history_stack.append(new_target)
+
+                # Prune: symbols in history that are not on active path and not pinned
+                active_set = set(state.active_path) | set(state.pinned_symbols)
+                newly_pruned = [
+                    s for s in state.history_stack if s not in active_set and s != new_target
+                ]
+                state.pruned_symbols = newly_pruned
+                state.current_focus = new_target
+
+        state.updated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Assemble the base bundle for current focus
+        bundle = VibeBundleService.assemble_bundle(
+            db=db,
+            root=root,
+            intent=clean_intent or f"Inspect {state.current_focus}",
+            target_symbol=state.current_focus,
+            token_budget=token_budget,
+        )
+
+        # Prepend adaptive session lineage banner to prompt
+        lineage_str = " -> ".join(state.active_path)
+        pruned_str = (
+            ", ".join(f"`{p}`" for p in state.pruned_symbols) if state.pruned_symbols else "None"
+        )
+        banner = (
+            f"## 🧭 Adaptive Session Context: `{state.session_id}` (Turn {state.turn_count})\n"
+            f"- **Root Anchor:** `{state.root_symbol}`\n"
+            f"- **Active Call Lineage:** `{lineage_str}`\n"
+            f"- **Pruned from Window:** {pruned_str}\n\n"
+        )
+        bundle.formatted_prompt = banner + bundle.formatted_prompt
+
+        cls.save_session(root, state)
+        return AdaptiveBundleResult(
+            session=state, bundle=bundle, pruned_symbols=state.pruned_symbols
+        )
