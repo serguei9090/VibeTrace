@@ -17,7 +17,12 @@ from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.quality.models import QualityCategory, QualitySeverity
-from vibetrace.quality.rules import QUALITY_RULES_CATALOG, QualityRuleSpec
+from vibetrace.quality.rules import (
+    QUALITY_RULES_CATALOG,
+    QualityRuleSpec,
+    register_ruff_rule,
+    register_rule_alias,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +133,7 @@ class QualityRuleCatalogManager:
                         manifest_json, rules_count, cached_at = row
                         if (now - cached_at) < ttl_seconds:
                             data = json.loads(manifest_json)
-                            cls._hydrate_catalog(data.get("rules", []))
+                            cls._hydrate_catalog(data.get("rules", []), data.get("ruff_rules"))
                             return QualityCatalogSyncResult(
                                 rules_loaded=rules_count,
                                 source="cache",
@@ -138,22 +143,31 @@ class QualityRuleCatalogManager:
             except Exception as e:
                 logger.debug("SQLite cache check failed: %s", e)
 
-        # 2. Try fetching from remote feed if forced or cache missed/expired
+        # 2. Try fetching from remote feed if forced
         manifest: dict[str, Any] | None = None
-        source = "network"
-        if force_update or db is None:
+        source = "bundled"
+        if force_update:
             manifest = cls._fetch_remote_manifest(feed_url)
+            if manifest:
+                source = "network"
 
         # 3. Fallback to bundled packaged manifest
         if manifest is None:
             manifest = cls._load_bundled_manifest()
-            source = "bundled"
+            if manifest:
+                source = "bundled"
+
+        # 4. If bundled is missing or empty, attempt network fetch
+        if manifest is None:
+            manifest = cls._fetch_remote_manifest(feed_url)
+            if manifest:
+                source = "network"
 
         # 4. If we have a manifest, store in SQLite and hydrate into catalog
         if manifest and "rules" in manifest:
             rules = manifest.get("rules", [])
             count = len(rules)
-            cls._hydrate_catalog(rules)
+            cls._hydrate_catalog(rules, manifest.get("ruff_rules"))
 
             if db is not None:
                 try:
@@ -186,8 +200,12 @@ class QualityRuleCatalogManager:
         )
 
     @classmethod
-    def _hydrate_catalog(cls, rules: list[dict[str, Any]]) -> None:
-        """Injects remote or bundled rules into QUALITY_RULES_CATALOG dictionary."""
+    def _hydrate_catalog(
+        cls,
+        rules: list[dict[str, Any]],
+        ruff_rules: dict[str, Any] | None = None,
+    ) -> None:
+        """Injects remote or bundled rules and Ruff specs into QUALITY_RULES_CATALOG dictionary."""
         for r in rules:
             raw_key = r.get("key", "")
             clean_key = raw_key.split(":")[-1].upper()
@@ -205,6 +223,7 @@ class QualityRuleCatalogManager:
             if "threshold" in params and str(params["threshold"]).isdigit():
                 thresh = int(params["threshold"])
 
+            cwes: list[str] = r.get("cwes") or []
             rspec_id = f"RSPEC-{clean_key.lstrip('S')}" if clean_key.startswith("S") else clean_key
             spec = QualityRuleSpec(
                 rule_id=raw_key,
@@ -217,6 +236,30 @@ class QualityRuleCatalogManager:
                 compliant_example="",
                 default_threshold=thresh,
                 aliases=r.get("tags", []),
+                cwe_ids=cwes,
             )
             QUALITY_RULES_CATALOG[clean_key] = spec
             QUALITY_RULES_CATALOG[raw_key] = spec
+            register_rule_alias(clean_key, clean_key)
+            register_rule_alias(raw_key, clean_key)
+            for tag in r.get("tags", []):
+                register_rule_alias(tag, clean_key)
+
+        if ruff_rules:
+            for code, rdata in ruff_rules.items():
+                ruff_code = rdata.get("code", code).upper()
+                ruff_spec = QualityRuleSpec(
+                    rule_id=ruff_code,
+                    rspec_id=f"RUFF-{ruff_code}",
+                    severity=QualitySeverity.MEDIUM,
+                    category=QualityCategory.MAINTAINABILITY,
+                    title=rdata.get("summary") or rdata.get("name", ruff_code),
+                    explanation=(
+                        f"Ruff {rdata.get('linter', 'linter')} rule {ruff_code}: "
+                        f"{rdata.get('summary', '')}"
+                    ),
+                    non_compliant_example="",
+                    compliant_example="",
+                    aliases=[rdata["name"]] if rdata.get("name") else [],
+                )
+                register_ruff_rule(ruff_spec)

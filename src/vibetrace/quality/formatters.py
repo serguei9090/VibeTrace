@@ -50,10 +50,19 @@ def format_quality_audit_md(report: QualityAuditReport) -> str:
     for idx, f in enumerate(report.findings, 1):
         sev_icon = f"[{_sev_str(f.severity)}]"
         st_badge = f"[{f.status}]"
+        tax_badge = ""
+        cwe_id = getattr(f, "cwe_id", None)
+        if cwe_id:
+            owasp_cat = getattr(f, "owasp_category", None)
+            if owasp_cat:
+                owasp_short = owasp_cat.split("-")[0].strip()
+                tax_badge = f" [{cwe_id} | OWASP {owasp_short}]"
+            else:
+                tax_badge = f" [{cwe_id}]"
 
         lines.extend(
             [
-                f"### {idx}. {sev_icon} {f.rule_id} ({f.rspec_id}): {f.title}",
+                f"### {idx}. {sev_icon} {f.rule_id} ({f.rspec_id}){tax_badge}: {f.title}",
                 f"- **Location:** `{f.file_path}:L{f.start_line}-L{f.end_line}`",
                 f"- **Status:** {st_badge} (ID: `{f.id}`)",
                 f"- **Issue:** {f.message}",

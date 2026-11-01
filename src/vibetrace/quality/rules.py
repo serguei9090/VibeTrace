@@ -22,6 +22,8 @@ class QualityRuleSpec:
     default_threshold: int | None = None
     aliases: list[str] = field(default_factory=list)
     compliant_by_lang: dict[str, str] = field(default_factory=dict)
+    cwe_ids: list[str] = field(default_factory=list)
+    owasp: str | None = None
 
     def get_compliant_example(self, lang: str) -> str:
         return self.compliant_by_lang.get(lang, self.compliant_example)
@@ -424,6 +426,25 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
 }
 
 _ALIAS_INDEX: dict[str, str] = {}
+RUFF_RULES_CATALOG: dict[str, QualityRuleSpec] = {}
+
+
+def register_rule_alias(alias: str, canonical_id: str, overwrite: bool = False) -> None:
+    """Dynamically associates an external vendor alias with a canonical rule ID."""
+    key = alias.strip().upper()
+    if overwrite or key not in _ALIAS_INDEX:
+        _ALIAS_INDEX[key] = canonical_id
+
+
+def register_ruff_rule(rule_spec: QualityRuleSpec) -> None:
+    """Registers a synthesized or imported Ruff rule specification."""
+    clean_code = rule_spec.rule_id.strip().upper()
+    RUFF_RULES_CATALOG[clean_code] = rule_spec
+    register_rule_alias(clean_code, clean_code, overwrite=False)
+    for al in rule_spec.aliases:
+        register_rule_alias(al, clean_code, overwrite=False)
+
+
 for _cid, _spec in QUALITY_RULES_CATALOG.items():
     _ALIAS_INDEX[_cid.upper()] = _cid
     _ALIAS_INDEX[_spec.rspec_id.upper()] = _cid
@@ -447,6 +468,12 @@ def get_rule_spec(rule_or_alias: str) -> QualityRuleSpec | None:
     canonical = resolve_canonical_rule_id(rule_or_alias)
     if canonical in QUALITY_RULES_CATALOG:
         return QUALITY_RULES_CATALOG[canonical]
+    if canonical in RUFF_RULES_CATALOG:
+        return RUFF_RULES_CATALOG[canonical]
     # Check directly by full rule ID if not in canonical catalog
     clean = rule_or_alias.split(":")[-1].strip()
-    return QUALITY_RULES_CATALOG.get(clean) or QUALITY_RULES_CATALOG.get(rule_or_alias)
+    return (
+        QUALITY_RULES_CATALOG.get(clean)
+        or QUALITY_RULES_CATALOG.get(rule_or_alias)
+        or RUFF_RULES_CATALOG.get(clean.upper())
+    )

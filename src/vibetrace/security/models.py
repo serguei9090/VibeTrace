@@ -36,6 +36,10 @@ class SecurityFinding(BaseModel):
         description="Standardized rule identifier (e.g. python:CWE-78, npm:CVE-2023-...)"
     )
     cwe_id: str = Field(description="Common Weakness Enumeration ID (e.g. CWE-78, CWE-89)")
+    cwe_ids: list[str] = Field(default_factory=list, description="All associated CWE weakness IDs")
+    owasp_category: str | None = Field(
+        default=None, description="Mapped OWASP Top 10 category (e.g. A03:2021-Injection)"
+    )
     category: FindingCategory
     severity: Severity
     title: str = Field(description="Short human-readable title of the vulnerability")

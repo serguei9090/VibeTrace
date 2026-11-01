@@ -66,4 +66,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(quality): sync multi-language rules catalog [skip ci]"
-          file_pattern: "src/vibetrace/resources/quality_rules_catalog.json*"
+          file_pattern: "src/vibetrace/resources/quality_rules_catalog.json* src/vibetrace/resources/cwe_catalog.json"

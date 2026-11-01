@@ -561,3 +561,83 @@ def test_quality_rule_sync_and_catalog_caching() -> None:
     assert spec is not None
     assert spec.rule_id == "typescript:S2589"
     assert "gratuitous" in spec.title.lower() or "boolean" in spec.title.lower()
+
+
+def test_cwe_taxonomy_manager_and_enrichment() -> None:
+    from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
+    from vibetrace.taxonomy import CweTaxonomyManager, normalize_cwe_id
+
+    # Normalization tests
+    assert normalize_cwe_id("89") == "CWE-89"
+    assert normalize_cwe_id("cwe_89") == "CWE-89"
+    assert normalize_cwe_id("CWE-89") == "CWE-89"
+
+    # Taxonomy entry lookups
+    cwe89 = CweTaxonomyManager.get_cwe("CWE-89")
+    assert cwe89 is not None
+    assert "SQL" in cwe89["name"]
+    assert cwe89["owasp"] == "A03:2021-Injection"
+    assert CweTaxonomyManager.get_owasp_short("CWE-89") == "A03:2021"
+    assert CweTaxonomyManager.get_badge("CWE-89") == "[CWE-89 | OWASP A03:2021]"
+
+    # Non-OWASP CWE
+    assert CweTaxonomyManager.get_badge("CWE-481") == "[CWE-481]"
+
+    # Finding enrichment
+    f = QualityFinding(
+        id="QUAL-TEST-1",
+        rule_id="python:S481",
+        rspec_id="RSPEC-481",
+        cwe_id="481",
+        category=QualityCategory.RELIABILITY,
+        severity=QualitySeverity.HIGH,
+        title="Assigning instead of comparing in Python",
+        message="Assignment operator used inside conditional",
+        file_path="src/main.py",
+        code_hash="abcdef123456",
+    )
+    CweTaxonomyManager.enrich_finding(f)
+    assert f.cwe_id == "CWE-481"
+    assert "CWE-481" in f.cwe_ids
+
+
+def test_declarative_quality_rules_semgrep() -> None:
+    from vibetrace.quality.declarative_rules import (
+        BUILTIN_DECLARATIVE_QUALITY_RULES,
+        DeclarativeQualityRuleManager,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        py_file = root / "app.py"
+        py_file.write_text(
+            "class Foo:\n    def __init__(self):\n        return 123\n",
+            encoding="utf-8",
+        )
+
+        findings = DeclarativeQualityRuleManager.scan_file_with_rules(
+            "app.py", root, BUILTIN_DECLARATIVE_QUALITY_RULES
+        )
+        assert len(findings) >= 1
+        s112 = [f for f in findings if f.rspec_id == "RSPEC-112"]
+        assert len(s112) == 1
+        assert s112[0].cwe_id == "CWE-398"
+        assert "TypeError" in s112[0].message
+
+
+def test_ruff_alias_bridge_resolution() -> None:
+    from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+    from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
+
+    QualityRuleCatalogManager.sync_catalog()
+
+    # Known mapped alias
+    assert resolve_canonical_rule_id("SIM102") == "S1066"
+    assert resolve_canonical_rule_id("B006") == "S5714"
+    assert resolve_canonical_rule_id("PLR0912") == "S134"
+
+    # Direct ruff-only rule lookup
+    spec = get_rule_spec("TRY400")
+    assert spec is not None
+    assert spec.rspec_id == "RUFF-TRY400"
+    assert "logging.exception" in spec.title

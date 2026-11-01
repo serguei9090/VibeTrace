@@ -35,6 +35,11 @@ class QualityFinding(BaseModel):
         description="Standardized rule identifier (e.g. python:S3776, python:S1066)"
     )
     rspec_id: str = Field(description="SonarSource RSPEC ID (e.g. RSPEC-3776, RSPEC-1066)")
+    cwe_id: str | None = Field(
+        default=None, description="Mapped Common Weakness Enumeration ID (e.g. CWE-481)"
+    )
+    cwe_ids: list[str] = Field(default_factory=list, description="All associated CWE IDs")
+    owasp_category: str | None = Field(default=None, description="Mapped OWASP Top 10 category")
     category: QualityCategory
     severity: QualitySeverity
     title: str = Field(description="Short human-readable title of the quality issue")

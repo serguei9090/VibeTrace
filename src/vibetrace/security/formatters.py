@@ -46,10 +46,16 @@ def format_security_audit_md(report: Any) -> str:
     for idx, f in enumerate(report.findings, 1):
         sev_icon = f"[{_sev_str(f.severity)}]"
         st_badge = f"[{f.status}]"
+        owasp_cat = getattr(f, "owasp_category", None)
+        if owasp_cat:
+            owasp_short = owasp_cat.split("-")[0].strip()
+            tax_badge = f"[{f.cwe_id} | OWASP {owasp_short}]"
+        else:
+            tax_badge = f"[{f.cwe_id}]"
 
         lines.extend(
             [
-                f"### {idx}. {sev_icon} {f.cwe_id}: {f.title}",
+                f"### {idx}. {sev_icon} {tax_badge} {f.title}",
                 f"- **Location:** `{f.file_path}:L{f.start_line}-L{f.end_line}`",
                 f"- **Status:** {st_badge} (ID: `{f.id}`)",
                 f"- **Issue:** {f.message}",

@@ -14,15 +14,20 @@ from vibetrace.quality.complexity import (
     analyze_python_complexities,
 )
 from vibetrace.quality.css_analyzer import analyze_css_quality
+from vibetrace.quality.declarative_rules import (
+    DeclarativeQualityRule,
+    DeclarativeQualityRuleManager,
+)
 from vibetrace.quality.docker_analyzer import analyze_docker_quality
 from vibetrace.quality.models import (
     QualityAuditReport,
     QualityExceptionRecord,
     QualityFinding,
 )
-from vibetrace.quality.rules import resolve_canonical_rule_id
+from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 from vibetrace.quality.smells import analyze_python_smells
 from vibetrace.quality.ts_analyzer import analyze_ts_quality
+from vibetrace.taxonomy import CweTaxonomyManager
 
 _SUPPORTED_EXTS = (".py", ".css", ".ts", ".tsx", ".js", ".jsx")
 _IGNORE_PATH_PARTS = ("/.venv/", "/venv/", "/__pycache__/", "/.git/", "/scratch/", "/node_modules/")
@@ -122,6 +127,7 @@ def _audit_single_file(
     file_path: Path,
     project_root: Path,
     complexity_threshold: int,
+    decl_rules: list[DeclarativeQualityRule] | None = None,
 ) -> tuple[list[FunctionComplexity], list[QualityFinding]]:
     """Analyzes a single source file (.py, .css, .ts, .tsx, Dockerfile) for quality smells."""
     try:
@@ -138,6 +144,9 @@ def _audit_single_file(
     lower_name = file_path.name.lower()
     lower_suffix = file_path.suffix.lower()
 
+    comps: list[FunctionComplexity] = []
+    findings: list[QualityFinding] = []
+
     if lower_suffix == ".css":
         findings = analyze_css_quality(file_path=rel_path, source_code=source_code)
     elif lower_suffix in (".ts", ".tsx", ".js", ".jsx"):
@@ -145,27 +154,30 @@ def _audit_single_file(
     elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
         findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
     else:
-        comps, comp_findings = analyze_python_complexities(
+        file_comps, comp_findings = analyze_python_complexities(
             file_path=rel_path,
             source_code=source_code,
             threshold=complexity_threshold,
         )
-        for f in comp_findings:
-            _check_inline_suppression(f, source_lines)
+        comps = file_comps
+        findings.extend(comp_findings)
 
         smell_findings = analyze_python_smells(
             file_path=rel_path,
             source_code=source_code,
         )
-        for f in smell_findings:
-            _check_inline_suppression(f, source_lines)
+        findings.extend(smell_findings)
 
-        return comps, comp_findings + smell_findings
+    if decl_rules:
+        decl_findings = DeclarativeQualityRuleManager.scan_file_with_rules(
+            rel_path, project_root, decl_rules
+        )
+        findings.extend(decl_findings)
 
     for f in findings:
         _check_inline_suppression(f, source_lines)
 
-    return [], findings
+    return comps, findings
 
 
 class QualityService:
@@ -192,14 +204,27 @@ class QualityService:
             include_tests=include_tests,
         )
 
+        decl_rules = DeclarativeQualityRuleManager.get_rules(db=db)
+
         for file_path in target_files:
             file_comps, file_findings = _audit_single_file(
                 file_path=file_path,
                 project_root=project_root,
                 complexity_threshold=complexity_threshold,
+                decl_rules=decl_rules,
             )
             all_complexities.extend(file_comps)
             raw_findings.extend(file_findings)
+
+        for f in raw_findings:
+            spec = get_rule_spec(f.rule_id)
+            if spec:
+                if spec.cwe_ids and not f.cwe_ids:
+                    f.cwe_ids = list(spec.cwe_ids)
+                    f.cwe_id = spec.cwe_ids[0]
+                if spec.owasp and not f.owasp_category:
+                    f.owasp_category = spec.owasp
+            CweTaxonomyManager.enrich_finding(f)
 
         report = QualityBaselineManager.apply_baseline_to_findings(
             findings=raw_findings,

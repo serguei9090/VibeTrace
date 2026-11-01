@@ -14,6 +14,7 @@ from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
 from vibetrace.security.rule_sync import RuleCatalogManager
 from vibetrace.security.taint_engine import TaintEngine
+from vibetrace.taxonomy import CweTaxonomyManager
 
 
 class SecurityService:
@@ -108,6 +109,9 @@ class SecurityService:
                     force_update=force_update_cves,
                 )
                 findings.extend(cve_findings)
+
+        for f in findings:
+            CweTaxonomyManager.enrich_finding(f)
 
         return SecurityBaselineManager.apply_baseline_to_findings(findings, project_root)
 

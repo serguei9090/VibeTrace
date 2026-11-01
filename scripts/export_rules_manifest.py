@@ -13,7 +13,9 @@ import gzip
 import html
 import json
 import re
+import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -31,6 +33,50 @@ def clean_html(text: str) -> str:
     clean = re.sub(r"<[^>]+>", " ", text)
     clean = html.unescape(clean)
     return " ".join(clean.split())
+
+
+def extract_cwes(text: str, tags: list[str]) -> list[str]:
+    """Extracts normalized CWE IDs ('CWE-89') from descriptions and tags."""
+    combined = f"{text} {' '.join(tags)}"
+    matches = re.findall(r"(?i)\bcwe[-_]?(\d+)\b", combined)
+    found: list[str] = []
+    for m in matches:
+        cid = f"CWE-{m}"
+        if cid not in found:
+            found.append(cid)
+    return found
+
+
+def fetch_ruff_rules() -> dict[str, dict[str, Any]]:
+    """Extracts all 900+ Ruff rule specifications via `ruff rule --all --output-format json`."""
+    print("Exporting Ruff rule dictionary...")
+    for cmd in (
+        ["ruff", "rule", "--all", "--output-format", "json"],
+        ["uv", "run", "ruff", "rule", "--all", "--output-format", "json"],
+    ):
+        try:
+            res = subprocess.run(
+                cmd, capture_output=True, encoding="utf-8", errors="replace", check=True
+            )
+            loaded = json.loads(res.stdout)
+            if isinstance(loaded, list):
+                ruff_dict: dict[str, dict[str, Any]] = {}
+                for r in loaded:
+                    code = r.get("code")
+                    if code:
+                        ruff_dict[code.upper()] = {
+                            "code": code,
+                            "name": r.get("name", code),
+                            "linter": r.get("linter", "ruff"),
+                            "summary": r.get("summary", ""),
+                            "fix": r.get("fix_availability", "None"),
+                        }
+                print(f"[SUCCESS] Exported {len(ruff_dict)} Ruff rules into dictionary.")
+                return ruff_dict
+        except Exception:
+            continue
+    print("[WARNING] Could not execute ruff command; proceeding without local Ruff dump.")
+    return {}
 
 
 def fetch_all_sonar_rules(
@@ -102,6 +148,11 @@ def compile_rules_manifest(raw_rules: list[dict[str, Any]]) -> dict[str, Any]:
             if pkey and pval is not None:
                 params[pkey] = pval
 
+        tags = r.get("sysTags", []) + r.get("tags", [])
+        desc_secs = r.get("descriptionSections", [])
+        all_desc_text = " ".join([sec.get("content", "") for sec in desc_secs])
+        cwes = extract_cwes(all_desc_text, tags)
+
         compiled.append(
             {
                 "key": r.get("key"),
@@ -109,18 +160,23 @@ def compile_rules_manifest(raw_rules: list[dict[str, Any]]) -> dict[str, Any]:
                 "lang": r.get("lang"),
                 "severity": r.get("severity", "MAJOR"),
                 "type": r.get("type", "CODE_SMELL"),
-                "tags": r.get("sysTags", []) + r.get("tags", []),
+                "tags": tags,
+                "cwes": cwes if cwes else None,
                 "desc": desc,
                 "params": params if params else None,
             }
         )
 
+    ruff_rules = fetch_ruff_rules()
+
     return {
-        "version": "1.0",
-        "generated_at": 1761955200,
+        "version": "1.1",
+        "generated_at": int(time.time()),
         "total_rules": len(compiled),
-        "languages": list({r["lang"] for r in compiled}),
+        "total_ruff_rules": len(ruff_rules),
+        "languages": sorted({r["lang"] for r in compiled}),
         "rules": compiled,
+        "ruff_rules": ruff_rules,
     }
 
 
