@@ -30,6 +30,25 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
+    def _extract_js_matrix_targets(
+        self,
+        node: Node,
+        parent_id: str,
+        ctx: ParserContext,
+        edges: list[Edge],
+    ) -> None:
+        """Extract symbol identifiers from test.each array/table arguments."""
+        if node.type == "identifier":
+            ident = self._get_text(node).strip()
+            if ident in ctx.imported_symbols or ident in ctx.defined_symbols:
+                target_id = self._resolve_call_target(ident, ctx)
+                if target_id:
+                    edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+        elif node.type in ("array", "arguments"):
+            for child in node.children:
+                if child.type not in ("[", "]", "(", ")", ","):
+                    self._extract_js_matrix_targets(child, parent_id, ctx, edges)
+
     def _handle_require(self, node: Node, args: list[Node], ctx: ParserContext) -> None:
         if not args or args[0].type not in ("string", "template_string"):
             return
@@ -480,6 +499,22 @@ class JavaScriptParser(LanguageParser):
                 # CommonJS require: const { x } = require("./module")
                 elif func_node and self._get_text(func_node) == "require":
                     self._handle_require(node, args, ctx)
+
+                # Jest / Vitest test.each or describe.each table
+                elif (
+                    func_node
+                    and func_node.type == "call_expression"
+                    and (inner_fn := func_node.child_by_field_name("function"))
+                    and any(
+                        self._get_text(inner_fn).strip().endswith(f".{suffix}")
+                        for suffix in ("each", "for")
+                    )
+                    and self._get_text(inner_fn)
+                    .strip()
+                    .startswith(("test.", "it.", "describe.", "suite."))
+                ):
+                    if matrix_args := func_node.child_by_field_name("arguments"):
+                        self._extract_js_matrix_targets(matrix_args, parent_id, ctx, edges)
 
                 elif func_node:
                     called_name = self._get_text(func_node)

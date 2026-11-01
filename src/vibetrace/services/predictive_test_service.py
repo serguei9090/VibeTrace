@@ -16,7 +16,6 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.services.coverage_service import _is_test_symbol_or_file
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
@@ -102,6 +101,36 @@ def _detect_runner_for_file(file_path: str) -> str:
     if low.endswith(".rs"):
         return "cargo"
     return "pytest"
+
+
+def _is_executable_test(name: str, file_path: str) -> bool:
+    """Checks if a symbol is a runnable test function (not just a helper/fixture)."""
+    low_name = (name or "").lower()
+    norm_file = (file_path or "").replace("\\", "/").lower()
+
+    if norm_file.endswith(".py"):
+        return low_name.startswith("test_") or low_name.startswith("test")
+
+    if norm_file.endswith("_test.go"):
+        return name.startswith(("Test", "Benchmark", "Example"))
+
+    if any(
+        norm_file.endswith(s)
+        for s in (
+            ".test.ts",
+            ".spec.ts",
+            ".test.js",
+            ".spec.js",
+            ".test.tsx",
+            ".spec.tsx",
+        )
+    ):
+        return True
+
+    if norm_file.endswith(".rs"):
+        return low_name.startswith("test_") or low_name.startswith("test")
+
+    return low_name.startswith("test_")
 
 
 class PredictiveTestService:
@@ -202,7 +231,7 @@ class PredictiveTestService:
             node_file = str(mod_node["file_path"])
 
             # If the modified node is already a test, include it directly
-            if _is_test_symbol_or_file(node_name, node_file):
+            if _is_executable_test(node_name, node_file):
                 runner = _detect_runner_for_file(node_file)
                 key = (node_file, node_name)
                 impacted_map[key] = ImpactedTest(
@@ -234,7 +263,7 @@ class PredictiveTestService:
                         continue
 
                     caller_name, _, caller_file = caller_meta
-                    if _is_test_symbol_or_file(caller_name, caller_file):
+                    if _is_executable_test(caller_name, caller_file):
                         found_for_mod = True
                         runner = _detect_runner_for_file(caller_file)
                         key = (caller_file, caller_name)

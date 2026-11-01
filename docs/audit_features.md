@@ -34,7 +34,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 5. [x] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10** *(Implemented & Verified ✅)*
 6. [ ] **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10**
 7. [ ] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
-8. [ ] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10**
+8. [x] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10** *(Implemented & Verified ✅)*
 9. [x] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10** *(Implemented & Verified ✅)*
 10. [ ] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
 11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
@@ -176,9 +176,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #9. Dynamic Test Fixture Reachability (`@pytest.mark.parametrize` / Jest `test.each`)
+### #8. Dynamic Test Fixture Reachability (`@pytest.mark.parametrize` / Jest `test.each`) — Implemented ✅
 - **Category:** Margin for Improvement (Coverage Gate)
 - **Score:** **8.0 / 10** (Reliable Quality Gates)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
   Currently, static AST call graphs link explicit calls (`test_func() -> target_func()`). Parameterized test fixtures and dynamic runners can sometimes obscure this edge, causing the coverage gate to report a function as "untested" even when it is exercised by a parameterized fixture.
 - **Benefits:**

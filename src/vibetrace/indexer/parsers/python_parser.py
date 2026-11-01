@@ -85,6 +85,21 @@ class PythonParser(LanguageParser):
 
         self._traverse(tree.root_node, file_module_id, ctx)
 
+        # Resolve deferred test fixture parameter dependencies
+        for fn_node_id, fn_node, p_names in ctx.deferred_fixture_links:
+            for p_name in p_names:
+                if p_name in ("self", "cls"):
+                    continue
+                if p_name in ctx.test_fixtures:
+                    fix_id = ctx.test_fixtures[p_name]
+                    edges.append(self._create_edge(fn_node_id, fix_id, "calls", node=fn_node))
+                elif p_name in ctx.imported_symbols:
+                    target_id = self._resolve_call_target(p_name, ctx)
+                    if target_id:
+                        edges.append(
+                            self._create_edge(fn_node_id, target_id, "calls", node=fn_node)
+                        )
+
         # Link explicit __all__ re-exports
         for child in tree.root_node.children:
             if child.type == "expression_statement":
@@ -179,6 +194,84 @@ class PythonParser(LanguageParser):
                 if name_node and val_node:
                     self._record_var_type(self._get_text(name_node), val_node, ctx)
 
+    def _extract_param_names(self, params_node: Node) -> list[str]:
+        """Extract parameter names from a parameters node."""
+        names: list[str] = []
+        for child in params_node.children:
+            if child.type == "identifier":
+                names.append(self._get_text(child).strip())
+            elif child.type in ("typed_parameter", "default_parameter", "typed_default_parameter"):
+                name_node = child.child_by_field_name("name") or next(
+                    (c for c in child.children if c.type == "identifier"), None
+                )
+                if name_node:
+                    names.append(self._get_text(name_node).strip())
+        return names
+
+    def _extract_parametrize_candidate_nodes(self, node: Node) -> list[Node]:
+        """Recursively collects potential symbol identifier/attribute nodes from argvalues."""
+        candidates: list[Node] = []
+        if node.type in ("identifier", "attribute"):
+            candidates.append(node)
+        elif node.type in ("list", "tuple", "set"):
+            for child in node.children:
+                if child.type not in ("(", ")", "[", "]", "{", "}", ","):
+                    candidates.extend(self._extract_parametrize_candidate_nodes(child))
+        elif node.type == "call":
+            args_node = node.child_by_field_name("arguments")
+            if args_node:
+                for child in args_node.children:
+                    if child.type not in ("(", ")", ",") and child.type != "keyword_argument":
+                        candidates.extend(self._extract_parametrize_candidate_nodes(child))
+        return candidates
+
+    def _handle_pytest_parametrize(
+        self, node_id: str, decorator_nodes: list[Node], ctx: ParserContext
+    ) -> None:
+        """Extract test target symbols from @pytest.mark.parametrize and link call edges."""
+        for dec_node in decorator_nodes:
+            call_node = next((c for c in dec_node.children if c.type == "call"), None)
+            if not call_node:
+                continue
+            func_node = call_node.child_by_field_name("function")
+            if not func_node:
+                continue
+            func_text = self._get_text(func_node).strip()
+            if "parametrize" not in func_text:
+                continue
+
+            args_node = call_node.child_by_field_name("arguments")
+            if not args_node:
+                continue
+
+            pos_args = [
+                c
+                for c in args_node.children
+                if c.type not in ("(", ")", ",") and c.type != "keyword_argument"
+            ]
+            val_nodes: list[Node] = []
+            if len(pos_args) >= 2:
+                val_nodes.append(pos_args[1])
+            else:
+                for c in args_node.children:
+                    if c.type == "keyword_argument":
+                        k_name = c.child_by_field_name("name")
+                        k_val = c.child_by_field_name("value")
+                        if k_name and self._get_text(k_name).strip() == "argvalues" and k_val:
+                            val_nodes.append(k_val)
+
+            for v_node in val_nodes:
+                candidates = self._extract_parametrize_candidate_nodes(v_node)
+                for cand in candidates:
+                    cand_text = self._get_text(cand).strip()
+                    if cand_text in ("True", "False", "None", ""):
+                        continue
+                    if cand_text in self.builtins and cand_text not in ctx.defined_symbols:
+                        continue
+                    target_id = self._resolve_call_target(cand_text, ctx)
+                    if target_id:
+                        ctx.edges.append(self._create_edge(node_id, target_id, "calls", node=cand))
+
     def _handle_assignment(self, node: Node, ctx: ParserContext) -> None:
         """Record local variable types from explicit annotations, constructors, or assignments."""
         left_node = node.child_by_field_name("left") or node.child_by_field_name("name")
@@ -218,6 +311,7 @@ class PythonParser(LanguageParser):
         parent_id: str | None,
         ctx: ParserContext,
         decorators: list[str] | None = None,
+        decorator_nodes: list[Node] | None = None,
     ) -> None:
         # Special handling for decorated definitions
         if node.type == "decorated_definition":
@@ -231,7 +325,9 @@ class PythonParser(LanguageParser):
         # 1. Definitions
         if node.type in ("function_definition", "class_definition"):
             saved_local_types = dict(ctx.local_types)
-            node_id, def_name = self._handle_definition(node, parent_id, ctx, decorators)
+            node_id, def_name = self._handle_definition(
+                node, parent_id, ctx, decorators, decorator_nodes=decorator_nodes
+            )
             if def_name:
                 ctx.scope_stack.append(def_name)
                 pushed_scope = True
@@ -306,16 +402,22 @@ class PythonParser(LanguageParser):
                         )
 
     def _handle_decorated(self, node: Node, parent_id: str | None, ctx: ParserContext) -> None:
-        decorators = [self._get_text(c) for c in node.children if c.type == "decorator"]
+        decorator_nodes = [c for c in node.children if c.type == "decorator"]
+        decorators = [self._get_text(c) for c in decorator_nodes]
         def_node = next(
             (c for c in node.children if c.type in ("function_definition", "class_definition")),
             None,
         )
         if def_node:
-            self._traverse(def_node, parent_id, ctx, decorators)
+            self._traverse(def_node, parent_id, ctx, decorators, decorator_nodes=decorator_nodes)
 
     def _handle_definition(
-        self, node: Node, parent_id: str | None, ctx: ParserContext, decorators: list[str] | None
+        self,
+        node: Node,
+        parent_id: str | None,
+        ctx: ParserContext,
+        decorators: list[str] | None,
+        decorator_nodes: list[Node] | None = None,
     ) -> tuple[str | None, str | None]:
         if not (name_node := node.child_by_field_name("name")):
             return None, None
@@ -406,6 +508,26 @@ class PythonParser(LanguageParser):
                                 )
                                 ctx.defined_symbols.add(var_name)
                                 ctx.defined_symbols.add(var_qual)
+
+        is_fixture = False
+        if decorators and node.type == "function_definition":
+            is_fixture = any(
+                d.strip().startswith(("@pytest.fixture", "@fixture", "pytest.fixture", "fixture"))
+                for d in decorators
+            )
+            if is_fixture:
+                ctx.test_fixtures[name] = node_id
+                ctx.test_fixtures[qualified_name] = node_id
+
+            if decorator_nodes:
+                self._handle_pytest_parametrize(node_id, decorator_nodes, ctx)
+
+        if node.type == "function_definition" and params_node:
+            p_names = self._extract_param_names(params_node)
+            norm_path = ctx.file_path.replace("\\", "/").lower()
+            is_test = name.startswith("test_") or "test" in norm_path or "tests" in norm_path
+            if is_fixture or is_test:
+                ctx.deferred_fixture_links.append((node_id, node, p_names))
 
         if decorators:
             endpoint_nodes, route_edges = extract_python_routes(
