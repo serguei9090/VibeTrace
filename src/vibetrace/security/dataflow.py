@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from vibetrace.security.contracts import FunctionTaintContract, TaintContractManager
+
 _IDENT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _ASSIGN_RE = re.compile(
     r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?=\s*(.+)$"
@@ -24,6 +26,16 @@ _DIRECT_SOURCES = (
     "c.req.",
     "headers.",
     "searchParams.",
+    "Query(",
+    "Path(",
+    "Body(",
+    "Header(",
+    "request.POST",
+    "request.GET",
+    "request.args",
+    "c.Query(",
+    "c.PostForm(",
+    "c.Param(",
 )
 _KEYWORDS = {
     "def",
@@ -106,6 +118,7 @@ def _propagate_function_def_use(
     stop_idx: int,
     sanitizers: frozenset[str],
     tainted_param_indices: dict[int, list[str]] | None = None,
+    contracts_map: dict[str, FunctionTaintContract] | None = None,
 ) -> tuple[list[str], dict[str, list[str]], set[str]]:
     """Propagates Def-Use taint from function header at `s_idx` down to `stop_idx`."""
     header_slice = " ".join(lines[s_idx : min(len(lines), s_idx + 4)])
@@ -142,6 +155,44 @@ def _propagate_function_def_use(
             untainted_locals.discard(lhs)
             continue
 
+        # Check if RHS invokes a helper function with a known Taint Contract
+        call_m = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)", rhs)
+        if call_m and contracts_map:
+            callee_name = call_m.group(1)
+            contract = contracts_map.get(callee_name)
+            if contract:
+                if contract.is_sanitizer:
+                    tainted.pop(lhs, None)
+                    untainted_locals.add(lhs)
+                    continue
+                raw_args = _split_top_level_args(call_m.group(2))
+                taints_return = False
+                matched_arg_chain: list[str] | None = None
+                for arg_idx, arg_expr in enumerate(raw_args):
+                    arg_idents = [
+                        tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS
+                    ]
+                    for tok in arg_idents:
+                        if tok in tainted:
+                            if contract.param_taints_return.get(arg_idx, True):
+                                taints_return = True
+                                matched_arg_chain = tainted[tok]
+                                break
+                    if taints_return:
+                        break
+                if taints_return and matched_arg_chain:
+                    tainted[lhs] = (
+                        [*matched_arg_chain, lhs]
+                        if lhs not in matched_arg_chain
+                        else matched_arg_chain
+                    )
+                    untainted_locals.discard(lhs)
+                    continue
+                else:
+                    tainted.pop(lhs, None)
+                    untainted_locals.add(lhs)
+                    continue
+
         matched_taint = next((tainted[tok] for tok in rhs_idents if tok in tainted), None)
         if matched_taint is not None:
             tainted[lhs] = [*matched_taint, lhs] if lhs not in matched_taint else matched_taint
@@ -165,7 +216,9 @@ def verify_sink_taint_flow(
     """Checks whether tainted parameters or external sources flow into `sink_line`."""
     abs_path = (project_root / file_path).resolve()
     try:
-        lines = abs_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        content = abs_path.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines()
+        contracts_map = TaintContractManager.analyze_source_code(content, file_path)
     except OSError:
         return True, []
 
@@ -176,7 +229,7 @@ def verify_sink_taint_flow(
         return True, []
 
     params, tainted, untainted_locals = _propagate_function_def_use(
-        lines, s_idx, k_idx, sanitizers, tainted_param_indices
+        lines, s_idx, k_idx, sanitizers, tainted_param_indices, contracts_map=contracts_map
     )
 
     sink_text = lines[k_idx].split("#", 1)[0]
@@ -254,13 +307,34 @@ def verify_interprocedural_taint_flow(
             tainted_params = None
             continue
 
+        caller_contracts = TaintContractManager.analyze_source_code(
+            "\n".join(c_lines), str(caller["file_path"])
+        )
         _, caller_tainted, _ = _propagate_function_def_use(
-            c_lines, s_idx, call_line_idx, sanitizers, tainted_params
+            c_lines,
+            s_idx,
+            call_line_idx,
+            sanitizers,
+            tainted_params,
+            contracts_map=caller_contracts,
         )
         args = _split_top_level_args(call_arg_tail)
         if not args:
             tainted_params = None
             continue
+
+        callee_path = (project_root / str(callee.get("file_path", ""))).resolve()
+        if callee_path.is_file():
+            try:
+                callee_content = callee_path.read_text(encoding="utf-8", errors="replace")
+                callee_contracts = TaintContractManager.analyze_source_code(
+                    callee_content, str(callee["file_path"])
+                )
+                callee_contract = callee_contracts.get(callee_name)
+                if callee_contract and callee_contract.is_sanitizer:
+                    return False, [], "sanitized_callee"
+            except Exception:
+                pass
 
         next_tainted_params: dict[int, list[str]] = {}
         for arg_idx, arg_expr in enumerate(args):

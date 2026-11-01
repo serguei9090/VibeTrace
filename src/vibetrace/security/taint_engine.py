@@ -10,6 +10,7 @@ import json
 import re
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.dataflow import verify_interprocedural_taint_flow
@@ -130,11 +131,59 @@ class TaintEngine:
             finding.symbol_name = nodes[sink_id]["name"]
             finding.metadata["taint_path"] = [nodes[n]["name"] for n in path]
             finding.metadata["taint_path_node_ids"] = path
+            if project_root is not None:
+                slices = cls.slice_taint_path(finding, project_root, nodes)
+                if slices:
+                    finding.metadata["taint_slices"] = slices
             finding.message = (
                 f"{finding.message} Reachable from untrusted entry point "
                 f"`{nodes[path[0]]['name']}` via {' -> '.join(nodes[n]['name'] for n in path)}."
             )
         return findings
+
+    @classmethod
+    def slice_taint_path(
+        cls,
+        finding: SecurityFinding,
+        project_root: Path,
+        nodes: dict | None = None,
+    ) -> list[dict[str, Any]]:
+        """Extracts code slices across all hops along the verified taint path."""
+        path_ids = finding.metadata.get("taint_path_node_ids", [])
+        if not path_ids or not nodes:
+            return []
+
+        slices: list[dict[str, Any]] = []
+        for step, nid in enumerate(path_ids, 1):
+            raw_node = nodes.get(nid)
+            if not raw_node:
+                continue
+            node = dict(raw_node)
+            if not node.get("file_path"):
+                continue
+            rel_file = node["file_path"]
+            abs_path = (project_root / rel_file).resolve()
+            if not abs_path.is_file():
+                continue
+            s_line = node.get("start_line") or 1
+            e_line = node.get("end_line") or s_line
+            try:
+                all_lines = abs_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                code_slice = "\n".join(all_lines[max(0, s_line - 1) : min(len(all_lines), e_line)])
+            except OSError:
+                code_slice = ""
+
+            slices.append(
+                {
+                    "step": step,
+                    "symbol": node.get("name", "anonymous"),
+                    "file": rel_file,
+                    "start_line": s_line,
+                    "end_line": e_line,
+                    "snippet": code_slice,
+                }
+            )
+        return slices
 
     @staticmethod
     def _enclosing_node_id(nodes: dict, finding: SecurityFinding) -> str | None:

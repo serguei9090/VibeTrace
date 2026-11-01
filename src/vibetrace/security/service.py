@@ -177,6 +177,15 @@ class SecurityService:
                 f"Replace vulnerable code:\n{f.non_compliant_snippet or ''}\n"
                 f"With compliant pattern:\n{f.compliant_snippet or ''}"
             )
+            taint_slices = f.metadata.get("taint_slices")
+            if taint_slices:
+                prompt += "\n\nVerified Multi-Hop Taint Lineage:"
+                for s in taint_slices:
+                    prompt += (
+                        f"\n[Hop {s['step']}: {s['symbol']} in "
+                        f"{s['file']}:{s['start_line']}-{s['end_line']}]\n{s['snippet']}"
+                    )
+
             remediations.append(
                 {
                     "finding_id": f.id,
@@ -188,6 +197,7 @@ class SecurityService:
                     "symbol_name": f.symbol_name,
                     "non_compliant_snippet": f.non_compliant_snippet,
                     "compliant_snippet": f.compliant_snippet,
+                    "taint_slices": taint_slices,
                     "ai_fix_prompt": prompt.strip(),
                 }
             )
