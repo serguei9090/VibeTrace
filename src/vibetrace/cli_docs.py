@@ -28,63 +28,68 @@ def cmd_docs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _catalog_add(args: argparse.Namespace, root: Path, is_global: bool) -> int:
+    name = getattr(args, "name", None)
+    path_str = getattr(args, "path", None)
+    if not name or not path_str:
+        print("Error: catalog name and path are required for `catalog add`", file=sys.stderr)
+        return 1
+    DocCatalogManager.add_path(name, path_str, global_scope=is_global, project_root=root)
+    if getattr(args, "json", False):
+        print(
+            json.dumps({"status": "added", "catalog": name, "path": path_str, "global": is_global})
+        )
+    else:
+        scope_str = "global (~/.vibetrace/config.toml)" if is_global else "local (.vibetrace.toml)"
+        print(f"Added '{path_str}' to {scope_str} catalog '{name}'.")
+    return 0
+
+
+def _catalog_remove(args: argparse.Namespace, root: Path, is_global: bool) -> int:
+    name = getattr(args, "name", None)
+    if not name:
+        print("Error: catalog name is required for `catalog remove`", file=sys.stderr)
+        return 1
+    ok = DocCatalogManager.remove_catalog(name, global_scope=is_global, project_root=root)
+    if getattr(args, "json", False):
+        print(json.dumps({"status": "removed" if ok else "not_found", "catalog": name}))
+    else:
+        if ok:
+            print(f"Removed catalog '{name}'.")
+        else:
+            print(f"Catalog '{name}' not found.", file=sys.stderr)
+    return 0 if ok else 1
+
+
+def _catalog_list(args: argparse.Namespace, root: Path) -> int:
+    cats = DocCatalogManager.list_catalogs(project_root=root)
+    if getattr(args, "json", False):
+        print(json.dumps([c.model_dump() for c in cats], indent=2))
+        return 0
+
+    if not cats:
+        print(
+            "No documentation catalogs configured. Use `vibetrace docs catalog add <name> <path>`"
+        )
+        return 0
+    print(f"Documentation Catalogs ({len(cats)}):")
+    for c in cats:
+        print(f"  • {c.name} [{c.scope}] ({c.doc_count} docs, {c.chunk_count} chunks)")
+        for p in c.paths:
+            print(f"      - {p}")
+    return 0
+
+
 def _cmd_docs_catalog(args: argparse.Namespace) -> int:
     cat_action = getattr(args, "catalog_action", "list")
     is_global = getattr(args, "global_scope", False)
     root = Path(args.root).resolve() if getattr(args, "root", None) else Path.cwd().resolve()
 
     if cat_action == "add":
-        name = getattr(args, "name", None)
-        path_str = getattr(args, "path", None)
-        if not name or not path_str:
-            print("Error: catalog name and path are required for `catalog add`", file=sys.stderr)
-            return 1
-        DocCatalogManager.add_path(name, path_str, global_scope=is_global, project_root=root)
-        if getattr(args, "json", False):
-            print(
-                json.dumps(
-                    {"status": "added", "catalog": name, "path": path_str, "global": is_global}
-                )
-            )
-        else:
-            scope_str = (
-                "global (~/.vibetrace/config.toml)" if is_global else "local (.vibetrace.toml)"
-            )
-            print(f"Added '{path_str}' to {scope_str} catalog '{name}'.")
-        return 0
-
-    elif cat_action == "remove":
-        name = getattr(args, "name", None)
-        if not name:
-            print("Error: catalog name is required for `catalog remove`", file=sys.stderr)
-            return 1
-        ok = DocCatalogManager.remove_catalog(name, global_scope=is_global, project_root=root)
-        if getattr(args, "json", False):
-            print(json.dumps({"status": "removed" if ok else "not_found", "catalog": name}))
-        else:
-            if ok:
-                print(f"Removed catalog '{name}'.")
-            else:
-                print(f"Catalog '{name}' not found.", file=sys.stderr)
-        return 0 if ok else 1
-
-    else:  # list
-        cats = DocCatalogManager.list_catalogs(project_root=root)
-        if getattr(args, "json", False):
-            print(json.dumps([c.model_dump() for c in cats], indent=2))
-        else:
-            if not cats:
-                print(
-                    "No documentation catalogs configured. "
-                    "Use `vibetrace docs catalog add <name> <path>`"
-                )
-                return 0
-            print(f"Documentation Catalogs ({len(cats)}):")
-            for c in cats:
-                print(f"  • {c.name} [{c.scope}] ({c.doc_count} docs, {c.chunk_count} chunks)")
-                for p in c.paths:
-                    print(f"      - {p}")
-        return 0
+        return _catalog_add(args, root, is_global)
+    if cat_action == "remove":
+        return _catalog_remove(args, root, is_global)
+    return _catalog_list(args, root)
 
 
 def _cmd_docs_index(args: argparse.Namespace) -> int:

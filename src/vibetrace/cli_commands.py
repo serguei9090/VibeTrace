@@ -11,6 +11,7 @@ from pathlib import Path
 from vibetrace.cli_docs import cmd_docs
 
 __all__ = ["cmd_docs"]
+from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.hooks import get_hooks_status, install_hooks, uninstall_hooks
 from vibetrace.mcp.formatters import (
@@ -155,31 +156,28 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_trace(args: argparse.Namespace) -> int:
-    auto_sync = not getattr(args, "no_sync", False)
-    db, _ = get_context_for_path(
-        args.path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
-    )
+def _handle_list_saved_traces(db: IndexerDB, args: argparse.Namespace) -> int:
+    traces = list_saved_traces(db)
+    if args.json:
+        print(json.dumps([t.model_dump() for t in traces], indent=2))
+    else:
+        print(safe_str(format_saved_traces_md(traces)))
+    return 0
 
-    if getattr(args, "list_saved", False):
-        traces = list_saved_traces(db)
-        if args.json:
-            print(json.dumps([t.model_dump() for t in traces], indent=2))
-        else:
-            print(safe_str(format_saved_traces_md(traces)))
-        return 0
 
-    if getattr(args, "delete_saved", None):
-        deleted = delete_saved_trace_by_name(db, args.delete_saved)
-        if not deleted:
-            print(f"Error: Saved trace '{args.delete_saved}' not found.", file=sys.stderr)
-            return 1
-        if args.json:
-            print(json.dumps({"status": "deleted", "name": args.delete_saved}))
-        else:
-            print(f"Deleted saved trace '{args.delete_saved}'.")
-        return 0
+def _handle_delete_saved_trace(db: IndexerDB, args: argparse.Namespace) -> int:
+    deleted = delete_saved_trace_by_name(db, args.delete_saved)
+    if not deleted:
+        print(f"Error: Saved trace '{args.delete_saved}' not found.", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps({"status": "deleted", "name": args.delete_saved}))
+    else:
+        print(f"Deleted saved trace '{args.delete_saved}'.")
+    return 0
 
+
+def _resolve_trace_targets(db: IndexerDB, args: argparse.Namespace) -> tuple[str, str, int] | None:
     from_sym = args.from_symbol
     to_sym = args.to_symbol
     depth = args.depth
@@ -188,7 +186,7 @@ def cmd_trace(args: argparse.Namespace) -> int:
         saved = get_saved_trace_by_name(db, args.saved)
         if not saved:
             print(f"Error: Saved trace '{args.saved}' not found.", file=sys.stderr)
-            return 1
+            return None
         from_sym, to_sym = saved.from_symbol, saved.to_symbol
         depth = depth or saved.max_depth
 
@@ -197,7 +195,27 @@ def cmd_trace(args: argparse.Namespace) -> int:
     if not from_sym or not to_sym:
         err = "Error: Specify both from_symbol and to_symbol, or use --saved <name>."
         print(err, file=sys.stderr)
+        return None
+
+    return from_sym, to_sym, depth
+
+
+def cmd_trace(args: argparse.Namespace) -> int:
+    auto_sync = not getattr(args, "no_sync", False)
+    db, _ = get_context_for_path(
+        args.path, auto_sync=auto_sync, root_override=getattr(args, "root", None)
+    )
+
+    if getattr(args, "list_saved", False):
+        return _handle_list_saved_traces(db, args)
+
+    if getattr(args, "delete_saved", None):
+        return _handle_delete_saved_trace(db, args)
+
+    targets = _resolve_trace_targets(db, args)
+    if not targets:
         return 1
+    from_sym, to_sym, depth = targets
 
     if getattr(args, "save_as", None):
         create_saved_trace(
@@ -371,6 +389,43 @@ def cmd_summary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _hooks_install(root: Path, args: argparse.Namespace) -> int:
+    ok, msg = install_hooks(root, provider=args.provider)
+    if args.json:
+        print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
+    else:
+        print(msg)
+    return 0 if ok else 1
+
+
+def _hooks_uninstall(root: Path, args: argparse.Namespace) -> int:
+    ok, msg = uninstall_hooks(root)
+    if args.json:
+        print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
+    else:
+        print(msg)
+    return 0 if ok else 1
+
+
+def _hooks_status(root: Path, args: argparse.Namespace) -> int:
+    st = get_hooks_status(root)
+    if args.json:
+        print(json.dumps(st, indent=2))
+        return 0
+
+    print("## VibeTrace Git Hooks Status")
+    print(f"- **Detected Provider**: `{st['provider']}`")
+    print(
+        f"- **Lefthook Configured**: `{st['lefthook']['configured']}` "
+        f"(available: {st['lefthook']['available']})"
+    )
+    print(f"- **Git Post-Commit Hook**: `{st['git']['post_commit']}`")
+    print(f"- **Git Post-Merge Hook**: `{st['git']['post_merge']}`")
+    if not st["lefthook"]["configured"] and not st["git"]["post_commit"]:
+        print("\nTo install automated post-commit hooks, run:\n  vibetrace hooks install")
+    return 0
+
+
 def cmd_hooks(args: argparse.Namespace) -> int:
     target = str(Path(getattr(args, "root", None) or args.path).resolve())
     _, root = get_context_for_path(
@@ -379,35 +434,10 @@ def cmd_hooks(args: argparse.Namespace) -> int:
 
     action = args.action or "status"
     if action == "install":
-        ok, msg = install_hooks(root, provider=args.provider)
-        if args.json:
-            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
-        else:
-            print(msg)
-        return 0 if ok else 1
+        return _hooks_install(root, args)
     if action == "uninstall":
-        ok, msg = uninstall_hooks(root)
-        if args.json:
-            print(json.dumps({"status": "ok" if ok else "error", "message": msg}))
-        else:
-            print(msg)
-        return 0 if ok else 1
-
-    st = get_hooks_status(root)
-    if args.json:
-        print(json.dumps(st, indent=2))
-    else:
-        print("## VibeTrace Git Hooks Status")
-        print(f"- **Detected Provider**: `{st['provider']}`")
-        print(
-            f"- **Lefthook Configured**: `{st['lefthook']['configured']}` "
-            f"(available: {st['lefthook']['available']})"
-        )
-        print(f"- **Git Post-Commit Hook**: `{st['git']['post_commit']}`")
-        print(f"- **Git Post-Merge Hook**: `{st['git']['post_merge']}`")
-        if not st["lefthook"]["configured"] and not st["git"]["post_commit"]:
-            print("\nTo install automated post-commit hooks, run:\n  vibetrace hooks install")
-    return 0
+        return _hooks_uninstall(root, args)
+    return _hooks_status(root, args)
 
 
 def cmd_serve(args: argparse.Namespace) -> int:

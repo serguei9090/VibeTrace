@@ -178,6 +178,94 @@ class DocIndexService:
     MAX_DOC_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB ceiling to prevent runaway OOM
 
     @classmethod
+    def _gather_path_candidates(cls, target_p: Path) -> list[Path]:
+        if target_p.is_file():
+            return [target_p] if target_p.suffix.lower() in cls.SUPPORTED_DOC_EXTS else []
+        candidates: list[Path] = []
+        for root, _, files in os.walk(target_p, followlinks=False):
+            for f in files:
+                p_file = Path(root) / f
+                if p_file.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
+                    candidates.append(p_file)
+        return candidates
+
+    @classmethod
+    def _is_valid_doc_file(cls, fpath: Path, seen_resolved: set[str]) -> bool:
+        try:
+            resolved_str = str(fpath.resolve())
+        except Exception:
+            resolved_str = str(fpath)
+
+        if resolved_str in seen_resolved:
+            return False
+        seen_resolved.add(resolved_str)
+
+        try:
+            st = fpath.stat()
+        except OSError:
+            return False
+
+        return st.st_size <= cls.MAX_DOC_FILE_SIZE
+
+    @classmethod
+    def _collect_catalog_files(cls, paths: list[str], base_dir: Path) -> list[Path]:
+        seen_resolved: set[str] = set()
+        matched: list[Path] = []
+
+        for p_str in paths:
+            target_p = Path(p_str)
+            if not target_p.is_absolute():
+                target_p = base_dir / target_p
+            if not target_p.exists():
+                continue
+
+            for fpath in cls._gather_path_candidates(target_p):
+                if cls._is_valid_doc_file(fpath, seen_resolved):
+                    matched.append(fpath)
+
+        return matched
+
+    @classmethod
+    def _index_file_entry(
+        cls,
+        fpath: Path,
+        catalog_name: str,
+        db: DocDB,
+        base_dir: Path,
+        force: bool,
+        engine: EmbeddingEngine | None,
+    ) -> int:
+        rel_file = (
+            str(fpath.relative_to(base_dir)).replace("\\", "/")
+            if fpath.is_relative_to(base_dir)
+            else str(fpath).replace("\\", "/")
+        )
+        try:
+            mtime = fpath.stat().st_mtime
+        except OSError:
+            return 0
+
+        prev_mtime = db.get_file_mtime(catalog_name, rel_file)
+        if not force and prev_mtime is not None and abs(prev_mtime - mtime) < 1e-4:
+            return 0
+
+        chunks = cls._extract_chunks(fpath)
+        if not chunks:
+            db.delete_file_chunks(catalog_name, rel_file)
+            return 0
+
+        embeddings: list[list[float]] | None = None
+        if engine and engine.is_available():
+            texts = [f"{c.heading_path}\n{c.content}" for c in chunks]
+            try:
+                embeddings = engine.embed_texts(texts)
+            except Exception:
+                embeddings = None
+
+        db.upsert_chunks(catalog_name, rel_file, mtime, chunks, embeddings)
+        return len(chunks)
+
+    @classmethod
     def index_catalog(
         cls,
         catalog_name: str,
@@ -190,72 +278,21 @@ class DocIndexService:
         indexed_files = 0
         total_chunks = 0
         engine = EmbeddingEngine(project_root=base_dir)
-        has_embed = engine.is_available()
-        seen_resolved: set[str] = set()
+        eff_engine = engine if engine.is_available() else None
 
-        for p_str in paths:
-            target_p = Path(p_str)
-            if not target_p.is_absolute():
-                target_p = base_dir / target_p
-            if not target_p.exists():
-                continue
-
-            files_to_index: list[Path] = []
-            if target_p.is_file():
-                if target_p.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
-                    files_to_index.append(target_p)
-            else:
-                for root, _, files in os.walk(target_p, followlinks=False):
-                    for f in files:
-                        p_file = Path(root) / f
-                        if p_file.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
-                            files_to_index.append(p_file)
-
-            for fpath in files_to_index:
-                try:
-                    resolved_str = str(fpath.resolve())
-                except Exception:
-                    resolved_str = str(fpath)
-
-                if resolved_str in seen_resolved:
-                    continue
-                seen_resolved.add(resolved_str)
-
-                try:
-                    st = fpath.stat()
-                except OSError:
-                    continue
-
-                if st.st_size > cls.MAX_DOC_FILE_SIZE:
-                    continue
-
-                rel_file = (
-                    str(fpath.relative_to(base_dir)).replace("\\", "/")
-                    if fpath.is_relative_to(base_dir)
-                    else str(fpath).replace("\\", "/")
-                )
-                mtime = st.st_mtime
-                prev_mtime = db.get_file_mtime(catalog_name, rel_file)
-
-                if not force and prev_mtime is not None and abs(prev_mtime - mtime) < 1e-4:
-                    continue
-
-                chunks = cls._extract_chunks(fpath)
-                if not chunks:
-                    db.delete_file_chunks(catalog_name, rel_file)
-                    continue
-
-                embeddings: list[list[float]] | None = None
-                if has_embed:
-                    texts = [f"{c.heading_path}\n{c.content}" for c in chunks]
-                    try:
-                        embeddings = engine.embed_texts(texts)
-                    except Exception:
-                        embeddings = None
-
-                db.upsert_chunks(catalog_name, rel_file, mtime, chunks, embeddings)
+        files_to_index = cls._collect_catalog_files(paths, base_dir)
+        for fpath in files_to_index:
+            chunk_count = cls._index_file_entry(
+                fpath=fpath,
+                catalog_name=catalog_name,
+                db=db,
+                base_dir=base_dir,
+                force=force,
+                engine=eff_engine,
+            )
+            if chunk_count > 0:
                 indexed_files += 1
-                total_chunks += len(chunks)
+                total_chunks += chunk_count
 
         return {"files": indexed_files, "chunks": total_chunks}
 
@@ -279,56 +316,36 @@ class DocSearchService:
     """Executes 2-stream hybrid RRF search across local and global documentation stores."""
 
     @classmethod
-    def search(
+    def _resolve_query_vector(cls, query: str, project_root: Path | None) -> list[float] | None:
+        if not project_root:
+            return None
+        engine = EmbeddingEngine(project_root=project_root)
+        if not engine.is_available():
+            return None
+        try:
+            emb_res = engine.embed_texts([query])
+            return emb_res[0] if emb_res else None
+        except Exception:
+            return None
+
+    @classmethod
+    def _fuse_rrf_results(
         cls,
-        query: str,
-        catalog: str | None = None,
-        scope: Literal["local", "global", "all"] = "local",
-        project_root: Path | None = None,
-        limit: int = 5,
+        bm25_hits: list[tuple[Literal["local", "global"], dict[str, Any]]],
+        vec_hits: list[tuple[Literal["local", "global"], dict[str, Any]]],
+        limit: int,
     ) -> list[DocChunkItem]:
-        """Search documentation using hybrid reciprocal rank fusion."""
-        targets: list[tuple[DocDB, Literal["local", "global"]]] = []
-        if scope in ("local", "all") and project_root:
-            targets.append((get_local_doc_db(project_root), "local"))
-        if scope in ("global", "all"):
-            targets.append((get_global_doc_db(), "global"))
-
-        engine = EmbeddingEngine(project_root=project_root) if project_root else None
-        q_vec: list[float] | None = None
-        if engine and engine.is_available():
-            try:
-                emb_res = engine.embed_texts([query])
-                if emb_res:
-                    q_vec = emb_res[0]
-            except Exception:
-                q_vec = None
-
-        bm25_hits: list[tuple[DocDB, Literal["local", "global"], dict[str, Any]]] = []
-        vec_hits: list[tuple[DocDB, Literal["local", "global"], dict[str, Any]]] = []
-
-        for db, sc in targets:
-            b_res = db.search_bm25(query, catalog=catalog, limit=limit * 2)
-            for r in b_res:
-                bm25_hits.append((db, sc, r))
-
-            if q_vec:
-                v_res = db.search_vector(q_vec, catalog=catalog, limit=limit * 2)
-                for r in v_res:
-                    vec_hits.append((db, sc, r))
-
-        # Reciprocal Rank Fusion (k=60)
         rrf_scores: dict[str, float] = {}
         chunk_map: dict[str, tuple[Literal["local", "global"], dict[str, Any]]] = {}
         sources_map: dict[str, set[str]] = {}
 
-        for rank, (_, sc, item) in enumerate(bm25_hits, start=1):
+        for rank, (sc, item) in enumerate(bm25_hits, start=1):
             cid = f"{sc}:{item['id']}"
             rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (60.0 + rank))
             chunk_map[cid] = (sc, item)
             sources_map.setdefault(cid, set()).add("bm25")
 
-        for rank, (_, sc, item) in enumerate(vec_hits, start=1):
+        for rank, (sc, item) in enumerate(vec_hits, start=1):
             cid = f"{sc}:{item['id']}"
             rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (60.0 + rank))
             chunk_map[cid] = (sc, item)
@@ -353,3 +370,33 @@ class DocSearchService:
                 )
             )
         return results
+
+    @classmethod
+    def search(
+        cls,
+        query: str,
+        catalog: str | None = None,
+        scope: Literal["local", "global", "all"] = "local",
+        project_root: Path | None = None,
+        limit: int = 5,
+    ) -> list[DocChunkItem]:
+        """Search documentation using hybrid reciprocal rank fusion."""
+        targets: list[tuple[DocDB, Literal["local", "global"]]] = []
+        if scope in ("local", "all") and project_root:
+            targets.append((get_local_doc_db(project_root), "local"))
+        if scope in ("global", "all"):
+            targets.append((get_global_doc_db(), "global"))
+
+        q_vec = cls._resolve_query_vector(query, project_root)
+        bm25_hits: list[tuple[Literal["local", "global"], dict[str, Any]]] = []
+        vec_hits: list[tuple[Literal["local", "global"], dict[str, Any]]] = []
+
+        for db, sc in targets:
+            for r in db.search_bm25(query, catalog=catalog, limit=limit * 2):
+                bm25_hits.append((sc, r))
+
+            if q_vec:
+                for r in db.search_vector(q_vec, catalog=catalog, limit=limit * 2):
+                    vec_hits.append((sc, r))
+
+        return cls._fuse_rrf_results(bm25_hits, vec_hits, limit)
