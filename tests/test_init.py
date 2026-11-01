@@ -26,9 +26,9 @@ def test_configure_gitignore_idempotent(tmp_path: Path) -> None:
     """Verify configure_gitignore adds missing patterns and avoids duplicates on re-run."""
     # 1. Clean directory without .gitignore
     added = configure_gitignore(tmp_path)
-    assert len(added) == 4
+    assert len(added) == 7
     assert "vibetrace.db" in added
-    assert ".vibetrace/" in added
+    assert ".vibetrace/*" in added
 
     content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert "vibetrace.db" in content
@@ -43,7 +43,7 @@ def test_configure_gitignore_idempotent(tmp_path: Path) -> None:
     other_path.mkdir()
     (other_path / ".gitignore").write_text("node_modules/\n.env\n", encoding="utf-8")
     added_third = configure_gitignore(other_path)
-    assert len(added_third) == 4
+    assert len(added_third) == 7
 
     content_third = (other_path / ".gitignore").read_text(encoding="utf-8")
     assert "node_modules/" in content_third

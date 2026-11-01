@@ -180,7 +180,9 @@ def get_context_for_path(
 def normalize_path(file_path: str, project_root: Path) -> str:
     """Normalize file path relative to the identified project root."""
     try:
-        p = Path(file_path)
+        # Normalize Windows backslashes upfront to maintain cross-platform behavior on Linux/macOS
+        clean_input = file_path.replace("\\", "/")
+        p = Path(clean_input)
         abs_root = project_root.resolve()
         if p.is_absolute():
             abs_file = p.resolve()
