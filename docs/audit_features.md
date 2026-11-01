@@ -27,21 +27,21 @@ In this paradigm, developer tooling serves a dual audience: human engineers and 
 
 Features and improvements are ranked from highest to lowest priority based on their impact on autonomous agent workflows:
 
-1. **Predictive Test Selection (`vibetrace test --impacted`)** — **9.8 / 10**
-2. **Adaptive Context Sliding Window for Multi-Turn Agent Chats** — **9.5 / 10**
-3. **Symbolic Inter-Procedural Alias & Dictionary Taint Tracking** — **9.2 / 10**
-4. **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10**
-5. **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10**
-6. **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10**
-7. **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
-8. **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10**
-9. **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10**
-10. **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
-11. **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
-12. **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10**
-13. **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
-14. **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10**
-15. **In-Memory WASM AST Indexing for Web Map Room** — **5.5 / 10**
+1. [x] **Predictive Test Selection (`vibetrace test --impacted`)** — **9.8 / 10** *(Implemented & Verified ✅)*
+2. [x] **Adaptive Context Sliding Window for Multi-Turn Agent Chats** — **9.5 / 10** *(Implemented & Verified ✅)*
+3. [x] **Symbolic Inter-Procedural Alias & Dictionary Taint Tracking** — **9.2 / 10** *(Implemented & Verified ✅)*
+4. [ ] **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10**
+5. [ ] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10**
+6. [ ] **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10**
+7. [ ] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
+8. [ ] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10**
+9. [ ] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10**
+10. [ ] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
+11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
+12. [ ] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10**
+13. [ ] **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
+14. [ ] **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10**
+15. [ ] **In-Memory WASM AST Indexing for Web Map Room** — **5.5 / 10**
 
 ---
 
@@ -49,9 +49,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #1. Predictive Test Selection (`vibetrace test --impacted`)
+### #1. Predictive Test Selection (`vibetrace test --impacted`) — Implemented ✅
 - **Category:** New Feature
 - **Score:** **9.8 / 10** (Critical Agentic Enabler)
+- **Status:** **Completed & Verified ✅ (`41c6fda`)**
 - **What It Solves Exactly:**  
   When an autonomous agent modifies a function, running an entire test suite takes 15–60 seconds, which stalls the agent's iterative self-correction loop. This feature uses the SQLite call graph to compute the upstream caller tree of modified functions and executes **only the tests that directly or indirectly invoke the modified code**.
 - **Benefits:**
@@ -64,9 +65,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #2. Adaptive Context Sliding Window for Multi-Turn Agent Chats
+### #2. Adaptive Context Sliding Window for Multi-Turn Agent Chats — Implemented ✅
 - **Category:** New Feature
 - **Score:** **9.5 / 10** (Critical Context Manager)
+- **Status:** **Completed & Verified ✅ (`ebd65e2`)**
 - **What It Solves Exactly:**  
   In multi-turn agent sessions, the prompt accumulates stale context, hitting token limits and causing the LLM to hallucinate or drop system instructions. This feature dynamically prunes symbols that fall outside the active call stack while keeping the current execution root pinned in context.
 - **Benefits:**
@@ -79,9 +81,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #3. Symbolic Inter-Procedural Alias & Dictionary Taint Tracking
+### #3. Symbolic Inter-Procedural Alias & Dictionary Taint Tracking — Implemented ✅
 - **Category:** Margin for Improvement (Deep Taint)
 - **Score:** **9.2 / 10** (High Security Precision)
+- **Status:** **Completed & Verified ✅ (`cc3c1be`)**
 - **What It Solves Exactly:**  
   Modern web apps unpack untrusted inputs into dictionaries (e.g., `params = request.json(); user_id = params["id"]`). Currently, intra-procedural contracts can lose precision if keys are transformed across intermediate helper classes. This improvement tracks tainted dictionary keys symbolically across call boundaries.
 - **Benefits:**
