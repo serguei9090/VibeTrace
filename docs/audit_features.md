@@ -31,14 +31,14 @@ Features and improvements are ranked from highest to lowest priority based on th
 2. [x] **Adaptive Context Sliding Window for Multi-Turn Agent Chats** — **9.5 / 10** *(Implemented & Verified ✅)*
 3. [x] **Symbolic Inter-Procedural Alias & Dictionary Taint Tracking** — **9.2 / 10** *(Implemented & Verified ✅)*
 4. [ ] **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10**
-5. [ ] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10**
+5. [x] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10** *(Implemented & Verified ✅)*
 6. [ ] **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10**
 7. [ ] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
 8. [ ] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10**
 9. [ ] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10**
 10. [ ] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
 11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
-12. [ ] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10**
+12. [x] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10** *(Implemented & Verified ✅ via refactor --suggest)*
 13. [ ] **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
 14. [ ] **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10**
 15. [ ] **In-Memory WASM AST Indexing for Web Map Room** — **5.5 / 10**
@@ -112,9 +112,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #5. Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)
+### #5. Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`) — Implemented ✅
 - **Category:** New Feature
 - **Score:** **8.8 / 10** (Architectural Safety)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
   When an agent is tasked with reducing cognitive complexity (>15), it can introduce subtle variable scoping bugs when manually cutting code into pieces. This command analyzes the AST, calculates incoming/outgoing variable lifetimes, and generates the exact extracted helper function code.
 - **Benefits:**
