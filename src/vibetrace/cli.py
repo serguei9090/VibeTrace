@@ -7,6 +7,7 @@ import sys
 
 from vibetrace.cli_audit import (
     cmd_audit_fix_deps,
+    cmd_audit_pr_taint,
     cmd_audit_quality,
     cmd_audit_security,
     cmd_audit_splits,
@@ -942,6 +943,54 @@ examples:
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
     p_fix_deps.set_defaults(func=cmd_audit_fix_deps)
+
+    # audit pr-taint
+    p_pr_taint = p_audit_sub.add_parser(
+        "pr-taint",
+        help="Run PR-scoped taint analysis with inline remediation suggestions",
+        description=(
+            "Audits Git PR diffs for inter-procedural taint reachability, synthesizes "
+            "ready-to-merge safe code replacements, and formats inline GitHub suggestions."
+        ),
+    )
+    p_pr_taint.add_argument(
+        "--base",
+        default="main",
+        help="Base branch/commit to diff against (default: main)",
+    )
+    p_pr_taint.add_argument(
+        "--staged",
+        action="store_true",
+        default=False,
+        help="Analyze staged changes only instead of branch diff",
+    )
+    p_pr_taint.add_argument(
+        "--pr",
+        type=int,
+        default=None,
+        help="GitHub Pull Request number for online review comments",
+    )
+    p_pr_taint.add_argument(
+        "--post",
+        action="store_true",
+        default=False,
+        help="Submit inline review comments to GitHub PR using GITHUB_TOKEN",
+    )
+    p_pr_taint.add_argument(
+        "--apply",
+        action="store_true",
+        default=False,
+        help="Automatically apply synthesized safe code replacements to local files",
+    )
+    p_pr_taint.add_argument(
+        "--output-md",
+        default=None,
+        help="Write GitHub-flavored markdown review summary to specified file path",
+    )
+    p_pr_taint.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_pr_taint.set_defaults(func=cmd_audit_pr_taint)
 
     # review (unified AI code review gate)
     p_review = sub.add_parser(

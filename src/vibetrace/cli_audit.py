@@ -15,6 +15,7 @@ from vibetrace.quality.models import QualityExceptionRecord
 from vibetrace.quality.service import QualityService
 from vibetrace.security.auto_patcher import AutoPatchReport, DependencyAutoPatcher
 from vibetrace.security.formatters import format_security_audit_md
+from vibetrace.security.pr_bot import PRTaintBot
 from vibetrace.security.service import SecurityService
 from vibetrace.services.graph_service import get_context_for_path, safe_str
 from vibetrace.services.split_audit_service import (
@@ -630,3 +631,76 @@ def cmd_audit_fix_deps(args: argparse.Namespace) -> int:
 
     _print_auto_patch_summary(patch_plan, is_apply)
     return 0
+
+
+def cmd_audit_pr_taint(args: argparse.Namespace) -> int:
+    """CLI handler for Automated PR Taint Bot & Inline Remediation Generator."""
+    import json
+
+    auto_sync = not getattr(args, "no_sync", False)
+    root_override = getattr(args, "root", None)
+    path_hint = getattr(args, "path", ".")
+
+    db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
+    project_root = Path(root)
+
+    base_ref = getattr(args, "base", "main") or "main"
+    staged = getattr(args, "staged", False)
+    pr_num = getattr(args, "pr", None)
+
+    # 1. Analyze PR diff and generate report with inline comments
+    report = PRTaintBot.analyze_pr_diff(
+        project_root=project_root,
+        db=db,
+        base_ref=base_ref,
+        staged=staged,
+        pr_number=pr_num,
+    )
+
+    # 2. Local apply if requested
+    is_apply = getattr(args, "apply", False)
+    if is_apply and report.comments:
+        applied = PRTaintBot.apply_remediations(project_root, report)
+        print(f"✅ Successfully applied {applied} security remediation(s) to working tree.\n")
+
+    # 3. Write optional markdown output file (e.g. for $GITHUB_STEP_SUMMARY)
+    output_md = getattr(args, "output_md", None)
+    if output_md:
+        out_path = Path(output_md)
+        out_path.write_text(report.markdown_summary, encoding="utf-8")
+        print(f"📝 PR review markdown summary saved to `{output_md}`.")
+
+    # 4. Optional GitHub PR Review API posting
+    should_post = getattr(args, "post", False)
+    if should_post:
+        res = PRTaintBot.post_github_review(
+            report=report,
+            pr_number=pr_num,
+        )
+        if res.get("success"):
+            print(
+                f"🚀 Successfully posted review with inline suggestions to PR "
+                f"#{pr_num or report.pr_number}."
+            )
+        else:
+            print(f"⚠️ Could not post GitHub PR review: {res.get('error')}", file=sys.stderr)
+
+    # 5. Output handling (JSON vs Terminal)
+    if getattr(args, "json", False):
+        print(json.dumps(report.model_dump(), indent=2))
+        return 0 if report.passed_gate else 1
+
+    print(report.markdown_summary)
+    if report.comments:
+        print("\n---")
+        print("💡 **Next Actions:**")
+        print(
+            "- To apply all proposed safe replacements directly: "
+            "run `vibetrace audit pr-taint --apply`"
+        )
+        print(
+            "- To post comments directly to GitHub PR: "
+            "run `vibetrace audit pr-taint --post --pr <PR_NUM>`"
+        )
+
+    return 0 if report.passed_gate else 1
