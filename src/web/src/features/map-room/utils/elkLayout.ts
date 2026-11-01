@@ -4,6 +4,16 @@ import type { LayoutMode, VibeNodeData, ViewMode } from "../types";
 
 const elk = new ELK();
 
+interface ElkLayoutNode {
+  id: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  labels?: Array<{ text?: string }>;
+  children?: ElkLayoutNode[];
+}
+
 export const NODE_WIDTH = 250;
 export const NODE_HEIGHT = 150;
 
@@ -90,7 +100,7 @@ const layoutArchitectureMap = async (
   const finalNodes: Node[] = [];
   const nodeMap = new Map(contentNodes.map((n) => [n.id, n]));
 
-  layoutedGraph.children?.forEach((district: any) => {
+  layoutedGraph.children?.forEach((district: ElkLayoutNode) => {
     finalNodes.push({
       id: district.id,
       type: "districtGroup",
@@ -107,7 +117,7 @@ const layoutArchitectureMap = async (
       },
     });
 
-    district.children?.forEach((file: any) => {
+    district.children?.forEach((file: ElkLayoutNode) => {
       finalNodes.push({
         id: file.id,
         type: "fileGroup",
@@ -129,7 +139,7 @@ const layoutArchitectureMap = async (
         },
       });
 
-      file.children?.forEach((symbol: any) => {
+      file.children?.forEach((symbol: ElkLayoutNode) => {
         const original = nodeMap.get(symbol.id);
         if (original) {
           finalNodes.push({
@@ -168,7 +178,9 @@ const layoutDirectionalGraph = async (
     (e) =>
       activeIds.has(e.source) &&
       activeIds.has(e.target) &&
-      (isTrace || ((e.data as any)?.relation_type !== "defines" && !e.id.endsWith("-defines")))
+      (isTrace ||
+        ((e.data as { relation_type?: string })?.relation_type !== "defines" &&
+          !e.id.endsWith("-defines")))
   );
 
   const rootGraph = {
@@ -194,7 +206,7 @@ const layoutDirectionalGraph = async (
 
   const layouted = await elk.layout(rootGraph);
   const posMap = new Map<string, { x: number; y: number }>();
-  layouted.children?.forEach((c: any) => {
+  layouted.children?.forEach((c: ElkLayoutNode) => {
     posMap.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
   });
 
@@ -269,7 +281,7 @@ const layoutExplorerGraph = async (
 
   const layouted = await elk.layout(rootGraph);
   const posMap = new Map<string, { x: number; y: number }>();
-  layouted.children?.forEach((c: any) => {
+  layouted.children?.forEach((c: ElkLayoutNode) => {
     posMap.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
   });
 
@@ -319,7 +331,7 @@ export const layoutPackageGraph = async (
   };
 
   const layouted = await elk.layout(rootGraph);
-  const layoutedMap = new Map(layouted.children?.map((c: any) => [c.id, c]) || []);
+  const layoutedMap = new Map(layouted.children?.map((c: ElkLayoutNode) => [c.id, c]) || []);
 
   const finalNodes = nodes.map((n) => {
     const pos = layoutedMap.get(n.id);

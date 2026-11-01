@@ -1,7 +1,12 @@
 import { Folder } from "lucide-react";
 import { memo } from "react";
 
-export const DistrictNode = memo(({ data }: { data: any }) => {
+interface DistrictNodeData {
+  label?: string;
+  [key: string]: unknown;
+}
+
+export const DistrictNode = memo(({ data }: { data: DistrictNodeData }) => {
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
       <div

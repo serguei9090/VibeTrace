@@ -30,7 +30,19 @@ from vibetrace.quality.ts_analyzer import analyze_ts_quality
 from vibetrace.taxonomy import CweTaxonomyManager
 
 _SUPPORTED_EXTS = (".py", ".css", ".ts", ".tsx", ".js", ".jsx")
-_IGNORE_PATH_PARTS = ("/.venv/", "/venv/", "/__pycache__/", "/.git/", "/scratch/", "/node_modules/")
+_IGNORE_PATH_PARTS = (
+    "/.venv/",
+    "/venv/",
+    "/__pycache__/",
+    "/.git/",
+    "/scratch/",
+    "/node_modules/",
+    "/dist/",
+    "/build/",
+    "/out/",
+    "/.next/",
+    "/target/",
+)
 _INLINE_IGNORE_RE = re.compile(
     r"(?:#|//)\s*(?:nosonar|noqa(?::\s*([a-z0-9_-]+))?|vibetrace:ignore\b(?:\s*\[([a-z0-9_:-]+)\])?(?:\s*:\s*(.+))?)",
     re.IGNORECASE,
@@ -107,8 +119,15 @@ def _is_path_allowed(path: Path, include_tests: bool) -> bool:
     posix_path = path.as_posix()
     if any(seg in posix_path for seg in _IGNORE_PATH_PARTS):
         return False
-    if not include_tests and ("/tests/" in posix_path or path.name.startswith("test_")):
-        return False
+    if not include_tests:
+        parts = posix_path.split("/")
+        if any(p in ("tests", "test", "e2e", "__tests__") for p in parts[:-1]):
+            return False
+        fname = path.name.lower()
+        if fname.startswith("test_") or fname.endswith(
+            ("_test.py", "_test.go", ".spec.ts", ".test.ts", ".spec.tsx", ".test.tsx")
+        ):
+            return False
     return True
 
 

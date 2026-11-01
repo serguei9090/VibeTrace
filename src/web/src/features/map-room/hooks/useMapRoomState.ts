@@ -542,9 +542,9 @@ export function useMapRoomState() {
         .catch(() => {
           securityFindings.current = [];
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to fetch graph", err);
-      setError(err.message || "Failed to fetch graph");
+      setError(err instanceof Error ? err.message : "Failed to fetch graph");
     } finally {
       setLoading(false);
     }
@@ -574,7 +574,7 @@ export function useMapRoomState() {
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       if (node.type === "packageNode") {
-        const dirPath = (node.data as any)?.label;
+        const dirPath = (node.data as { label?: string })?.label;
         if (dirPath) {
           onExplorePackage(dirPath);
         }

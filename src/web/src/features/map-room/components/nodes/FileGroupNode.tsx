@@ -1,7 +1,14 @@
 import { FileCode } from "lucide-react";
 import { memo } from "react";
 
-export const FileGroupNode = memo(({ data }: { data: any }) => {
+interface FileGroupNodeData {
+  label?: string;
+  badge?: string;
+  stats?: string;
+  [key: string]: unknown;
+}
+
+export const FileGroupNode = memo(({ data }: { data: FileGroupNodeData }) => {
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
       <div

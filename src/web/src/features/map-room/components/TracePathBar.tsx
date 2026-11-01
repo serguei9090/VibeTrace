@@ -112,8 +112,12 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
       if (!res.data.found) {
         setTraceError(`No execution path found between '${from}' and '${to}'.`);
       }
-    } catch (err: any) {
-      setTraceError(err.response?.data?.detail || err.message || "Trace request failed");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setTraceError(err.response?.data?.detail || err.message || "Trace request failed");
+      } else {
+        setTraceError(err instanceof Error ? err.message : "Trace request failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -162,8 +166,12 @@ export const TracePathBar: React.FC<TracePathBarProps> = ({
       setShowSavePrompt(false);
       setSaveName("");
       await fetchSavedTraces();
-    } catch (err: any) {
-      setTraceError(err.response?.data?.detail || "Failed to save trace");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setTraceError(err.response?.data?.detail || "Failed to save trace");
+      } else {
+        setTraceError(err instanceof Error ? err.message : "Failed to save trace");
+      }
     }
   };
 

@@ -188,7 +188,7 @@ export default function App() {
                 bottom: 20,
                 right: 20,
               }}
-              nodeColor={(n: any) => {
+              nodeColor={(n: { data?: { kind?: string } }) => {
                 if (n.data?.kind === "class") return "#a855f7";
                 if (n.data?.kind === "interface") return "#10b981";
                 if (n.data?.kind === "endpoint") return "#f59e0b";

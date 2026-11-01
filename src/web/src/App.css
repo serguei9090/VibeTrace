@@ -110,7 +110,9 @@ body {
   justify-content: center;
   gap: 7px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid var(--border-color);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-main);
@@ -204,7 +206,10 @@ body {
   border: none;
   color: var(--text-dim);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
   white-space: nowrap;
 }
 
@@ -244,7 +249,10 @@ body {
   color: var(--text-main);
   font-family: inherit;
   font-size: 13px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .vibe-input:focus {
@@ -267,11 +275,19 @@ body {
     0 4px 16px -2px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
-    transform 0.15s ease,
     opacity 0.15s ease,
     box-shadow 0.15s ease;
   cursor: pointer;
   position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vibe-node {
+    transition:
+      transform 0.15s ease,
+      opacity 0.15s ease,
+      box-shadow 0.15s ease;
+  }
 }
 
 .vibe-node:hover {
@@ -302,12 +318,15 @@ body {
   align-items: center;
   gap: 3px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
   line-height: 1.2;
 }
 
 .node-expand-pill:hover {
-  background: rgba(99, 102, 241, 0.35);
+  background: #4f46e5;
   border-color: #818cf8;
   color: #fff;
   transform: translateY(-1px);
@@ -320,7 +339,7 @@ body {
 }
 
 .node-expand-callees:hover {
-  background: rgba(56, 189, 248, 0.3);
+  background: #0284c7;
   border-color: #38bdf8;
   color: #fff;
 }
@@ -518,8 +537,10 @@ body {
   gap: 8px;
 }
 
-.spin {
-  animation: spin 1s linear infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .spin {
+    animation: spin 1s linear infinite;
+  }
 }
 
 @keyframes spin {
