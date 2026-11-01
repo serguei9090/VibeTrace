@@ -2,7 +2,7 @@ import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./App.css";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DashboardView } from "./features/dashboard/components/DashboardView";
 import { DocsWorkspaceView } from "./features/docs/components/DocsWorkspaceView";
 import { CanvasAutoFitter } from "./features/map-room/components/CanvasAutoFitter";
@@ -16,8 +16,10 @@ import { VibeNode } from "./features/map-room/components/nodes/VibeNode";
 import { StatusOverlays } from "./features/map-room/components/StatusOverlays";
 import { TracePathBar } from "./features/map-room/components/TracePathBar";
 import { TreeSidebar } from "./features/map-room/components/TreeSidebar";
+import { WebGPUCanvas } from "./features/map-room/components/WebGPUCanvas";
 import { API_URL, useMapRoomState } from "./features/map-room/hooks/useMapRoomState";
 import type { ViewMode, WorkspaceMode } from "./features/map-room/types";
+import type { RendererBackend } from "./features/map-room/utils/webgpuRenderer";
 
 const nodeTypes = {
   vibeNode: VibeNode,
@@ -78,6 +80,17 @@ export default function App() {
     fetchGraph,
   } = useMapRoomState();
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("map");
+  const [webGpuTurbo, setWebGpuTurbo] = useState(false);
+  const [gpuBackend, setGpuBackend] = useState<RendererBackend>("canvas2d");
+  const [gpuFps, setGpuFps] = useState(60);
+
+  const nodePositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    for (const n of nodes) {
+      map.set(n.id, n.position);
+    }
+    return map;
+  }, [nodes]);
 
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
@@ -130,6 +143,10 @@ export default function App() {
         rawEdges={rawData.current.edges}
         revealedNodeIds={revealedNodeIds}
         onFocusNode={onFocusNode}
+        webGpuTurbo={webGpuTurbo}
+        onToggleWebGpuTurbo={setWebGpuTurbo}
+        rendererMode={gpuBackend}
+        liveFps={gpuFps}
       />
 
       {workspaceMode === "dashboard" && (
@@ -175,6 +192,19 @@ export default function App() {
             minZoom={0.05}
             maxZoom={2.0}
           >
+            {webGpuTurbo && (
+              <WebGPUCanvas
+                rawNodes={rawData.current.nodes}
+                rawEdges={rawData.current.edges}
+                nodePositions={nodePositions}
+                activeTrace={activeTrace}
+                onSelectNode={(id) => onFocusNode(id)}
+                onRendererStatusChange={(backend, fps) => {
+                  setGpuBackend(backend);
+                  setGpuFps(fps);
+                }}
+              />
+            )}
             <Controls />
             <MiniMap
               nodeStrokeWidth={3}

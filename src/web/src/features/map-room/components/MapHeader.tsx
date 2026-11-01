@@ -58,6 +58,10 @@ interface MapHeaderProps {
   rawEdges?: RawGraphEdge[];
   revealedNodeIds?: Set<string>;
   onFocusNode?: (nodeId: string) => void;
+  webGpuTurbo?: boolean;
+  onToggleWebGpuTurbo?: (enabled: boolean) => void;
+  rendererMode?: "webgpu" | "webgl" | "canvas2d" | "off";
+  liveFps?: number;
 }
 
 export const MapHeader: React.FC<MapHeaderProps> = ({
@@ -87,6 +91,10 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
   rawEdges,
   revealedNodeIds,
   onFocusNode,
+  webGpuTurbo = false,
+  onToggleWebGpuTurbo,
+  rendererMode = "canvas2d",
+  liveFps = 60,
 }) => {
   const [projectStatus, setProjectStatus] = useState<ProjectStatusUI | null>(null);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
@@ -602,6 +610,27 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             onToggleFollow={onToggleFollowAgent}
             lastAgentEvent={lastAgentEvent}
           />
+
+          {/* WebGPU Hardware Acceleration Toggle */}
+          <button
+            type="button"
+            className={`vibe-btn ${webGpuTurbo ? "vibe-btn-primary" : "vibe-btn-ghost"}`}
+            onClick={() => onToggleWebGpuTurbo?.(!webGpuTurbo)}
+            title="Toggle WebGPU / Hardware-Accelerated 60-120 FPS Canvas"
+            style={{
+              padding: "4px 10px",
+              fontSize: "12px",
+              borderColor: webGpuTurbo ? "rgba(99, 102, 241, 0.8)" : "var(--border-color)",
+              boxShadow: webGpuTurbo ? "0 0 10px rgba(99, 102, 241, 0.35)" : "none",
+            }}
+          >
+            <Sparkles size={14} style={{ color: webGpuTurbo ? "#818cf8" : "inherit" }} />
+            <span>
+              {webGpuTurbo
+                ? `⚡ GPU (${rendererMode.toUpperCase()}) ${liveFps} FPS`
+                : "⚡ GPU Turbo"}
+            </span>
+          </button>
         </>
       )}
 
