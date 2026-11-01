@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from vibetrace.cli_audit import (
+    cmd_audit_fix_deps,
     cmd_audit_quality,
     cmd_audit_security,
     cmd_audit_splits,
@@ -903,6 +904,44 @@ examples:
         help="Disposition tag saved when approving exceptions with --approve",
     )
     p_quality.set_defaults(func=cmd_audit_quality)
+
+    # audit fix-deps
+    p_fix_deps = p_audit_sub.add_parser(
+        "fix-deps",
+        help="Automatically patch vulnerable dependencies or mitigate unpatched CVEs",
+        description=(
+            "Resolve minimal safe versions for package CVEs and run native package "
+            "managers. For unpatched CVEs, performs AST reachability analysis and "
+            "proposes call-site guards or baseline suppressions."
+        ),
+    )
+    p_fix_deps.add_argument(
+        "--apply",
+        action="store_true",
+        default=False,
+        help="Apply package upgrades via native package manager (uv, bun, cargo, go)",
+    )
+    p_fix_deps.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=True,
+        help="Preview patch plan and reachability audit without modifying files (default: True)",
+    )
+    p_fix_deps.add_argument(
+        "--package",
+        default=None,
+        help="Filter remediation to a single specific package name",
+    )
+    p_fix_deps.add_argument(
+        "--suppress-unpatched",
+        action="store_true",
+        default=False,
+        help="Automatically record baseline exceptions for verified uncalled unpatched CVEs",
+    )
+    p_fix_deps.add_argument(
+        "--path", default=".", help="Project root directory path (default: current directory)"
+    )
+    p_fix_deps.set_defaults(func=cmd_audit_fix_deps)
 
     # review (unified AI code review gate)
     p_review = sub.add_parser(

@@ -13,6 +13,7 @@ from vibetrace.mcp.formatters import format_split_audit_md
 from vibetrace.quality.formatters import format_quality_audit_md
 from vibetrace.quality.models import QualityExceptionRecord
 from vibetrace.quality.service import QualityService
+from vibetrace.security.auto_patcher import AutoPatchReport, DependencyAutoPatcher
 from vibetrace.security.formatters import format_security_audit_md
 from vibetrace.security.service import SecurityService
 from vibetrace.services.graph_service import get_context_for_path, safe_str
@@ -520,4 +521,112 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     if getattr(args, "ci", False) and not report.passed:
         return 1
+    return 0
+
+
+def _print_auto_patch_summary(report: AutoPatchReport, is_apply: bool) -> None:
+    """Formats and prints the dependency remediation and reachability report."""
+    print("# 🛡️ VibeTrace Dependency Remediation & Auto-Patch Report\n")
+    print(f"- Total Vulnerable Packages: **{report.total_vulnerable_packages}**")
+    print(f"- Upgradable Upstream: **{report.upgradable_count}**")
+    print(f"- Unpatched & Unreachable (Dead Code): **{report.unpatched_unreachable_count}**")
+    print(f"- Unpatched & Actively Called: **{report.unpatched_reachable_count}**")
+    if is_apply:
+        print(f"- Applied Native Upgrades: **{report.applied_count}**")
+        print(f"- Recorded Suppressions: **{report.suppressed_count}**")
+    print()
+
+    # 1. Upgradable Packages
+    upgrades = [a for a in report.actions if a.action_type == "UPGRADE"]
+    if upgrades:
+        print("## 📦 1. Upgradable Dependencies (Safe Upstream Releases Found)\n")
+        print("| Package | Current | Target Safe | Ecosystem | Native Command | Status |")
+        print("| :--- | :--- | :--- | :--- | :--- | :--- |")
+        for u in upgrades:
+            cmd = f"`{u.proposed_command}`" if u.proposed_command else "n/a"
+            print(
+                f"| **{u.package_name}** | {u.current_version or 'detected'} | "
+                f"`{u.fixed_version}` | {u.ecosystem} | {cmd} | {u.status} |"
+            )
+        print()
+
+    # 2. Unpatched & Actively Called
+    called = [a for a in report.actions if a.action_type == "UNPATCHED_REACHABLE"]
+    if called:
+        print("## ⚠️ 2. Unpatched Dependencies Actively Called in Application Code\n")
+        for c in called:
+            cves = ", ".join(c.cve_ids[:3])
+            print(f"### `{c.package_name}` ({c.severity} CVEs: {cves})")
+            print(
+                f"- **Active Callers:** {c.reachability_callers} reference(s) "
+                f"across {len(c.referring_files)} file(s)"
+            )
+            for rf in c.referring_files[:4]:
+                print(f"  - `{rf}`")
+            print(f"- **Remediation Guidance:** {c.mitigation_guidance}\n")
+
+    # 3. Unpatched & Unreachable (Dead Dependencies)
+    uncalled = [a for a in report.actions if a.action_type == "UNPATCHED_UNREACHABLE"]
+    if uncalled:
+        print("## 🛡️ 3. Unpatched Dependencies with ZERO Callers (Dead Code)\n")
+        for uc in uncalled:
+            print(
+                f"- **`{uc.package_name}`**: 0 callers in application code. "
+                f"Safe to prune from `{uc.lockfile_path}` or suppress."
+            )
+        print()
+
+    if not is_apply:
+        print("---")
+        print("💡 **Next Actions:**")
+        if upgrades:
+            print("- To apply all safe upgrades: run `vibetrace audit fix-deps --apply`")
+        if uncalled:
+            print(
+                "- To suppress uncalled unpatched CVEs: run "
+                "`vibetrace audit fix-deps --suppress-unpatched`"
+            )
+
+
+def cmd_audit_fix_deps(args: argparse.Namespace) -> int:
+    """CLI handler for automated dependency auto-patching and reachability triage."""
+    import json
+
+    auto_sync = not getattr(args, "no_sync", False)
+    root_override = getattr(args, "root", None)
+    path_hint = getattr(args, "path", ".")
+
+    db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
+    project_root = Path(root)
+
+    # 1. Run security audit for lockfile dependencies
+    report_sec = SecurityService.audit_project(
+        db=db,
+        project_root=project_root,
+        check_dependencies=True,
+    )
+
+    package_filter = getattr(args, "package", None)
+    patch_plan = DependencyAutoPatcher.build_patch_plan(
+        project_root=project_root,
+        findings=report_sec.findings,
+        db=db,
+        package_filter=package_filter,
+    )
+
+    is_apply = getattr(args, "apply", False)
+    suppress_unpatched = getattr(args, "suppress_unpatched", False)
+
+    if is_apply or suppress_unpatched:
+        patch_plan = DependencyAutoPatcher.apply_patch_plan(
+            project_root=project_root,
+            report=patch_plan,
+            suppress_unpatched=suppress_unpatched,
+        )
+
+    if getattr(args, "json", False):
+        print(json.dumps(patch_plan.to_dict(), indent=2))
+        return 0
+
+    _print_auto_patch_summary(patch_plan, is_apply)
     return 0

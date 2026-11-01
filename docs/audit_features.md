@@ -30,7 +30,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 1. [x] **Predictive Test Selection (`vibetrace test --impacted`)** — **9.8 / 10** *(Implemented & Verified ✅)*
 2. [x] **Adaptive Context Sliding Window for Multi-Turn Agent Chats** — **9.5 / 10** *(Implemented & Verified ✅)*
 3. [x] **Symbolic Inter-Procedural Alias & Dictionary Taint Tracking** — **9.2 / 10** *(Implemented & Verified ✅)*
-4. [ ] **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10**
+4. [x] **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10** *(Implemented & Verified ✅)*
 5. [x] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10** *(Implemented & Verified ✅)*
 6. [ ] **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10**
 7. [ ] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
@@ -97,18 +97,20 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #4. Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)
+### #4. Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`) — Implemented ✅
 - **Category:** New Feature
 - **Score:** **9.0 / 10** (Autonomous Remediation)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
-  Our security scanner surfaced 88 CVEs in `uv.lock`. Manually checking each minimum safe version, editing configuration files, and re-resolving locks requires tedious human intervention. This command automatically resolves the optimal patch set and updates the lockfiles.
+  Our security scanner surfaced 88 CVEs in `uv.lock`. Manually checking each minimum safe version, editing configuration files, and re-resolving locks requires tedious human intervention. This command automatically resolves the optimal patch set, updates lockfiles via native package managers, and triages unpatched upstream vulnerabilities via call-graph reachability.
 - **Benefits:**
   - One-command remediation: an agent or CI runner can invoke `vibetrace audit fix-deps` and immediately verify that tests pass.
   - Updates to the minimal non-vulnerable version (e.g., `anyio>=4.14.2`) rather than jumping major versions and causing breaking API changes.
+  - Reachability Triage: if a vulnerable package has no available upstream patch, VibeTrace inspects the SQLite call graph and AST imports. Unreachable dead dependencies are flagged for removal or suppressed cleanly with compensating control markers.
 - **Cons & Potential Risks:**
   - Different package managers (`uv`, `bun`, `cargo`, `go`) require distinct CLI invocation semantics and file schemas.
 - **How We Address This:**  
-  Encapsulate package manager interactions behind dedicated adapter plugins (`UvAdapter`, `BunAdapter`, `CargoAdapter`). Each adapter runs native tools (`uv lock --upgrade-package <pkg>`, `bun update <pkg>`) to ensure lockfiles are resolved natively and deterministically.
+  Encapsulate package manager interactions behind dedicated adapter plugins (`UvAdapter`, `BunAdapter`, `CargoAdapter`). Each adapter runs native tools (`uv lock --upgrade-package <pkg>`, `bun update <pkg>`) to ensure lockfiles are resolved natively and deterministically. Unpatched packages with 0 reachable call edges can be safely recorded in `.vibetrace/security.toml` via `--suppress-unpatched`.
 
 ---
 
