@@ -519,3 +519,47 @@ ADD https://example.com/archive.tar.gz /tmp/archive.tar.gz
     # Remote ADD should not be flagged as S6505
     s6505_findings = [f for f in findings if f.rule_id == "docker:S6505"]
     assert len(s6505_findings) == 1  # only local ADD
+
+
+def test_s3358_nested_ternary_detector() -> None:
+    from vibetrace.quality.smells import analyze_python_smells
+
+    code = """
+def format_icon(cg):
+    icon = "✅" if cg.ok else ("❌" if cg.enforced else "⚠️")
+    simple = "yes" if cg.ok else "no"
+    return icon, simple
+"""
+    findings = analyze_python_smells("test.py", code)
+    s3358_findings = [f for f in findings if f.rule_id == "python:S3358"]
+    assert len(s3358_findings) == 1
+    assert s3358_findings[0].rspec_id == "RSPEC-3358"
+    assert s3358_findings[0].start_line == 3
+
+
+def test_quality_rule_sync_and_catalog_caching() -> None:
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+    from vibetrace.quality.rules import get_rule_spec
+
+    db = IndexerDB(":memory:")
+
+    # 1. First sync loads from bundled JSON into SQLite
+    res1 = QualityRuleCatalogManager.sync_catalog(db=db)
+    assert res1.source == "bundled"
+    assert res1.rules_loaded >= 1300
+    assert "py" in res1.languages
+    assert "ts" in res1.languages
+
+    # 2. Second sync hits local SQLite cache
+    res2 = QualityRuleCatalogManager.sync_catalog(db=db)
+    assert res2.source == "cache"
+    assert res2.rules_loaded == res1.rules_loaded
+
+    # 3. Rule spec resolution works for synced rules
+    spec = get_rule_spec("typescript:S2589")
+    assert spec is not None
+    assert spec.rule_id == "typescript:S2589"
+    assert "gratuitous" in spec.title.lower() or "boolean" in spec.title.lower()
+
+

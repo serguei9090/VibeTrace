@@ -212,10 +212,25 @@ def initialize_workspace(
         indexed_edges = len(graph_stats.get("edges", []))
         try:
             from vibetrace.security.rule_sync import RuleCatalogManager
-
             RuleCatalogManager.sync_and_load_rules(db, root)
         except Exception:
             pass
+
+        try:
+            from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+            sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
+            quality_rules_loaded = sync_res.rules_loaded
+        except Exception:
+            quality_rules_loaded = 0
+    else:
+        # Even with no_index, warm the local quality rules from bundled/cache
+        try:
+            from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+            db = IndexerDB(str(db_path))
+            sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
+            quality_rules_loaded = sync_res.rules_loaded
+        except Exception:
+            quality_rules_loaded = 0
 
     return {
         "project_root": str(root),
@@ -232,4 +247,5 @@ def initialize_workspace(
         "indexed": not no_index,
         "node_count": indexed_nodes,
         "edge_count": indexed_edges,
+        "quality_rules_loaded": quality_rules_loaded,
     }

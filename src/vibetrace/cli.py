@@ -731,6 +731,11 @@ examples:
         "--file", default=None, help="Filter audit to a specific file or directory"
     )
     p_quality.add_argument(
+        "--update",
+        action="store_true",
+        help="Force refresh quality rule definitions from remote catalog",
+    )
+    p_quality.add_argument(
         "--ci",
         action="store_true",
         help="Run in CI mode (fails on unapproved or modified quality issues)",

@@ -412,6 +412,48 @@ class PythonSmellsVisitor(ast.NodeVisitor):
         self.generic_visit(node)
         self._nesting_depth -= 1
 
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        """S3358: Nested ternary operators."""
+        # Check if any branch of this IfExp contains another IfExp
+        has_nested = any(
+            isinstance(sub, ast.IfExp)
+            for sub in (node.body, node.test, node.orelse)
+        )
+        if has_nested:
+            spec_3358 = QUALITY_RULES_CATALOG.get("S3358")
+            end_l = getattr(node, "end_lineno", node.lineno)
+            snippet = self._get_snippet(node.lineno, end_l)
+            code_hash = self._hash_snippet(snippet)
+            raw_id = f"{self.file_path}:{node.lineno}:nested_ternary"
+            fid = f"QUAL-S3358-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+            self.findings.append(
+                QualityFinding(
+                    id=fid,
+                    rule_id="python:S3358",
+                    rspec_id="RSPEC-3358",
+                    category=QualityCategory.MAINTAINABILITY,
+                    severity=QualitySeverity.MEDIUM,
+                    title=(
+                        "Extract this nested conditional expression into an "
+                        "independent statement."
+                    ),
+                    message=(
+                        "Nesting ternary conditional expressions degrades readability. "
+                        "Refactor into standard if-elif-else blocks."
+                    ),
+                    file_path=self.file_path,
+                    start_line=node.lineno,
+                    end_line=end_l,
+                    symbol_name=self._current_function,
+                    code_hash=code_hash,
+                    non_compliant_snippet=snippet[:200],
+                    compliant_snippet=spec_3358.compliant_example if spec_3358 else None,
+                    remediation_guidance=spec_3358.explanation if spec_3358 else None,
+                )
+            )
+
+        self.generic_visit(node)
+
 
 def analyze_python_smells(
     file_path: str,

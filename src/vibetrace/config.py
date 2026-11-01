@@ -97,6 +97,32 @@ class IndexerConfig(BaseModel):
     )
 
 
+class QualityConfig(BaseModel):
+    """Quality rules synchronization and custom Sonar/remote feed configuration."""
+
+    sonar_url: str = Field(
+        default="http://localhost:9000",
+        description="SonarQube Server URL for syncing or importing custom quality profiles",
+    )
+    sonar_token: str | None = Field(
+        default=None,
+        description="SonarQube authentication token (e.g. 'squ_...')",
+    )
+    rules_feed_url: str = Field(
+        default=(
+            "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/"
+            "src/vibetrace/resources/quality_rules_catalog.json"
+        ),
+        description="Remote JSON rules feed URL for community/enterprise catalog updates",
+    )
+    ttl_days: int = Field(
+        default=7,
+        ge=1,
+        le=90,
+        description="Local SQLite cache time-to-live for quality rules catalog in days",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
@@ -104,6 +130,7 @@ class VibeTraceConfig(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     vectors: VectorConfig = Field(default_factory=VectorConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
+    quality: QualityConfig = Field(default_factory=QualityConfig)
 
 
 def get_config_path(project_root: Path) -> Path | None:
@@ -160,6 +187,14 @@ exclude_patterns = [
     "tests/fixtures/**",
     "**/*.min.js",
 ]
+
+[quality]
+# SonarQube Server URL & Auth token (optional, for custom company rule syncing)
+# sonar_url = "http://localhost:9000"
+# sonar_token = "squ_..."
+# Remote JSON manifest feed URL (defaults to official VibeTrace GitHub repo)
+# rules_feed_url = "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/src/vibetrace/resources/quality_rules_catalog.json"
+ttl_days = 7
 """
 
 

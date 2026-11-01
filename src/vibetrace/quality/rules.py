@@ -403,6 +403,29 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
         non_compliant_example="WORKDIR app\n",
         compliant_example="WORKDIR /app\n",
     ),
+    # 22. S3358: Nested ternary operators
+    "S3358": QualityRuleSpec(
+        rule_id="S3358",
+        rspec_id="RSPEC-3358",
+        severity=QualitySeverity.MEDIUM,
+        category=QualityCategory.MAINTAINABILITY,
+        title="Ternary operators should not be nested",
+        explanation=(
+            "Nesting conditional expressions (ternary operators) reduces readability and makes "
+            "code harder to understand and maintain. Extract nested conditionals into independent "
+            "if-elif-else statements."
+        ),
+        aliases=["nested-ternary", "python:S3358", "nested-conditional-expression"],
+        non_compliant_example="res = 'a' if cond1 else ('b' if cond2 else 'c')\n",
+        compliant_example=(
+            "if cond1:\n"
+            "    res = 'a'\n"
+            "elif cond2:\n"
+            "    res = 'b'\n"
+            "else:\n"
+            "    res = 'c'\n"
+        ),
+    ),
 }
 
 _ALIAS_INDEX: dict[str, str] = {}

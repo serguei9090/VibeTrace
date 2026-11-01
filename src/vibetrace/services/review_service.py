@@ -249,9 +249,12 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
     """Formats UnifiedReviewReport as a token-compact markdown gate for AI agents."""
     verdict = "✅ PASS (Ready to Commit)" if report.passed else "⚠️ ACTION REQUIRED"
     cg = report.coverage_gate
-    cov_icon = (
-        "✅" if cg.effective_coverage_pct >= cg.threshold_pct else ("❌" if cg.enforced else "⚠️")
-    )
+    if cg.effective_coverage_pct >= cg.threshold_pct:
+        cov_icon = "✅"
+    elif cg.enforced:
+        cov_icon = "❌"
+    else:
+        cov_icon = "⚠️"
     lines = [
         f"## 🔍 VibeTrace Unified AI Code Review (`scope={report.scope}`): {verdict}",
         "",
