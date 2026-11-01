@@ -36,20 +36,24 @@ def clean_html(text: str) -> str:
 def fetch_all_sonar_rules(
     server_url: str = DEFAULT_SONAR_URL,
     token: str = DEFAULT_SONAR_TOKEN,
-    languages: str = TARGET_LANGS,
+    languages: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetches all rules across target languages using paginated SonarQube REST API."""
+    """Fetches all rules across target languages using paginated SonarQube REST API.
+
+    If languages is None or 'all', fetches rules for all languages supported by the server.
+    """
     auth_header = f"Basic {base64.b64encode(f'{token}:'.encode('ascii')).decode('ascii')}"
     all_rules: list[dict[str, Any]] = []
     page = 1
     page_size = 500
 
-    print(f"Connecting to SonarQube at {server_url} for languages: {languages}...")
+    lang_desc = "all languages" if not languages or languages.lower() == "all" else languages
+    print(f"Connecting to SonarQube at {server_url} for {lang_desc}...")
     while True:
-        url = (
-            f"{server_url.rstrip('/')}/api/rules/search"
-            f"?languages={languages}&ps={page_size}&p={page}"
+        lang_query = (
+            "" if not languages or languages.lower() == "all" else f"languages={languages}&"
         )
+        url = f"{server_url.rstrip('/')}/api/rules/search?{lang_query}ps={page_size}&p={page}"
         req = urllib.request.Request(url)
         req.add_header("Authorization", auth_header)
 
@@ -124,7 +128,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Export SonarQube Quality Rules to JSON manifest")
     parser.add_argument("--url", default=DEFAULT_SONAR_URL, help="SonarQube Server URL")
     parser.add_argument("--token", default=DEFAULT_SONAR_TOKEN, help="SonarQube Auth Token")
-    parser.add_argument("--langs", default=TARGET_LANGS, help="Comma-separated language keys")
+    parser.add_argument(
+        "--langs",
+        default="all",
+        help="Comma-separated language keys, or 'all' to export all supported languages",
+    )
     parser.add_argument(
         "--output",
         default="src/vibetrace/resources/quality_rules_catalog.json",

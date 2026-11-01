@@ -54,7 +54,7 @@ jobs:
           uv run python scripts/export_rules_manifest.py \
             --url http://localhost:9000 \
             --token squ_ad7988f2648bd7c51476ffbf1f65922697a98147 \
-            --langs py,ts,js,css,docker \
+            --langs all \
             --output src/vibetrace/resources/quality_rules_catalog.json \
             --gzip
 
