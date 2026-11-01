@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +73,8 @@ class FunctionTaintContract:
     param_taints_return: dict[int, bool]  # param index -> reaches return
     internal_sinks: list[dict[str, Any]]  # sinks called inside body with affected param indices
     is_sanitizer: bool  # returns True if function cleanses or validates input
+    dict_aliases: dict[str, str] = field(default_factory=dict)
+    key_taints_return: dict[str, list[str]] = field(default_factory=dict)
 
 
 class _ContractVisitor(ast.NodeVisitor):
@@ -86,31 +88,74 @@ class _ContractVisitor(ast.NodeVisitor):
         self.internal_sinks: list[dict[str, Any]] = []
         self.has_validation_guard: bool = False
         self.has_casting_sanitizer: bool = False
+        self.dict_aliases: dict[str, str] = {}
+        self.key_taints_return: dict[str, list[str]] = {}
+        self.local_key_origins: dict[str, tuple[str, str]] = {}
+
+    def _extract_key_origin(self, expr: ast.AST) -> tuple[str, str] | None:
+        if isinstance(expr, ast.Subscript):
+            if isinstance(expr.value, ast.Name):
+                d_name = expr.value.id
+                if d_name in self.param_indices:
+                    key = ""
+                    if isinstance(expr.slice, ast.Constant) and isinstance(expr.slice.value, str):
+                        key = expr.slice.value
+                    if key:
+                        return d_name, key
+        elif isinstance(expr, ast.Call):
+            if isinstance(expr.func, ast.Attribute) and expr.func.attr == "get":
+                if isinstance(expr.func.value, ast.Name) and expr.args:
+                    d_name = expr.func.value.id
+                    if d_name in self.param_indices and isinstance(expr.args[0], ast.Constant):
+                        if isinstance(expr.args[0].value, str):
+                            return d_name, expr.args[0].value
+        return None
 
     def visit_Assign(self, node: ast.Assign) -> None:
         rhs_indices = self._extract_taint_indices_from_expr(node.value)
+        key_origin = self._extract_key_origin(node.value)
         for target in node.targets:
             if isinstance(target, ast.Name):
+                var_name = target.id
                 if rhs_indices:
-                    self.tainted_locals[target.id] = set(rhs_indices)
+                    self.tainted_locals[var_name] = set(rhs_indices)
                 else:
-                    self.tainted_locals.pop(target.id, None)
+                    self.tainted_locals.pop(var_name, None)
+
+                if key_origin:
+                    self.local_key_origins[var_name] = key_origin
+                elif isinstance(node.value, ast.Name) and node.value.id in self.local_key_origins:
+                    self.local_key_origins[var_name] = self.local_key_origins[node.value.id]
+                    self.dict_aliases[var_name] = node.value.id
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         if node.value:
             rhs_indices = self._extract_taint_indices_from_expr(node.value)
+            key_origin = self._extract_key_origin(node.value)
             if isinstance(node.target, ast.Name):
+                var_name = node.target.id
                 if rhs_indices:
-                    self.tainted_locals[node.target.id] = set(rhs_indices)
+                    self.tainted_locals[var_name] = set(rhs_indices)
                 else:
-                    self.tainted_locals.pop(node.target.id, None)
+                    self.tainted_locals.pop(var_name, None)
+
+                if key_origin:
+                    self.local_key_origins[var_name] = key_origin
+                elif isinstance(node.value, ast.Name) and node.value.id in self.local_key_origins:
+                    self.local_key_origins[var_name] = self.local_key_origins[node.value.id]
+                    self.dict_aliases[var_name] = node.value.id
         self.generic_visit(node)
 
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:
             indices = self._extract_taint_indices_from_expr(node.value)
             self.return_param_indices.update(indices)
+            if isinstance(node.value, ast.Name) and node.value.id in self.local_key_origins:
+                p_name, k_name = self.local_key_origins[node.value.id]
+                keys = self.key_taints_return.setdefault(p_name, [])
+                if k_name not in keys:
+                    keys.append(k_name)
         self.generic_visit(node)
 
     def visit_If(self, node: ast.If) -> None:
@@ -227,6 +272,8 @@ class TaintContractManager:
             param_taints_return=param_taints_return,
             internal_sinks=visitor.internal_sinks,
             is_sanitizer=is_sanitizer,
+            dict_aliases=visitor.dict_aliases,
+            key_taints_return=visitor.key_taints_return,
         )
 
     @classmethod

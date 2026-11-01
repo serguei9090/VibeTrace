@@ -12,6 +12,12 @@ _IDENT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _ASSIGN_RE = re.compile(
     r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?=\s*(.+)$"
 )
+_DICT_ACCESS_RE = re.compile(
+    r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\s*["\']([^"\']+)["\']\s*\]|\.get\s*\(\s*["\']([^"\']+)["\']\s*(?:,\s*[^)]+)?\))'
+)
+_SAFE_DICT_KEYS = frozenset(
+    {"page", "per_page", "limit", "offset", "count", "format", "version", "verbose"}
+)
 _FUNC_PARAMS_RE = re.compile(r"(?:def|function|func|fn)\s+[A-Za-z0-9_]+\s*\(([^)]*)\)")
 _DIRECT_SOURCES = (
     "request.",
@@ -176,8 +182,35 @@ def _propagate_function_def_use(
             untainted_locals.add(lhs)
             continue
 
+        # Check dictionary field access: e.g. user_id = params["id"] or params.get("page")
+        dict_m = _DICT_ACCESS_RE.search(rhs)
+        if dict_m:
+            dict_var = dict_m.group(1)
+            key_name = dict_m.group(2) or dict_m.group(3) or ""
+            is_tainted_dict = dict_var in tainted or any(
+                src.startswith(f"{dict_var}.") for src in _DIRECT_SOURCES
+            )
+            if is_tainted_dict:
+                if key_name.lower() in _SAFE_DICT_KEYS or any(
+                    f"{san}(" in rhs for san in sanitizers
+                ):
+                    tainted.pop(lhs, None)
+                    untainted_locals.add(lhs)
+                else:
+                    origin = tainted.get(dict_var, [dict_var])
+                    key_tag = f"{dict_var}[{key_name}]"
+                    tainted[lhs] = [*origin, key_tag, lhs]
+                    untainted_locals.discard(lhs)
+                continue
+
         if any(src in rhs for src in _DIRECT_SOURCES):
             tainted[lhs] = [lhs]
+            untainted_locals.discard(lhs)
+            continue
+
+        # Check direct variable alias: alias = user_id
+        if rhs in tainted:
+            tainted[lhs] = [*tainted[rhs], lhs]
             untainted_locals.discard(lhs)
             continue
 
