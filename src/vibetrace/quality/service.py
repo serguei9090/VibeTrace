@@ -160,13 +160,11 @@ def _audit_single_file(
                     )
                 )
 
-        ruff_engine = RuffAdapter()
-        if not ruff_engine.is_available(project_root):
-            smell_findings = analyze_python_smells(
-                file_path=rel_path,
-                source_code=source_code,
-            )
-            findings.extend(smell_findings)
+        smell_findings = analyze_python_smells(
+            file_path=rel_path,
+            source_code=source_code,
+        )
+        findings.extend(smell_findings)
 
     if decl_rules:
         decl_findings = DeclarativeQualityRuleManager.scan_file_with_rules(

@@ -32,7 +32,7 @@ class DBQueriesMixin:
 
     def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Search nodes using SQLite FTS5 BM25 ranking."""
-        tokens = re.findall(r"[A-Za-z0-9_]+", query)
+        tokens = re.findall(r"\w+", query)
         if not tokens:
             return []
 

@@ -20,7 +20,7 @@ def with_write_retry(max_attempts: int = 5, initial_delay: float = 0.05) -> Call
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
-                except (sqlite3.OperationalError, sqlite3.DatabaseError) as err:
+                except sqlite3.DatabaseError as err:
                     err_msg = str(err).lower()
                     if (
                         "locked" in err_msg

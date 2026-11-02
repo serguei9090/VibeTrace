@@ -254,36 +254,35 @@ def analyze_treesitter_quality(
                             )
 
         # 4. Nested Ternary Check (RSPEC-3358)
-        if node.type == "conditional_expression":
-            if in_ternary:
-                t_line = node.start_point[0] + 1
-                t_snippet = "\n".join(source_lines[t_line - 1 : t_line])
-                t_hash = hashlib.sha256(t_snippet.strip().encode("utf-8")).hexdigest()
-                raw_id = f"{file_path}:nested_ternary:{t_line}:{node.start_point[1]}"
-                fid = f"QUAL-S3358-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
-                spec = QUALITY_RULES_CATALOG.get("S3358")
-                findings.append(
-                    QualityFinding(
-                        id=fid,
-                        rule_id=f"{language_prefix}:S3358",
-                        rspec_id="RSPEC-3358",
-                        category=QualityCategory.MAINTAINABILITY,
-                        severity=QualitySeverity.MEDIUM,
-                        title="Extract nested ternary operation into independent statement.",
-                        message=(
-                            "Nested ternary operators should not be used as they impair "
-                            "readability. Use if-else statements or extract into variables."
-                        ),
-                        file_path=file_path.replace("\\", "/"),
-                        start_line=t_line,
-                        end_line=t_line,
-                        code_hash=t_hash,
-                        non_compliant_snippet=t_snippet,
-                        compliant_snippet=spec.compliant_example if spec else None,
-                        remediation_guidance=spec.explanation if spec else None,
-                        status="UNAPPROVED",
-                    )
+        if node.type == "conditional_expression" and in_ternary:
+            t_line = node.start_point[0] + 1
+            t_snippet = "\n".join(source_lines[t_line - 1 : t_line])
+            t_hash = hashlib.sha256(t_snippet.strip().encode("utf-8")).hexdigest()
+            raw_id = f"{file_path}:nested_ternary:{t_line}:{node.start_point[1]}"
+            fid = f"QUAL-S3358-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+            spec = QUALITY_RULES_CATALOG.get("S3358")
+            findings.append(
+                QualityFinding(
+                    id=fid,
+                    rule_id=f"{language_prefix}:S3358",
+                    rspec_id="RSPEC-3358",
+                    category=QualityCategory.MAINTAINABILITY,
+                    severity=QualitySeverity.MEDIUM,
+                    title="Extract nested ternary operation into independent statement.",
+                    message=(
+                        "Nested ternary operators should not be used as they impair "
+                        "readability. Use if-else statements or extract into variables."
+                    ),
+                    file_path=file_path.replace("\\", "/"),
+                    start_line=t_line,
+                    end_line=t_line,
+                    code_hash=t_hash,
+                    non_compliant_snippet=t_snippet,
+                    compliant_snippet=spec.compliant_example if spec else None,
+                    remediation_guidance=spec.explanation if spec else None,
+                    status="UNAPPROVED",
                 )
+            )
 
         # 5. Mergeable If Statement Check (RSPEC-1066)
         if node.type == "if_statement":

@@ -276,7 +276,7 @@ class PythonSmellsVisitor(ast.NodeVisitor):
                             "to decrease nesting."
                         ),
                         file_path=self.file_path,
-                        start_line=inner_if.lineno,
+                        start_line=start_l,
                         end_line=getattr(inner_if, "end_lineno", inner_if.lineno),
                         symbol_name=self._current_function,
                         code_hash=code_hash,

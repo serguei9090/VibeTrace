@@ -6,6 +6,7 @@ and parses inline `# noqa`, `// nosonar`, and `vibetrace:ignore` directives.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -37,6 +38,27 @@ SUPPORTED_EXTS = (
     ".sql",
 )
 
+IGNORE_DIR_NAMES = {
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "scratch",
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    "target",
+    ".agent",
+    ".agents",
+    ".gemini",
+    ".vibetrace",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+}
+
 IGNORE_PATH_PARTS = (
     "/.venv/",
     "/venv/",
@@ -49,6 +71,13 @@ IGNORE_PATH_PARTS = (
     "/out/",
     "/.next/",
     "/target/",
+    "/.agent/",
+    "/.agents/",
+    "/.gemini/",
+    "/.vibetrace/",
+    "/.mypy_cache/",
+    "/.pytest_cache/",
+    "/.ruff_cache/",
 )
 
 _INLINE_NOSONAR_RE = re.compile(r"(?:#|//)\s*nosonar\b", re.IGNORECASE)
@@ -109,6 +138,22 @@ def check_inline_suppression(finding: QualityFinding, source_lines: list[str]) -
     return False
 
 
+def _walk_candidate_paths(root_dir: Path) -> list[Path]:
+    """Walks directory tree pruning ignored folders early for sub-millisecond discovery."""
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in IGNORE_DIR_NAMES and not d.endswith("_cache") and not d.startswith(".tmp")
+        ]
+        for f in filenames:
+            fl = f.lower()
+            if fl.endswith(SUPPORTED_EXTS) or fl == "dockerfile" or fl.startswith("dockerfile."):
+                found.append(Path(dirpath) / f)
+    return found
+
+
 def resolve_candidate_paths(
     project_root: Path,
     file_filter: str | None = None,
@@ -131,20 +176,12 @@ def resolve_candidate_paths(
         if target.is_file():
             return [target]
         if target.is_dir():
-            found: list[Path] = []
-            for ext in SUPPORTED_EXTS:
-                found.extend(target.rglob(f"*{ext}"))
-            found.extend(target.rglob("Dockerfile*"))
-            return found
+            return _walk_candidate_paths(target)
         return []
 
     src_dir = project_root / "src"
     search_root = src_dir if src_dir.is_dir() else project_root
-    found_all: list[Path] = []
-    for ext in SUPPORTED_EXTS:
-        found_all.extend(search_root.rglob(f"*{ext}"))
-    found_all.extend(search_root.rglob("Dockerfile*"))
-    return found_all
+    return _walk_candidate_paths(search_root)
 
 
 def is_path_allowed(path: Path, include_tests: bool) -> bool:
