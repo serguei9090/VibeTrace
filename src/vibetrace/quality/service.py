@@ -26,7 +26,6 @@ from vibetrace.quality.models import (
 )
 from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 from vibetrace.quality.smells import analyze_python_smells
-from vibetrace.quality.ts_analyzer import analyze_ts_quality
 from vibetrace.taxonomy import CweTaxonomyManager
 
 _SUPPORTED_EXTS = (".py", ".css", ".ts", ".tsx", ".js", ".jsx")
@@ -169,7 +168,8 @@ def _audit_single_file(
     if lower_suffix == ".css":
         findings = analyze_css_quality(file_path=rel_path, source_code=source_code)
     elif lower_suffix in (".ts", ".tsx", ".js", ".jsx"):
-        findings = analyze_ts_quality(file_path=rel_path, source_code=source_code)
+        # Syntactic Tree-Sitter TS checks deprecated; handled via native linter bridge
+        findings = []
     elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
         findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
     else:

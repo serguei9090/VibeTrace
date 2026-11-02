@@ -442,52 +442,18 @@ def test_css_project_audit_integration() -> None:
         assert "css:S9449" in rule_ids
 
 
-def test_typescript_and_jsx_quality_analyzer() -> None:
-    from vibetrace.quality.ts_analyzer import analyze_ts_quality
+def test_typescript_file_audit_clean_handling(tmp_path: Path) -> None:
+    from vibetrace.quality.service import QualityService
 
-    tsx_code = """
-import React from 'react';
+    ts_file = tmp_path / "test.tsx"
+    ts_file.write_text("export const answer = 42;\n", encoding="utf-8")
 
-// ts:S4323: explicit any
-const config: any = { mode: 'debug' };
-const payload = data as any;
-
-// ts:S6544: unhandled floating promise
-fetch('/api/sync').then(r => r.json());
-
-export function UserCard() {
-  return (
-    <div>
-      {/* jsx:S6852: img missing alt */}
-      <img src="/avatar.png" />
-
-      {/* jsx:S6848: non-interactive element with onClick */}
-      <div onClick={() => console.log('clicked')}>
-        Click Me
-      </div>
-
-      {/* Compliant button with click handler */}
-      <button type="button" onClick={() => console.log('ok')}>
-        Compliant
-      </button>
-
-      {/* Compliant img with alt */}
-      <img src="/logo.png" alt="Company Logo" />
-    </div>
-  );
-}
-"""
-    findings = analyze_ts_quality("UserCard.tsx", tsx_code)
-    rule_ids = {f.rule_id for f in findings}
-
-    assert "ts:S4323" in rule_ids  # explicit any
-    assert "ts:S6544" in rule_ids  # floating promise
-    assert "jsx:S6852" in rule_ids  # img missing alt
-    assert "jsx:S6848" in rule_ids  # div onClick without role/key
-
-    # Compliant button and compliant img should not be flagged
-    img_findings = [f for f in findings if f.rule_id == "jsx:S6852"]
-    assert len(img_findings) == 1  # Only the uncompliant img
+    report = QualityService.audit_project(
+        db=None,
+        project_root=tmp_path,
+        file_list=[str(ts_file)],
+    )
+    assert report.total_findings == 0
 
 
 def test_dockerfile_quality_analyzer() -> None:

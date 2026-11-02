@@ -12,7 +12,6 @@ from vibetrace.quality.models import (
 )
 from vibetrace.quality.rules import QUALITY_RULES_CATALOG, QualityRuleSpec
 from vibetrace.quality.service import QualityService
-from vibetrace.quality.ts_analyzer import analyze_ts_quality
 
 __all__ = [
     "QUALITY_RULES_CATALOG",
@@ -24,5 +23,4 @@ __all__ = [
     "QualitySeverity",
     "analyze_css_quality",
     "analyze_docker_quality",
-    "analyze_ts_quality",
 ]
