@@ -122,8 +122,13 @@ class GolangLintAdapter(LinterSubEngine):
         return None
 
     def is_available(self, project_root: Path) -> bool:
-        """Returns True if golangci-lint or go is found."""
-        return self._find_runner(project_root) is not None
+        """Returns True if golangci-lint or go is found and a go.mod or .go files exist."""
+        has_runner = self._find_runner(project_root) is not None
+        if not has_runner:
+            return False
+        if self._find_go_mod(project_root) is not None:
+            return True
+        return any(project_root.rglob("*.go"))
 
     def _map_issue_to_finding(
         self,

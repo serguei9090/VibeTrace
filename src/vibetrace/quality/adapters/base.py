@@ -31,3 +31,24 @@ class LinterSubEngine(ABC):
     ) -> list[QualityFinding]:
         """Audits target files or the entire project using batch-optimized sub-processes."""
         ...
+
+
+def extract_json_payload(raw: str) -> str:
+    """Extracts JSON object or array substring by locating outermost braces/brackets."""
+    raw_str = raw.strip()
+    idx_brace = raw_str.find("{")
+    idx_bracket = raw_str.find("[")
+
+    if idx_brace == -1 and idx_bracket == -1:
+        return raw_str
+
+    if idx_brace != -1 and (idx_bracket == -1 or idx_brace < idx_bracket):
+        start = idx_brace
+        end = raw_str.rfind("}")
+    else:
+        start = idx_bracket
+        end = raw_str.rfind("]")
+
+    if start != -1 and end != -1 and end >= start:
+        return raw_str[start : end + 1]
+    return raw_str

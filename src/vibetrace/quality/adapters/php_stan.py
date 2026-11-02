@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from vibetrace.quality.adapters.base import LinterSubEngine
+from vibetrace.quality.adapters.base import LinterSubEngine, extract_json_payload
 from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
 from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 
@@ -242,10 +242,11 @@ class PhpStanAdapter(LinterSubEngine):
     def is_available(self, project_root: Path) -> bool:
         """Returns True if PHPStan runner is found and composer.json or .php files exist."""
         has_runner = self._find_runner(project_root) is not None
-        has_php = self._find_composer_json(project_root) is not None or any(
-            project_root.glob("*.php")
-        )
-        return has_runner and has_php
+        if not has_runner:
+            return False
+        if self._find_composer_json(project_root) is not None:
+            return True
+        return any(project_root.rglob("*.php"))
 
     def _map_message_to_finding(
         self,
@@ -345,18 +346,9 @@ class PhpStanAdapter(LinterSubEngine):
             return []
 
         try:
-            parsed = json.loads(output)
-        except json.JSONDecodeError:
-            # PHPStan may emit warnings before JSON
-            first_brace = output.find("{")
-            last_brace = output.rfind("}")
-            if first_brace != -1 and last_brace != -1:
-                try:
-                    parsed = json.loads(output[first_brace : last_brace + 1])
-                except json.JSONDecodeError:
-                    return []
-            else:
-                return []
+            parsed = json.loads(extract_json_payload(output))
+        except Exception:
+            return []
 
         findings: list[QualityFinding] = []
         files_obj = parsed.get("files") or {}

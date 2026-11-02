@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from vibetrace.quality.adapters.base import LinterSubEngine
+from vibetrace.quality.adapters.base import LinterSubEngine, extract_json_payload
 from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
 from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 
@@ -202,11 +202,7 @@ class RuboCopAdapter(LinterSubEngine):
 
     def parse_rubocop_output(self, raw_json: str, project_root: Path) -> list[QualityFinding]:
         try:
-            json_start = raw_json.find("{")
-            json_end = raw_json.rfind("}")
-            if json_start != -1 and json_end != -1:
-                raw_json = raw_json[json_start : json_end + 1]
-            payload = json.loads(raw_json)
+            payload = json.loads(extract_json_payload(raw_json))
         except Exception:
             return []
 
