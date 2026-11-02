@@ -108,6 +108,29 @@ class SecurityService:
                     db=db,
                     force_update=force_update_cves,
                 )
+                if cve_findings:
+                    try:
+                        from vibetrace.security.dep_graph import (
+                            DependencyGraphBuilder,
+                            normalize_package_name,
+                        )
+
+                        dep_graph = DependencyGraphBuilder.build(project_root)
+                        for cf in cve_findings:
+                            if cf.symbol_name:
+                                norm_name = normalize_package_name(cf.symbol_name)
+                                if norm_name not in dep_graph.direct_roots:
+                                    chains = dep_graph.resolve_why(norm_name)
+                                    if chains:
+                                        chain_str = " -> ".join(chains[0].path)
+                                        cf.remediation_guidance = (
+                                            f"{cf.remediation_guidance}\n\n"
+                                            f"**Transitive Root Cause:** `{chain_str}` "
+                                            f"(via direct parent `{chains[0].root_package}`). "
+                                            f"Upgrade `{chains[0].root_package}` to resolve."
+                                        )
+                    except Exception:
+                        pass
                 findings.extend(cve_findings)
 
         for f in findings:

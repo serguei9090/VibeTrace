@@ -36,7 +36,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 7. [x] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10** *(Implemented & Verified ✅)*
 8. [x] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10** *(Implemented & Verified ✅)*
 9. [x] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10** *(Implemented & Verified ✅)*
-10. [ ] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
+10. [x] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10** *(Implemented & Verified ✅)*
 11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
 12. [x] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10** *(Implemented & Verified ✅ via refactor --suggest)*
 13. [ ] **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
@@ -194,9 +194,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #10. Transitive Dependency Graph Resolution & Root-Cause Visualizer
+### #10. Transitive Dependency Graph Resolution & Root-Cause Visualizer — Implemented ✅
 - **Category:** Margin for Improvement (Security)
 - **Score:** **7.5 / 10** (Diagnostic Clarity)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
   When `uv.lock` reports `certifi@2026.1.4` is vulnerable, the agent doesn't know *which* top-level dependency required it (e.g. `httpx` $\to$ `httpcore` $\to$ `certifi`). This feature builds the inverted dependency tree to pinpoint the root parent package.
 - **Benefits:**

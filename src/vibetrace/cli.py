@@ -32,6 +32,7 @@ from vibetrace.cli_commands import (
     cmd_test,
     cmd_trace,
 )
+from vibetrace.cli_deps import cmd_deps
 from vibetrace.cli_project import register_project_parser
 from vibetrace.cli_refactor import cmd_refactor
 from vibetrace.cli_vibe import cmd_bundle, cmd_guard
@@ -368,6 +369,55 @@ examples:
     p_deps.add_argument("--path", default=".", help="Project root directory path")
     p_deps.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_deps.set_defaults(func=cmd_dependencies)
+
+    # deps (transitive dependency resolution & root-cause visualization)
+    p_transitive_deps = sub.add_parser(
+        "deps",
+        help="Resolve transitive package dependencies, causation chains, and diamond conflicts",
+        description=(
+            "Inspect project package graphs across lockfiles (uv.lock, package-lock.json, "
+            "Cargo.lock) to pinpoint why transitive packages are installed and resolve conflicts."
+        ),
+    )
+    deps_sub = p_transitive_deps.add_subparsers(dest="deps_action", required=True)
+
+    # deps why
+    p_why = deps_sub.add_parser(
+        "why",
+        help="Explain why a transitive package is installed by finding all root causation paths",
+    )
+    p_why.add_argument("package", help="Target package name (e.g. 'certifi', 'idna', 'qs')")
+    p_why.add_argument("--path", default=".", help="Project root directory path (default: .)")
+    p_why.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+
+    # deps tree
+    p_tree = deps_sub.add_parser(
+        "tree",
+        help="Render top-down package dependency tree from root manifest dependencies",
+    )
+    p_tree.add_argument(
+        "--target",
+        default=None,
+        help="Filter tree to causation paths reaching this target package",
+    )
+    p_tree.add_argument(
+        "--depth",
+        type=int,
+        default=4,
+        help="Maximum depth of nested package dependencies (default: 4)",
+    )
+    p_tree.add_argument("--path", default=".", help="Project root directory path (default: .)")
+    p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+
+    # deps conflicts
+    p_conflicts = deps_sub.add_parser(
+        "conflicts",
+        help="Audit lockfiles for diamond dependency version collisions",
+    )
+    p_conflicts.add_argument("--path", default=".", help="Project root directory path (default: .)")
+    p_conflicts.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
+
+    p_transitive_deps.set_defaults(func=cmd_deps)
 
     # serve
     p_serve = sub.add_parser(
