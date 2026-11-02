@@ -6,10 +6,12 @@ from vibetrace.quality.adapters.base import LinterSubEngine
 from vibetrace.quality.adapters.biome import BiomeAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
+from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 
 __all__ = [
     "BiomeAdapter",
     "LinterSubEngine",
     "PyrightAdapter",
     "RuffAdapter",
+    "TypeScriptAdapter",
 ]

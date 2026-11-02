@@ -12,6 +12,7 @@ from vibetrace.indexer.db import IndexerDB
 from vibetrace.quality.adapters.biome import BiomeAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
+from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
 from vibetrace.quality.complexity import (
     FunctionComplexity,
@@ -272,6 +273,7 @@ class QualityService:
         file_list: list[str] | None = None,
         complexity_threshold: int = 15,
         include_tests: bool = False,
+        typecheck: bool = False,
     ) -> QualityAuditReport:
         """Audits project source files for cognitive complexity and clean code smells."""
         raw_findings: list[QualityFinding] = []
@@ -315,6 +317,15 @@ class QualityService:
             biome_engine = BiomeAdapter()
             if biome_engine.is_available(project_root):
                 raw_findings.extend(biome_engine.audit_project(project_root, biome_files))
+
+        # Batch execute TypeScript incremental typechecker if requested or configured
+        if typecheck:
+            supported = TypeScriptAdapter.SUPPORTED_EXTENSIONS
+            ts_files = [p for p in target_files if p.suffix.lower() in supported]
+            if ts_files:
+                tsc_engine = TypeScriptAdapter()
+                if tsc_engine.is_available(project_root):
+                    raw_findings.extend(tsc_engine.audit_project(project_root, ts_files))
 
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:

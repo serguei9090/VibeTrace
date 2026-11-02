@@ -985,6 +985,11 @@ examples:
         help="Include test directories and test files in quality audit",
     )
     p_quality.add_argument(
+        "--typecheck",
+        action="store_true",
+        help="Run incremental TypeScript compiler (tsc) type-check pass across TS/TSX files",
+    )
+    p_quality.add_argument(
         "--approve",
         action="store_true",
         help="Approve current unapproved findings into .vibetrace/quality.toml baseline",

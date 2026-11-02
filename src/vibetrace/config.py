@@ -97,6 +97,14 @@ class IndexerConfig(BaseModel):
     )
 
 
+class LinterConfigs(BaseModel):
+    """Engine configuration selection: 'project' (root config), 'strict' (preset), or 'auto'."""
+
+    ruff: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+    biome: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+    typescript: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+
+
 class QualityConfig(BaseModel):
     """Quality rules synchronization and custom Sonar/remote feed configuration."""
 
@@ -120,6 +128,10 @@ class QualityConfig(BaseModel):
         ge=1,
         le=90,
         description="Local SQLite cache time-to-live for quality rules catalog in days",
+    )
+    linter_configs: LinterConfigs = Field(
+        default_factory=LinterConfigs,
+        description="Sub-engine configuration resolution preferences ('project' | 'strict')",
     )
 
 
@@ -238,3 +250,66 @@ def save_default_config(project_root: Path | str, project_name: str | None = Non
         content = generate_default_config_toml(name)
         target.write_text(content, encoding="utf-8")
     return target
+
+
+def resolve_linter_mode(project_root: Path, engine: str) -> str:
+    """Resolves whether an engine should use 'project' config or VibeTrace 'strict' preset."""
+    cfg = load_config(project_root)
+    val = getattr(cfg.quality.linter_configs, engine.lower(), "auto")
+    if val in ("project", "strict"):
+        return val
+
+    # In 'auto' mode: check if project-level config file exists
+    norm_engine = engine.lower()
+    has_project_cfg = False
+    if norm_engine == "ruff":
+        has_project_cfg = any(
+            (project_root / f).is_file() for f in ("ruff.toml", ".ruff.toml", "pyproject.toml")
+        )
+    elif norm_engine == "biome":
+        has_project_cfg = any((project_root / f).is_file() for f in ("biome.json", "biome.jsonc"))
+    elif norm_engine in ("typescript", "tsc"):
+        has_project_cfg = any(
+            (project_root / f).is_file()
+            for f in ("tsconfig.json", "src/web/tsconfig.app.json", "src/web/tsconfig.json")
+        )
+
+    return "project" if has_project_cfg else "strict"
+
+
+def save_linter_mode(project_root: Path, engine: str, mode: str) -> None:
+    """Persists engine configuration choice into .vibetrace.toml."""
+    cfg_file = get_config_path(project_root) or (project_root / ".vibetrace.toml")
+    header_block = "[quality.linter_configs]\n"
+    line_to_set = f'{engine.lower()} = "{mode}"\n'
+
+    content = ""
+    if cfg_file.is_file():
+        content = cfg_file.read_text(encoding="utf-8", errors="replace")
+
+    if "[quality.linter_configs]" in content:
+        lines = content.splitlines(keepends=True)
+        new_lines: list[str] = []
+        in_section = False
+        replaced = False
+        for line in lines:
+            s_line = line.strip()
+            if s_line.startswith("[") and not s_line.startswith("[quality.linter_configs]"):
+                if in_section and not replaced:
+                    new_lines.append(line_to_set)
+                    replaced = True
+                in_section = False
+            elif s_line == "[quality.linter_configs]":
+                in_section = True
+            elif in_section and s_line.startswith(f"{engine.lower()} ="):
+                line = line_to_set
+                replaced = True
+            new_lines.append(line)
+        if in_section and not replaced:
+            new_lines.append(line_to_set)
+        content = "".join(new_lines)
+    else:
+        content = content.rstrip() + f"\n\n{header_block}{line_to_set}"
+
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    cfg_file.write_text(content, encoding="utf-8")

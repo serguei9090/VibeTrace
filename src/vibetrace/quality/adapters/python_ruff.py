@@ -36,7 +36,16 @@ class RuffAdapter(LinterSubEngine):
         self._cached_runner: list[str] | None = None
 
     def _resolve_config_path(self, project_root: Path) -> Path:
-        """Prefers local .vibetrace/config/ruff.toml if present, falling back to bundled preset."""
+        """Resolves configuration based on user settings in .vibetrace.toml."""
+        from vibetrace.config import resolve_linter_mode
+
+        mode = resolve_linter_mode(project_root, "ruff")
+        if mode == "project":
+            for cand in ("ruff.toml", ".ruff.toml", "pyproject.toml"):
+                p = project_root / cand
+                if p.is_file():
+                    return p
+
         override = project_root / ".vibetrace" / "config" / "ruff.toml"
         if override.is_file():
             return override

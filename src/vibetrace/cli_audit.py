@@ -445,6 +445,7 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
         file_filter=file_filter,
         complexity_threshold=threshold,
         include_tests=include_tests,
+        typecheck=getattr(args, "typecheck", False),
     )
 
     if getattr(args, "approve", False):
