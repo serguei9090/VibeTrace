@@ -328,6 +328,10 @@ For centralized team servers, monorepos, and cloud multi-tenancy:
 - **Status:** Deferred to future roadmap to keep VibeTrace lightweight and avoid compiled binary C-extension dependencies.
 - **Lightweight Alternative:** Calibrate token estimators with a 10% conservative safety headroom ($3.5\text{ chars/token}$ and a 90% budget cap) to mathematically guarantee zero context window overflow without external dependencies.
 
+### 5. Planned Web Explorer: In-Memory WASM AST Indexing — Roadmap (Deferred)
+- **Standalone Web / Chrome Extension Showcase**: In-browser AST parsing via `web-tree-sitter` and in-memory SQLite (`sql.js`) to inspect public GitHub repositories directly in the Map Room without running the local Python daemon.
+- **Status:** Deferred to future roadmap (or separate standalone browser extension) to keep VibeTrace focused on local CLI developer velocity, deep taint analysis, and agent pair-programming pipelines.
+
 ---
 
 ## 🛠️ Development & Contributing

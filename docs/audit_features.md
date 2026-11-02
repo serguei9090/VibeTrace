@@ -261,14 +261,15 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #15. In-Memory WASM AST Indexing for Web Map Room
+### #15. In-Memory WASM AST Indexing for Web Map Room — Roadmap (Deferred)
 - **Category:** New Feature
 - **Score:** **5.5 / 10** (Browser Portability)
+- **Status:** **Roadmap (Deferred)**
 - **What It Solves Exactly:**  
   Allows the React Map Room web UI to run completely standalone in a browser tab without requiring the Python `vibetrace` backend daemon.
 - **Benefits:**
-  - Zero-install visual demo capability on web browsers.
+  - Zero-install visual demo capability on web browsers to inspect any public GitHub repository.
 - **Cons & Potential Risks:**
-  - Browser memory limits (typically 2–4 GB) constrain the size of repositories that can be parsed client-side.
-- **How We Address This:**  
-  Position this as a lightweight "Quick Explorer" mode for single repositories or directories, while large-scale monorepos continue using the native background Python daemon.
+  - Browser memory limits (typically 2–4 GB) constrain the size of repositories that can be parsed client-side; does not run local Python deep taint analysis or CLI refactoring.
+- **Future Direction / Alternative:**  
+  Deferred to roadmap. May alternatively be packaged separately as a dedicated Chrome Extension or standalone client-side web showcase tool, keeping the core VibeTrace codebase lean and focused on local CLI/agent pair-programming workflows.
