@@ -19,6 +19,7 @@ def test_tools_manager_get_status(tmp_path: Path):
     assert "php" in statuses
     assert "ruby" in statuses
     assert "shell" in statuses
+    assert "sql" in statuses
 
     for lang, status in statuses.items():
         assert status.language == lang

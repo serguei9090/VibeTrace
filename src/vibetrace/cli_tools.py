@@ -56,7 +56,7 @@ def cmd_tools(args: argparse.Namespace) -> int:
             return 1
 
         languages = (
-            ["python", "typescript", "go", "rust", "php", "ruby", "shell"]
+            ["python", "typescript", "go", "rust", "php", "ruby", "shell", "sql"]
             if lang.lower() == "all"
             else [lang]
         )

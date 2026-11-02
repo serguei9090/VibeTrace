@@ -17,6 +17,7 @@ from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rubocop import RuboCopAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.shellcheck import ShellCheckAdapter
+from vibetrace.quality.adapters.sql_fluff import SqlFluffAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
 from vibetrace.quality.complexity import (
@@ -65,6 +66,7 @@ _SUPPORTED_EXTS = (
     ".bash",
     ".yaml",
     ".yml",
+    ".sql",
 )
 _IGNORE_PATH_PARTS = (
     "/.venv/",
@@ -215,6 +217,7 @@ def _audit_single_file(
         ".rs",
         ".sh",
         ".bash",
+        ".sql",
     ):
         # Delegated to specialized sub-engine adapters
         findings = []
@@ -418,6 +421,15 @@ class QualityService:
             if shell_engine.is_available(project_root):
                 raw_findings.extend(shell_engine.audit_project(project_root, shell_files))
 
+        # Batch execute SQLFluff sub-engine if available
+        sql_files = [
+            p for p in target_files if p.suffix.lower() in SqlFluffAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if sql_files:
+            sql_engine = SqlFluffAdapter()
+            if sql_engine.is_available(project_root):
+                raw_findings.extend(sql_engine.audit_project(project_root, sql_files))
+
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
             dead_nodes = db.get_uncalled_private_functions(include_tests=include_tests)
@@ -578,6 +590,14 @@ class QualityService:
             rubo_engine = RuboCopAdapter()
             if rubo_engine.is_available(project_root):
                 results["engines"]["ruby"] = rubo_engine.fix_files(project_root, ruby_files)
+
+        sql_files = [
+            p for p in target_files if p.suffix.lower() in SqlFluffAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if sql_files:
+            sql_engine = SqlFluffAdapter()
+            if sql_engine.is_available(project_root):
+                results["engines"]["sql"] = sql_engine.fix_files(project_root, sql_files)
 
         return results
 

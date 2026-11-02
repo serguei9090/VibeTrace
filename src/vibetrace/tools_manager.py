@@ -161,6 +161,24 @@ class ToolsManager:
             auto_installable=shutil.which("winget") is not None or shutil.which("brew") is not None,
         )
 
+        # 8. SQL (SQLFluff)
+        is_win = os.name == "nt"
+        sql_bin_name = "sqlfluff.exe" if is_win else "sqlfluff"
+        which_sql = shutil.which(sql_bin_name)
+        if not which_sql:
+            venv_bin = root / ".venv" / ("Scripts" if is_win else "bin") / sql_bin_name
+            if venv_bin.is_file():
+                which_sql = str(venv_bin)
+
+        status["sql"] = ToolStatus(
+            language="sql",
+            engine="SQLFluff",
+            is_available=which_sql is not None,
+            version_or_path=which_sql,
+            install_hint="vibetrace tools install sql  # installs sqlfluff via uv or pip",
+            auto_installable=shutil.which("uv") is not None or shutil.which("pip") is not None,
+        )
+
         return status
 
     @classmethod
@@ -288,5 +306,23 @@ class ToolsManager:
                     return True, "Installed ShellCheck via Homebrew."
             return False, "Package manager not found. Please install shellcheck manually."
 
-        langs = "python, typescript, go, rust, php, ruby, shell"
+        if lang in ("sql", "sqlfluff"):
+            which_uv = shutil.which("uv")
+            if which_uv:
+                res = subprocess.run(
+                    [which_uv, "pip", "install", "sqlfluff"], cwd=str(root), check=False
+                )
+                if res.returncode == 0:
+                    return True, "Installed SQLFluff via uv pip."
+                res2 = subprocess.run([which_uv, "tool", "install", "sqlfluff"], check=False)
+                if res2.returncode == 0:
+                    return True, "Installed SQLFluff via uv tool."
+            which_pip = shutil.which("pip")
+            if which_pip:
+                res = subprocess.run([which_pip, "install", "sqlfluff"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed SQLFluff via pip."
+            return False, "Python package manager (uv/pip) not found to install sqlfluff."
+
+        langs = "python, typescript, go, rust, php, ruby, shell, sql"
         return False, f"Unknown language '{language}'. Supported: {langs}."
