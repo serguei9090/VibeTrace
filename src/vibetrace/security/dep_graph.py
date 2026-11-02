@@ -239,6 +239,37 @@ class DependencyGraph:
 
         return "\n".join(lines).rstrip()
 
+    def render_tree(self, root_package: str | None = None, max_depth: int = 3) -> str:
+        """Renders top-down dependency tree from root packages."""
+        lines: list[str] = []
+        roots = (
+            [normalize_package_name(root_package)] if root_package else sorted(self.direct_roots)
+        )
+        if not roots:
+            return "No root dependencies found."
+
+        def _print_children(parent: str, current_depth: int, branch_visited: set[str]) -> None:
+            if current_depth > max_depth:
+                return
+            children = sorted(self.adj_down.get(parent, set()))
+            for child in children:
+                indent = "   " * current_depth
+                child_nodes = self.nodes.get(child, [])
+                child_ver = f"@{child_nodes[0].version}" if child_nodes else ""
+                cycle_note = " 🔄 (cycle)" if child in branch_visited else ""
+                lines.append(f"{indent}└── {child}{child_ver}{cycle_note}")
+                if child not in branch_visited:
+                    _print_children(child, current_depth + 1, branch_visited | {child})
+
+        for root in roots:
+            root_nodes = self.nodes.get(root, [])
+            ver = f"@{root_nodes[0].version}" if root_nodes else ""
+            manifest = root_nodes[0].direct_manifest if root_nodes else "manifest"
+            lines.append(f"📦 {root}{ver} ({manifest})")
+            _print_children(root, 1, {root})
+
+        return "\n".join(lines)
+
 
 class DependencyGraphBuilder:
     """Builds a unified DependencyGraph across project lockfiles and manifests."""

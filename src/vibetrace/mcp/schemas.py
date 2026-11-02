@@ -721,3 +721,101 @@ class ReviewChangesInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class ExplainDependencyInput(BaseModel):
+    """Input model for transitive dependency causation, trees, and diamond conflicts."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    package_name: str = Field(
+        default="",
+        description="Target package name to explain (required for action='why')",
+    )
+    action: Literal["why", "tree", "conflicts"] = Field(
+        default="why",
+        description="Action: 'why' (causation paths), 'tree' (hierarchy), 'conflicts' (diamonds)",
+    )
+    max_depth: int = Field(
+        default=3,
+        description="Maximum depth for dependency tree traversal",
+        ge=1,
+        le=10,
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class RefactorMethodInput(BaseModel):
+    """Input model for AST method extraction and cognitive complexity refactoring."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str = Field(
+        ..., description="Relative path to source file containing target function"
+    )
+    symbol_name: str = Field(..., description="Target function or method name to refactor")
+    start_line: int | None = Field(
+        default=None,
+        description="1-indexed starting line to extract (omit to get split suggestions)",
+    )
+    end_line: int | None = Field(
+        default=None,
+        description="1-indexed ending line to extract (omit to get split suggestions)",
+    )
+    helper_name: str | None = Field(
+        default=None,
+        description="Name of the extracted helper function (e.g. '_process_row')",
+    )
+    apply: bool = Field(
+        default=False,
+        description="Apply refactoring diff directly to disk if pre-flight checks pass",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class PatchDependencyInput(BaseModel):
+    """Input model for automated dependency patching and unpatched CVE suppression."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    package_name: str | None = Field(
+        default=None,
+        description="Single package to patch (e.g. 'requests'); omits to patch all reachable",
+    )
+    apply: bool = Field(
+        default=False,
+        description="Run package manager upgrade commands (uv/bun/cargo/go) to update lockfiles",
+    )
+    suppress_unpatched: bool = Field(
+        default=False,
+        description="Record baseline exception in .vibetrace/security.toml for unpatched CVEs",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class CheckDocsDriftInput(BaseModel):
+    """Input model for auditing documentation drift and synchronizing symbol links."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    sync: bool = Field(
+        default=False,
+        description="Synchronize bi-directional symbol links into database before auditing",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

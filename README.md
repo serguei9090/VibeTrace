@@ -57,6 +57,13 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
 - **🛡️ Security Audit (`vibetrace audit security`)**: Offline AST scanner (CWE-22/78/89/95/327/502/798) plus lockfile CVE lookup via Google OSV.dev (24h SQLite cache, silent offline fallback), SonarQube-style remediation guidance, call-graph taint reachability (injection sinks reachable from endpoints/CLI are escalated, with the source-to-sink path), hash-tripwire Git baseline (`.vibetrace/security.toml`), Map Room 🛡️ badges and 1-click triage.
+- **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
+- **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
+- **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
+- **🤖 Automated PR Taint Bot (`vibetrace audit pr-taint`)**: Scans pull request diffs, checks inter-procedural taint reachability, and synthesizes ready-to-merge inline code comments with parameterized remediations.
+- **🔗 Live Codebase Symbol $\leftrightarrow$ Documentation Linking (`vibetrace docs check`)**: Establishes bi-directional SQLite links between AST symbols and Markdown specifications, attaches relevant architectural contracts to source slices, and flags documentation drift when documented symbols are removed.
+- **🏢 Enterprise Polyglot Route & DI Extraction**: Extracts REST routes, dependency injection tokens, and call edges from Java Spring Boot (`@GetMapping`, `@PostMapping`, `@RestController`) and C# ASP.NET Core (`[HttpGet]`, `[Route]`, `[ApiController]`).
+- **🎯 Dynamic Test Fixture Reachability**: Links `@pytest.mark.parametrize`, `@pytest.fixture`, and Jest/Vitest `test.each` parameters to underlying domain functions, preventing false alarms in coverage gates.
 - **🤖 Native Model Context Protocol (`vibetrace mcp`)**: Purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits and security findings surgically.
 - **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a 60 FPS Macro Clustered Package Graph (Option 1), live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
 
@@ -219,7 +226,7 @@ Add VibeTrace to your agent's MCP configuration:
 }
 ```
 
-The agent gains access to 24 surgical FastMCP code intelligence tools:
+The agent gains access to 28 surgical FastMCP code intelligence tools:
 - `vibetrace_review_changes` (Unified 1-call review: Security, Taint, Split Integrity, Caller Guard & 80% Test Gate)
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
 - `vibetrace_check_caller_guard` (Pre-flight caller inspection and blast-radius advisory)
@@ -228,21 +235,26 @@ The agent gains access to 24 surgical FastMCP code intelligence tools:
 - `vibetrace_approve_security_exception` (Record baseline exceptions in `.vibetrace/security.toml`)
 - `vibetrace_audit_splits` (Scan codebase for execution bifurcations and check status against baseline)
 - `vibetrace_approve_split` (Approve a split path into `.vibetrace/splits.toml` with SHA-256 hash)
+- `vibetrace_explain_dependency` (Transitive dependency root causation, dependency tree, and diamond conflicts)
+- `vibetrace_refactor_method` (AST variable lifetime analysis and surgical helper method extraction)
+- `vibetrace_patch_dependency` (Automated dependency upgrade plan and dormant CVE suppression)
+- `vibetrace_check_docs_drift` (Audit documentation for broken symbol references and sync live AST links)
 - `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope)
 - `vibetrace_list_doc_catalogs` (List configured documentation catalogs)
 - `vibetrace_semantic_search` (4-stream hybrid AST + BM25 + Vector + PageRank)
 - `vibetrace_trace_path` (Bidirectional reachable execution pathfinding with exact call lines)
-- `vibetrace_get_code_slice` (Surgical source lines with outgoing callee contracts)
+- `vibetrace_get_code_slice` (Surgical source lines with outgoing callee contracts and linked docs)
 - `vibetrace_impact_analysis` (3-level transitive blast radius)
 - `vibetrace_find_references` (Find all incoming calls and references)
 - `vibetrace_get_call_tree` (Top-down recursive call tree hierarchy)
 - `vibetrace_get_call_stack` (Bidirectional call stack analysis)
 - `vibetrace_get_dependencies` (Categorize imports: internal/stdlib/third-party)
-- `vibetrace_get_structural_summary` (File AST symbol layout)
+- `vibetrace_get_structural_summary` (File AST symbol layout or PageRank centrality repo map)
 - `vibetrace_search_by_signature` (Find functions matching specific signature patterns)
 - `vibetrace_save_trace` / `vibetrace_list_saved_traces` (Saved trace bookmarks)
 - `vibetrace_delete_saved_trace` (Delete saved trace bookmarks)
 - `vibetrace_reindex_project` (Trigger incremental or full AST reindexing)
+- `vibetrace_project_status` / `project_search` / `project_guard` / `project_links` (Federated multi-repo tools)
 
 ---
 

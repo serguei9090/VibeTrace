@@ -51,7 +51,41 @@ Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency 
   uv run vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
   ```
 
-### 6. Unified 1-Call AI Self-Review & Quality Gate (`review`)
+### 6. Transitive Dependency Graph Resolution & Diamond Conflict Detector (`deps`)
+Locate upstream causation paths for any sub-dependency, render direct manifest trees, and detect multi-version diamond collisions:
+- **MCP Tool:** `vibetrace_explain_dependency(package_name="certifi", action="why")`
+- **MCP Tool (Tree):** `vibetrace_explain_dependency(action="tree", max_depth=3)`
+- **MCP Tool (Conflicts):** `vibetrace_explain_dependency(action="conflicts")`
+- **CLI:**
+  ```bash
+  uv run vibetrace deps why certifi
+  uv run vibetrace deps tree --depth 3
+  uv run vibetrace deps conflicts
+  ```
+
+### 7. AST Method Extraction & Cognitive Complexity Refactor (`refactor`)
+Analyze AST variable lifetimes and execute surgical helper method extraction for complex functions with automated parameter and return tuple resolution:
+- **MCP Tool (Split Suggestions):** `vibetrace_refactor_method(file_path="src/parser.py", symbol_name="parse_file")`
+- **MCP Tool (Apply Extraction):** `vibetrace_refactor_method(file_path="src/parser.py", symbol_name="parse_file", start_line=45, end_line=72, helper_name="_extract_header", apply=True)`
+- **CLI:**
+  ```bash
+  uv run vibetrace refactor --file src/parser.py --symbol parse_file
+  uv run vibetrace refactor --file src/parser.py --symbol parse_file --split-method --lines 45:72 --name _extract_header --write
+  ```
+
+### 8. Dependency Vulnerability Auto-Patcher & Reachability Triage (`audit fix-deps`)
+Automatically bump vulnerable packages via native package managers (`uv`, `bun`, `cargo`, `go`) or safely record unpatched CVEs with 0 call edges in `.vibetrace/security.toml`:
+- **MCP Tool:** `vibetrace_patch_dependency(package_name="requests", apply=True)`
+- **CLI:** `uv run vibetrace audit fix-deps --apply`
+- **CLI (Suppress Unpatched):** `uv run vibetrace audit fix-deps --suppress-unpatched`
+
+### 9. Automated PR Taint Bot & Inline Remediation Generator (`audit pr-taint`)
+Generate ready-to-merge GitHub PR comments containing complete 3-hop taint traces and synthesized parameterized replacements:
+- **CLI (Inspect PR diff):** `uv run vibetrace audit pr-taint --base main`
+- **CLI (Auto-apply remediations):** `uv run vibetrace audit pr-taint --apply`
+- **CLI (CI Summary):** `uv run vibetrace audit pr-taint --output-md pr-review.md`
+
+### 10. Unified 1-Call AI Self-Review & Quality Gate (`review`)
 Before completing any coding task or committing, run the single unified Quality Gate that executes **Security + IaC + Git Secret + Inter-Procedural Taint**, **Split Path Audit**, **Hybrid Test Coverage Gate** (instant AST test-caller reachability + `coverage.xml`/`lcov.info` line coverage with an 80% default target), and **Caller Guard** in one pass:
 - **MCP Tool:** `vibetrace_review_changes(scope="changed", check_dependencies=False, min_coverage=80.0, enforce_coverage=False)`
 - **REST API:** `GET /api/review?scope=changed&min_coverage=80`
@@ -74,6 +108,7 @@ Before modifying code or planning architecture, consult project-specific require
 ### Via MCP Tool
 - `vibetrace_search_docs(query="<architecture, API contract, or standard>", scope="local", limit=5)`
 - `vibetrace_list_doc_catalogs()`
+- `vibetrace_check_docs_drift(sync=True)` (audits documentation for dead or broken codebase symbol references)
 
 ### Via CLI
 ```bash
@@ -85,6 +120,10 @@ uv run vibetrace docs index
 uv run vibetrace docs search "authentication flow"
 # Search master stack documentation
 uv run vibetrace docs search "rust error handling pattern" --scope global
+
+# Audit documentation for broken symbol references and sync links
+uv run vibetrace docs check
+uv run vibetrace docs sync-links
 ```
 
 ---

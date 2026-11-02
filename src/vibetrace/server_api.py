@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.server_api_docs import docs_router
+from vibetrace.server_api_engineering import get_engineering_router
 from vibetrace.server_api_project import get_project_router
 from vibetrace.server_api_saved_traces import get_saved_traces_router
 from vibetrace.services.graph_service import (
@@ -158,6 +159,7 @@ app.add_middleware(
 app.include_router(docs_router)
 app.include_router(get_saved_traces_router(lambda: db))
 app.include_router(get_project_router())
+app.include_router(get_engineering_router(lambda: db))
 
 
 @app.get("/api/hooks")

@@ -60,6 +60,7 @@ from vibetrace.mcp.schemas import (
 from vibetrace.mcp.schemas import (
     TraceDirection as TraceDirection,
 )
+from vibetrace.mcp.tools_engineering import register_engineering_tools
 from vibetrace.mcp.tools_project import register_project_tools
 from vibetrace.services.graph_service import (
     analyze_file_dependencies,
@@ -813,6 +814,7 @@ async def vibetrace_review_changes(params: ReviewChangesInput) -> str:
         return handle_error(e, "running unified AI code review")
 
 
+register_engineering_tools(mcp)
 register_project_tools(mcp)
 
 

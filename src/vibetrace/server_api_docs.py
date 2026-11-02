@@ -115,3 +115,33 @@ def search_documentation(
         project_root=root,
         limit=limit,
     )
+
+
+@docs_router.get("/check")
+def check_docs_drift() -> dict[str, Any]:
+    """Audit documentation for dead or broken codebase symbol references."""
+    from vibetrace.docs.symbol_linker import SymbolDocLinker
+    from vibetrace.indexer.db import IndexerDB
+
+    root = _get_project_root()
+    db_path = root / ".vibetrace" / "index.db"
+    if not db_path.is_file():
+        raise HTTPException(status_code=400, detail="VibeTrace index not found. Run index first.")
+    db = IndexerDB(db_path)
+    report = SymbolDocLinker.audit_doc_links(root, db)
+    return report.model_dump()
+
+
+@docs_router.post("/sync-links")
+def sync_doc_links() -> dict[str, Any]:
+    """Synchronize bi-directional links between documentation and AST symbols."""
+    from vibetrace.docs.symbol_linker import SymbolDocLinker
+    from vibetrace.indexer.db import IndexerDB
+
+    root = _get_project_root()
+    db_path = root / ".vibetrace" / "index.db"
+    if not db_path.is_file():
+        raise HTTPException(status_code=400, detail="VibeTrace index not found. Run index first.")
+    db = IndexerDB(db_path)
+    count = SymbolDocLinker.sync_links(root, db)
+    return {"status": "ok", "synced_links": count}
