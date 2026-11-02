@@ -141,14 +141,6 @@ class CargoClippyAdapter(LinterSubEngine):
                 return cand
         return None
 
-    def _resolve_config_path(self, project_root: Path) -> Path | None:
-        """Resolves active Cargo.toml or clippy.toml configuration."""
-        for cand in ("clippy.toml", ".clippy.toml", "Cargo.toml"):
-            p = project_root / cand
-            if p.is_file():
-                return p
-        return self._find_cargo_toml(project_root)
-
     def _find_runner(self, project_root: Path) -> list[str] | None:
         """Finds cargo executable in workspace or system PATH."""
         if self._cached_runner is not None:

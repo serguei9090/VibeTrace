@@ -126,7 +126,7 @@ class TypeScriptAdapter(LinterSubEngine):
         """Returns True if tsc runner and tsconfig are available."""
         return (
             self._find_runner(project_root) is not None
-            and self._find_tsconfig(project_root) is not None
+            and self._resolve_config_path(project_root) is not None
         )
 
     def _parse_tsc_output(
@@ -204,7 +204,7 @@ class TypeScriptAdapter(LinterSubEngine):
     ) -> list[QualityFinding]:
         """Audits TypeScript project with fast incremental build cache."""
         runner = self._find_runner(project_root)
-        tsconfig = self._find_tsconfig(project_root)
+        tsconfig = self._resolve_config_path(project_root)
         if not runner or not tsconfig:
             return []
 

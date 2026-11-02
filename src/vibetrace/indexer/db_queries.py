@@ -382,6 +382,10 @@ class DBQueriesMixin:
               {test_filter}
               AND (n.decorators IS NULL OR n.decorators NOT LIKE '%abstractmethod%')
               AND NOT EXISTS (
+                  SELECT 1 FROM nodes p
+                  WHERE p.id = n.parent_id AND p.kind IN ('function', 'method')
+              )
+              AND NOT EXISTS (
                   SELECT 1 FROM edges e
                   WHERE e.to_node_id = n.id
                     AND e.relation_type IN ('calls', 'references', 'routes')
