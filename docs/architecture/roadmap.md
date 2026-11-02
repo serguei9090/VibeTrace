@@ -105,13 +105,29 @@ The following 5 strategic capabilities have been fully implemented, integrated a
 ## 5. Polyglot Quality Architecture & Sonar Sidecar Roadmap
 
 ### Implemented in Current Release:
-- **Family 1 Native Sub-Engines**: Ruff (Python), Pyright (Python type safety), Biome (JS/TS), TypeScript `tsc` (incremental typechecking), Cargo Clippy (Rust), PHPStan (PHP).
+- **Family 1 Native Sub-Engines**:
+  - **Python**: Ruff (lint + format + fix), Pyright (types), AST maintainability smells.
+  - **TypeScript / JS**: Biome (lint + format + fix), TypeScript `tsc` (incremental typechecking).
+  - **Go**: `golangci-lint` (lint + format + fix).
+  - **Rust**: `cargo clippy` (lint + format + fix).
+  - **PHP**: `PHPStan` (types), `Pint` (format + fix), Tree-sitter cognitive complexity (`S3776`, `S107`).
+  - **Ruby**: `rubocop` (lint + format + auto-fix), Tree-sitter cognitive complexity (`S3776`, `S107`).
+  - **Shell & Bash**: `shellcheck` (JSON parsing, quoting/expansion bug detection across `.sh`, `.bash`).
+  - **CSS & Docker**: Native zero-dependency analyzers (`CSSQualityAnalyzer`, `DockerQualityAnalyzer`).
+  - **Kubernetes & YAML**: Native zero-dependency `K8sQualityAnalyzer` (resource limits, probes, tags, duplicate keys).
 - **Zero-Dependency Tree-Sitter Smells**: Exact Sonar cognitive complexity parity (`S3776`), parameter bloat (`S107`), mergeable ifs (`S1066`), nested ternaries (`S3358`), and redundant returns (`S3626`).
 - **Call Graph Uncalled Private Methods (`S1144`)**: Multi-language extraction of `private` visibility with cross-module reachability checks.
-- **On-Demand Engine Provisioner**: `vibetrace tools status` / `vibetrace tools doctor` / `vibetrace tools install <language>` (e.g. downloads standalone `phpstan.phar` without full composer init).
+- **On-Demand Engine Provisioner**: `vibetrace tools status` / `vibetrace tools doctor` / `vibetrace tools install <language>`.
 
-### Roadmap: Headless SonarLint LSP Sidecar (Family 2)
-- **Target Languages**: Java, C#, Ruby, Kotlin, Swift, and legacy enterprise PHP.
-- **Execution Model**: JSON-RPC stdio daemon driving `sonarlint-ls.jar` on Java 21+ across an isolated process boundary.
-- **SARIF & LSP Unification**: Merges Sonar diagnostics into VibeTrace's SARIF reachability index alongside native findings.
-- **Reference Guide**: See `docs/guides/sonarlint_engine_guide.md` for protocol specification and the standalone test driver.
+### Extended Multi-Tier Roadmap:
+
+1. **Tier 2 (High Value Next)**:
+   - **C# / .NET (`.cs`)**: Native `dotnet format` / Roslyn analyzer bridge with zero third-party installs.
+   - **SQL (`.sql`)**: `sqlfluff` for database migrations, stored procedures, and dbt analytics code.
+2. **Tier 3 (Mobile & Specialized Ecosystems)**:
+   - **Kotlin (`.kt`, `.kts`)**: `ktlint` and `detekt` for modern Android and backend microservices.
+   - **Swift (`.swift`)**: `swiftlint` for iOS, macOS, and server-side Swift.
+3. **Tier 4 (Enterprise Heavy Runtimes & Sonar LSP Sidecar)**:
+   - **Java (`.java`)**: `pmd` / `checkstyle` or SonarLint headless LSP sidecar (`sonarlint-ls.jar`).
+   - **C / C++ (`.c`, `.cpp`)**: `clang-tidy` compilation database integration or Sonar sidecar.
+   - **Reference Guide**: See `docs/guides/sonarlint_engine_guide.md` for JSON-RPC LSP protocol details.

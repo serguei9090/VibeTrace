@@ -26,28 +26,43 @@ if TYPE_CHECKING:
 
 _CONTROL_FLOW_TYPES = {
     "if_statement",
+    "if",
+    "unless",
     "for_statement",
+    "for",
     "while_statement",
+    "while",
+    "until",
     "do_statement",
     "foreach_statement",
     "for_in_statement",
     "switch_statement",
+    "case",
     "match_statement",
     "catch_clause",
+    "rescue",
     "except_clause",
     "conditional_expression",
+    "ternary",
 }
 
 _NESTING_INCREMENT_TYPES = {
     "if_statement",
+    "if",
+    "unless",
     "for_statement",
+    "for",
     "while_statement",
+    "while",
+    "until",
     "do_statement",
     "foreach_statement",
     "for_in_statement",
     "switch_statement",
+    "case",
     "match_statement",
     "catch_clause",
+    "rescue",
     "except_clause",
 }
 
@@ -56,6 +71,8 @@ _FUNCTION_NODE_TYPES = {
     "method_declaration",
     "function_declaration",
     "method_definition",
+    "method",
+    "singleton_method",
 }
 
 
@@ -106,7 +123,12 @@ def analyze_treesitter_quality(
             for c in node.children:
                 if c.type in ("name", "identifier"):
                     name = (c.text or b"").decode("utf-8", errors="replace")
-                elif c.type in ("formal_parameters", "parameters", "parameter_list"):
+                elif c.type in (
+                    "formal_parameters",
+                    "parameters",
+                    "parameter_list",
+                    "method_parameters",
+                ):
                     for p in c.children:
                         if p.type in ("simple_parameter", "parameter", "identifier"):
                             params.append((p.text or b"").decode("utf-8", errors="replace"))

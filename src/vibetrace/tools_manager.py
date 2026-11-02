@@ -135,6 +135,32 @@ class ToolsManager:
             auto_installable=True,
         )
 
+        # 6. Ruby (RuboCop)
+        which_rubo = shutil.which("rubocop.bat" if os.name == "nt" else "rubocop")
+        which_bundle = shutil.which("bundle")
+        ruby_ok = which_rubo is not None
+        status["ruby"] = ToolStatus(
+            language="ruby",
+            engine="RuboCop",
+            is_available=ruby_ok,
+            version_or_path=which_rubo,
+            install_hint="vibetrace tools install ruby  # executes gem install rubocop",
+            auto_installable=shutil.which("gem") is not None or which_bundle is not None,
+        )
+
+        # 7. Shell & Bash (ShellCheck)
+        which_sc = shutil.which("shellcheck.exe" if os.name == "nt" else "shellcheck")
+        status["shell"] = ToolStatus(
+            language="shell",
+            engine="ShellCheck",
+            is_available=which_sc is not None,
+            version_or_path=which_sc,
+            install_hint=(
+                "winget install koalaman.shellcheck (Win) or apt install shellcheck (Linux)"
+            ),
+            auto_installable=shutil.which("winget") is not None or shutil.which("brew") is not None,
+        )
+
         return status
 
     @classmethod
@@ -229,5 +255,38 @@ class ToolsManager:
             except Exception as e:
                 return False, f"Failed to download phpstan.phar: {e}"
 
-        langs = "python, typescript, go, rust, php"
+        if lang == "ruby":
+            which_gem = shutil.which("gem")
+            if which_gem:
+                res = subprocess.run([which_gem, "install", "rubocop"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed RuboCop via gem install."
+            which_bundle = shutil.which("bundle")
+            if which_bundle and (root / "Gemfile").is_file():
+                res = subprocess.run(
+                    [which_bundle, "add", "rubocop", "--group", "development"],
+                    cwd=str(root),
+                    check=False,
+                )
+                if res.returncode == 0:
+                    return True, "Added RuboCop to Gemfile via bundle add."
+            return False, "Ruby package manager ('gem' or 'bundle') not found in PATH."
+
+        if lang in ("shell", "bash", "sh"):
+            which_winget = shutil.which("winget")
+            if which_winget:
+                res = subprocess.run(
+                    ["winget", "install", "--id", "koalaman.shellcheck", "-e", "--silent"],
+                    check=False,
+                )
+                if res.returncode == 0:
+                    return True, "Installed ShellCheck via Windows winget."
+            which_brew = shutil.which("brew")
+            if which_brew:
+                res = subprocess.run(["brew", "install", "shellcheck"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed ShellCheck via Homebrew."
+            return False, "Package manager not found. Please install shellcheck manually."
+
+        langs = "python, typescript, go, rust, php, ruby, shell"
         return False, f"Unknown language '{language}'. Supported: {langs}."

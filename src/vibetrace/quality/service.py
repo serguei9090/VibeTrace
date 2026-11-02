@@ -14,7 +14,9 @@ from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
 from vibetrace.quality.adapters.php_stan import PhpStanAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
+from vibetrace.quality.adapters.rubocop import RuboCopAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
+from vibetrace.quality.adapters.shellcheck import ShellCheckAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
 from vibetrace.quality.complexity import (
@@ -27,6 +29,7 @@ from vibetrace.quality.declarative_rules import (
     DeclarativeQualityRuleManager,
 )
 from vibetrace.quality.docker_analyzer import analyze_docker_quality
+from vibetrace.quality.k8s_analyzer import analyze_k8s_quality
 from vibetrace.quality.literal_duplication import analyze_literal_duplications
 from vibetrace.quality.models import (
     QualityAuditReport,
@@ -57,6 +60,11 @@ _SUPPORTED_EXTS = (
     ".rs",
     ".php",
     ".phtml",
+    ".rb",
+    ".sh",
+    ".bash",
+    ".yaml",
+    ".yml",
 )
 _IGNORE_PATH_PARTS = (
     "/.venv/",
@@ -196,15 +204,29 @@ def _audit_single_file(
 
     if lower_suffix == ".css":
         findings = analyze_css_quality(file_path=rel_path, source_code=source_code)
-    elif lower_suffix in (".ts", ".tsx", ".js", ".jsx"):
-        # Syntactic Tree-Sitter TS checks deprecated; handled via native linter bridge
+    elif lower_suffix in (
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".json",
+        ".jsonc",
+        ".go",
+        ".rs",
+        ".sh",
+        ".bash",
+    ):
+        # Delegated to specialized sub-engine adapters
         findings = []
+    elif lower_suffix in (".yaml", ".yml"):
+        findings = analyze_k8s_quality(file_path=rel_path, source_code=source_code)
     elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
         findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
-    elif lower_suffix in (".php", ".phtml"):
+    elif lower_suffix in (".php", ".phtml", ".rb"):
         from vibetrace.indexer.parsers import ParserFactory
         from vibetrace.quality.treesitter_complexity import analyze_treesitter_quality
 
+        lang_prefix = "ruby" if lower_suffix == ".rb" else "php"
         parser = ParserFactory.get_parser(file_path.as_posix())
         if parser:
             try:
@@ -214,7 +236,7 @@ def _audit_single_file(
                     file_path=rel_path,
                     source_lines=source_lines,
                     complexity_threshold=complexity_threshold,
-                    language_prefix="php",
+                    language_prefix=lang_prefix,
                 )
             except Exception:
                 comps, findings = [], []
@@ -378,6 +400,24 @@ class QualityService:
             if php_engine.is_available(project_root):
                 raw_findings.extend(php_engine.audit_project(project_root, php_files))
 
+        # Batch execute RuboCop sub-engine if available
+        ruby_files = [
+            p for p in target_files if p.suffix.lower() in RuboCopAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if ruby_files:
+            rubo_engine = RuboCopAdapter()
+            if rubo_engine.is_available(project_root):
+                raw_findings.extend(rubo_engine.audit_project(project_root, ruby_files))
+
+        # Batch execute ShellCheck sub-engine if available
+        shell_files = [
+            p for p in target_files if p.suffix.lower() in ShellCheckAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if shell_files:
+            shell_engine = ShellCheckAdapter()
+            if shell_engine.is_available(project_root):
+                raw_findings.extend(shell_engine.audit_project(project_root, shell_files))
+
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
             dead_nodes = db.get_uncalled_private_functions(include_tests=include_tests)
@@ -390,7 +430,9 @@ class QualityService:
                     continue
                 hash_id = hashlib.sha256(f"{dn_file}:{dn['name']}".encode()).hexdigest()[:12]
                 ext = Path(dn_file).suffix.lower()
-                prefix = "php" if ext in (".php", ".phtml") else "python"
+                prefix = (
+                    "php" if ext in (".php", ".phtml") else "ruby" if ext == ".rb" else "python"
+                )
                 raw_findings.append(
                     QualityFinding(
                         id=f"QUAL-S1144-{hash_id}",
@@ -528,6 +570,14 @@ class QualityService:
             php_engine = PhpStanAdapter()
             if php_engine.is_available(project_root):
                 results["engines"]["php"] = php_engine.fix_files(project_root, php_files)
+
+        ruby_files = [
+            p for p in target_files if p.suffix.lower() in RuboCopAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if ruby_files:
+            rubo_engine = RuboCopAdapter()
+            if rubo_engine.is_available(project_root):
+                results["engines"]["ruby"] = rubo_engine.fix_files(project_root, ruby_files)
 
         return results
 

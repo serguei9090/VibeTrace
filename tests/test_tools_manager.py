@@ -17,6 +17,8 @@ def test_tools_manager_get_status(tmp_path: Path):
     assert "go" in statuses
     assert "rust" in statuses
     assert "php" in statuses
+    assert "ruby" in statuses
+    assert "shell" in statuses
 
     for lang, status in statuses.items():
         assert status.language == lang
