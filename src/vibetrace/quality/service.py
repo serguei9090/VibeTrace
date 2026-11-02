@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.quality.adapters.python_pyright import PyrightAdapter
+from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
 from vibetrace.quality.complexity import (
     FunctionComplexity,
@@ -181,11 +183,13 @@ def _audit_single_file(
         comps = file_comps
         findings.extend(comp_findings)
 
-        smell_findings = analyze_python_smells(
-            file_path=rel_path,
-            source_code=source_code,
-        )
-        findings.extend(smell_findings)
+        ruff_engine = RuffAdapter()
+        if not ruff_engine.is_available(project_root):
+            smell_findings = analyze_python_smells(
+                file_path=rel_path,
+                source_code=source_code,
+            )
+            findings.extend(smell_findings)
 
     if decl_rules:
         decl_findings = DeclarativeQualityRuleManager.scan_file_with_rules(
@@ -234,6 +238,50 @@ class QualityService:
             )
             all_complexities.extend(file_comps)
             raw_findings.extend(file_findings)
+
+        # Batch execute native linter sub-engines (Ruff, Pyright) if available
+        py_files = [p for p in target_files if p.suffix.lower() == ".py"]
+        if py_files:
+            ruff_engine = RuffAdapter()
+            if ruff_engine.is_available(project_root):
+                raw_findings.extend(ruff_engine.audit_project(project_root, py_files))
+
+            pyright_engine = PyrightAdapter()
+            if pyright_engine.is_available(project_root):
+                raw_findings.extend(pyright_engine.audit_project(project_root, py_files))
+
+        # Deduplicate findings by (file_path, start_line, rule_id)
+        seen_keys: set[tuple[str, int, str]] = set()
+        deduped_findings: list[QualityFinding] = []
+        for f in raw_findings:
+            key = (f.file_path, f.start_line, f.rule_id)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                deduped_findings.append(f)
+        raw_findings = deduped_findings
+
+        # Correlate symbol and call-graph context with IndexerDB if available
+        if db:
+            for f in raw_findings:
+                if not f.symbol_name:
+                    nodes_in_file = db.get_nodes_in_file(f.file_path)
+                    for n in nodes_in_file:
+                        s_l = int(n.get("start_line") or 0)
+                        e_l = int(n.get("end_line") or 0)
+                        if s_l <= f.start_line <= e_l:
+                            f.symbol_name = n.get("name")
+                            break
+
+        # Check inline comment suppressions on all collected findings
+        for f in raw_findings:
+            if f.status != "APPROVED":
+                file_p = project_root / f.file_path
+                if file_p.is_file():
+                    try:
+                        s_lines = file_p.read_text(encoding="utf-8", errors="replace").splitlines()
+                        _check_inline_suppression(f, s_lines)
+                    except OSError:
+                        pass
 
         for f in raw_findings:
             spec = get_rule_spec(f.rule_id)

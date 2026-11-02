@@ -1124,6 +1124,12 @@ examples:
         action="store_true",
         help="Enforce test coverage threshold as a hard fail in the Quality Gate",
     )
+    p_review.add_argument(
+        "--sarif",
+        dest="sarif",
+        default=None,
+        help="Optional path to external SARIF file (Semgrep, Sonar, CodeQL) to ingest and enrich",
+    )
     p_review.set_defaults(func=cmd_review)
 
     # diagnose

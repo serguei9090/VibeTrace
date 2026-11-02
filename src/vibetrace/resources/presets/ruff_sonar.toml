@@ -1,0 +1,31 @@
+# VibeTrace Sonar-Grade Quality Preset for Ruff
+# Enables Sonar-equivalent rule families for clean code, reliability, and maintainability.
+
+target-version = "py310"
+line-length = 100
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes (unused imports, undefined names)
+    "B",      # flake8-bugbear (S5708 mutable defaults, identical comparisons)
+    "SIM",    # flake8-simplify (S1066 mergeable ifs, S3358 nested ternaries)
+    "C4",     # flake8-comprehensions
+    "RET",    # flake8-return (S1763 dead code after return/jump)
+    "PIE",    # flake8-pie (duplicate keys, unnecessary pass)
+    "PLR",    # Pylint refactoring
+    "PLE",    # Pylint errors
+    "RUF",    # Ruff-specific clean code checks
+]
+
+ignore = [
+    "E501",   # Line length handled separately by formatter/threshold
+    "RUF100", # Unused noqa directive (suppressions managed by VibeTrace baseline & inline evaluator)
+    "PLR0913", # Too many arguments (handled by VibeTrace S107 threshold)
+    "PLR0912", # Too many branches (handled by VibeTrace cognitive complexity S3776)
+    "PLR0915", # Too many statements (handled by VibeTrace cognitive complexity)
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["B", "SIM"]

@@ -13,6 +13,7 @@ from vibetrace.security.lockfile_parser import LockfileParser
 from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
 from vibetrace.security.rule_sync import RuleCatalogManager
+from vibetrace.security.sarif_ingest import SarifIngestEngine
 from vibetrace.security.taint_engine import TaintEngine
 from vibetrace.taxonomy import CweTaxonomyManager
 
@@ -43,6 +44,7 @@ class SecurityService:
         analyze_taint: bool = True,
         include_tests: bool = False,
         git_commit_depth: int = 10,
+        sarif_file: str | Path | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
@@ -132,6 +134,14 @@ class SecurityService:
                     except Exception:
                         pass
                 findings.extend(cve_findings)
+
+        # Ingest external SARIF findings (Semgrep, Sonar, CodeQL) if provided
+        if sarif_file:
+            sarif_p = Path(sarif_file)
+            if not sarif_p.is_absolute():
+                sarif_p = project_root / sarif_p
+            sarif_findings = SarifIngestEngine.parse_sarif_file(sarif_p, project_root, db=db)
+            findings.extend(sarif_findings)
 
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)

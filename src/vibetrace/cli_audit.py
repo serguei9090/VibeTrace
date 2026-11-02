@@ -514,6 +514,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         check_dependencies=check_deps,
         min_coverage=min_cov,
         enforce_coverage=enforce_cov,
+        sarif_file=getattr(args, "sarif", None),
     )
     if getattr(args, "json", False):
         print(report.model_dump_json(indent=2))
