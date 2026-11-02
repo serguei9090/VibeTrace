@@ -12,6 +12,7 @@ from vibetrace.security.iac_scanner import IacScanner
 from vibetrace.security.lockfile_parser import LockfileParser
 from vibetrace.security.models import SecurityAuditReport, SecurityFinding
 from vibetrace.security.osv_client import OsvClient
+from vibetrace.security.regex_analyzer import analyze_regex_quality
 from vibetrace.security.rule_sync import RuleCatalogManager
 from vibetrace.security.sarif_ingest import SarifIngestEngine
 from vibetrace.security.taint_engine import TaintEngine
@@ -77,6 +78,15 @@ class SecurityService:
             file_findings.extend(
                 RuleCatalogManager.scan_file_with_rules(f_path, project_root, decl_rules)
             )
+            # Regex Quality, ReDoS (CWE-1333), and S6353 inspection
+            if f_path.endswith(".py"):
+                full_p = project_root / f_path if not Path(f_path).is_absolute() else Path(f_path)
+                if full_p.is_file():
+                    try:
+                        src_text = full_p.read_text(encoding="utf-8", errors="replace")
+                        file_findings.extend(analyze_regex_quality(f_path, src_text))
+                    except OSError:
+                        pass
             findings.extend(file_findings)
 
         # 1b. Call-graph + intra-procedural Def-Use reachability from untrusted entry points
