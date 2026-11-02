@@ -291,6 +291,17 @@ class GenericParser(LanguageParser):
                     else:
                         node_kind = "class"
 
+                    visibility = None
+                    for c in node.children:
+                        if c.type in ("visibility_modifier", "modifiers"):
+                            vis_text = self._get_text(c).strip().lower()
+                            if "private" in vis_text:
+                                visibility = "private"
+                            elif "protected" in vis_text:
+                                visibility = "protected"
+                            elif "public" in vis_text:
+                                visibility = "public"
+
                     new_node = self._create_node(
                         node_id,
                         name.split(".")[-1],
@@ -298,6 +309,7 @@ class GenericParser(LanguageParser):
                         file_path,
                         node,
                         signature=signature,
+                        visibility=visibility,
                         qualified_name=qualified_name,
                         parent_id=parent_id,
                     )

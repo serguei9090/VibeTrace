@@ -360,17 +360,26 @@ class DBQueriesMixin:
             cursor = conn.execute(sql, (model_id,))
             return [dict(r) for r in cursor.fetchall()]
 
-    def get_uncalled_private_functions(self) -> list[dict[str, Any]]:
+    def get_uncalled_private_functions(self, include_tests: bool = False) -> list[dict[str, Any]]:
         """Finds private/internal functions and methods with zero incoming calls or references."""
-        sql = """
+        test_filter = (
+            ""
+            if include_tests
+            else """
+              AND n.file_path NOT LIKE '%tests/%'
+              AND n.file_path NOT LIKE '%test_%'
+        """
+        )
+        sql = f"""
             SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path,
                    n.start_line, n.end_line, n.signature, n.decorators
             FROM nodes n
             WHERE n.kind IN ('function', 'method')
-              AND substr(n.name, 1, 1) = '_'
-              AND substr(n.name, 1, 2) != '__'
-              AND n.file_path NOT LIKE '%tests/%'
-              AND n.file_path NOT LIKE '%test_%'
+              AND (
+                  (substr(n.name, 1, 1) = '_' AND substr(n.name, 1, 2) != '__')
+                  OR n.visibility = 'private'
+              )
+              {test_filter}
               AND (n.decorators IS NULL OR n.decorators NOT LIKE '%abstractmethod%')
               AND NOT EXISTS (
                   SELECT 1 FROM edges e

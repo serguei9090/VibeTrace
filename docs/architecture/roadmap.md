@@ -99,3 +99,19 @@ The following 5 strategic capabilities have been fully implemented, integrated a
    - Preserves Tree-sitter's ultra-fast 0.28s parsing while providing an optional `--lsp` flag.
    - Spawns background JSON-RPC stdio language server (`pyright-langserver`, `typescript-language-server`, `rust-analyzer`, `gopls`).
    - Queries `textDocument/definition` to rewire unresolved dynamic calls and package re-exports to exact target AST definitions.
+
+---
+
+## 5. Polyglot Quality Architecture & Sonar Sidecar Roadmap
+
+### Implemented in Current Release:
+- **Family 1 Native Sub-Engines**: Ruff (Python), Pyright (Python type safety), Biome (JS/TS), TypeScript `tsc` (incremental typechecking), Cargo Clippy (Rust), PHPStan (PHP).
+- **Zero-Dependency Tree-Sitter Smells**: Exact Sonar cognitive complexity parity (`S3776`), parameter bloat (`S107`), mergeable ifs (`S1066`), nested ternaries (`S3358`), and redundant returns (`S3626`).
+- **Call Graph Uncalled Private Methods (`S1144`)**: Multi-language extraction of `private` visibility with cross-module reachability checks.
+- **On-Demand Engine Provisioner**: `vibetrace tools status` / `vibetrace tools doctor` / `vibetrace tools install <language>` (e.g. downloads standalone `phpstan.phar` without full composer init).
+
+### Roadmap: Headless SonarLint LSP Sidecar (Family 2)
+- **Target Languages**: Java, C#, Ruby, Kotlin, Swift, and legacy enterprise PHP.
+- **Execution Model**: JSON-RPC stdio daemon driving `sonarlint-ls.jar` on Java 21+ across an isolated process boundary.
+- **SARIF & LSP Unification**: Merges Sonar diagnostics into VibeTrace's SARIF reachability index alongside native findings.
+- **Reference Guide**: See `docs/guides/sonarlint_engine_guide.md` for protocol specification and the standalone test driver.

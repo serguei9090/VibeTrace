@@ -201,6 +201,23 @@ def _audit_single_file(
         findings = []
     elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
         findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
+    elif lower_suffix in (".php", ".phtml"):
+        from vibetrace.indexer.parsers import ParserFactory
+        from vibetrace.quality.treesitter_complexity import analyze_treesitter_quality
+
+        parser = ParserFactory.get_parser(file_path.as_posix())
+        if parser:
+            try:
+                tree = parser.parse(source_code.encode("utf-8", errors="replace"))
+                comps, findings = analyze_treesitter_quality(
+                    tree.root_node,
+                    file_path=rel_path,
+                    source_lines=source_lines,
+                    complexity_threshold=complexity_threshold,
+                    language_prefix="php",
+                )
+            except Exception:
+                comps, findings = [], []
     else:
         file_comps, comp_findings = analyze_python_complexities(
             file_path=rel_path,
@@ -363,7 +380,7 @@ class QualityService:
 
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
-            dead_nodes = db.get_uncalled_private_functions()
+            dead_nodes = db.get_uncalled_private_functions(include_tests=include_tests)
             target_rel_paths = {p.relative_to(project_root).as_posix() for p in target_files}
             for dn in dead_nodes:
                 dn_file = dn["file_path"].replace("\\", "/")
@@ -372,10 +389,12 @@ class QualityService:
                 if target_rel_paths and dn_file not in target_rel_paths:
                     continue
                 hash_id = hashlib.sha256(f"{dn_file}:{dn['name']}".encode()).hexdigest()[:12]
+                ext = Path(dn_file).suffix.lower()
+                prefix = "php" if ext in (".php", ".phtml") else "python"
                 raw_findings.append(
                     QualityFinding(
                         id=f"QUAL-S1144-{hash_id}",
-                        rule_id="python:S1144",
+                        rule_id=f"{prefix}:S1144",
                         rspec_id="RSPEC-1144",
                         category=QualityCategory.MAINTAINABILITY,
                         severity=QualitySeverity.MEDIUM,

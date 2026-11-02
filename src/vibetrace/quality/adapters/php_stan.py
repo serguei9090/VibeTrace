@@ -173,7 +173,18 @@ class PhpStanAdapter(LinterSubEngine):
         if user_bin.is_file():
             candidates.append([str(user_bin)])
 
-        # 4. Composer exec phpstan
+        # 4. Standalone phpstan.phar with PHP runtime
+        which_php = shutil.which("php")
+        if which_php:
+            phar_paths = [
+                project_root / ".vibetrace" / "tools" / "phpstan.phar",
+                Path.home() / ".vibetrace" / "bin" / "phpstan.phar",
+            ]
+            for ph in phar_paths:
+                if ph.is_file():
+                    candidates.append([which_php, str(ph)])
+
+        # 5. Composer exec phpstan
         which_composer = shutil.which("composer")
         if which_composer:
             candidates.append([which_composer, "exec", "phpstan", "--"])

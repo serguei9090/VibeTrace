@@ -37,6 +37,7 @@ from vibetrace.cli_config import register_config_parser
 from vibetrace.cli_deps import cmd_deps
 from vibetrace.cli_project import register_project_parser
 from vibetrace.cli_refactor import cmd_refactor
+from vibetrace.cli_tools import cmd_tools
 from vibetrace.cli_vibe import cmd_bundle, cmd_guard
 
 
@@ -1166,6 +1167,35 @@ examples:
         "--no-code", action="store_true", help="Exclude source code slice from output"
     )
     p_diagnose.set_defaults(func=cmd_diagnose)
+
+    # tools (sub-engine health status and on-demand provisioning)
+    p_tools = sub.add_parser(
+        "tools",
+        help="Manage polyglot quality sub-engines (status, doctor, install)",
+        description=(
+            "Check availability of ecosystem linters (Ruff, Biome, Clippy, PHPStan) "
+            "and provision standalone runners on demand."
+        ),
+    )
+    p_tools.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "doctor", "list", "install"],
+        help="Action to perform (status, doctor, list, install; default: status)",
+    )
+    p_tools.add_argument(
+        "language",
+        nargs="?",
+        default="",
+        help="Target language for install (e.g. php, python, typescript, go, rust, or all)",
+    )
+    p_tools.add_argument(
+        "--path",
+        default=".",
+        help="Target project path for local tool provisioning (default: .)",
+    )
+    p_tools.set_defaults(func=cmd_tools)
 
     # config (sub-engine presets and settings)
     register_config_parser(sub)
