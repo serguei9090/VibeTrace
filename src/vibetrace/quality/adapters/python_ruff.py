@@ -229,3 +229,52 @@ class RuffAdapter(LinterSubEngine):
             if f:
                 findings.append(f)
         return findings
+
+    def fix_files(
+        self,
+        project_root: Path,
+        file_list: list[Path] | None = None,
+    ) -> dict[str, Any]:
+        """Runs ruff check --fix and ruff format on specified files."""
+        runner = self._find_runner(project_root)
+        if not runner:
+            return {"engine": "ruff", "available": False, "success": False, "files_count": 0}
+
+        config_path = self._resolve_config_path(project_root)
+        if file_list is not None:
+            targets = [str(p) for p in file_list if p.suffix.lower() == ".py"]
+            if not targets:
+                return {"engine": "ruff", "available": True, "success": True, "files_count": 0}
+        else:
+            targets = ["."]
+
+        cmd_fix = [*runner, "check", "--fix", "--config", str(config_path), *targets]
+        cmd_fmt = [*runner, "format", "--config", str(config_path), *targets]
+
+        try:
+            res_fix = subprocess.run(
+                cmd_fix,
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=self.timeout_sec * 2,
+            )
+            res_fmt = subprocess.run(
+                cmd_fmt,
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=self.timeout_sec * 2,
+            )
+            return {
+                "engine": "ruff",
+                "available": True,
+                "success": res_fix.returncode in (0, 1) and res_fmt.returncode == 0,
+                "files_count": len(targets) if targets != ["."] else 0,
+                "output": f"{res_fix.stdout}\n{res_fmt.stdout}".strip(),
+            }
+        except (OSError, subprocess.SubprocessError) as err:
+            logger.debug("Ruff fix execution error: %s", err)
+            return {"engine": "ruff", "available": True, "success": False, "error": str(err)}

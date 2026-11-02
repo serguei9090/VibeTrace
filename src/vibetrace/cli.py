@@ -33,6 +33,7 @@ from vibetrace.cli_commands import (
     cmd_test,
     cmd_trace,
 )
+from vibetrace.cli_config import register_config_parser
 from vibetrace.cli_deps import cmd_deps
 from vibetrace.cli_project import register_project_parser
 from vibetrace.cli_refactor import cmd_refactor
@@ -945,6 +946,11 @@ examples:
         "--file", default=None, help="Filter audit to a specific file or directory"
     )
     p_quality.add_argument(
+        "--fix",
+        action="store_true",
+        help="Apply automated safe fixes via Ruff and Biome sub-engines",
+    )
+    p_quality.add_argument(
         "--update",
         action="store_true",
         help="Force refresh quality rule definitions from remote catalog",
@@ -1135,6 +1141,11 @@ examples:
         default=None,
         help="Optional path to external SARIF file (Semgrep, Sonar, CodeQL) to ingest and enrich",
     )
+    p_review.add_argument(
+        "--typecheck",
+        action="store_true",
+        help="Run incremental TypeScript compiler (tsc) type-check pass during review",
+    )
     p_review.set_defaults(func=cmd_review)
 
     # diagnose
@@ -1155,6 +1166,9 @@ examples:
         "--no-code", action="store_true", help="Exclude source code slice from output"
     )
     p_diagnose.set_defaults(func=cmd_diagnose)
+
+    # config (sub-engine presets and settings)
+    register_config_parser(sub)
 
     # project (federated multi-repo workspace)
     register_project_parser(sub)

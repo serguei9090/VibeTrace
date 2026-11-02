@@ -107,6 +107,21 @@ class TypeScriptAdapter(LinterSubEngine):
                 return cand
         return None
 
+    def _resolve_config_path(self, project_root: Path) -> Path | None:
+        """Resolves active tsconfig.json based on configuration."""
+        from vibetrace.config import resolve_linter_mode
+
+        mode = resolve_linter_mode(project_root, "typescript")
+        if mode == "project":
+            cfg = self._find_tsconfig(project_root)
+            if cfg:
+                return cfg
+
+        override = project_root / ".vibetrace" / "config" / "tsconfig.json"
+        if override.is_file():
+            return override
+        return self._find_tsconfig(project_root)
+
     def is_available(self, project_root: Path) -> bool:
         """Returns True if tsc runner and tsconfig are available."""
         return (

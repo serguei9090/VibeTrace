@@ -432,3 +432,55 @@ class BiomeAdapter(LinterSubEngine):
                     findings.append(f)
 
         return findings
+
+    def fix_files(
+        self,
+        project_root: Path,
+        file_list: list[Path] | None = None,
+    ) -> dict[str, Any]:
+        """Runs biome check --write on target files or project root."""
+        runner = self._find_runner(project_root)
+        if not runner:
+            return {"engine": "biome", "available": False, "success": False, "files_count": 0}
+
+        config_path = self._resolve_config_path(project_root)
+        config_arg = f"--config-path={config_path}" if config_path.is_file() else None
+        cmd = [*runner, "check", "--write", "--no-errors-on-unmatched"]
+        if config_arg:
+            cmd.append(config_arg)
+
+        if file_list is not None:
+            targets = [p for p in file_list if p.suffix.lower() in SUPPORTED_EXTENSIONS]
+            if not targets:
+                return {"engine": "biome", "available": True, "success": True, "files_count": 0}
+            for p in targets:
+                try:
+                    cmd.append(p.relative_to(project_root).as_posix())
+                except ValueError:
+                    cmd.append(str(p))
+            count = len(targets)
+        else:
+            cmd.append(".")
+            count = 0
+
+        try:
+            res = subprocess.run(
+                cmd,
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=self.timeout_sec * 2,
+            )
+            return {
+                "engine": "biome",
+                "available": True,
+                "success": res.returncode in (0, 1),
+                "files_count": count,
+                "output": res.stdout.strip(),
+            }
+        except (OSError, subprocess.SubprocessError) as err:
+            logger.debug("Biome fix execution error: %s", err)
+            return {"engine": "biome", "available": True, "success": False, "error": str(err)}

@@ -439,6 +439,20 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
     threshold = getattr(args, "threshold", 15)
     include_tests = getattr(args, "include_tests", False)
 
+    if getattr(args, "fix", False):
+        fix_res = QualityService.fix_project(
+            project_root=project_root,
+            file_filter=file_filter,
+            include_tests=include_tests,
+        )
+        engines_run = [k for k, v in fix_res.get("engines", {}).items() if v.get("success")]
+        print(
+            safe_str(
+                f"[FIX] Automated safe fixes applied across {fix_res.get('total_files', 0)} "
+                f"file(s) via: {', '.join(engines_run) if engines_run else 'None'}."
+            )
+        )
+
     report = QualityService.audit_project(
         db=db,
         project_root=project_root,
@@ -516,6 +530,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         min_coverage=min_cov,
         enforce_coverage=enforce_cov,
         sarif_file=getattr(args, "sarif", None),
+        typecheck=getattr(args, "typecheck", False),
     )
     if getattr(args, "json", False):
         print(report.model_dump_json(indent=2))

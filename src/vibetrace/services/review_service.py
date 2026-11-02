@@ -91,6 +91,7 @@ def run_unified_review(
     min_coverage: float | None = None,
     enforce_coverage: bool = False,
     sarif_file: str | Path | None = None,
+    typecheck: bool = False,
 ) -> UnifiedReviewReport:
     """Runs Security + IaC + Git Secret + Split Audit + Caller Guard + Coverage Gate."""
     norm_scope = "full" if scope.lower() == "full" else "changed"
@@ -132,6 +133,7 @@ def run_unified_review(
         file_list=target_files,
         complexity_threshold=15,
         include_tests=False,
+        typecheck=typecheck,
     )
     active_qual: list[QualityFinding] = []
     for f in qual_report.findings:

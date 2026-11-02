@@ -423,6 +423,38 @@ class QualityService:
         return report
 
     @classmethod
+    def fix_project(
+        cls,
+        project_root: Path,
+        file_filter: str | None = None,
+        file_list: list[str] | None = None,
+        include_tests: bool = False,
+    ) -> dict[str, Any]:
+        """Applies automated safe fixes via Ruff and Biome sub-engines."""
+        target_files = _collect_source_files(
+            project_root=project_root,
+            file_filter=file_filter,
+            file_list=file_list,
+            include_tests=include_tests,
+        )
+        results: dict[str, Any] = {"engines": {}, "total_files": len(target_files)}
+        py_files = [p for p in target_files if p.suffix.lower() == ".py"]
+        if py_files:
+            ruff_engine = RuffAdapter()
+            if ruff_engine.is_available(project_root):
+                results["engines"]["ruff"] = ruff_engine.fix_files(project_root, py_files)
+
+        biome_files = [
+            p for p in target_files if p.suffix.lower() in BiomeAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if biome_files:
+            biome_engine = BiomeAdapter()
+            if biome_engine.is_available(project_root):
+                results["engines"]["biome"] = biome_engine.fix_files(project_root, biome_files)
+
+        return results
+
+    @classmethod
     def apply_auto_comments(
         cls,
         project_root: Path,
