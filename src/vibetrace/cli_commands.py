@@ -257,6 +257,8 @@ def cmd_slice(args: argparse.Namespace) -> int:
         args.symbol,
         file_path=args.file,
         include_callees=not args.no_callees,
+        include_docs=not getattr(args, "no_docs", False),
+        max_doc_tokens=getattr(args, "max_doc_tokens", 300),
     )
     if res.found and res.node_id:
         notify_ui_focus("code_slice", [res.node_id], summary=f"CLI slice {res.qualified_name}")

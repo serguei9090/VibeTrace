@@ -33,7 +33,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 4. [x] **Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)** — **9.0 / 10** *(Implemented & Verified ✅)*
 5. [x] **Interactive AST Auto-Refactor Command (`vibetrace refactor --split-method`)** — **8.8 / 10** *(Implemented & Verified ✅)*
 6. [x] **Automated PR Taint Bot & Inline Remediation Generator** — **8.5 / 10** *(Implemented & Verified ✅)*
-7. [ ] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10**
+7. [x] **Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking** — **8.2 / 10** *(Implemented & Verified ✅)*
 8. [x] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10** *(Implemented & Verified ✅)*
 9. [x] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10** *(Implemented & Verified ✅)*
 10. [ ] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10**
@@ -162,9 +162,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #8. Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking
+### #7. Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking — Implemented ✅
 - **Category:** New Feature
 - **Score:** **8.2 / 10** (Context Alignment)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
   Agents often modify code without realizing that an internal design document or architectural standard covers that exact subsystem. This feature attaches relevant documentation chunks directly to the AST symbol node when sliced.
 - **Benefits:**
@@ -173,7 +174,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 - **Cons & Potential Risks:**
   - Adds an additional lookup step during symbol slicing.
 - **How We Address This:**  
-  Index doc chunk associations during cold indexing and cache them directly in SQLite symbol tables (`nodes.doc_reference_id`), ensuring zero runtime query overhead during slicing.
+  Index doc chunk associations during cold indexing and cache them directly in SQLite symbol tables (`symbol_doc_links`), ensuring zero runtime regex scanning during slicing and capping context injection to $\le 300$ tokens.
 
 ---
 

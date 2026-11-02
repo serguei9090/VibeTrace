@@ -220,6 +220,17 @@ examples:
         action="store_true",
         help="Omit outgoing callee contracts (source lines only)",
     )
+    p_slice.add_argument(
+        "--no-docs",
+        action="store_true",
+        help="Omit linked documentation chunks",
+    )
+    p_slice.add_argument(
+        "--max-doc-tokens",
+        type=int,
+        default=300,
+        help="Maximum total token budget for linked documentation specs (default: 300)",
+    )
     p_slice.add_argument("--path", default=".", help="Project root directory path")
     p_slice.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_slice.set_defaults(func=cmd_slice)
@@ -555,6 +566,40 @@ examples:
         type=int,
         default=5,
         help="Maximum number of chunks to return",
+    )
+
+    # docs check
+    p_doc_check = docs_sub.add_parser(
+        "check",
+        help="Audit documentation links against code symbols for dead links and stale names",
+    )
+    p_doc_check.add_argument(
+        "--path",
+        default=".",
+        help="Project root directory path (default: current directory)",
+    )
+    p_doc_check.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit JSON output",
+    )
+
+    # docs sync-links
+    p_doc_sync = docs_sub.add_parser(
+        "sync-links",
+        help="Scan indexed Markdown documentation chunks and sync symbol links with codebase",
+    )
+    p_doc_sync.add_argument(
+        "--path",
+        default=".",
+        help="Project root directory path (default: current directory)",
+    )
+    p_doc_sync.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit JSON output",
     )
 
     p_docs.set_defaults(func=cmd_docs)

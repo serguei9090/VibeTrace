@@ -74,9 +74,9 @@ class LanceDBVectorStore:
         if not self.uri.startswith(("s3://", "gs://", "az://")):
             local_p = Path(self.uri).resolve()
             local_p.mkdir(parents=True, exist_ok=True)
-            self._db = lancedb.connect(str(local_p))
+            self._db = lancedb.connect(str(local_p))  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            self._db = lancedb.connect(self.uri)
+            self._db = lancedb.connect(self.uri)  # pyright: ignore[reportAttributeAccessIssue]
 
         schema = pa.schema(
             [

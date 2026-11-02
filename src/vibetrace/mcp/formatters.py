@@ -191,6 +191,17 @@ def format_code_slice_md(result: CodeSliceResult) -> str:
             lines.append(
                 f"- **`{c.qualified_name}`**{c_sig} in `{c.file_path}:L{c.start_line}`{call_at}"
             )
+
+    if getattr(result, "linked_docs", None):
+        lines.append("\n### 📚 Linked Architectural Specifications")
+        for doc in result.linked_docs:
+            h_title = getattr(doc, "heading", "")
+            doc_p = getattr(doc, "doc_path", "")
+            s_ln = getattr(doc, "start_line", 1)
+            tokens = getattr(doc, "token_count", 0)
+            content = getattr(doc, "content", "").strip()
+            lines.append(f"- **`{doc_p}#{h_title}`** (L{s_ln}, ~{tokens} tokens):\n> {content}\n")
+
     return "\n".join(lines)
 
 

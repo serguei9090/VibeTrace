@@ -82,6 +82,7 @@ class CodeSliceResult(BaseModel):
     docstring: str | None = None
     source_code: str = ""
     callees: list[CalleeContract] = Field(default_factory=list)
+    linked_docs: list[Any] = Field(default_factory=list)
 
 
 def _row_to_trace_node(row: dict[str, Any], node_id: str | None = None) -> TraceNodeInfo:
@@ -470,6 +471,8 @@ def get_code_slice(
     symbol_name: str,
     file_path: str | None = None,
     include_callees: bool = True,
+    include_docs: bool = True,
+    max_doc_tokens: int = 300,
 ) -> CodeSliceResult:
     """Extract the exact source lines (start_line..end_line) and callee contracts for a symbol."""
     norm_file: str | None = None
@@ -525,6 +528,17 @@ def get_code_slice(
                 )
             )
 
+    linked_docs: list[Any] = []
+    if include_docs:
+        try:
+            from vibetrace.docs.symbol_linker import SymbolDocLinker
+
+            linked_docs = SymbolDocLinker.get_linked_docs_for_symbol(
+                db, target["name"], symbol_id=nid, max_tokens=max_doc_tokens
+            )
+        except Exception:
+            pass
+
     return CodeSliceResult(
         found=True,
         node_id=nid,
@@ -538,6 +552,7 @@ def get_code_slice(
         docstring=target.get("docstring"),
         source_code=snippet,
         callees=callees,
+        linked_docs=linked_docs,
     )
 
 

@@ -84,3 +84,24 @@ CREATE TABLE IF NOT EXISTS saved_traces (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Bi-directional Codebase Symbol <-> Documentation Links
+CREATE TABLE IF NOT EXISTS symbol_doc_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol_id TEXT NOT NULL,
+    symbol_name TEXT NOT NULL,
+    doc_path TEXT NOT NULL,
+    heading TEXT NOT NULL,
+    heading_path TEXT NOT NULL,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    token_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(symbol_id) REFERENCES nodes(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sdl_symbol_id ON symbol_doc_links(symbol_id);
+CREATE INDEX IF NOT EXISTS idx_sdl_symbol_name ON symbol_doc_links(symbol_name);
+CREATE INDEX IF NOT EXISTS idx_sdl_doc_path ON symbol_doc_links(doc_path);
+
+
