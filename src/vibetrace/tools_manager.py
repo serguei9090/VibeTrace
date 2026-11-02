@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,7 +71,14 @@ class ToolsManager:
         )
 
         # 3. Go (golangci-lint)
-        which_golangci = shutil.which("golangci-lint")
+        is_win = os.name == "nt"
+        gl_bin = "golangci-lint.exe" if is_win else "golangci-lint"
+        which_golangci = shutil.which(gl_bin)
+        if not which_golangci:
+            home_go_bin = Path.home() / "go" / "bin" / gl_bin
+            if home_go_bin.is_file():
+                which_golangci = str(home_go_bin)
+
         status["go"] = ToolStatus(
             language="go",
             engine="golangci-lint",
@@ -109,8 +117,10 @@ class ToolsManager:
         which_php = shutil.which("php")
         which_phpstan = shutil.which("phpstan")
         user_phar = Path.home() / ".vibetrace" / "bin" / "phpstan.phar"
+        bat_name = "phpstan.bat" if os.name == "nt" else "phpstan"
+        user_bat = Path.home() / ".vibetrace" / "bin" / bat_name
         local_phar = root / ".vibetrace" / "tools" / "phpstan.phar"
-        vendor_bin = root / "vendor" / "bin" / ("phpstan.bat" if os.name == "nt" else "phpstan")
+        vendor_bin = root / "vendor" / "bin" / bat_name
 
         php_ok = False
         php_desc: str | None = None
@@ -120,6 +130,9 @@ class ToolsManager:
         elif vendor_bin.is_file():
             php_ok = True
             php_desc = str(vendor_bin)
+        elif user_bat.is_file():
+            php_ok = True
+            php_desc = str(user_bat)
         elif which_php and (user_phar.is_file() or local_phar.is_file()):
             php_ok = True
             php_desc = f"{which_php} {local_phar if local_phar.is_file() else user_phar}"
@@ -138,18 +151,36 @@ class ToolsManager:
         # 6. Ruby (RuboCop)
         which_rubo = shutil.which("rubocop.bat" if os.name == "nt" else "rubocop")
         which_bundle = shutil.which("bundle")
+        if not which_rubo and os.name == "nt":
+            for cand in [
+                Path("C:/tools/ruby31/bin/rubocop.bat"),
+                Path.home() / ".vibetrace" / "bin" / "rubocop.bat",
+            ]:
+                if cand.is_file():
+                    which_rubo = str(cand)
+                    break
         ruby_ok = which_rubo is not None
+        has_gem = (
+            shutil.which("gem") is not None
+            or which_bundle is not None
+            or os.path.exists("C:/tools/ruby31/bin/gem.cmd")
+        )
         status["ruby"] = ToolStatus(
             language="ruby",
             engine="RuboCop",
             is_available=ruby_ok,
             version_or_path=which_rubo,
             install_hint="vibetrace tools install ruby  # executes gem install rubocop",
-            auto_installable=shutil.which("gem") is not None or which_bundle is not None,
+            auto_installable=has_gem,
         )
 
         # 7. Shell & Bash (ShellCheck)
         which_sc = shutil.which("shellcheck.exe" if os.name == "nt" else "shellcheck")
+        if not which_sc:
+            sc_name = "shellcheck.exe" if os.name == "nt" else "shellcheck"
+            sc_home = Path.home() / ".vibetrace" / "bin" / sc_name
+            if sc_home.is_file():
+                which_sc = str(sc_home)
         status["shell"] = ToolStatus(
             language="shell",
             engine="ShellCheck",
@@ -158,7 +189,7 @@ class ToolsManager:
             install_hint=(
                 "winget install koalaman.shellcheck (Win) or apt install shellcheck (Linux)"
             ),
-            auto_installable=shutil.which("winget") is not None or shutil.which("brew") is not None,
+            auto_installable=True,
         )
 
         # 8. SQL (SQLFluff)
@@ -275,8 +306,20 @@ class ToolsManager:
 
         if lang == "ruby":
             which_gem = shutil.which("gem")
+            if not which_gem and os.name == "nt" and os.path.exists("C:/tools/ruby31/bin/gem.cmd"):
+                which_gem = "C:/tools/ruby31/bin/gem.cmd"
             if which_gem:
-                res = subprocess.run([which_gem, "install", "rubocop"], check=False)
+                if os.name == "nt":
+                    subprocess.run(
+                        [which_gem, "install", "rubocop-ast", "-v", "1.30.0", "--no-document"],
+                        check=False,
+                    )
+                    res = subprocess.run(
+                        [which_gem, "install", "rubocop", "-v", "1.59.0", "--no-document"],
+                        check=False,
+                    )
+                else:
+                    res = subprocess.run([which_gem, "install", "rubocop"], check=False)
                 if res.returncode == 0:
                     return True, "Installed RuboCop via gem install."
             which_bundle = shutil.which("bundle")
@@ -304,6 +347,24 @@ class ToolsManager:
                 res = subprocess.run(["brew", "install", "shellcheck"], check=False)
                 if res.returncode == 0:
                     return True, "Installed ShellCheck via Homebrew."
+            # Fallback: direct portable zip download on Windows
+            if os.name == "nt":
+                try:
+                    bin_dir = Path.home() / ".vibetrace" / "bin"
+                    bin_dir.mkdir(parents=True, exist_ok=True)
+                    zip_path = bin_dir / "shellcheck_temp.zip"
+                    url = (
+                        "https://github.com/koalaman/shellcheck/releases/download/"
+                        "v0.10.0/shellcheck-v0.10.0.zip"
+                    )
+                    urllib.request.urlretrieve(url, zip_path)
+                    with zipfile.ZipFile(zip_path, "r") as zf:
+                        zf.extractall(bin_dir)
+                    if zip_path.is_file():
+                        zip_path.unlink()
+                    return True, f"Downloaded and extracted standalone ShellCheck to {bin_dir}."
+                except Exception as e:
+                    return False, f"Failed to download ShellCheck: {e}"
             return False, "Package manager not found. Please install shellcheck manually."
 
         if lang in ("sql", "sqlfluff"):

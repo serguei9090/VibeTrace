@@ -122,10 +122,8 @@ class GolangLintAdapter(LinterSubEngine):
         return None
 
     def is_available(self, project_root: Path) -> bool:
-        """Returns True if golangci-lint or go is found and a go.mod or .go files exist."""
-        has_runner = self._find_runner(project_root) is not None
-        has_go = self._find_go_mod(project_root) is not None or any(project_root.glob("*.go"))
-        return has_runner and has_go
+        """Returns True if golangci-lint or go is found."""
+        return self._find_runner(project_root) is not None
 
     def _map_issue_to_finding(
         self,
@@ -194,7 +192,9 @@ class GolangLintAdapter(LinterSubEngine):
             return []
 
         config_path = self._resolve_config_path(project_root)
-        config_arg = ["--config", str(config_path)] if config_path else []
+        config_arg = (
+            ["--config", str(config_path)] if config_path else ["--enable=gocyclo,errcheck,revive"]
+        )
         cmd = [*runner, "run", "--out-format=json", *config_arg, *file_args]
 
         try:
@@ -241,15 +241,20 @@ class GolangLintAdapter(LinterSubEngine):
         file_list: list[Path] | None = None,
     ) -> list[QualityFinding]:
         """Audits target files or entire Go package/workspace."""
-        file_args = ["./..."]
         target_rel_paths: set[str] | None = None
         if file_list is not None:
+            rel_files = []
             target_rel_paths = set()
             for p in file_list:
                 try:
-                    target_rel_paths.add(p.relative_to(project_root).as_posix())
+                    rel_p = p.relative_to(project_root).as_posix()
                 except ValueError:
-                    target_rel_paths.add(str(p).replace("\\", "/"))
+                    rel_p = str(p).replace("\\", "/")
+                target_rel_paths.add(rel_p)
+                rel_files.append(rel_p)
+            file_args = rel_files if rel_files else ["./..."]
+        else:
+            file_args = ["./..."]
 
         issues = self._run_golangci_lint(project_root, file_args)
         findings: list[QualityFinding] = []

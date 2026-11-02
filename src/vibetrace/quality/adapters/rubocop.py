@@ -101,7 +101,7 @@ class RuboCopAdapter(LinterSubEngine):
     name = "rubocop"
     SUPPORTED_EXTENSIONS = SUPPORTED_EXTENSIONS
 
-    def __init__(self, timeout_sec: float = 30.0) -> None:
+    def __init__(self, timeout_sec: float = 60.0) -> None:
         self.timeout_sec = timeout_sec
         self._cached_runner: list[str] | None = None
 
@@ -128,13 +128,22 @@ class RuboCopAdapter(LinterSubEngine):
         if rubo_bin:
             candidates.append([rubo_bin])
 
+        # 3. Check ~/.vibetrace/bin or C:/tools/ruby*/bin
+        local_rubo = Path.home() / ".vibetrace" / "bin" / ("rubocop.bat" if is_win else "rubocop")
+        if local_rubo.is_file():
+            candidates.append([str(local_rubo)])
+        if is_win:
+            for ruby_dir in Path("C:/tools").glob("ruby*/bin/rubocop.bat"):
+                if ruby_dir.is_file():
+                    candidates.append([str(ruby_dir)])
+
         for cmd in candidates:
             try:
                 res = subprocess.run(
                     [*cmd, "--version"],
                     capture_output=True,
                     text=True,
-                    timeout=5.0,
+                    timeout=20.0,
                     cwd=str(project_root),
                     check=False,
                 )
@@ -193,6 +202,10 @@ class RuboCopAdapter(LinterSubEngine):
 
     def parse_rubocop_output(self, raw_json: str, project_root: Path) -> list[QualityFinding]:
         try:
+            json_start = raw_json.find("{")
+            json_end = raw_json.rfind("}")
+            if json_start != -1 and json_end != -1:
+                raw_json = raw_json[json_start : json_end + 1]
             payload = json.loads(raw_json)
         except Exception:
             return []
