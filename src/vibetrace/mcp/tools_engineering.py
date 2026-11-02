@@ -10,6 +10,7 @@ from vibetrace.docs.symbol_linker import SymbolDocLinker
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.mcp.schemas import (
     CheckDocsDriftInput,
+    DiagnoseSymbolInput,
     ExplainDependencyInput,
     PatchDependencyInput,
     RefactorMethodInput,
@@ -21,6 +22,10 @@ from vibetrace.security.dep_graph import (
     normalize_package_name,
 )
 from vibetrace.security.service import SecurityService
+from vibetrace.services.diagnose_service import (
+    DiagnoseService,
+    format_diagnosis_md,
+)
 from vibetrace.services.refactor_service import RefactorService
 
 if TYPE_CHECKING:
@@ -263,9 +268,33 @@ async def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
         else:
             lines.append("\n✅ All documented symbols match live AST definitions in the codebase!")
         return "\n".join(lines)
-        return "\n".join(lines)
     except Exception as e:
         return f"Error checking documentation drift: {e}"
+
+
+async def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
+    """360° symbol diagnostic: slice, callers with call lines, blast radius, specs, and tests."""
+    try:
+        root = _resolve_project_root(params.scope_path)
+        db_path = root / ".vibetrace" / "index.db"
+        if not db_path.is_file():
+            return "Error: VibeTrace index not found. Run index first."
+        db = IndexerDB(db_path)
+
+        report = DiagnoseService.diagnose_symbol(
+            db=db,
+            project_root=root,
+            symbol_name=params.symbol_name,
+            max_depth=params.max_depth,
+            include_code=params.include_code,
+        )
+
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+
+        return format_diagnosis_md(report)
+    except Exception as e:
+        return f"Error diagnosing symbol '{params.symbol_name}': {e}"
 
 
 def register_engineering_tools(mcp: FastMCP) -> None:
@@ -274,3 +303,4 @@ def register_engineering_tools(mcp: FastMCP) -> None:
     mcp.tool()(vibetrace_refactor_method)
     mcp.tool()(vibetrace_patch_dependency)
     mcp.tool()(vibetrace_check_docs_drift)
+    mcp.tool()(vibetrace_diagnose_symbol)

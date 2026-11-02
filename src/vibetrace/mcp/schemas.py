@@ -819,3 +819,26 @@ class CheckDocsDriftInput(BaseModel):
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
     )
+
+
+class DiagnoseSymbolInput(BaseModel):
+    """Input model for 360° symbol diagnosis (slice, callers, blast radius, specs, tests)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    symbol_name: str = Field(..., description="Function, method, or class name to diagnose")
+    max_depth: int = Field(
+        default=2,
+        description="Transitive blast radius search depth (1 or 2 hops)",
+        ge=1,
+        le=5,
+    )
+    include_code: bool = Field(
+        default=True,
+        description="Include exact source code slice in the diagnostic report",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )

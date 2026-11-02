@@ -19,7 +19,14 @@ Get everything needed for a task—relevant architecture specs, target code impl
 - **MCP Tool:** `vibetrace_get_vibe_bundle(intent="add auth token to middleware", token_budget=1500)`
 - **CLI:** `uv run vibetrace bundle "add auth token to middleware" --budget 1500`
 
-### 2. Pre-Flight Caller Guard (`guard`)
+### 2. 360° Symbol Diagnosis Meta-Endpoint (`diagnose`)
+When you need to thoroughly investigate an existing function or method before refactoring, get a complete 360° dossier—source slice, callee contracts, all incoming callers with exact `:L<line>` call sites, transitive blast radius, linked architectural specs, and exercising test fixtures—in 1 single call:
+
+- **MCP Tool:** `vibetrace_diagnose_symbol(symbol_name="upsert_node", max_depth=2)`
+- **REST API:** `GET /api/diagnose?symbol=upsert_node`
+- **CLI:** `uv run vibetrace diagnose upsert_node`
+
+### 3. Pre-Flight Caller Guard (`guard`)
 **Rule 1 Requirement:** Never modify a function or method signature without inspecting all incoming callers first. The Caller Guard checks every caller in the AST graph, highlights exact call lines, and computes an active blast-radius advisory:
 
 - **MCP Tool:** `vibetrace_check_caller_guard(symbol_name="upsert_node")`

@@ -47,6 +47,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 - **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill, sets up an isolated project database, and performs initial indexing.
 - **⚡ 1-Shot Context Packing (`vibetrace bundle`)**: Combines relevant architecture docs, target code slices, callee contracts, caller blast radius, and sibling test patterns within a bounded token budget ($\le 1,500$ tokens) for zero-shot LLM completion.
+- **🔬 360° Symbol Diagnosis Meta-Endpoint (`vibetrace diagnose`)**: Deep single-round-trip investigation consolidating source slice, callee contracts, all incoming callers with exact `:L<line>` call sites, 2-hop transitive blast radius, linked architectural documentation, and sibling test reachability.
 - **🛡️ Pre-Flight Caller Guard (`vibetrace guard`)**: AST incoming caller inspection with exact call lines and blast-radius advisories to prevent breaking sibling callers before modifying function signatures.
 - **🚦 Git Pre-Commit Gate (`vibetrace guard --staged`)**: Validates modified symbol signatures in staged git changes against active callers to prevent breaking commits (`--strict`).
 - **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
@@ -226,9 +227,10 @@ Add VibeTrace to your agent's MCP configuration:
 }
 ```
 
-The agent gains access to 28 surgical FastMCP code intelligence tools:
+The agent gains access to 29 surgical FastMCP code intelligence tools:
 - `vibetrace_review_changes` (Unified 1-call review: Security, Taint, Split Integrity, Caller Guard & 80% Test Gate)
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
+- `vibetrace_diagnose_symbol` (Consolidated 360° symbol diagnosis: slice, callers, blast radius, specs, tests)
 - `vibetrace_check_caller_guard` (Pre-flight caller inspection and blast-radius advisory)
 - `vibetrace_audit_security` (Polyglot AST scanner, inter-procedural taint reachability, secrets & IaC)
 - `vibetrace_remediate_vulnerability` (Generate compliant code templates for security findings)

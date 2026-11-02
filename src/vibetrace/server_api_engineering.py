@@ -19,6 +19,7 @@ from vibetrace.security.dep_graph import (
 )
 from vibetrace.security.pr_bot import PRTaintBot
 from vibetrace.security.service import SecurityService
+from vibetrace.services.diagnose_service import DiagnoseService
 from vibetrace.services.refactor_service import RefactorService
 
 
@@ -169,6 +170,26 @@ def get_engineering_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
         )
         if apply and report.comments:
             PRTaintBot.apply_remediations(root, report)
+        return report.model_dump()
+
+    @router.get("/api/diagnose")
+    def get_diagnose_symbol(
+        symbol: str = Query(..., min_length=1),
+        depth: int = Query(default=2, ge=1, le=5),
+        include_code: bool = Query(default=True),
+    ) -> dict[str, Any]:
+        """Consolidated 360° symbol diagnosis (slice, callers, blast radius, specs, tests)."""
+        root = _get_project_root()
+        db = get_db()
+        report = DiagnoseService.diagnose_symbol(
+            db=db,
+            project_root=root,
+            symbol_name=symbol,
+            max_depth=depth,
+            include_code=include_code,
+        )
+        if not report.found:
+            raise HTTPException(status_code=404, detail=report.safety_advisory)
         return report.model_dump()
 
     return router

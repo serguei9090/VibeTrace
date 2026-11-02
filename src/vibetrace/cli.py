@@ -17,6 +17,7 @@ from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
     cmd_dependencies,
+    cmd_diagnose,
     cmd_docs,
     cmd_hooks,
     cmd_impact,
@@ -1124,6 +1125,25 @@ examples:
         help="Enforce test coverage threshold as a hard fail in the Quality Gate",
     )
     p_review.set_defaults(func=cmd_review)
+
+    # diagnose
+    p_diagnose = sub.add_parser(
+        "diagnose",
+        help="360° symbol diagnosis (slice, callers, blast radius, specs, tests)",
+        description=(
+            "Consolidated agentic diagnosis: inspects source slice, callee contracts, "
+            "incoming callers with line numbers, transitive blast radius, linked documentation, "
+            "and sibling test fixtures in 1 round-trip."
+        ),
+    )
+    p_diagnose.add_argument("symbol", help="Target symbol name to diagnose")
+    p_diagnose.add_argument(
+        "--depth", type=int, default=2, help="Blast radius traversal depth (default: 2)"
+    )
+    p_diagnose.add_argument(
+        "--no-code", action="store_true", help="Exclude source code slice from output"
+    )
+    p_diagnose.set_defaults(func=cmd_diagnose)
 
     # project (federated multi-repo workspace)
     register_project_parser(sub)

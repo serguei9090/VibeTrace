@@ -660,3 +660,33 @@ def cmd_test(args: argparse.Namespace) -> int:
     return PredictiveTestService.execute_impacted_tests(
         report=report, dry_run=dry_run, runner_override=runner_override
     )
+
+
+def cmd_diagnose(args: argparse.Namespace) -> int:
+    """CLI handler for 360° symbol diagnosis (slice, callers, blast radius, specs, tests)."""
+    auto_sync = not getattr(args, "no_sync", False)
+    db, root = get_context_for_path(
+        getattr(args, "symbol", "."),
+        auto_sync=auto_sync,
+        root_override=getattr(args, "root", None),
+    )
+    from vibetrace.services.diagnose_service import DiagnoseService, format_diagnosis_md
+
+    report = DiagnoseService.diagnose_symbol(
+        db=db,
+        project_root=root,
+        symbol_name=args.symbol,
+        max_depth=getattr(args, "depth", 2),
+        include_code=not getattr(args, "no_code", False),
+    )
+
+    if getattr(args, "json", False):
+        print(report.model_dump_json(indent=2))
+        return 0 if report.found else 1
+
+    if not report.found:
+        print(f"❌ {report.safety_advisory}")
+        return 1
+
+    print(safe_str(format_diagnosis_md(report)))
+    return 0

@@ -28,6 +28,7 @@ vibetrace --help
 | `vibetrace trace` | `<from> <to> [--save-as NAME] [--saved NAME] [--list-saved]` | Reachable BFS execution tracepath with hop-by-hop `:L<line>` call sites and multi-route bifurcation detection. | `vibetrace trace handleLogin verifyPassword` |
 | `vibetrace guard` | `<symbol> [--staged] [--strict]` | Pre-flight caller inspection and blast-radius advisory. Git pre-commit mode via `--staged`. | `vibetrace guard upsert_node` |
 | `vibetrace bundle` | `<query> [--budget TOKENS]` | Assembles 1-shot task context (docs + code slice + callee contracts + caller guard + sibling tests). | `vibetrace bundle "add auth middleware" --budget 1500` |
+| `vibetrace diagnose` | `<symbol> [--depth N] [--no-code]` | 360° symbol investigation: slice, callee contracts, callers with lines, blast radius, specs, and tests. | `vibetrace diagnose upsert_node` |
 | `vibetrace review` | `[--ci] [--strict] [--min-coverage N]` | Unified 1-call AI review gate: Security/Taint, Splits, Caller Guard, and 80% test coverage. | `vibetrace review --ci --min-coverage 80` |
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
 | `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
@@ -64,11 +65,12 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 }
 ```
 
-### Complete MCP Tools Catalog (28 FastMCP Tools)
+### Complete MCP Tools Catalog (29 FastMCP Tools)
 
 | Tool Name | Key Parameters | Functionality |
 | :--- | :--- | :--- |
 | `vibetrace_get_vibe_bundle` | `query`, `budget`, `scope_path` | Packs relevant docs, code slices, callee contracts, caller guard, and test fixtures into a token-budgeted payload ($\le 1,500$ tokens). |
+| `vibetrace_diagnose_symbol` | `symbol_name`, `max_depth`, `include_code` | 360° symbol investigation: source slice, callee contracts, callers with `:L<line>`, blast radius, specs, and tests. |
 | `vibetrace_check_caller_guard` | `symbol_name`, `staged`, `file_path`, `scope_path` | Pre-flight caller inspection with exact call-site line numbers and blast-radius advisory. Supports git staged diffs. |
 | `vibetrace_review_changes` | `scope`, `check_dependencies`, `min_coverage`, `enforce_coverage` | Unified 1-call AI review gate: Security/Taint, Splits, Caller Guard, and 80% test coverage. |
 | `vibetrace_audit_security` | `scope_path`, `check_dependencies`, `analyze_taint` | Multi-language AST SAST, zero-dependency IaC scanning, git secrets, inter-procedural taint reachability, and OSV lockfile CVEs. |
@@ -119,6 +121,7 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 | `/api/deps/why` | `GET` | `package: string` | Root causation chains that introduced a transitive dependency. |
 | `/api/deps/tree` | `GET` | `package?: string, max_depth?: int` | Top-down dependency hierarchy from root manifests to leaves. |
 | `/api/deps/conflicts` | `GET` | _none_ | Detects diamond version collisions across project lockfiles. |
+| `/api/diagnose` | `GET` | `symbol: string, depth?: int` | Consolidated 360° symbol diagnosis (slice, callers, blast radius, specs, tests). |
 | `/api/refactor/candidates` | `GET` | `file_path: string, symbol_name: string` | Suggests candidate statement blocks for method extraction. |
 | `/api/refactor/split` | `POST` | `RefactorSplitRequest` body | Executes AST-based helper method extraction refactoring. |
 | `/api/docs/search` | `GET` | `q: string, scope?: string, limit?: int` | 2-stream hybrid RRF documentation search. |
@@ -130,11 +133,6 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 | `/call-tree` | `GET` | `symbol: string, depth?: int` | Returns top-down recursive call tree hierarchy JSON. |
 | `/source` | `GET` | `file_path: string, start_line: int, end_line: int` | Safely reads line slice within project root. |
 | `/api/agent-focus` | `POST` | `AgentFocusPayload` body | Broadcasts agent active focus nodes and files to connected Map Room clients. |
-
-### Real-Time WebSocket (`WS /ws`)
-
-- Emits `{"type": "refresh"}` when file system watcher detects code changes.
-- Broadcasts `{"type": "agent_focus", ...}` when AI coding agents query symbols or execute tracepaths.
 
 ### Real-Time WebSocket (`WS /ws`)
 
