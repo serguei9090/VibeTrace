@@ -42,3 +42,41 @@ def test_handles_syntax_errors_gracefully() -> None:
     code = "def bad_syntax(:"
     findings = analyze_literal_duplications("bad.py", code)
     assert findings == []
+
+
+def test_ignores_dictionary_keys_and_type_annotations() -> None:
+    code = """
+__all__ = ["field_name", "category_tag"]
+
+def schema_one(val: "field_name") -> "category_tag":
+    return {
+        "field_name": 1,
+        "category_tag": 2,
+    }
+
+def schema_two() -> dict:
+    return {
+        "field_name": 10,
+        "category_tag": 20,
+    }
+
+def schema_three() -> dict:
+    return {
+        "field_name": 100,
+        "category_tag": 200,
+    }
+"""
+    findings = analyze_literal_duplications("schema.py", code, threshold=3)
+    assert len(findings) == 0
+
+
+def test_ignores_short_strings_under_five_chars() -> None:
+    code = """
+def route():
+    a = "GET"
+    b = "GET"
+    c = "GET"
+    d = "GET"
+"""
+    findings = analyze_literal_duplications("route.py", code, threshold=3)
+    assert len(findings) == 0

@@ -16,6 +16,7 @@ from typing import Any
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 from vibetrace.security.rules import RULES_CATALOG
+from vibetrace.security.taint_engine import SANITIZERS, TaintEngine, is_source
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,9 @@ class SarifIngestEngine:
                 )
                 if finding:
                     findings.append(finding)
+
+        if db and findings:
+            cls._enrich_with_reachability(findings, db, project_root)
 
         return findings
 
@@ -194,3 +198,109 @@ class SarifIngestEngine:
             compliant_snippet=compliant,
             remediation_guidance=remediation,
         )
+
+    @classmethod
+    def _enrich_with_reachability(
+        cls,
+        findings: list[SecurityFinding],
+        db: IndexerDB,
+        project_root: Path,
+    ) -> None:
+        """Enriches findings with Call Graph reachability and silences uncallable dead code."""
+        try:
+            with db._get_conn() as conn:
+                nodes = {
+                    r["id"]: dict(r)
+                    for r in conn.execute(
+                        "SELECT id, name, kind, file_path, start_line, end_line, decorators "
+                        "FROM nodes"
+                    ).fetchall()
+                }
+                callers: dict[str, list[str]] = {}
+                for r in conn.execute(
+                    "SELECT from_node_id, to_node_id FROM edges WHERE relation_type != 'defines'"
+                ).fetchall():
+                    callers.setdefault(r["to_node_id"], []).append(r["from_node_id"])
+        except Exception as err:
+            logger.debug("Could not query call graph for SARIF reachability: %s", err)
+            return
+
+        nodes_by_file: dict[str, list[dict[str, Any]]] = {}
+        for n in nodes.values():
+            if n.get("file_path"):
+                norm_p = n["file_path"].replace("\\", "/")
+                nodes_by_file.setdefault(norm_p, []).append(n)
+
+        for f in findings:
+            norm_file = f.file_path.replace("\\", "/")
+            file_nodes = nodes_by_file.get(norm_file, [])
+            best_node: dict[str, Any] | None = None
+            best_span: int | None = None
+
+            for n in file_nodes:
+                s_l = int(n.get("start_line") or 0)
+                e_l = int(n.get("end_line") or 0)
+                if s_l <= f.start_line <= e_l:
+                    span = e_l - s_l
+                    if best_span is None or span < best_span:
+                        best_span = span
+                        best_node = n
+
+            if not best_node:
+                continue
+
+            node_id = best_node["id"]
+            node_name = best_node.get("name") or "anonymous"
+            f.symbol_name = node_name
+
+            # 1. Entry point check (e.g. FastAPI/Flask endpoint, Click CLI, etc.)
+            if is_source(best_node.get("kind", ""), best_node.get("decorators")):
+                f.metadata["reachability"] = "entrypoint"
+                f.metadata["is_reachable"] = True
+                f.message = f"{f.message} (Entry point: `{node_name}`)"
+                continue
+
+            # 2. Reverse BFS search to verify path from any untrusted entry point
+            path = TaintEngine._path_from_source(nodes, callers, node_id, SANITIZERS)
+            if path:
+                path_names = [nodes[nid]["name"] for nid in path if nid in nodes]
+                f.metadata["reachability"] = "entrypoint_reachable"
+                f.metadata["is_reachable"] = True
+                f.metadata["reachability_path"] = path_names
+                f.message = (
+                    f"{f.message} (Active Call-Graph: reachable from `{path_names[0]}` "
+                    f"via {' -> '.join(path_names)})"
+                )
+                continue
+
+            # 3. General internal callers check
+            incoming = callers.get(node_id, [])
+            if incoming:
+                f.metadata["reachability"] = "internal_reachable"
+                f.metadata["is_reachable"] = True
+                f.metadata["reachability_callers"] = len(incoming)
+                continue
+
+            # 4. Check if test fixture or top-level execution entry
+            is_test = "test" in norm_file.lower()
+            is_script = (
+                Path(norm_file).name in ("main.py", "__main__.py", "cli.py") or node_name == "main"
+            )
+            if is_test:
+                f.metadata["reachability"] = "test_fixture"
+                f.metadata["is_reachable"] = True
+            elif is_script:
+                f.metadata["reachability"] = "main_script"
+                f.metadata["is_reachable"] = True
+            else:
+                # 0 callers, not entry point, not test/script -> Unreachable Dead Code
+                f.metadata["reachability"] = "unreachable_dead_code"
+                f.metadata["is_reachable"] = False
+                f.metadata["reachability_silenced"] = True
+                f.tag = "unreachable-dead-code"
+                f.status = "APPROVED"
+                f.rationale = (
+                    "Automatically silenced by VibeTrace: symbol is unreachable "
+                    "dead code in call-graph (0 incoming callers)."
+                )
+                f.title = f"{f.title} [UNREACHABLE_DEAD_CODE]"

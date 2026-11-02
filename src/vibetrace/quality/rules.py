@@ -515,6 +515,71 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
             "try:\n    do_work()\nexcept (IOError, ValueError) as err:\n    logger.error(err)\n"
         ),
     ),
+    # 29. S5713: Nested "with" statements should be collapsed
+    "S5713": QualityRuleSpec(
+        rule_id="S5713",
+        rspec_id="RSPEC-5713",
+        severity=QualitySeverity.LOW,
+        category=QualityCategory.CODE_SMELL,
+        title='Nested "with" statements should be collapsed into a single statement',
+        explanation=(
+            "Multiple nested 'with' statements increase code indentation without adding value. "
+            "Python supports combining multiple context managers in a single 'with' statement."
+        ),
+        aliases=["SIM117", "multiple-with-statements", "nested-with"],
+        non_compliant_example="with open('a') as f1:\n    with open('b') as f2:\n        pass\n",
+        compliant_example="with open('a') as f1, open('b') as f2:\n    pass\n",
+    ),
+    # 30. S1244: Exact floating-point comparisons
+    "S1244": QualityRuleSpec(
+        rule_id="S1244",
+        rspec_id="RSPEC-1244",
+        severity=QualitySeverity.MEDIUM,
+        category=QualityCategory.RELIABILITY,
+        title="Floating point numbers should not be tested for exact equality",
+        explanation=(
+            "Floating point math is inherently subject to rounding and precision errors. Direct "
+            "equality comparisons (== or !=) can lead to unpredictable branching bugs. Use "
+            "math.isclose() or define an explicit epsilon threshold instead."
+        ),
+        aliases=["PLR1736", "float-equality", "float-equal"],
+        non_compliant_example="if result == 3.14159:\n    do_work()\n",
+        compliant_example=(
+            "import math\nif math.isclose(result, 3.14159, abs_tol=1e-5):\n    do_work()\n"
+        ),
+    ),
+    # 31. S9409: Deprecated syntax should be modernized
+    "S9409": QualityRuleSpec(
+        rule_id="S9409",
+        rspec_id="RSPEC-9409",
+        severity=QualitySeverity.LOW,
+        category=QualityCategory.MAINTAINABILITY,
+        title="Deprecated syntax should be modernized to current Python standards",
+        explanation=(
+            "Using obsolete type annotations, legacy super() calls, or redundant formatting idioms "
+            "causes friction and prevents taking advantage of Python 3.10+ language optimizations."
+        ),
+        aliases=["UP006", "UP035", "UP007", "pyupgrade", "modernize-syntax"],
+        non_compliant_example="from typing import List, Dict\nx: List[str] = []\n",
+        compliant_example="x: list[str] = []\n",
+    ),
+    # 32. S3516: Functions should not always return the same value
+    "S3516": QualityRuleSpec(
+        rule_id="S3516",
+        rspec_id="RSPEC-3516",
+        severity=QualitySeverity.LOW,
+        category=QualityCategory.CODE_SMELL,
+        title="Functions should not always return the same literal constant on all paths",
+        explanation=(
+            "A function or method that unconditionally returns the same constant on every code "
+            "branch either has a redundant boolean return type or an incomplete implementation."
+        ),
+        aliases=["PLR0133", "identical-return", "same-return"],
+        non_compliant_example=(
+            "def is_valid(x):\n    if x > 0:\n        return True\n    return True\n"
+        ),
+        compliant_example="def is_valid(x):\n    return x > 0\n",
+    ),
 }
 
 _ALIAS_INDEX: dict[str, str] = {}

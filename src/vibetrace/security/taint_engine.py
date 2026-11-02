@@ -68,6 +68,9 @@ def _is_source(kind: str, decorators_json: str | None) -> bool:
     return any(_SOURCE_DECORATOR_RE.search(str(d)) for d in decorators)
 
 
+is_source = _is_source
+
+
 def _bump(severity: Severity) -> Severity:
     if severity not in _SEVERITY_ORDER:
         return severity

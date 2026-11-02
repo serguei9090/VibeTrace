@@ -37,6 +37,7 @@ class UnifiedReviewReport(BaseModel):
     modified_splits_count: int = 0
     total_splits_count: int = 0
     approved_splits_count: int = 0
+    silenced_sarif_count: int = 0
     modified_symbols_with_callers: int = 0
     coverage_gate: CoverageGateReport = Field(default_factory=CoverageGateReport)
     security_findings: list[SecurityFinding] = Field(default_factory=list)
@@ -122,6 +123,7 @@ def run_unified_review(
 
     unapproved_sec = sum(1 for f in active_sec if f.status == "UNAPPROVED")
     modified_sec = sum(1 for f in active_sec if f.status == "MODIFIED")
+    silenced_sarif = sum(1 for f in sec_report.findings if f.metadata.get("reachability_silenced"))
 
     # 2. Code Quality & Cognitive Complexity Audit
     qual_report = QualityService.audit_project(
@@ -235,6 +237,7 @@ def run_unified_review(
         modified_splits_count=mod_splits,
         total_splits_count=split_report.total_splits,
         approved_splits_count=split_report.approved_count,
+        silenced_sarif_count=silenced_sarif,
         modified_symbols_with_callers=len(with_callers),
         coverage_gate=cov_gate,
         security_findings=active_sec,
@@ -282,8 +285,15 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
             f"- **📞 Caller Guard Advisories:** {report.modified_symbols_with_callers} "
             "modified symbol(s) with active callers"
         ),
-        "",
     ]
+
+    if report.silenced_sarif_count > 0:
+        lines.append(
+            f"- **🔇 Silenced Dead-Code SAST (Call Graph):** {report.silenced_sarif_count} "
+            "alerts silenced (unreachable in call graph)"
+        )
+
+    lines.append("")
 
     if not report.actions_required:
         lines.append("All security rules, split tripwires, and caller contracts are verified.")

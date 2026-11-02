@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     pass
 
 _DEFAULT_DUPLICATION_THRESHOLD = 3
-_MIN_LITERAL_LENGTH = 4
+_MIN_LITERAL_LENGTH = 5
 
 # Common trivial strings that should not trigger duplicate constant warnings
 _IGNORED_LITERALS: set[str] = {
@@ -28,6 +28,7 @@ _IGNORED_LITERALS: set[str] = {
     "latin-1",
     "__main__",
     "__init__",
+    "__all__",
     "true",
     "false",
     "none",
@@ -41,6 +42,9 @@ _IGNORED_LITERALS: set[str] = {
     "options",
     "text/plain",
     "application/json",
+    "description",
+    "severity",
+    "category",
 }
 
 
@@ -49,7 +53,7 @@ class StringLiteralVisitor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self.literal_occurrences: dict[str, list[int]] = defaultdict(list)
-        self._docstring_nodes: set[int] = set()
+        self._ignored_nodes: set[int] = set()
 
     def visit_Module(self, node: ast.Module) -> None:
         self._mark_docstring(node.body)
@@ -61,10 +65,44 @@ class StringLiteralVisitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._mark_docstring(node.body)
+        if node.returns and isinstance(node.returns, ast.Constant):
+            self._ignored_nodes.add(id(node.returns))
+        for arg in node.args.args + node.args.kwonlyargs:
+            if arg.annotation and isinstance(arg.annotation, ast.Constant):
+                self._ignored_nodes.add(id(arg.annotation))
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._mark_docstring(node.body)
+        if node.returns and isinstance(node.returns, ast.Constant):
+            self._ignored_nodes.add(id(node.returns))
+        for arg in node.args.args + node.args.kwonlyargs:
+            if arg.annotation and isinstance(arg.annotation, ast.Constant):
+                self._ignored_nodes.add(id(arg.annotation))
+        self.generic_visit(node)
+
+    def visit_Dict(self, node: ast.Dict) -> None:
+        """Ignores string literal keys within dictionary literals."""
+        for k in node.keys:
+            if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
+                self._ignored_nodes.add(id(k))
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        """Ignores string literals inside __all__ export lists."""
+        is_all_export = any(
+            isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+        )
+        if is_all_export and isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
+            for elt in node.value.elts:
+                if isinstance(elt, ast.Constant):
+                    self._ignored_nodes.add(id(elt))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        """Ignores string type annotations."""
+        if node.annotation and isinstance(node.annotation, ast.Constant):
+            self._ignored_nodes.add(id(node.annotation))
         self.generic_visit(node)
 
     def _mark_docstring(self, body: list[ast.stmt]) -> None:
@@ -72,10 +110,10 @@ class StringLiteralVisitor(ast.NodeVisitor):
         if body and isinstance(body[0], ast.Expr):
             val = body[0].value
             if isinstance(val, ast.Constant) and isinstance(val.value, str):
-                self._docstring_nodes.add(id(val))
+                self._ignored_nodes.add(id(val))
 
     def visit_Constant(self, node: ast.Constant) -> None:
-        if id(node) in self._docstring_nodes:
+        if id(node) in self._ignored_nodes:
             return
         if not isinstance(node.value, str):
             return
