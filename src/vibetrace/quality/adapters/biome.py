@@ -170,6 +170,12 @@ BIOME_TO_SONAR: dict[str, tuple[str, str, QualityCategory, QualitySeverity]] = {
         QualityCategory.CODE_SMELL,
         QualitySeverity.LOW,
     ),
+    "lint/style/useReadonlyClassProperties": (
+        "S2933",
+        "RSPEC-2933",
+        QualityCategory.CODE_SMELL,
+        QualitySeverity.LOW,
+    ),
 }
 
 
