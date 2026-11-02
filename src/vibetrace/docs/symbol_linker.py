@@ -445,14 +445,19 @@ class SymbolDocLinker:
             if ".agents" in rel.parts and "vibetrace-navigator" not in rel.parts:
                 continue
             # Exclude historical scratch review dumps in docs/
-            if rel.parts[0] == "docs" and len(rel.parts) == 2 and rel.name.lower() in {
-                "aicode_review_coverage.md",
-                "aicode_review-coverage.md",
-                "aicode_review.md",
-                "aicodereview-coverage.md",
-                "audit.md",
-                "audit_features.md",
-            }:
+            if (
+                rel.parts[0] == "docs"
+                and len(rel.parts) == 2
+                and rel.name.lower()
+                in {
+                    "aicode_review_coverage.md",
+                    "aicode_review-coverage.md",
+                    "aicode_review.md",
+                    "aicodereview-coverage.md",
+                    "audit.md",
+                    "audit_features.md",
+                }
+            ):
                 continue
             md_files.append(p)
         return md_files
