@@ -256,7 +256,7 @@ The agent gains access to 29 surgical FastMCP code intelligence tools:
 - `vibetrace_save_trace` / `vibetrace_list_saved_traces` (Saved trace bookmarks)
 - `vibetrace_delete_saved_trace` (Delete saved trace bookmarks)
 - `vibetrace_reindex_project` (Trigger incremental or full AST reindexing)
-- `vibetrace_project_status` / `project_search` / `project_guard` / `project_links` (Federated multi-repo tools)
+- `vibetrace_project_status` / `vibetrace_project_search` / `vibetrace_project_guard` / `vibetrace_project_links` (Federated multi-repo tools)
 
 ---
 

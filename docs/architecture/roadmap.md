@@ -61,17 +61,17 @@ The most critical bottleneck is the "External Module Blind Spot." Currently, the
 ### Phase 1: Relational Integrity (The "Foundations")
 - Update `IndexerDB` to support renaming/relinking nodes.
 - Update `Parser` to resolve local modules during indexing.
-- **Success Metric**: `vibegraph_impact_analysis` correctly identifies project-wide dependencies.
+- **Success Metric**: `vibetrace_impact_analysis` correctly identifies project-wide dependencies.
 
 ### Phase 2: Metadata & UI (The "Polish")
-- Add decorators and visibility to `structural_summary`.
-- Add categorized output to `get_dependencies`.
+- Add decorators and visibility to `vibetrace_get_structural_summary`.
+- Add categorized output to `vibetrace_get_dependencies`.
 - **Success Metric**: All summaries include `@decorators`.
 
 ### Phase 3: Advanced Analysis (The "Intelligence")
 - Implement transitive impact (multi-level).
 - Implement breadcrumb pathing in call stacks.
-- **Success Metric**: `vibegraph_get_call_stack` shows 3+ levels of clear, non-redundant paths.
+- **Success Metric**: `vibetrace_get_call_stack` shows 3+ levels of clear, non-redundant paths.
 
 ---
 

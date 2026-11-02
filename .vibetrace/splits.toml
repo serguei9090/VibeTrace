@@ -3,8 +3,8 @@
 
 [meta]
 version = "1.0.0"
-updated_at = "2026-11-01T00:02:31.509209+00:00"
-total_records = 159
+updated_at = "2026-11-02T01:58:00.364083+00:00"
+total_records = 209
 
 [[splits]]
 symbol = "test_symbol_approval"
@@ -15,7 +15,7 @@ code_hash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 branches_count = 2
 rationale = "Automated test verification"
 reviewed_by = "pytest"
-reviewed_at = "2026-11-01T00:02:24.833721+00:00"
+reviewed_at = "2026-11-02T01:57:54.550471+00:00"
 branches = ["branch1", "branch2"]
 
 [[splits]]
@@ -27,7 +27,7 @@ code_hash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 branches_count = 2
 rationale = "Architectural review verified"
 reviewed_by = "developer"
-reviewed_at = "2026-11-01T00:02:31.508677+00:00"
+reviewed_at = "2026-11-02T01:58:00.363563+00:00"
 branches = ["b1", "b2"]
 
 [[splits]]
@@ -35,12 +35,12 @@ symbol = "reindex_all"
 qualified_name = "reindex_all"
 file_path = "src/vibetrace/indexer/main.py"
 status = "approved"
-code_hash = "f55f265365e21f291f1e2ba2ec6c25ef3bf995d26c0616b290c54f4a9a8a0a0d"
-branches_count = 2
-rationale = "Master indexing orchestrator dispatch"
-reviewed_by = "lead_dev"
-reviewed_at = "2026-10-30T00:19:07.807926+00:00"
-branches = ["load_config", "load_ignore_spec"]
+code_hash = "e16a3bcdbcb7eb35e20e32c66ebfb5c259755acc8be1d1da6139c6c7af6fcb3f"
+branches_count = 28
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.048913+00:00"
+branches = ["load_config", "load_ignore_spec", "ModuleResolver", "index_file", "update_centrality_scores", "get_git_sha", "get_meta", "get_git_delta", "clear_file", "is_ignored_path", "clear_file", "index_file", "update_centrality_scores", "set_meta", "is_ignored_path", "is_ignored_path", "index_file", "get_all_indexed_file_paths", "clear_file", "update_centrality_scores", "set_meta", "set_meta", "get_default_lsp_command", "LSPClient", "start", "resolve_unresolved_edges", "update_centrality_scores", "stop"]
 
 [[splits]]
 symbol = "hybrid_search"
@@ -83,12 +83,12 @@ symbol = "cmd_audit_security"
 qualified_name = "cmd_audit_security"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "4e41c03146ac415511a5ddbbda1c6bb83f54a6c7c140cbc25bf9217c26e439d8"
-branches_count = 7
-rationale = "Architectural split verified via CLI"
+code_hash = "1828960f0c401f172a8185288faa3eaec3d6cc6c0a6d6d7220ce276612978aea"
+branches_count = 8
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T23:28:18.688432+00:00"
-branches = ["get_context_for_path", "audit_project", "_handle_security_bulk_approve", "_render_security_output", "_handle_security_ai_fix", "_evaluate_security_ci_gate", "_run_security_interactive_triage"]
+reviewed_at = "2026-11-02T01:49:41.329807+00:00"
+branches = ["get_context_for_path", "sync_catalog", "audit_project", "_handle_security_bulk_approve", "_render_security_output", "_handle_security_ai_fix", "_evaluate_security_ci_gate", "_run_security_interactive_triage"]
 
 [[splits]]
 symbol = "CodeInspectorDrawer"
@@ -167,12 +167,12 @@ symbol = "audit_project"
 qualified_name = "SecurityService.audit_project"
 file_path = "src/vibetrace/security/service.py"
 status = "approved"
-code_hash = "982c34e5a2877348ada1985830f2f4e4d4ba597be13cd379a4bc9c212b66f761"
-branches_count = 13
-rationale = "Added target_files list filtering for performance"
+code_hash = "e247cc7856a23cc47789da86ea7f8706b94f218b23f34c073d0a9e9eba87e1fb"
+branches_count = 16
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T01:36:27.001729+00:00"
-branches = ["_is_test_path", "_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "apply_baseline_to_findings"]
+reviewed_at = "2026-11-02T01:49:41.407437+00:00"
+branches = ["_is_test_path", "_get_conn", "_is_test_path", "sync_and_load_rules", "scan_file", "scan_file_with_rules", "analyze", "load_sanitizers", "scan_project", "scan_repository", "parse_all_lockfiles", "query_vulnerabilities", "build", "normalize_package_name", "enrich_finding", "apply_baseline_to_findings"]
 
 [[splits]]
 symbol = "_rule_from_dict"
@@ -203,12 +203,12 @@ symbol = "analyze"
 qualified_name = "TaintEngine.analyze"
 file_path = "src/vibetrace/security/taint_engine.py"
 status = "approved"
-code_hash = "0b87b812a6c8d71d9132a1e5a6d723dcbaf3d9fb22fc4cb6c685cc7f799c27b2"
-branches_count = 5
-rationale = "Verified security & Map Room split orchestration"
+code_hash = "dc5aeedfa8cd856292667936cb5a421c07236916d2e4d856bec4251e51bb6757"
+branches_count = 2
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T16:32:49.301729+00:00"
-branches = ["_get_conn (src/vibetrace/indexer/db.py)", "_enclosing_node_id (src/vibetrace/security/taint_engine.py)", "_path_from_source (src/vibetrace/security/taint_engine.py)", "verify_interprocedural_taint_flow (src/vibetrace/security/dataflow.py)", "_bump (src/vibetrace/security/taint_engine.py)"]
+reviewed_at = "2026-11-02T01:49:42.797718+00:00"
+branches = ["_get_conn", "_process_candidate"]
 
 [[splits]]
 symbol = "apply_baseline_to_findings"
@@ -239,12 +239,12 @@ symbol = "initialize_workspace"
 qualified_name = "initialize_workspace"
 file_path = "src/vibetrace/skill_installer.py"
 status = "approved"
-code_hash = "096fbeac23121b841dd09983a6059cf95975a5e82bbe4289ec204c7b8e0dd5a1"
-branches_count = 13
-rationale = "Architectural split verified via CLI"
+code_hash = "a6c19ac971d27a1bfb2e5044317a14c177b347dd210d327e6571c98e0f1950d7"
+branches_count = 9
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T23:28:18.544176+00:00"
-branches = ["configure_gitignore", "install_skill", "save_default_config", "detect_project_ecosystems", "add_path", "DocDB", "index_catalog", "install_hooks", "IndexerDB", "reindex_all", "update_centrality_scores", "get_graph_data", "sync_and_load_rules"]
+reviewed_at = "2026-11-02T01:49:41.441499+00:00"
+branches = ["configure_gitignore", "install_skill", "save_default_config", "detect_project_ecosystems", "_init_docs_catalog", "install_hooks", "_run_initial_indexing", "IndexerDB", "sync_catalog"]
 
 [[splits]]
 symbol = "run_unified_review"
@@ -311,12 +311,12 @@ symbol = "traverse"
 qualified_name = "JavaScriptParser.extract.traverse"
 file_path = "src/vibetrace/indexer/parsers/js_parser.py"
 status = "approved"
-code_hash = "09e3dc1f88036bbe39df6f5eac8e6c73e8cc478612a8f44ce6e4f5e311f8df34"
-branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "2153c9e9a1ced0954eda47b2c53114466f0f97142dca0eed609f24ee38d16f4c"
+branches_count = 5
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.162607+00:00"
-branches = ["_handle_es_export", "_handle_es_import", "_handle_require", "extract_js_endpoint_route"]
+reviewed_at = "2026-11-02T01:49:41.012421+00:00"
+branches = ["_handle_es_export", "_handle_es_import", "_handle_require", "_extract_js_matrix_targets", "extract_js_endpoint_route"]
 
 [[splits]]
 symbol = "trace_execution_path"
@@ -335,12 +335,12 @@ symbol = "_handle_definition"
 qualified_name = "PythonParser._handle_definition"
 file_path = "src/vibetrace/indexer/parsers/python_parser.py"
 status = "approved"
-code_hash = "6f6f8901b85f6438907d84b147cc7c1b9cb5f07dd147faf4283da48f7114a26b"
-branches_count = 3
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "42d773fd599dbd9ca028369504eb3666ac5ad5886e3260645d22f91c4b52e46d"
+branches_count = 5
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.191427+00:00"
-branches = ["_extract_param_types", "_extract_docstring", "extract_python_routes"]
+reviewed_at = "2026-11-02T01:49:41.095065+00:00"
+branches = ["_extract_param_types", "_extract_docstring", "_handle_pytest_parametrize", "_extract_param_names", "extract_python_routes"]
 
 [[splits]]
 symbol = "get_context_for_path"
@@ -383,11 +383,11 @@ symbol = "extract"
 qualified_name = "PythonParser.extract"
 file_path = "src/vibetrace/indexer/parsers/python_parser.py"
 status = "approved"
-code_hash = "64ad407bc3245c6c574720f96ecdf542a214b0fa613b235bf5fbe3d8f020ca56"
+code_hash = "44404f5fe2478e93e3d6b0f10a2721387ba9cb2839894fc4541323144eecebb2"
 branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.248380+00:00"
+reviewed_at = "2026-11-02T01:49:41.244454+00:00"
 branches = ["ParserContext", "extract_python_router_prefixes", "_extract_type_alias_name", "_traverse"]
 
 [[splits]]
@@ -407,12 +407,12 @@ symbol = "index_catalog"
 qualified_name = "DocIndexService.index_catalog"
 file_path = "src/vibetrace/docs/service.py"
 status = "approved"
-code_hash = "1c58f56503c70d6b4c181634eb2da693bc90f76f5d3083f797604f2a8b6cac26"
-branches_count = 7
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "9d3075f4b647be549f4712f3a724a9a8f40bb07c6888a6feb12ea82dcb20d082"
+branches_count = 4
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.273221+00:00"
-branches = ["EmbeddingEngine", "is_available", "get_file_mtime", "_extract_chunks", "delete_file_chunks", "embed_texts", "upsert_chunks"]
+reviewed_at = "2026-11-02T01:49:43.127167+00:00"
+branches = ["EmbeddingEngine", "is_available", "_collect_catalog_files", "_index_file_entry"]
 
 [[splits]]
 symbol = "cmd_search"
@@ -431,12 +431,12 @@ symbol = "cmd_trace"
 qualified_name = "cmd_trace"
 file_path = "src/vibetrace/cli_commands.py"
 status = "approved"
-code_hash = "76b0f033bec56c41b94504a500d2f5cb9b0c9247e4bac81eb6cd6662cff65f8d"
-branches_count = 12
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+code_hash = "5b0ff8bcfef37b01efb51f01efa13e4ad7d861ffad99f075421633f43c232dc2"
+branches_count = 10
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.300269+00:00"
-branches = ["get_context_for_path", "list_saved_traces", "safe_str", "format_saved_traces_md", "delete_saved_trace_by_name", "get_saved_trace_by_name", "create_saved_trace", "SavedTraceCreate", "trace_execution_path", "notify_ui_focus", "safe_str", "format_trace_path_md"]
+reviewed_at = "2026-11-02T01:49:41.760240+00:00"
+branches = ["get_context_for_path", "_handle_list_saved_traces", "_handle_delete_saved_trace", "_resolve_trace_targets", "create_saved_trace", "SavedTraceCreate", "trace_execution_path", "notify_ui_focus", "safe_str", "format_trace_path_md"]
 
 [[splits]]
 symbol = "search_semantic"
@@ -491,12 +491,12 @@ symbol = "search"
 qualified_name = "DocSearchService.search"
 file_path = "src/vibetrace/docs/service.py"
 status = "approved"
-code_hash = "8013a6c2a598312eff321d4c16f0e517ea13479b61d26131b42eb4818d1ce736"
+code_hash = "50263f78859b6141c135343bd4328c59dc86def27e44c00f9197ed0febb7513f"
 branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.367700+00:00"
-branches = ["get_local_doc_db", "get_global_doc_db", "EmbeddingEngine", "DocChunkItem"]
+reviewed_at = "2026-11-02T01:49:42.335424+00:00"
+branches = ["get_local_doc_db", "get_global_doc_db", "_resolve_query_vector", "_fuse_rrf_results"]
 
 [[splits]]
 symbol = "search"
@@ -599,12 +599,12 @@ symbol = "App"
 qualified_name = "App"
 file_path = "src/web/src/App.tsx"
 status = "approved"
-code_hash = "e299961e957c768d848809718eac6de573cb4a1d0a842792152cc9eba2716815"
-branches_count = 10
-rationale = "3-Workspace UI architecture (Map Room, Quality Gate Dashboard, Docs RAG)"
+code_hash = "75746e0b833b266a41ae8fda7ce8dd7f4b097f7a5e7247974b8c6452d98cb85e"
+branches_count = 11
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T20:08:36.887362+00:00"
-branches = ["useMapRoomState", "MapHeader", "DashboardView", "DocsWorkspaceView", "TreeSidebar", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "FilterPanel"]
+reviewed_at = "2026-11-02T01:49:41.472883+00:00"
+branches = ["useMapRoomState", "MapHeader", "DashboardView", "DocsWorkspaceView", "TreeSidebar", "WebGPUCanvas", "StatusOverlays", "CanvasAutoFitter", "TracePathBar", "CodeInspectorDrawer", "FilterPanel"]
 
 [[splits]]
 symbol = "analyze_file_dependencies"
@@ -719,12 +719,12 @@ symbol = "cmd_hooks"
 qualified_name = "cmd_hooks"
 file_path = "src/vibetrace/cli_commands.py"
 status = "approved"
-code_hash = "d3fb59655be94bdc2b8efda0dab3dc665a19edc155d8d4dbefc08efbb5e8f3b4"
+code_hash = "67be49eddf0d12f1e1de25f194969826eafbc9f1508e4c6c90898abcc9014731"
 branches_count = 4
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.595301+00:00"
-branches = ["get_context_for_path", "install_hooks", "uninstall_hooks", "get_hooks_status"]
+reviewed_at = "2026-11-02T01:49:42.717643+00:00"
+branches = ["get_context_for_path", "_hooks_install", "_hooks_uninstall", "_hooks_status"]
 
 [[splits]]
 symbol = "vibetrace_semantic_search"
@@ -947,11 +947,11 @@ symbol = "cmd_slice"
 qualified_name = "cmd_slice"
 file_path = "src/vibetrace/cli_commands.py"
 status = "approved"
-code_hash = "a56d35a3ecfcf08cff85dbd6d5bd13ae292353a45d571ad7a66ea367b4ea8282"
+code_hash = "bc13ca42371b07177d8e3f47ab00b52186b2168df6bda6adf2e771a22eac104e"
 branches_count = 5
-rationale = "Baseline approval of verified VibeTrace architectural splits across indexer, services, MCP, and API"
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-30T18:53:16.925085+00:00"
+reviewed_at = "2026-11-02T01:49:42.366578+00:00"
 branches = ["get_context_for_path", "get_code_slice", "notify_ui_focus", "safe_str", "format_code_slice_md"]
 
 [[splits]]
@@ -1571,12 +1571,12 @@ symbol = "cmd_audit_quality"
 qualified_name = "cmd_audit_quality"
 file_path = "src/vibetrace/cli_audit.py"
 status = "approved"
-code_hash = "0eaa02b8d4f8b6a9a7aee46ec101e64247392d509e6db0bc25dd658d8e885888"
-branches_count = 10
-rationale = "Architectural split verified via CLI"
+code_hash = "1b86e7e9470f4bce4835b5e0cbdc2497c8674644e240e43665081dcb03cbdd20"
+branches_count = 11
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T23:28:18.627159+00:00"
-branches = ["get_context_for_path", "audit_project", "from_finding", "record_exception", "safe_str", "format_quality_audit_sarif", "safe_str", "format_quality_audit_md", "_evaluate_quality_ci_gate", "_run_quality_interactive_triage"]
+reviewed_at = "2026-11-02T01:49:41.289770+00:00"
+branches = ["get_context_for_path", "sync_catalog", "audit_project", "from_finding", "record_exception", "safe_str", "format_quality_audit_sarif", "safe_str", "format_quality_audit_md", "_evaluate_quality_ci_gate", "_run_quality_interactive_triage"]
 
 [[splits]]
 symbol = "visit_If"
@@ -1595,12 +1595,12 @@ symbol = "_audit_single_file"
 qualified_name = "_audit_single_file"
 file_path = "src/vibetrace/quality/service.py"
 status = "approved"
-code_hash = "0cd4646d91d7284ea0371bb8eb06ae8cd4842123eac4c165998868a1e285f91c"
-branches_count = 8
-rationale = "Architectural split verified via CLI"
+code_hash = "072cb92277c3aca89b25297d3b8f7b6d589957aea9930abb2e620d0bbfa4b248"
+branches_count = 7
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T23:28:18.895249+00:00"
-branches = ["analyze_css_quality", "analyze_ts_quality", "analyze_docker_quality", "analyze_python_complexities", "_check_inline_suppression", "analyze_python_smells", "_check_inline_suppression", "_check_inline_suppression"]
+reviewed_at = "2026-11-02T01:49:41.665438+00:00"
+branches = ["analyze_css_quality", "analyze_ts_quality", "analyze_docker_quality", "analyze_python_complexities", "analyze_python_smells", "scan_file_with_rules", "_check_inline_suppression"]
 
 [[splits]]
 symbol = "visit_Compare"
@@ -1847,12 +1847,12 @@ symbol = "audit_project"
 qualified_name = "QualityService.audit_project"
 file_path = "src/vibetrace/quality/service.py"
 status = "approved"
-code_hash = "e1e46fb23de4198bd0e296540d88d344abd040d184deb9db49f30ffa77a42b61"
-branches_count = 3
-rationale = "Architectural split verified via CLI"
+code_hash = "57a500ed8869d0a15ac69b2e22d2a7c3c3286672346381a61e49d961f4bbd83c"
+branches_count = 6
+rationale = "Approve verified splits across new features"
 reviewed_by = "developer"
-reviewed_at = "2026-10-31T23:28:19.675981+00:00"
-branches = ["_collect_source_files", "_audit_single_file", "apply_baseline_to_findings"]
+reviewed_at = "2026-11-02T01:49:42.592439+00:00"
+branches = ["_collect_source_files", "get_rules", "_audit_single_file", "get_rule_spec", "enrich_finding", "apply_baseline_to_findings"]
 
 [[splits]]
 symbol = "apply_baseline_to_findings"
@@ -1913,3 +1913,603 @@ rationale = "Architectural split verified via CLI"
 reviewed_by = "developer"
 reviewed_at = "2026-10-31T23:28:19.968452+00:00"
 branches = ["resolve_canonical_rule_id", "_is_suppressed_by_line"]
+
+[[splits]]
+symbol = "traverse"
+qualified_name = "GenericParser.extract.traverse"
+file_path = "src/vibetrace/indexer/parsers/generic_parser.py"
+status = "approved"
+code_hash = "e5080c66b3a912d6d4515c8119f82e4a2a1a43e3ba510649c89e993bc8d38d88"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:40.955133+00:00"
+branches = ["_extract_node_annotations", "extract_enterprise_routes", "_extract_node_annotations", "extract_enterprise_class_prefix"]
+
+[[splits]]
+symbol = "resolve_impacted_tests"
+qualified_name = "PredictiveTestService.resolve_impacted_tests"
+file_path = "src/vibetrace/services/predictive_test_service.py"
+status = "approved"
+code_hash = "26deca5a810245a522da3bf8dd77e1d615eada187b72bbaf3d68bd37d2baca25"
+branches_count = 11
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.129622+00:00"
+branches = ["_get_conn", "get_git_modified_ranges", "PredictiveTestReport", "_is_executable_test", "_detect_runner_for_file", "ImpactedTest", "_is_executable_test", "_detect_runner_for_file", "ImpactedTest", "_build_runner_args", "PredictiveTestReport"]
+
+[[splits]]
+symbol = "diagnose_symbol"
+qualified_name = "DiagnoseService.diagnose_symbol"
+file_path = "src/vibetrace/services/diagnose_service.py"
+status = "approved"
+code_hash = "4b08eac3ae308476444eb88d936425a06c9bfc125c507de23bf3f1ccd8cdb4f5"
+branches_count = 7
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.171518+00:00"
+branches = ["get_code_slice", "SymbolDiagnosisReport", "get_caller_guard", "_get_conn", "_is_test_symbol_or_file", "estimate_tokens", "SymbolDiagnosisReport"]
+
+[[splits]]
+symbol = "build_refactor_plan"
+qualified_name = "RefactorService.build_refactor_plan"
+file_path = "src/vibetrace/services/refactor_service.py"
+status = "approved"
+code_hash = "41cadcbfa40e931342a5486722e86036d4cf8ff8859bdbad936227f635ec65ad"
+branches_count = 6
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.209348+00:00"
+branches = ["_find_target_function", "_extract_func_parameters", "suggest_split_candidates", "_analyze_block_lifetimes", "RefactorPlan", "RefactorPlan"]
+
+[[splits]]
+symbol = "get_code_slice"
+qualified_name = "get_code_slice"
+file_path = "src/vibetrace/services/trace_service.py"
+status = "approved"
+code_hash = "2addfe955563f94b6eec62212129c54c31510f776f86d3398fc1f0a2f34621b8"
+branches_count = 5
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.369820+00:00"
+branches = ["CodeSliceResult", "read_file_lines", "CalleeContract", "get_linked_docs_for_symbol", "CodeSliceResult"]
+
+[[splits]]
+symbol = "verify_interprocedural_taint_flow"
+qualified_name = "verify_interprocedural_taint_flow"
+file_path = "src/vibetrace/security/dataflow.py"
+status = "approved"
+code_hash = "3226297554068745885478ed71b5cfa031d8adae3a3fd085561ec8158bb8e7bb"
+branches_count = 6
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.504379+00:00"
+branches = ["analyze_source_code", "_propagate_function_def_use", "_split_top_level_args", "_is_callee_sanitizer", "_resolve_next_tainted_params", "verify_sink_taint_flow"]
+
+[[splits]]
+symbol = "vibetrace_explain_dependency"
+qualified_name = "vibetrace_explain_dependency"
+file_path = "src/vibetrace/mcp/tools_engineering.py"
+status = "approved"
+code_hash = "c4cfbbaae7270733eda18c76ff4ac26eddb85350daa61f804af53ea7ddf30f87"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.531676+00:00"
+branches = ["_resolve_project_root", "build", "normalize_package_name"]
+
+[[splits]]
+symbol = "cmd_audit_pr_taint"
+qualified_name = "cmd_audit_pr_taint"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "2bec739d8ad05d46a98e4823c3bbee913ff64b56f3b813a9c1692134414b441c"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.562275+00:00"
+branches = ["get_context_for_path", "analyze_pr_diff", "apply_remediations", "post_github_review"]
+
+[[splits]]
+symbol = "_cmd_deps_tree"
+qualified_name = "_cmd_deps_tree"
+file_path = "src/vibetrace/cli_deps.py"
+status = "approved"
+code_hash = "72fc6f841666d42ab8827455307a4ba7bb827493c989ecb70a39d137168d8722"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.601903+00:00"
+branches = ["build", "normalize_package_name", "safe_str"]
+
+[[splits]]
+symbol = "suggest_split_candidates"
+qualified_name = "RefactorService.suggest_split_candidates"
+file_path = "src/vibetrace/services/refactor_service.py"
+status = "approved"
+code_hash = "a35e71eef2e681fbd9e9b8f5bfdc375afa48b0f3c5cc67321be581c885b7122f"
+branches_count = 8
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.631465+00:00"
+branches = ["_find_target_function", "_extract_func_parameters", "_compute_block_complexity", "_analyze_block_lifetimes", "CandidateSplitBlock", "_compute_block_complexity", "_analyze_block_lifetimes", "CandidateSplitBlock"]
+
+[[splits]]
+symbol = "audit_doc_links"
+qualified_name = "SymbolDocLinker.audit_doc_links"
+file_path = "src/vibetrace/docs/symbol_linker.py"
+status = "approved"
+code_hash = "e67bee90ab90156132fdf6cf35a68811e355c7eabbdec579ef1d72a5d9f548c5"
+branches_count = 4
+rationale = "Refactored sync_links and audit_doc_links with modular chunk/line helpers"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:56:06.889210+00:00"
+branches = ["find_markdown_files", "_get_conn", "_audit_line_symbols", "DocLinkAuditReport"]
+
+[[splits]]
+symbol = "_hydrate_catalog"
+qualified_name = "QualityRuleCatalogManager._hydrate_catalog"
+file_path = "src/vibetrace/quality/rule_sync.py"
+status = "approved"
+code_hash = "d0a71abd7d27a3aceb11f23fb2ce03fb0f7541d7eee4ad0ea2fe46e70f17adc0"
+branches_count = 6
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.731042+00:00"
+branches = ["_build_rule_spec", "register_rule_alias", "register_rule_alias", "register_rule_alias", "QualityRuleSpec", "register_ruff_rule"]
+
+[[splits]]
+symbol = "cmd_audit_fix_deps"
+qualified_name = "cmd_audit_fix_deps"
+file_path = "src/vibetrace/cli_audit.py"
+status = "approved"
+code_hash = "5104881dd44afb66cdb9c0a1cca644a7b2d816d1fea24e6155686c8087a72a8c"
+branches_count = 5
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.789205+00:00"
+branches = ["get_context_for_path", "audit_project", "build_patch_plan", "apply_patch_plan", "_print_auto_patch_summary"]
+
+[[splits]]
+symbol = "analyze_pr_diff"
+qualified_name = "PRTaintBot.analyze_pr_diff"
+file_path = "src/vibetrace/security/pr_bot.py"
+status = "approved"
+code_hash = "c18fff928bff8b477237f31bdf9504b7f91a70d08444a87df19657a3bfb0678a"
+branches_count = 9
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.819803+00:00"
+branches = ["get_pr_modified_ranges", "get_git_head_sha", "PRTaintReport", "audit_project", "synthesize_remediation", "build_comment_body", "PRTaintComment", "_generate_markdown_summary", "PRTaintReport"]
+
+[[splits]]
+symbol = "vibetrace_refactor_method"
+qualified_name = "vibetrace_refactor_method"
+file_path = "src/vibetrace/mcp/tools_engineering.py"
+status = "approved"
+code_hash = "dda2e869c7de954152ee92a6be08ae5bca96b090d2b466220ff4b1b9ed04d8ac"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.847772+00:00"
+branches = ["_resolve_project_root", "suggest_split_candidates", "build_refactor_plan", "apply_refactor_plan"]
+
+[[splits]]
+symbol = "_cmd_deps_why"
+qualified_name = "_cmd_deps_why"
+file_path = "src/vibetrace/cli_deps.py"
+status = "approved"
+code_hash = "e24b803ddb43c26f2c37d2647eab56d05bc37b5c52523800ce3cf60bdaddfc88"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:41.893169+00:00"
+branches = ["build", "normalize_package_name", "safe_str"]
+
+[[splits]]
+symbol = "sync_links"
+qualified_name = "SymbolDocLinker.sync_links"
+file_path = "src/vibetrace/docs/symbol_linker.py"
+status = "approved"
+code_hash = "6cf7cc723aecd52b57523d75f92cbc7244dc37bb94b1fdff3ae7636822c298a4"
+branches_count = 4
+rationale = "Refactored sync_links and audit_doc_links with modular chunk/line helpers"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:56:06.935516+00:00"
+branches = ["find_markdown_files", "_get_conn", "chunk_markdown", "_sync_chunk_symbols"]
+
+[[splits]]
+symbol = "vibetrace_patch_dependency"
+qualified_name = "vibetrace_patch_dependency"
+file_path = "src/vibetrace/mcp/tools_engineering.py"
+status = "approved"
+code_hash = "7851bd0cc850d99aa62ad77db661b7c185eef08b74e55737c6808f57ae55df51"
+branches_count = 5
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.007789+00:00"
+branches = ["_resolve_project_root", "IndexerDB", "audit_project", "build_patch_plan", "apply_patch_plan"]
+
+[[splits]]
+symbol = "_scan_rule_matches"
+qualified_name = "DeclarativeQualityRuleManager._scan_rule_matches"
+file_path = "src/vibetrace/quality/declarative_rules.py"
+status = "approved"
+code_hash = "5fa545ef2c99c1f4c6b4e13fa7e4a04086fbcc43631360e46ea0ce9b8b741de3"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.053208+00:00"
+branches = ["QualityFinding", "enrich_finding"]
+
+[[splits]]
+symbol = "process_session_turn"
+qualified_name = "AdaptiveSessionManager.process_session_turn"
+file_path = "src/vibetrace/services/vibe_bundle.py"
+status = "approved"
+code_hash = "8f9c26599e11cb041c2d3866fdaa8308194f1f4e45569c2b7bf697db011cfad6"
+branches_count = 7
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.089804+00:00"
+branches = ["load_session", "hybrid_search", "AdaptiveSessionState", "hybrid_search", "assemble_bundle", "save_session", "AdaptiveBundleResult"]
+
+[[splits]]
+symbol = "vibetrace_check_docs_drift"
+qualified_name = "vibetrace_check_docs_drift"
+file_path = "src/vibetrace/mcp/tools_engineering.py"
+status = "approved"
+code_hash = "e171618bcade537e4a1e2fd535d0122e1e38a8dab3aa13ea37e5f1ecb4c61786"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.124081+00:00"
+branches = ["_resolve_project_root", "IndexerDB", "sync_links", "audit_doc_links"]
+
+[[splits]]
+symbol = "_index_file_entry"
+qualified_name = "DocIndexService._index_file_entry"
+file_path = "src/vibetrace/docs/service.py"
+status = "approved"
+code_hash = "91660bb03b7eba472399741175c03f08378f6cc18df7b53883ff9b64104d9526"
+branches_count = 6
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.154557+00:00"
+branches = ["get_file_mtime", "_extract_chunks", "delete_file_chunks", "is_available", "embed_texts", "upsert_chunks"]
+
+[[splits]]
+symbol = "_dict_to_rule"
+qualified_name = "DeclarativeQualityRuleManager._dict_to_rule"
+file_path = "src/vibetrace/quality/declarative_rules.py"
+status = "approved"
+code_hash = "56b79d2f06dd35cfc516b522a64accf721a5e66b89da732364c4e49002dce7cd"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.181447+00:00"
+branches = ["DeclarativeQualityRule", "QualityCategory", "QualitySeverity"]
+
+[[splits]]
+symbol = "cmd_test"
+qualified_name = "cmd_test"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "aff30e1105b846b72c0b6b00a6391a37f5fbe2caa6588638cca78124080b9830"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.211115+00:00"
+branches = ["get_context_for_path", "resolve_impacted_tests", "execute_impacted_tests"]
+
+[[splits]]
+symbol = "cmd_diagnose"
+qualified_name = "cmd_diagnose"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "c85e102d4d8d4bc753bb63aeb40b7f1d793db91c9ec739451f9ff951870009ab"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.241585+00:00"
+branches = ["get_context_for_path", "diagnose_symbol", "safe_str", "format_diagnosis_md"]
+
+[[splits]]
+symbol = "visit_IfExp"
+qualified_name = "PythonSmellsVisitor.visit_IfExp"
+file_path = "src/vibetrace/quality/smells.py"
+status = "approved"
+code_hash = "6dd0b43de0982829619e45d29b03796042c10744d3067a465da5c56551166344"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.269718+00:00"
+branches = ["_get_snippet", "_hash_snippet", "QualityFinding"]
+
+[[splits]]
+symbol = "_check_sqlite_cache"
+qualified_name = "QualityRuleCatalogManager._check_sqlite_cache"
+file_path = "src/vibetrace/quality/rule_sync.py"
+status = "approved"
+code_hash = "cdf3c38cf946732e73f79c29a9b3b26df2775dabe0aabce2bede672b7fdc921d"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.302821+00:00"
+branches = ["_init_cache_table", "_get_conn", "_hydrate_catalog", "QualityCatalogSyncResult"]
+
+[[splits]]
+symbol = "get_pr_taint"
+qualified_name = "get_engineering_router.get_pr_taint"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "d82feb0ba2b9c51c882222c33346d79b6ec29ba37a97dde7ee77464998657852"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.405745+00:00"
+branches = ["_get_project_root", "analyze_pr_diff", "apply_remediations"]
+
+[[splits]]
+symbol = "get_rules"
+qualified_name = "DeclarativeQualityRuleManager.get_rules"
+file_path = "src/vibetrace/quality/declarative_rules.py"
+status = "approved"
+code_hash = "87c01d40f024cdee15151ef2e13c8a3cb196d5abf637189d9f5ed9adcb24a10f"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.444096+00:00"
+branches = ["_init_cache_table", "_get_conn", "_dict_to_rule"]
+
+[[splits]]
+symbol = "_cmd_docs_sync_links"
+qualified_name = "_cmd_docs_sync_links"
+file_path = "src/vibetrace/cli_docs.py"
+status = "approved"
+code_hash = "cee78e9964ed1f0bb4021aa8d9988462510fed2c89816a2634ae6e628847f04b"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.475940+00:00"
+branches = ["get_context_for_path", "sync_links"]
+
+[[splits]]
+symbol = "_cmd_docs_check"
+qualified_name = "_cmd_docs_check"
+file_path = "src/vibetrace/cli_docs.py"
+status = "approved"
+code_hash = "5846565c15020a1282f849d1b6624b91c09f8b176f64576ed1977174991ae886"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.507213+00:00"
+branches = ["get_context_for_path", "audit_doc_links"]
+
+[[splits]]
+symbol = "verify_sink_taint_flow"
+qualified_name = "verify_sink_taint_flow"
+file_path = "src/vibetrace/security/dataflow.py"
+status = "approved"
+code_hash = "dd2b3ce7defc36bab95d70a8e77110912c1841d73b5f56d70eadc54dcc47a59d"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.545126+00:00"
+branches = ["analyze_source_code", "_propagate_function_def_use"]
+
+[[splits]]
+symbol = "_run_initial_indexing"
+qualified_name = "_run_initial_indexing"
+file_path = "src/vibetrace/skill_installer.py"
+status = "approved"
+code_hash = "9fbb6bf15d375de99cefe1c858ba3fe7e157760bef2ed229c1eafd041b1dfdb0"
+branches_count = 6
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.631877+00:00"
+branches = ["IndexerDB", "reindex_all", "update_centrality_scores", "get_graph_data", "sync_and_load_rules", "sync_catalog"]
+
+[[splits]]
+symbol = "get_diagnose_symbol"
+qualified_name = "get_engineering_router.get_diagnose_symbol"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "a339ec7a9a332ed5d0241d338575a124b8fd80be12345d1c8ed7b0232fc45533"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.676295+00:00"
+branches = ["_get_project_root", "diagnose_symbol"]
+
+[[splits]]
+symbol = "get_deps_why"
+qualified_name = "get_engineering_router.get_deps_why"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "b8597f959c93ca83fd53430168343a5369a5cdb434202de3ecb2da8671f66499"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.757987+00:00"
+branches = ["_get_project_root", "build", "normalize_package_name"]
+
+[[splits]]
+symbol = "get_deps_tree"
+qualified_name = "get_engineering_router.get_deps_tree"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "fbc76b17c454f1d6994611601aa3ab991c13a567886faf165ca902367a9bfa6e"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.842542+00:00"
+branches = ["_get_project_root", "build"]
+
+[[splits]]
+symbol = "get_linked_docs_for_symbol"
+qualified_name = "SymbolDocLinker.get_linked_docs_for_symbol"
+file_path = "src/vibetrace/docs/symbol_linker.py"
+status = "approved"
+code_hash = "22673300a72cc924db428a1f6521bbf65bac0836dbbcb8d8c6eb6fccb0891cd3"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.879158+00:00"
+branches = ["_get_conn", "estimate_tokens", "LinkedDocReference"]
+
+[[splits]]
+symbol = "check_docs_drift"
+qualified_name = "check_docs_drift"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "7c463d335c2e9c61bef3ac68a3c304fe059a83c6fa1b731dd88153c4d4bd568f"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.918447+00:00"
+branches = ["_get_project_root", "IndexerDB", "audit_doc_links"]
+
+[[splits]]
+symbol = "post_refactor_split"
+qualified_name = "get_engineering_router.post_refactor_split"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "40e9fe22917a17549d5e08b25202feaa99148a4b0e19b005e00b6330f5141bfd"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.947008+00:00"
+branches = ["_get_project_root", "build_refactor_plan", "apply_refactor_plan"]
+
+[[splits]]
+symbol = "sync_doc_links"
+qualified_name = "sync_doc_links"
+file_path = "src/vibetrace/server_api_docs.py"
+status = "approved"
+code_hash = "2719846f4c15388523795fd1c2a8083cfa5be4db7bd87708fff9a04d2773eea1"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:42.980018+00:00"
+branches = ["_get_project_root", "IndexerDB", "sync_links"]
+
+[[splits]]
+symbol = "_report_duplicate_instructions"
+qualified_name = "DockerQualityAnalyzer._report_duplicate_instructions"
+file_path = "src/vibetrace/quality/docker_analyzer.py"
+status = "approved"
+code_hash = "32b27668df38e20f5b3b175df30880e4c6c49740e8999469cb52f387c24ffab3"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.013624+00:00"
+branches = ["_make_finding_id", "QualityFinding", "_hash_snippet"]
+
+[[splits]]
+symbol = "_process_candidate"
+qualified_name = "TaintEngine._process_candidate"
+file_path = "src/vibetrace/security/taint_engine.py"
+status = "approved"
+code_hash = "8e74fa1fc14aa4041a8bca612c99e12dc62de4ec77144ac24bfe8da8737cd0c5"
+branches_count = 5
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.050812+00:00"
+branches = ["_enclosing_node_id", "_path_from_source", "verify_interprocedural_taint_flow", "_bump", "slice_taint_path"]
+
+[[splits]]
+symbol = "post_patch_deps"
+qualified_name = "get_engineering_router.post_patch_deps"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "bbe3f5fe71a66644ea1f2fafabba584d4e852b83bd817ac49f4e4a932309eed2"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.089825+00:00"
+branches = ["_get_project_root", "audit_project", "build_patch_plan", "apply_patch_plan"]
+
+[[splits]]
+symbol = "vibetrace_diagnose_symbol"
+qualified_name = "vibetrace_diagnose_symbol"
+file_path = "src/vibetrace/mcp/tools_engineering.py"
+status = "approved"
+code_hash = "e6b29d303aebae777217fb2924e2986d3c6f9e0f09bb6b08f63258d3da88826c"
+branches_count = 4
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.164323+00:00"
+branches = ["_resolve_project_root", "IndexerDB", "diagnose_symbol", "format_diagnosis_md"]
+
+[[splits]]
+symbol = "persist_contracts"
+qualified_name = "TaintContractManager.persist_contracts"
+file_path = "src/vibetrace/security/contracts.py"
+status = "approved"
+code_hash = "ecb06af22c39bfeb170138530c617dcebe83c9b30bcac8daf89fcfc363adb360"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.196463+00:00"
+branches = ["_init_table", "_get_conn"]
+
+[[splits]]
+symbol = "get_refactor_candidates"
+qualified_name = "get_engineering_router.get_refactor_candidates"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "b926052ee2dd77d10ea97ed9272dabe0ca163a7f62af3d2784057bcf8659c2ce"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.231377+00:00"
+branches = ["_get_project_root", "suggest_split_candidates"]
+
+[[splits]]
+symbol = "_save_to_sqlite"
+qualified_name = "QualityRuleCatalogManager._save_to_sqlite"
+file_path = "src/vibetrace/quality/rule_sync.py"
+status = "approved"
+code_hash = "2b45b2f118a64346c3778c98678f802cfd57667e0fc8991fece831403eafac2f"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.265854+00:00"
+branches = ["_init_cache_table", "_get_conn"]
+
+[[splits]]
+symbol = "_handle_list_saved_traces"
+qualified_name = "_handle_list_saved_traces"
+file_path = "src/vibetrace/cli_commands.py"
+status = "approved"
+code_hash = "40e51f474a8dc06c046f63eb55c342289069ab50dc205d24849fd33b474f5f51"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.297288+00:00"
+branches = ["list_saved_traces", "safe_str", "format_saved_traces_md"]
+
+[[splits]]
+symbol = "_init_docs_catalog"
+qualified_name = "_init_docs_catalog"
+file_path = "src/vibetrace/skill_installer.py"
+status = "approved"
+code_hash = "671bc059f06ef854b4dd070e2bb68860f69329a4e0036824a4b44058ef7d1e86"
+branches_count = 3
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.331404+00:00"
+branches = ["add_path", "DocDB", "index_catalog"]
+
+[[splits]]
+symbol = "get_deps_conflicts"
+qualified_name = "get_engineering_router.get_deps_conflicts"
+file_path = "src/vibetrace/server_api_engineering.py"
+status = "approved"
+code_hash = "cb488619dbfcd3e095f49725a92d7c97e27067ecde154bde311cc24c92fc3830"
+branches_count = 2
+rationale = "Approve verified splits across new features"
+reviewed_by = "developer"
+reviewed_at = "2026-11-02T01:49:43.367081+00:00"
+branches = ["_get_project_root", "build"]

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import ast
 import re
+import shlex
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -291,9 +293,13 @@ class DependencyAutoPatcher:
         for action in report.actions:
             if action.action_type == "UPGRADE" and action.proposed_command:
                 try:
-                    res = subprocess.run(
+                    cmd_args = shlex.split(
                         action.proposed_command,
-                        shell=True,
+                        posix=(sys.platform != "win32"),
+                    )
+                    res = subprocess.run(
+                        cmd_args,
+                        shell=False,
                         cwd=str(project_root),
                         capture_output=True,
                         text=True,

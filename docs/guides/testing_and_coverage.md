@@ -20,10 +20,10 @@ All **470 automated tests** in `tests/` pass with zero failures.
 
 | Test Identifier | Use Case Tested | Validation Criteria | Status |
 | :--- | :--- | :--- | :--- |
-| `test_reachable_symbols_recursive_cte` | Downstream reachability discovery via SQLite Recursive Common Table Expression (`WITH RECURSIVE reachable AS (...)`) | Confirms all transitive descendants reachable from a root symbol up to `max_depth` (default 6). Prunes 100% of dead-end nodes from UI dropdowns. | ✅ PASS |
-| `test_multi_route_bfs_divergence` | Multi-path BFS execution pathfinding between two connected symbols | Returns distinct simple paths (`Route 1`, `Route 2`) avoiding cycles, preserving exact call-site line numbers (`:L<line>`). | ✅ PASS |
-| `test_in_path_split_bifurcation_detection` | Detecting intermediary branching nodes inside an active trace | Flags nodes with out-degree $\ge 2$ within the trace as `is_split_point: true` to surface architectural forks directly on the Map Room canvas. | ✅ PASS |
-| `test_reachable_api_endpoint` | REST endpoint `GET /api/reachable?from_symbol=<sym>&max_depth=6` | Returns HTTP 200 with structured JSON list of reachable symbol IDs, names, and paths. Handles non-existent symbols with HTTP 404. | ✅ PASS |
+| `test_get_downstream_reachable_symbols` | Downstream reachability discovery via SQLite Recursive Common Table Expression (`WITH RECURSIVE reachable AS (...)`) | Confirms all transitive descendants reachable from a root symbol up to `max_depth` (default 6). Prunes 100% of dead-end nodes from UI dropdowns. | ✅ PASS |
+| `test_trace_execution_path_with_splits` | Multi-path BFS execution pathfinding between two connected symbols with bifurcation detection | Returns distinct simple paths avoiding cycles, preserving exact call-site line numbers (`:L<line>`) and flagging bifurcation nodes. | ✅ PASS |
+| `test_api_reachable_endpoint` | REST endpoint `GET /api/reachable?from_symbol=<sym>&max_depth=6` | Returns HTTP 200 with structured JSON list of reachable symbol IDs, names, and paths. Handles non-existent symbols with HTTP 404. | ✅ PASS |
+| `test_api_trace_detect_splits_param` | REST endpoint `GET /trace?detect_splits=true` | Returns HTTP 200 with bifurcating split nodes marked for Map Room canvas rendering. | ✅ PASS |
 
 ---
 
@@ -31,13 +31,12 @@ All **470 automated tests** in `tests/` pass with zero failures.
 
 | Test Identifier | Use Case Tested | Validation Criteria | Status |
 | :--- | :--- | :--- | :--- |
-| `test_scanner_detects_cross_module_splits` | AST call graph scanning for architectural bifurcations | Flags functions calling 2+ functions across different modules while ignoring single-module local helper calls. | ✅ PASS |
-| `test_hasher_normalization` | SHA-256 caller code hashing invariant under whitespace/comments | Strips leading/trailing indentation, docstrings, and blank lines so code formatting does not trigger false-positive modification alerts. | ✅ PASS |
+| `test_compute_symbol_code_hash` | SHA-256 caller code hashing invariant under whitespace/comments | Strips leading/trailing indentation, docstrings, and blank lines so code formatting does not trigger false-positive modification alerts. | ✅ PASS |
+| `test_baseline_save_and_load` | Robust baseline persistence with paths containing backslashes and quotes | Confirms `save_split_baseline` and `load_split_baseline` preserve Windows paths and arbitrary symbols in `.vibetrace/splits.toml`. | ✅ PASS |
 | `test_split_audit_lifecycle` | End-to-end state transitions (`UNAPPROVED` $\to$ `APPROVED` $\to$ `MODIFIED`) | Unapproved split is flagged. Upon approval, baseline persists in `.vibetrace/splits.toml`. Changing caller code flips state to `⚠️ MODIFIED`. Reverting restores `APPROVED`. | ✅ PASS |
-| `test_split_audit_api_endpoints` | REST endpoints `GET /api/splits/audit` and `POST /api/splits/approve` | `GET` audits live database against baseline. `POST` records approval with user-provided rationale and code hash. | ✅ PASS |
-| `test_split_audit_cli_flags` | CLI interface `vibetrace audit splits [--ci] [--strict]` | CLI reports colored summary. With `--ci` or `--strict`, exits with code 1 if unapproved or modified splits exist; exits 0 when clean. | ✅ PASS |
-| `test_toml_special_character_escaping` | Robust baseline persistence with paths containing backslashes and quotes | Confirms `_escape_toml_str` preserves Windows paths (`C:\...`) and arbitrary symbols in `.vibetrace/splits.toml` without syntax errors. | ✅ PASS |
-| `test_mcp_split_audit_tools` | FastMCP tools `vibetrace_audit_splits` and `vibetrace_approve_split` | Verifies AI coding agents can inspect and triage split audits programmatically via stdio/SSE protocol. | ✅ PASS |
+| `test_server_api_splits` | REST endpoints `GET /api/splits/audit` and `POST /api/splits/approve` | `GET` audits live database against baseline. `POST` records approval with user-provided rationale and code hash. | ✅ PASS |
+| `test_cli_audit_splits_json` | CLI interface `vibetrace audit splits [--ci] [--strict]` | CLI reports colored summary. With `--ci` or `--strict`, exits with code 1 if unapproved or modified splits exist; exits 0 when clean. | ✅ PASS |
+| `test_mcp_splits_tools` | FastMCP tools `vibetrace_audit_splits` and `vibetrace_approve_split` | Verifies AI coding agents can inspect and triage split audits programmatically via stdio/SSE protocol. | ✅ PASS |
 
 ### 2.2b Security Audit (`tests/test_security_audit.py`)
 
