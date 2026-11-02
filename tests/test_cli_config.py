@@ -20,6 +20,8 @@ def test_cmd_config_quality_display(tmp_path: Path, capsys) -> None:
     assert "Ruff (Python)" in captured
     assert "Biome (JS/TS/JSON/CSS)" in captured
     assert "TypeScript (tsc)" in captured
+    assert "Go (golangci-lint)" in captured
+    assert "Rust (cargo clippy)" in captured
 
 
 def test_cmd_config_quality_set_mode(tmp_path: Path) -> None:
@@ -38,6 +40,16 @@ def test_cmd_config_quality_set_mode(tmp_path: Path) -> None:
     code = cmd_config_quality(args)
     assert code == 0
     assert resolve_linter_mode(tmp_path, "typescript") == "strict"
+
+    args = argparse.Namespace(path=str(tmp_path), set_opt="go=strict")
+    code = cmd_config_quality(args)
+    assert code == 0
+    assert resolve_linter_mode(tmp_path, "golang") == "strict"
+
+    args = argparse.Namespace(path=str(tmp_path), set_opt="clippy=project")
+    code = cmd_config_quality(args)
+    assert code == 0
+    assert resolve_linter_mode(tmp_path, "rust") == "project"
 
 
 def test_cmd_config_quality_invalid_inputs(tmp_path: Path, capsys) -> None:

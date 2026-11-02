@@ -10,8 +10,10 @@ from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.quality.adapters.biome import BiomeAdapter
+from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
+from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
 from vibetrace.quality.complexity import (
@@ -50,6 +52,8 @@ _SUPPORTED_EXTS = (
     ".cts",
     ".json",
     ".jsonc",
+    ".go",
+    ".rs",
 )
 _IGNORE_PATH_PARTS = (
     "/.venv/",
@@ -327,6 +331,24 @@ class QualityService:
                 if tsc_engine.is_available(project_root):
                     raw_findings.extend(tsc_engine.audit_project(project_root, ts_files))
 
+        # Batch execute Go linter sub-engine if available
+        go_files = [
+            p for p in target_files if p.suffix.lower() in GolangLintAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if go_files:
+            go_engine = GolangLintAdapter()
+            if go_engine.is_available(project_root):
+                raw_findings.extend(go_engine.audit_project(project_root, go_files))
+
+        # Batch execute Rust Cargo Clippy sub-engine if available
+        rust_files = [
+            p for p in target_files if p.suffix.lower() in CargoClippyAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if rust_files:
+            rust_engine = CargoClippyAdapter()
+            if rust_engine.is_available(project_root):
+                raw_findings.extend(rust_engine.audit_project(project_root, rust_files))
+
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
             dead_nodes = db.get_uncalled_private_functions()
@@ -451,6 +473,22 @@ class QualityService:
             biome_engine = BiomeAdapter()
             if biome_engine.is_available(project_root):
                 results["engines"]["biome"] = biome_engine.fix_files(project_root, biome_files)
+
+        go_files = [
+            p for p in target_files if p.suffix.lower() in GolangLintAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if go_files:
+            go_engine = GolangLintAdapter()
+            if go_engine.is_available(project_root):
+                results["engines"]["golang"] = go_engine.fix_files(project_root, go_files)
+
+        rust_files = [
+            p for p in target_files if p.suffix.lower() in CargoClippyAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if rust_files:
+            rust_engine = CargoClippyAdapter()
+            if rust_engine.is_available(project_root):
+                results["engines"]["rust"] = rust_engine.fix_files(project_root, rust_files)
 
         return results
 

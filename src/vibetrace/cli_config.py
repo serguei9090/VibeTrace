@@ -7,7 +7,9 @@ from pathlib import Path
 
 from vibetrace.config import get_config_path, load_config, resolve_linter_mode, save_linter_mode
 from vibetrace.quality.adapters.biome import BiomeAdapter
+from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
+from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 
 
@@ -28,8 +30,14 @@ def cmd_config_quality(args: argparse.Namespace) -> int:
         val = val.strip().lower()
         if key == "tsc":
             key = "typescript"
-        if key not in ("ruff", "biome", "typescript"):
-            print(f"[ERROR] Unknown sub-engine '{key}'. Supported: ruff, biome, typescript")
+        elif key in ("go", "golangci-lint"):
+            key = "golang"
+        elif key in ("clippy", "cargo-clippy"):
+            key = "rust"
+
+        supported_keys = ("ruff", "biome", "typescript", "golang", "rust")
+        if key not in supported_keys:
+            print(f"[ERROR] Unknown sub-engine '{key}'. Supported: {', '.join(supported_keys)}")
             return 1
         if val not in ("auto", "project", "strict"):
             print(f"[ERROR] Invalid mode '{val}'. Supported: auto, project, strict")
@@ -49,6 +57,8 @@ def cmd_config_quality(args: argparse.Namespace) -> int:
         ("ruff", "Ruff (Python)", RuffAdapter),
         ("biome", "Biome (JS/TS/JSON/CSS)", BiomeAdapter),
         ("typescript", "TypeScript (tsc)", TypeScriptAdapter),
+        ("golang", "Go (golangci-lint)", GolangLintAdapter),
+        ("rust", "Rust (cargo clippy)", CargoClippyAdapter),
     ]
 
     print("# ⚙️ VibeTrace Quality Sub-Engine Configurations\n")

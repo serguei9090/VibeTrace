@@ -103,6 +103,8 @@ class LinterConfigs(BaseModel):
     ruff: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
     biome: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
     typescript: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+    golang: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+    rust: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
 
 
 class QualityConfig(BaseModel):
@@ -272,6 +274,15 @@ def resolve_linter_mode(project_root: Path, engine: str) -> str:
         has_project_cfg = any(
             (project_root / f).is_file()
             for f in ("tsconfig.json", "src/web/tsconfig.app.json", "src/web/tsconfig.json")
+        )
+    elif norm_engine in ("golang", "go", "golangci-lint"):
+        has_project_cfg = any(
+            (project_root / f).is_file()
+            for f in (".golangci.yml", ".golangci.yaml", ".golangci.toml", "go.mod")
+        )
+    elif norm_engine in ("rust", "clippy"):
+        has_project_cfg = any(
+            (project_root / f).is_file() for f in ("Cargo.toml", "clippy.toml", ".clippy.toml")
         )
 
     return "project" if has_project_cfg else "strict"
