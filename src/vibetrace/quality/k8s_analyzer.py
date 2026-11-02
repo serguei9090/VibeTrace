@@ -183,7 +183,7 @@ class K8sQualityAnalyzer:
                 continue
 
             lower = stripped.lower()
-            if lower.startswith("containers:") or lower.startswith("initcontainers:"):
+            if lower.startswith(("containers:", "initcontainers:")):
                 in_containers = True
                 container_indent = len(line) - len(line.lstrip())
                 continue
@@ -207,7 +207,7 @@ class K8sQualityAnalyzer:
 
                 if lower.startswith("resources:"):
                     has_resources = True
-                elif lower.startswith("readinessprobe:") or lower.startswith("livenessprobe:"):
+                elif lower.startswith(("readinessprobe:", "livenessprobe:")):
                     has_probe = True
 
                 img_match = _IMAGE_LINE_RE.match(line)

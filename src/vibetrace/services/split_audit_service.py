@@ -188,9 +188,7 @@ def scan_architectural_splits(db: IndexerDB, project_root: Path) -> list[Archite
             if (
                 source_file.startswith("tests/")
                 or "/tests/" in source_file
-                or source_file.endswith("_test.py")
-                or source_file.endswith(".test.ts")
-                or source_file.endswith(".test.tsx")
+                or source_file.endswith(("_test.py", ".test.ts", ".test.tsx"))
             ):
                 continue
 

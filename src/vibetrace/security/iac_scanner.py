@@ -116,9 +116,8 @@ class IacScanner:
             rel_str = str(path.relative_to(project_root)).replace("\\", "/")
             if (
                 fname == "dockerfile"
-                or fname.startswith("dockerfile.")
+                or fname.startswith(("dockerfile.", "docker-compose"))
                 or fname.endswith(".dockerfile")
-                or fname.startswith("docker-compose")
                 or fname in ("compose.yml", "compose.yaml")
                 or ".github/workflows/" in rel_str
                 or any(k in rel_str.lower() for k in ("k8s/", "kubernetes/", "helm/", "manifests/"))

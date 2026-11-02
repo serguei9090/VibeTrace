@@ -251,9 +251,8 @@ class ModuleResolver:
                     return res
             for kf in sorted(self.known_files):
                 if (
-                    kf.endswith(f"/{sub_path}.rs")
+                    kf.endswith((f"/{sub_path}.rs", f"/{sub_path}/mod.rs"))
                     or kf == f"{sub_path}.rs"
-                    or kf.endswith(f"/{sub_path}/mod.rs")
                     or kf == f"{sub_path}/mod.rs"
                 ):
                     return kf

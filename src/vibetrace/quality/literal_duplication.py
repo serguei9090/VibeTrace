@@ -9,12 +9,8 @@ from __future__ import annotations
 import ast
 import hashlib
 from collections import defaultdict
-from typing import TYPE_CHECKING
 
 from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
-
-if TYPE_CHECKING:
-    pass
 
 _DEFAULT_DUPLICATION_THRESHOLD = 3
 _MIN_LITERAL_LENGTH = 5
@@ -55,31 +51,30 @@ class StringLiteralVisitor(ast.NodeVisitor):
         self.literal_occurrences: dict[str, list[int]] = defaultdict(list)
         self._ignored_nodes: set[int] = set()
 
-    def visit_Module(self, node: ast.Module) -> None:
-        self._mark_docstring(node.body)
+    def _visit_scope(self, node: ast.AST, body: list[ast.stmt]) -> None:
+        self._mark_docstring(body)
         self.generic_visit(node)
 
+    def visit_Module(self, node: ast.Module) -> None:
+        self._visit_scope(node, node.body)
+
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_scope(node, node.body)
+
+    def _visit_func(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._mark_docstring(node.body)
+        if node.returns and isinstance(node.returns, ast.Constant):
+            self._ignored_nodes.add(id(node.returns))
+        for arg in node.args.args + node.args.kwonlyargs:
+            if arg.annotation and isinstance(arg.annotation, ast.Constant):
+                self._ignored_nodes.add(id(arg.annotation))
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self._mark_docstring(node.body)
-        if node.returns and isinstance(node.returns, ast.Constant):
-            self._ignored_nodes.add(id(node.returns))
-        for arg in node.args.args + node.args.kwonlyargs:
-            if arg.annotation and isinstance(arg.annotation, ast.Constant):
-                self._ignored_nodes.add(id(arg.annotation))
-        self.generic_visit(node)
+        self._visit_func(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._mark_docstring(node.body)
-        if node.returns and isinstance(node.returns, ast.Constant):
-            self._ignored_nodes.add(id(node.returns))
-        for arg in node.args.args + node.args.kwonlyargs:
-            if arg.annotation and isinstance(arg.annotation, ast.Constant):
-                self._ignored_nodes.add(id(arg.annotation))
-        self.generic_visit(node)
+        self._visit_func(node)
 
     def visit_Dict(self, node: ast.Dict) -> None:
         """Ignores string literal keys within dictionary literals."""

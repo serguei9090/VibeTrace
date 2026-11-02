@@ -84,7 +84,7 @@ class PythonCognitiveVisitor(ast.NodeVisitor):
         self._increment(structural=True)
         self.generic_visit(node)
 
-    def visit_For(self, node: ast.For) -> None:
+    def _visit_loop(self, node: ast.For | ast.AsyncFor | ast.While) -> None:
         self._increment(structural=True)
         self._nesting += 1
         for child in node.body:
@@ -92,37 +92,28 @@ class PythonCognitiveVisitor(ast.NodeVisitor):
         self._nesting -= 1
         for child in node.orelse:
             self.visit(child)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_loop(node)
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
-        self._increment(structural=True)
-        self._nesting += 1
-        for child in node.body:
-            self.visit(child)
-        self._nesting -= 1
-        for child in node.orelse:
-            self.visit(child)
+        self._visit_loop(node)
 
     def visit_While(self, node: ast.While) -> None:
-        self._increment(structural=True)
-        self._nesting += 1
-        for child in node.body:
-            self.visit(child)
-        self._nesting -= 1
-        for child in node.orelse:
-            self.visit(child)
+        self._visit_loop(node)
 
-    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+    def _visit_guarded_scope(self, node: ast.AST) -> None:
         self._increment(structural=True)
         self._nesting += 1
         self.generic_visit(node)
         self._nesting -= 1
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        self._visit_guarded_scope(node)
 
     def visit_Match(self, node: ast.Match) -> None:
         # Python 3.10+ pattern matching
-        self._increment(structural=True)
-        self._nesting += 1
-        self.generic_visit(node)
-        self._nesting -= 1
+        self._visit_guarded_scope(node)
 
     def visit_BoolOp(self, node: ast.BoolOp) -> None:
         # Sequences of mixed boolean operators (e.g. a and b or c)
@@ -130,18 +121,18 @@ class PythonCognitiveVisitor(ast.NodeVisitor):
         self.cyclomatic_score += len(node.values) - 1
         self.generic_visit(node)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        # Nested functions increase the nesting level for code inside them
+    def _visit_function_scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._nesting += 1
         for stmt in node.body:
             self.visit(stmt)
         self._nesting -= 1
 
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        # Nested functions increase the nesting level for code inside them
+        self._visit_function_scope(node)
+
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._nesting += 1
-        for stmt in node.body:
-            self.visit(stmt)
-        self._nesting -= 1
+        self._visit_function_scope(node)
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
         self._nesting += 1

@@ -35,7 +35,7 @@ def chunk_markdown(content: str, max_chars: int = 1500) -> list[HeadingChunk]:
 
     for idx, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
+        if stripped.startswith(("```", "~~~")):
             in_code_block = not in_code_block
 
         match = heading_re.match(stripped) if not in_code_block else None

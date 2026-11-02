@@ -63,7 +63,7 @@ def _is_test_symbol_or_file(name: str, file_path: str) -> bool:
     ):
         return True
     low_name = (name or "").lower()
-    return low_name.startswith("test_") or low_name.startswith("test")
+    return low_name.startswith(("test_", "test"))
 
 
 def _parse_external_line_coverage(

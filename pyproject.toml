@@ -64,7 +64,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PT", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PT", "RUF", "PIE810"]
 ignore = []
 
 [tool.ruff.lint.isort]

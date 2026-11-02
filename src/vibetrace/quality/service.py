@@ -312,9 +312,12 @@ class QualityService:
                     continue
                 hash_id = hashlib.sha256(f"{dn_file}:{dn['name']}".encode()).hexdigest()[:12]
                 ext = Path(dn_file).suffix.lower()
-                prefix = (
-                    "php" if ext in (".php", ".phtml") else "ruby" if ext == ".rb" else "python"
-                )
+                if ext in (".php", ".phtml"):
+                    prefix = "php"
+                elif ext == ".rb":
+                    prefix = "ruby"
+                else:
+                    prefix = "python"
                 raw_findings.append(
                     QualityFinding(
                         id=f"QUAL-S1144-{hash_id}",

@@ -204,10 +204,10 @@ class SqlFluffAdapter(LinterSubEngine):
         category = QualityCategory.CODE_SMELL
         severity = QualitySeverity.LOW
 
-        if code.startswith("PRS") or code.startswith("ST0"):
+        if code.startswith(("PRS", "ST0")):
             severity = QualitySeverity.HIGH
             category = QualityCategory.RELIABILITY
-        elif code.startswith("AM") or code.startswith("CV"):
+        elif code.startswith(("AM", "CV")):
             severity = QualitySeverity.MEDIUM
             category = QualityCategory.MAINTAINABILITY
 

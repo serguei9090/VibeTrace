@@ -123,7 +123,7 @@ class _CSSBlockParser:
     def parse(self) -> list[_CSSRuleBlock]:
         for idx, line in enumerate(self.source_lines, start=1):
             stripped = line.strip()
-            if not stripped or stripped.startswith("/*") or stripped.startswith("*"):
+            if not stripped or stripped.startswith(("/*", "*")):
                 continue
             if stripped.startswith("@media"):
                 if m := _MEDIA_START_RE.search(stripped):

@@ -109,7 +109,7 @@ def _is_executable_test(name: str, file_path: str) -> bool:
     norm_file = (file_path or "").replace("\\", "/").lower()
 
     if norm_file.endswith(".py"):
-        return low_name.startswith("test_") or low_name.startswith("test")
+        return low_name.startswith(("test_", "test"))
 
     if norm_file.endswith("_test.go"):
         return name.startswith(("Test", "Benchmark", "Example"))
@@ -128,7 +128,7 @@ def _is_executable_test(name: str, file_path: str) -> bool:
         return True
 
     if norm_file.endswith(".rs"):
-        return low_name.startswith("test_") or low_name.startswith("test")
+        return low_name.startswith(("test_", "test"))
 
     return low_name.startswith("test_")
 

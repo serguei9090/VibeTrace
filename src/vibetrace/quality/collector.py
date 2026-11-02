@@ -51,25 +51,50 @@ IGNORE_PATH_PARTS = (
     "/target/",
 )
 
-INLINE_IGNORE_RE = re.compile(
-    r"(?:#|//)\s*(?:nosonar|noqa(?::\s*([a-z0-9_-]+))?|vibetrace:ignore\b(?:\s*\[([a-z0-9_:-]+)\])?(?:\s*:\s*(.+))?)",
+_INLINE_NOSONAR_RE = re.compile(r"(?:#|//)\s*nosonar\b", re.IGNORECASE)
+_INLINE_NOQA_RE = re.compile(r"(?:#|//)\s*noqa(?::\s*([\w-]+))?", re.IGNORECASE)
+_INLINE_IGNORE_RE = re.compile(
+    r"(?:#|//)\s*vibetrace:ignore(?:\[([\w:-]+)\])?(?::\s*(.+))?",
     re.IGNORECASE,
 )
+INLINE_IGNORE_RE = _INLINE_IGNORE_RE
 
 
 def is_suppressed_by_line(finding: QualityFinding, line: str, rule_key: str) -> bool:
     """Evaluates whether a single line matches an inline suppression for this rule."""
-    m = INLINE_IGNORE_RE.search(line)
-    if not m:
+    if "#" not in line and "//" not in line:
         return False
-    matched_rule = m.group(1) or m.group(2)
-    if matched_rule and resolve_canonical_rule_id(matched_rule) != rule_key:
-        return False
-    finding.status = "APPROVED"
-    finding.tag = "inline-comment"
-    finding.rationale = (m.group(3) or "Suppressed via inline comment").strip()
-    finding.reviewed_by = "inline-comment"
-    return True
+
+    if _INLINE_NOSONAR_RE.search(line):
+        finding.status = "APPROVED"
+        finding.tag = "inline-comment"
+        finding.rationale = "Suppressed via nosonar"
+        finding.reviewed_by = "inline-comment"
+        return True
+
+    m_noqa = _INLINE_NOQA_RE.search(line)
+    if m_noqa:
+        matched_rule = m_noqa.group(1)
+        if matched_rule and resolve_canonical_rule_id(matched_rule) != rule_key:
+            return False
+        finding.status = "APPROVED"
+        finding.tag = "inline-comment"
+        finding.rationale = "Suppressed via noqa"
+        finding.reviewed_by = "inline-comment"
+        return True
+
+    m_ignore = _INLINE_IGNORE_RE.search(line)
+    if m_ignore:
+        matched_rule = m_ignore.group(1)
+        if matched_rule and resolve_canonical_rule_id(matched_rule) != rule_key:
+            return False
+        finding.status = "APPROVED"
+        finding.tag = "inline-comment"
+        finding.rationale = (m_ignore.group(2) or "Suppressed via inline comment").strip()
+        finding.reviewed_by = "inline-comment"
+        return True
+
+    return False
 
 
 def check_inline_suppression(finding: QualityFinding, source_lines: list[str]) -> bool:

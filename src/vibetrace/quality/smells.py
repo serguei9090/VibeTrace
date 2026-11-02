@@ -196,6 +196,60 @@ class PythonSmellsVisitor(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self.visit_FunctionDef(node)  # type: ignore[arg-type]
 
+    def _check_identical_methods(self, statements: list[ast.stmt]) -> None:
+        """S4144: Two functions should not have identical implementations."""
+        funcs = [
+            s
+            for s in statements
+            if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)) and len(s.body) >= 2
+        ]
+        seen: dict[str, tuple[str, int]] = {}
+        for fn in funcs:
+            body_dump = ast.dump(ast.Module(body=fn.body, type_ignores=[]))
+            if body_dump in seen:
+                orig_name, orig_line = seen[body_dump]
+                snippet = self._get_snippet(fn.lineno, getattr(fn, "end_lineno", fn.lineno))
+                code_hash = self._hash_snippet(snippet)
+                raw_id = f"{self.file_path}:{fn.lineno}:S4144"
+                fid = f"QUAL-S4144-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+                spec_4144 = QUALITY_RULES_CATALOG.get("S4144")
+                self.findings.append(
+                    QualityFinding(
+                        id=fid,
+                        rule_id="python:S4144",
+                        rspec_id="RSPEC-4144",
+                        category=QualityCategory.MAINTAINABILITY,
+                        severity=QualitySeverity.MEDIUM,
+                        title=(
+                            f"Update this function so that its implementation is not "
+                            f"identical to '{orig_name}' on line {orig_line}."
+                        ),
+                        message=(
+                            f"Function '{fn.name}' has the exact same implementation as "
+                            f"'{orig_name}' (line {orig_line}). Extract shared logic into a "
+                            f"helper method or delegate to it."
+                        ),
+                        file_path=self.file_path,
+                        start_line=fn.lineno,
+                        end_line=getattr(fn, "end_lineno", fn.lineno),
+                        symbol_name=fn.name,
+                        code_hash=code_hash,
+                        non_compliant_snippet=snippet,
+                        compliant_snippet=spec_4144.compliant_example if spec_4144 else None,
+                        remediation_guidance=spec_4144.explanation if spec_4144 else None,
+                    )
+                )
+            else:
+                seen[body_dump] = (fn.name, fn.lineno)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._check_identical_methods(node.body)
+        self.generic_visit(node)
+
+    def visit_Module(self, node: ast.Module) -> None:
+        self._check_identical_methods(node.body)
+        self.generic_visit(node)
+
     def _check_mergeable_if(self, node: ast.If) -> None:
         """S1066: Mergeable if statements."""
         if len(node.body) == 1 and isinstance(node.body[0], ast.If):

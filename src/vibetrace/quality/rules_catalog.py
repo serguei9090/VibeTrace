@@ -583,4 +583,51 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
         ),
         compliant_example="def is_valid(x):\n    return x > 0\n",
     ),
+    # 33. S4144: Functions should not have identical implementations
+    "S4144": QualityRuleSpec(
+        rule_id="S4144",
+        rspec_id="RSPEC-4144",
+        category=QualityCategory.MAINTAINABILITY,
+        severity=QualitySeverity.MEDIUM,
+        title="Functions should not have identical implementations",
+        explanation=(
+            "Having two functions with the same implementation is suspicious; it is likely "
+            "that should one be changed, the other should be changed too, or that one was a "
+            "copy-paste error. If two functions really do the same thing, they should be "
+            "merged or one should call the other."
+        ),
+        aliases=["identical-functions", "python:S4144", "duplicate-function-implementation"],
+        non_compliant_example=(
+            "def calculate_tax(amount):\n"
+            "    return amount * 0.2\n\n"
+            "def compute_vat(amount):\n"
+            "    return amount * 0.2\n"
+        ),
+        compliant_example=(
+            "def calculate_tax(amount):\n"
+            "    return amount * 0.2\n\n"
+            "def compute_vat(amount):\n"
+            "    return calculate_tax(amount)\n"
+        ),
+    ),
+    # 34. S5843: Regular expressions should not be too complex
+    "S5843": QualityRuleSpec(
+        rule_id="S5843",
+        rspec_id="RSPEC-5843",
+        category=QualityCategory.MAINTAINABILITY,
+        severity=QualitySeverity.MEDIUM,
+        title="Regular expressions should not be too complex",
+        explanation=(
+            "Complex regular expressions are difficult to understand and maintain, "
+            "and can lead to poor performance and catastrophic backtracking (ReDoS)."
+        ),
+        aliases=["regex-complexity", "python:S5843", "regular-expression-complexity"],
+        non_compliant_example=(
+            're.compile(r"(?:a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+")\n'
+        ),
+        compliant_example=(
+            "# Simplify regex by splitting into sequential substring checks or simpler patterns\n"
+            "is_valid = line.startswith('#') and 'nosonar' in line\n"
+        ),
+    ),
 }
