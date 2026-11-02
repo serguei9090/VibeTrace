@@ -318,9 +318,15 @@ For centralized team servers, monorepos, and cloud multi-tenancy:
 - **Unified PostgreSQL (`pgvector`)**: Store relational graph, AST entities, and vector embeddings in a single centralized PostgreSQL cluster with HNSW indices.
 - **Zero Code Modification**: Because AST extraction and MCP tools interface through abstract storage contracts, transitioning to PostgreSQL requires updating only the connection config in `.vibetrace.toml`.
 
-### 3. Planned Intelligence: Optional Cross-Encoder Re-Ranking (`vibetrace[rerank]`)
+### 3. Planned Intelligence: Optional Cross-Encoder Re-Ranking (`vibetrace[rerank]`) — Roadmap (Deferred)
 - **Optional Plugin Extra**: For conceptual prose searches where exact identifiers are unknown, installable via `uv tool install "vibetrace[rerank]"` or `pip install "vibetrace[rerank]"`.
 - **Two-Stage Re-Ranking**: Uses an ONNX-quantized cross-encoder (`flashrank` with `ms-marco-TinyBERT-L-2-v2`) to re-score the top-30 RRF candidates via `--rerank` without sacrificing the sub-second core baseline.
+- **Status:** Deferred to future roadmap as current two-stream BM25 + dense embedding RRF search already delivers sub-50ms precision on technical queries without adding package weight.
+
+### 4. Planned Context Optimization: Exact BPE Tokenizer (`tiktoken`) — Roadmap (Deferred or add 10% buffer)
+- **Exact Model Vocabulary BPE**: Integration with `tiktoken` for exact token counting across OpenAI, Claude, and Gemini models.
+- **Status:** Deferred to future roadmap to keep VibeTrace lightweight and avoid compiled binary C-extension dependencies.
+- **Lightweight Alternative:** Calibrate token estimators with a 10% conservative safety headroom ($3.5\text{ chars/token}$ and a 90% budget cap) to mathematically guarantee zero context window overflow without external dependencies.
 
 ---
 
