@@ -42,44 +42,49 @@ class PyrightAdapter(LinterSubEngine):
         return BUNDLED_PRESET_PATH
 
     def _find_runner(self, project_root: Path) -> list[str] | None:
-        """Determines the best executable runner for Pyright in the workspace."""
+        """Determines the best working executable runner for Pyright in the workspace."""
         if self._cached_runner is not None:
             return self._cached_runner
 
+        candidates: list[list[str]] = []
         is_win = os.name == "nt"
         venv_bin = "Scripts" if is_win else "bin"
         cmd_suffix = ".cmd" if is_win else ""
         venv_pyright = project_root / ".venv" / venv_bin / f"pyright{cmd_suffix}"
         if venv_pyright.is_file():
-            self._cached_runner = [str(venv_pyright)]
-            return self._cached_runner
+            candidates.append([str(venv_pyright)])
 
         if shutil.which("uv"):
-            self._cached_runner = ["uv", "run", "pyright"]
-            return self._cached_runner
+            candidates.append(["uv", "run", "pyright"])
 
         if shutil.which("pyright"):
-            self._cached_runner = ["pyright"]
-            return self._cached_runner
+            candidates.append(["pyright"])
+
+        if shutil.which("uvx"):
+            candidates.append(["uvx", "pyright"])
+        elif shutil.which("uv"):
+            candidates.append(["uv", "tool", "run", "pyright"])
+
+        for cand in candidates:
+            try:
+                res = subprocess.run(
+                    [*cand, "--version"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5.0,
+                )
+                if res.returncode == 0:
+                    self._cached_runner = cand
+                    return self._cached_runner
+            except (OSError, subprocess.SubprocessError):
+                continue
 
         return None
 
     def is_available(self, project_root: Path) -> bool:
         """Verifies if Pyright can be executed."""
-        runner = self._find_runner(project_root)
-        if not runner:
-            return False
-        try:
-            res = subprocess.run(
-                [*runner, "--version"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5.0,
-            )
-            return res.returncode == 0
-        except (OSError, subprocess.SubprocessError):
-            return False
+        return self._find_runner(project_root) is not None
 
     def _run_pyright(self, args: list[str], project_root: Path) -> list[dict[str, Any]]:
         """Executes Pyright with JSON output formatting and returns parsed diagnostics."""

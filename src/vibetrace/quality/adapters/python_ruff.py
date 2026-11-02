@@ -43,47 +43,49 @@ class RuffAdapter(LinterSubEngine):
         return BUNDLED_PRESET_PATH
 
     def _find_runner(self, project_root: Path) -> list[str] | None:
-        """Determines the best executable runner for Ruff in the workspace."""
+        """Determines the best working executable runner for Ruff in the workspace."""
         if self._cached_runner is not None:
             return self._cached_runner
 
-        # 1. Check local virtual environment (.venv)
+        candidates: list[list[str]] = []
         is_win = os.name == "nt"
         venv_bin = "Scripts" if is_win else "bin"
         exe_suffix = ".exe" if is_win else ""
         venv_ruff = project_root / ".venv" / venv_bin / f"ruff{exe_suffix}"
         if venv_ruff.is_file():
-            self._cached_runner = [str(venv_ruff)]
-            return self._cached_runner
+            candidates.append([str(venv_ruff)])
 
-        # 2. Check uv in project
         if shutil.which("uv"):
-            self._cached_runner = ["uv", "run", "ruff"]
-            return self._cached_runner
+            candidates.append(["uv", "run", "ruff"])
 
-        # 3. Check global ruff
         if shutil.which("ruff"):
-            self._cached_runner = ["ruff"]
-            return self._cached_runner
+            candidates.append(["ruff"])
+
+        if shutil.which("uvx"):
+            candidates.append(["uvx", "ruff"])
+        elif shutil.which("uv"):
+            candidates.append(["uv", "tool", "run", "ruff"])
+
+        for cand in candidates:
+            try:
+                res = subprocess.run(
+                    [*cand, "--version"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5.0,
+                )
+                if res.returncode == 0:
+                    self._cached_runner = cand
+                    return self._cached_runner
+            except (OSError, subprocess.SubprocessError):
+                continue
 
         return None
 
     def is_available(self, project_root: Path) -> bool:
         """Verifies if Ruff can be executed."""
-        runner = self._find_runner(project_root)
-        if not runner:
-            return False
-        try:
-            res = subprocess.run(
-                [*runner, "--version"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5.0,
-            )
-            return res.returncode == 0
-        except (OSError, subprocess.SubprocessError):
-            return False
+        return self._find_runner(project_root) is not None
 
     def _run_ruff(self, args: list[str], project_root: Path) -> list[dict[str, Any]]:
         """Executes Ruff with JSON output formatting and returns parsed diagnostics."""

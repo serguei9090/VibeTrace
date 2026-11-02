@@ -423,6 +423,98 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
             "if cond1:\n    res = 'a'\nelif cond2:\n    res = 'b'\nelse:\n    res = 'c'\n"
         ),
     ),
+    # 23. S125: Commented-out code
+    "S125": QualityRuleSpec(
+        rule_id="S125",
+        rspec_id="RSPEC-125",
+        severity=QualitySeverity.LOW,
+        category=QualityCategory.CODE_SMELL,
+        title="Sections of code should not be commented out",
+        explanation=(
+            "Commented-out code litters the codebase and breeds confusion about why it was left "
+            "behind. Rely on Git version control for history and delete obsolete code blocks."
+        ),
+        aliases=["ERA001", "commented-out-code"],
+        non_compliant_example="# def old_logic():\n#     return False\n",
+        compliant_example="# Explain algorithm intent rather than preserving disabled code\n",
+    ),
+    # 24. S1172: Unused function parameters
+    "S1172": QualityRuleSpec(
+        rule_id="S1172",
+        rspec_id="RSPEC-1172",
+        severity=QualitySeverity.MEDIUM,
+        category=QualityCategory.CODE_SMELL,
+        title="Unused function and method parameters should be removed",
+        explanation=(
+            "Parameters declared but never read in the function body clutter signatures and "
+            "confuse callers. Remove unused parameters or prefix them with an underscore."
+        ),
+        aliases=["ARG001", "ARG002", "unused-parameter"],
+        non_compliant_example="def calculate(total, tax, unused_arg):\n    return total + tax\n",
+        compliant_example="def calculate(total, tax):\n    return total + tax\n",
+    ),
+    # 25. S5720: Built-in shadowing
+    "S5720": QualityRuleSpec(
+        rule_id="S5720",
+        rspec_id="RSPEC-5720",
+        severity=QualitySeverity.MEDIUM,
+        category=QualityCategory.CODE_SMELL,
+        title="Identifiers should not shadow built-in Python names",
+        explanation=(
+            "Reusing built-in names (such as id, list, type, input) as local variable or parameter "
+            "names obscures the built-in functionality and leads to subtle runtime bugs."
+        ),
+        aliases=["A001", "A002", "A003", "shadowed-builtin"],
+        non_compliant_example="def find_item(id, list):\n    pass\n",
+        compliant_example="def find_item(item_id, item_list):\n    pass\n",
+    ),
+    # 26. S1192: Duplicated string literals
+    "S1192": QualityRuleSpec(
+        rule_id="S1192",
+        rspec_id="RSPEC-1192",
+        severity=QualitySeverity.LOW,
+        category=QualityCategory.CODE_SMELL,
+        title="String literals should not be duplicated",
+        explanation=(
+            "Duplicated string literals make refactoring error-prone. Defining a constant reduces "
+            "the risk of typos and improves maintainability across call sites."
+        ),
+        aliases=["duplicated-literal", "literal-duplication"],
+        non_compliant_example="status = 'PENDING'\nupdate('PENDING')\nlog('PENDING')\n",
+        compliant_example="STATUS_PENDING = 'PENDING'\nstatus = STATUS_PENDING\n",
+    ),
+    # 27. S1144: Unused private function or method
+    "S1144": QualityRuleSpec(
+        rule_id="S1144",
+        rspec_id="RSPEC-1144",
+        severity=QualitySeverity.MEDIUM,
+        category=QualityCategory.MAINTAINABILITY,
+        title="Unused private functions and methods should be removed",
+        explanation=(
+            "Private functions or methods that are never called from within their module or class "
+            "are dead code. Removing them improves signal-to-noise ratio and reduces audit debt."
+        ),
+        aliases=["unused-private-method", "dead-function"],
+        non_compliant_example="def _unused_internal():\n    pass\n",
+        compliant_example="# Remove unused internal helpers or wire into caller\n",
+    ),
+    # 28. S5754: Generic or blind exception handling
+    "S5754": QualityRuleSpec(
+        rule_id="S5754",
+        rspec_id="RSPEC-5754",
+        severity=QualitySeverity.HIGH,
+        category=QualityCategory.RELIABILITY,
+        title="Except clauses should not catch generic Exception or pass silently",
+        explanation=(
+            "Catching base Exception or passing silently swallows unexpected programming bugs, "
+            "system interrupts, and memory errors, making troubleshooting difficult."
+        ),
+        aliases=["TRY002", "TRY302", "blind-except", "broad-except"],
+        non_compliant_example="try:\n    do_work()\nexcept Exception:\n    pass\n",
+        compliant_example=(
+            "try:\n    do_work()\nexcept (IOError, ValueError) as err:\n    logger.error(err)\n"
+        ),
+    ),
 }
 
 _ALIAS_INDEX: dict[str, str] = {}

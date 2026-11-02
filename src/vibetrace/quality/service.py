@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -21,13 +22,17 @@ from vibetrace.quality.declarative_rules import (
     DeclarativeQualityRuleManager,
 )
 from vibetrace.quality.docker_analyzer import analyze_docker_quality
+from vibetrace.quality.literal_duplication import analyze_literal_duplications
 from vibetrace.quality.models import (
     QualityAuditReport,
+    QualityCategory,
     QualityExceptionRecord,
     QualityFinding,
+    QualitySeverity,
 )
 from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 from vibetrace.quality.smells import analyze_python_smells
+from vibetrace.security.regex_analyzer import analyze_regex_quality
 from vibetrace.taxonomy import CweTaxonomyManager
 
 _SUPPORTED_EXTS = (".py", ".css", ".ts", ".tsx", ".js", ".jsx")
@@ -183,6 +188,44 @@ def _audit_single_file(
         comps = file_comps
         findings.extend(comp_findings)
 
+        # Ingest duplicated string literals (RSPEC-1192)
+        literal_findings = analyze_literal_duplications(
+            file_path=rel_path,
+            source_code=source_code,
+        )
+        findings.extend(literal_findings)
+
+        # Ingest regex maintainability smells (RSPEC-6353, RSPEC-5843)
+        regex_findings = analyze_regex_quality(
+            file_path=rel_path,
+            source_code=source_code,
+        )
+        for rf in regex_findings:
+            if rf.rule_id in ("python:S6353", "python:S5843"):
+                findings.append(
+                    QualityFinding(
+                        id=f"QUAL-{rf.rule_id.split(':')[-1]}-{rf.code_hash[:12]}",
+                        rule_id=rf.rule_id,
+                        rspec_id=f"RSPEC-{rf.rule_id.split(':')[-1][1:]}",
+                        category=QualityCategory.CODE_SMELL,
+                        severity=(
+                            QualitySeverity.LOW
+                            if rf.rule_id == "python:S6353"
+                            else QualitySeverity.MEDIUM
+                        ),
+                        title=rf.title,
+                        message=rf.message,
+                        file_path=rf.file_path,
+                        start_line=rf.start_line,
+                        end_line=rf.end_line,
+                        symbol_name=rf.symbol_name,
+                        code_hash=rf.code_hash,
+                        non_compliant_snippet=rf.non_compliant_snippet,
+                        compliant_snippet=rf.compliant_snippet,
+                        remediation_guidance=rf.remediation_guidance,
+                    )
+                )
+
         ruff_engine = RuffAdapter()
         if not ruff_engine.is_available(project_root):
             smell_findings = analyze_python_smells(
@@ -249,6 +292,45 @@ class QualityService:
             pyright_engine = PyrightAdapter()
             if pyright_engine.is_available(project_root):
                 raw_findings.extend(pyright_engine.audit_project(project_root, py_files))
+
+        # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
+        if db is not None:
+            dead_nodes = db.get_uncalled_private_functions()
+            target_rel_paths = {p.relative_to(project_root).as_posix() for p in target_files}
+            for dn in dead_nodes:
+                dn_file = dn["file_path"].replace("\\", "/")
+                while dn_file.startswith("./"):
+                    dn_file = dn_file[2:]
+                if target_rel_paths and dn_file not in target_rel_paths:
+                    continue
+                hash_id = hashlib.sha256(
+                    f"{dn_file}:{dn['name']}".encode()
+                ).hexdigest()[:12]
+                raw_findings.append(
+                    QualityFinding(
+                        id=f"QUAL-S1144-{hash_id}",
+                        rule_id="python:S1144",
+                        rspec_id="RSPEC-1144",
+                        category=QualityCategory.MAINTAINABILITY,
+                        severity=QualitySeverity.MEDIUM,
+                        title=f"Unused private {dn['kind']} '{dn['name']}' should be removed.",
+                        message=(
+                            f"Private {dn['kind']} '{dn['qualified_name']}' is never called "
+                            f"or referenced in the call graph."
+                        ),
+                        file_path=dn_file,
+                        start_line=dn["start_line"] or 1,
+                        end_line=dn["end_line"] or dn["start_line"] or 1,
+                        symbol_name=dn["qualified_name"],
+                        code_hash=hashlib.sha256(dn["name"].encode()).hexdigest(),
+                        non_compliant_snippet=dn["signature"] or f"def {dn['name']}(...):",
+                        compliant_snippet=None,
+                        remediation_guidance=(
+                            f"Remove the unused private {dn['kind']} '{dn['name']}' or wire it "
+                            f"into caller execution paths."
+                        ),
+                    )
+                )
 
         # Deduplicate findings by (file_path, start_line, rule_id)
         seen_keys: set[tuple[str, int, str]] = set()

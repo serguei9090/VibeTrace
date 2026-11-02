@@ -17,6 +17,12 @@ select = [
     "PLR",    # Pylint refactoring
     "PLE",    # Pylint errors
     "RUF",    # Ruff-specific clean code checks
+    "ERA",    # eradicate (S125 commented-out code)
+    "ARG",    # flake8-unused-arguments (S1172 unused parameters)
+    "A",      # flake8-builtins (S5720 shadowing builtins)
+    "TRY",    # tryceratops (S5708/S5754 exception anti-patterns)
+    "S",      # flake8-bandit (S2077 SQL injection, S5042 zip bombs, S5332 cleartext)
+    "UP",     # pyupgrade (Sonar modernize deprecated Python syntax)
 ]
 
 ignore = [
@@ -25,7 +31,9 @@ ignore = [
     "PLR0913", # Too many arguments (handled by VibeTrace S107 threshold)
     "PLR0912", # Too many branches (handled by VibeTrace cognitive complexity S3776)
     "PLR0915", # Too many statements (handled by VibeTrace cognitive complexity)
+    "TRY003", # Avoid long messages outside exception class (not a Sonar requirement)
+    "S104",   # Possible binding to 0.0.0.0 (handled in dev server contexts)
 ]
 
 [lint.per-file-ignores]
-"tests/**" = ["B", "SIM"]
+"tests/**" = ["B", "SIM", "S101", "ARG"]

@@ -357,7 +357,8 @@ def test_cross_ecosystem_alias_suppression() -> None:
 # Test Flake8-Bugbear B006 alias suppressing Sonar S5714
 # noqa: B006
 def append_things(val, bag=[]):
-    return val
+    bag.append(val)
+    return bag
 
 # Test Flake8-Simplify SIM102 alias suppressing Sonar S1066
 def nested(a, b):
