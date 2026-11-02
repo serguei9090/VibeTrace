@@ -58,6 +58,8 @@ class ParserContext:
     test_fixtures: dict[str, str] = field(default_factory=dict)
     # Deferred fixture links (node_id, ast_node, param_names)
     deferred_fixture_links: list[tuple[str, Any, list[str]]] = field(default_factory=list)
+    # Enterprise framework base route prefix (e.g. Spring @RequestMapping or C# [Route])
+    current_class_prefix: str = ""
 
 
 _LANGUAGE_FACTORIES: dict[str, Callable[[], Any]] = {

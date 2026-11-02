@@ -40,7 +40,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **Roadmap (Deferred or add 10% buffer)**
 12. [x] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10** *(Implemented & Verified ✅ via refactor --suggest)*
 13. [ ] **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
-14. [ ] **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10**
+14. [x] **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10** *(Implemented & Verified ✅)*
 15. [ ] **In-Memory WASM AST Indexing for Web Map Room** — **5.5 / 10**
 
 ---
@@ -246,9 +246,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #14. Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)
+### #14. Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter) — Implemented ✅
 - **Category:** Margin for Improvement (Indexer)
 - **Score:** **6.0 / 10** (Broader Ecosystem Reach)
+- **Status:** **Completed & Verified ✅**
 - **What It Solves Exactly:**  
   Expands VibeTrace's indexing and call-graph slicing beyond Python, TS/JS, Rust, and Go to traditional enterprise backends (Java Spring, C++ systems, C# .NET).
 - **Benefits:**

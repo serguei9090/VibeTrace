@@ -16,6 +16,10 @@ from vibetrace.indexer.parsers.builtins import (
     PHP_BUILTINS,
     RUBY_BUILTINS,
 )
+from vibetrace.indexer.parsers.route_extractor import (
+    extract_enterprise_class_prefix,
+    extract_enterprise_routes,
+)
 from vibetrace.indexer.resolver import ModuleResolver
 
 
@@ -35,6 +39,21 @@ class GenericParser(LanguageParser):
             self.builtins = RUBY_BUILTINS
         elif language == "php":
             self.builtins = PHP_BUILTINS
+
+    def _extract_node_annotations(self, node: Node) -> list[str]:
+        """Extract annotations (Java) or attributes (C#) for a class or method."""
+        annotations: list[str] = []
+        if self.language_name == "java":
+            mods = next((c for c in node.children if c.type == "modifiers"), None)
+            source_nodes = mods.children if mods else node.children
+            for ch in source_nodes:
+                if ch.type in ("annotation", "marker_annotation"):
+                    annotations.append(self._get_text(ch))
+        elif self.language_name == "c_sharp":
+            for ch in node.children:
+                if ch.type == "attribute_list":
+                    annotations.append(self._get_text(ch))
+        return annotations
 
     def extract(self, file_path: str, source_code: bytes) -> tuple[list[DBNode], list[Edge]]:
         if not source_code.strip():
@@ -112,6 +131,7 @@ class GenericParser(LanguageParser):
             node_id = None
             pushed_scope = False
             saved_local_types: dict[str, str] | None = None
+            saved_class_prefix: str | None = None
 
             # Java import extraction: import com.example.service.PaymentGateway;
             if node.type == "import_declaration":
@@ -271,23 +291,42 @@ class GenericParser(LanguageParser):
                     else:
                         node_kind = "class"
 
-                    nodes.append(
-                        self._create_node(
-                            node_id,
-                            name.split(".")[-1],
-                            node_kind,
-                            file_path,
-                            node,
-                            signature=signature,
-                            qualified_name=qualified_name,
-                            parent_id=parent_id,
-                        )
+                    new_node = self._create_node(
+                        node_id,
+                        name.split(".")[-1],
+                        node_kind,
+                        file_path,
+                        node,
+                        signature=signature,
+                        qualified_name=qualified_name,
+                        parent_id=parent_id,
                     )
+                    nodes.append(new_node)
+                    if is_func:
+                        fn_annotations = self._extract_node_annotations(node)
+                        if fn_annotations:
+                            ep_nodes, r_edges = extract_enterprise_routes(
+                                fn_annotations,
+                                new_node,
+                                file_path,
+                                self._get_id,
+                                class_prefix=ctx.current_class_prefix,
+                                controller_name=ctx.scope_stack[-1] if ctx.scope_stack else "",
+                            )
+                            nodes.extend(ep_nodes)
+                            edges.extend(r_edges)
+
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))
                     if not is_func:
                         ctx.scope_stack.append(name)
                         pushed_scope = True
+                        saved_class_prefix = ctx.current_class_prefix
+                        class_ann = self._extract_node_annotations(node)
+                        if class_pfx := extract_enterprise_class_prefix(
+                            class_ann, controller_name=name
+                        ):
+                            ctx.current_class_prefix = class_pfx
                         for ch in node.children:
                             if ch.type in ("superclass", "base_clause"):
                                 t_name = (
@@ -354,13 +393,26 @@ class GenericParser(LanguageParser):
                                             )
 
             elif node.type in ("field_declaration", "local_variable_declaration"):
-                # Java & C++ field and local variable declaration tracking
+                # Java, C#, & C++ field and local variable declaration tracking
                 t_node = node.child_by_field_name("type")
+                var_decl_node = node
+                if not t_node:
+                    for ch in node.children:
+                        if ch.type == "variable_declaration":
+                            t_node = ch.child_by_field_name("type") or (
+                                ch.children[0] if ch.children else None
+                            )
+                            var_decl_node = ch
+                            break
+
                 if t_node:
                     t_name = self._get_text(t_node).split("<")[0].strip("*& ")
-                    for child in node.children:
+                    for child in var_decl_node.children:
                         if child.type == "variable_declarator":
-                            if vn := child.child_by_field_name("name"):
+                            vn = child.child_by_field_name("name") or (
+                                child.children[0] if child.children else None
+                            )
+                            if vn:
                                 vname = self._get_text(vn).strip()
                                 ctx.local_types[vname] = t_name
                                 if node.type == "field_declaration":
@@ -444,6 +496,7 @@ class GenericParser(LanguageParser):
             elif parent_id and node.type in (
                 "call_expression",
                 "method_invocation",
+                "invocation_expression",
                 "object_creation_expression",
                 "new_expression",
             ):
@@ -487,6 +540,8 @@ class GenericParser(LanguageParser):
 
             if pushed_scope:
                 ctx.scope_stack.pop()
+                if saved_class_prefix is not None:
+                    ctx.current_class_prefix = saved_class_prefix
 
             if saved_local_types is not None:
                 ctx.local_types = saved_local_types

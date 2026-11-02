@@ -37,6 +37,30 @@ API_ROUTE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Java Spring Boot route annotations
+SPRING_MAPPING_RE = re.compile(
+    r"@(?:\w+\.)?(Get|Post|Put|Delete|Patch)Mapping"
+    r"(?:\s*\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"']\s*\)|\s*\(\s*\))?",
+    re.IGNORECASE,
+)
+SPRING_REQUEST_MAPPING_RE = re.compile(
+    r"@(?:\w+\.)?RequestMapping"
+    r"(?:\s*\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"']\s*\)|\s*\(\s*\))?",
+    re.IGNORECASE,
+)
+
+# C# ASP.NET Core route attributes
+CSHARP_HTTP_RE = re.compile(
+    r"\[\s*Http(Get|Post|Put|Delete|Patch|Head|Options)(?:Attribute)?"
+    r"(?:\s*\(\s*(?:(?:template|name)\s*=\s*)?[\"']([^\"']*)[\"']\s*\)|\s*\(\s*\))?\s*\]",
+    re.IGNORECASE,
+)
+CSHARP_ROUTE_RE = re.compile(
+    r"\[\s*Route(?:Attribute)?"
+    r"\s*\(\s*(?:(?:template|name)\s*=\s*)?[\"']([^\"']+)[\"']\s*\)\s*\]",
+    re.IGNORECASE,
+)
+
 
 def extract_python_router_prefixes(source: str | bytes) -> dict[str, str]:
     """Extract router/blueprint variable prefixes from Python code (case-insensitive keys)."""
@@ -279,3 +303,115 @@ def extract_js_endpoint_route(
         edges.append(create_edge_fn(parent_id, endpoint_id, "defines", node=node))
     else:
         edges.append(create_edge_fn(parent_id, endpoint_id, "routes", node=node))
+
+
+def extract_enterprise_class_prefix(
+    annotations: list[str] | None, controller_name: str = ""
+) -> str:
+    """Extracts base route prefix from class-level Spring or ASP.NET annotations."""
+    if not annotations:
+        return ""
+    for ann in annotations:
+        # 1. Java Spring @RequestMapping("/api/orders")
+        m_spring = SPRING_REQUEST_MAPPING_RE.search(ann)
+        if m_spring:
+            return (m_spring.group(1) or "").strip()
+
+        # 2. C# [Route("api/[controller]")]
+        m_csharp = CSHARP_ROUTE_RE.search(ann)
+        if m_csharp:
+            prefix = m_csharp.group(1).strip()
+            if controller_name and "[controller]" in prefix.lower():
+                ctrl_clean = re.sub(
+                    r"Controller$", "", controller_name, flags=re.IGNORECASE
+                ).lower()
+                prefix = re.sub(r"\[controller\]", ctrl_clean, prefix, flags=re.IGNORECASE)
+            return prefix
+    return ""
+
+
+def extract_enterprise_routes(
+    annotations: list[str] | None,
+    handler_node: DBNode,
+    file_path: str,
+    node_id_fn: Any,
+    class_prefix: str = "",
+    controller_name: str = "",
+) -> tuple[list[DBNode], list[Edge]]:
+    """Extract synthetic Endpoint nodes and routes edges from Java Spring & C# annotations."""
+    if not annotations:
+        return [], []
+
+    endpoint_nodes: list[DBNode] = []
+    route_edges: list[Edge] = []
+
+    def _format_route(method: str, subpath: str) -> str:
+        clean_prefix = class_prefix.strip()
+        if controller_name and "[controller]" in clean_prefix.lower():
+            ctrl_clean = re.sub(r"Controller$", "", controller_name, flags=re.IGNORECASE).lower()
+            clean_prefix = re.sub(r"\[controller\]", ctrl_clean, clean_prefix, flags=re.IGNORECASE)
+
+        pfx = "/" + clean_prefix.strip("/") if clean_prefix else ""
+        sub = subpath.strip()
+        if sub and not sub.startswith("/"):
+            sub = "/" + sub
+
+        full_path = (pfx + sub) if (pfx or sub) else "/"
+        return f"{method.upper()} {full_path}"
+
+    for ann in annotations:
+        method: str | None = None
+        subpath: str = ""
+
+        # 1. Java Spring @GetMapping, @PostMapping, etc.
+        m_spring_map = SPRING_MAPPING_RE.search(ann)
+        if m_spring_map:
+            method = m_spring_map.group(1).upper()
+            subpath = m_spring_map.group(2) or ""
+
+        # 2. Java Spring @RequestMapping(method = ...)
+        elif m_spring_req := SPRING_REQUEST_MAPPING_RE.search(ann):
+            subpath = m_spring_req.group(1) or ""
+            if "method" in ann.lower():
+                m_meth = re.search(r"RequestMethod\.([A-Za-z]+)", ann, re.IGNORECASE)
+                method = m_meth.group(1).upper() if m_meth else "GET"
+            else:
+                method = "GET"
+
+        # 3. C# ASP.NET [HttpGet], [HttpPost], etc.
+        elif m_csharp_http := CSHARP_HTTP_RE.search(ann):
+            method = m_csharp_http.group(1).upper()
+            subpath = m_csharp_http.group(2) or ""
+
+        # 4. C# [Route("...")]
+        elif m_csharp_route := CSHARP_ROUTE_RE.search(ann):
+            method = "GET"
+            subpath = m_csharp_route.group(1) or ""
+
+        if method:
+            endpoint_name = _format_route(method, subpath)
+            endpoint_id = node_id_fn("__endpoint__", endpoint_name, kind="endpoint")
+            node = DBNode(
+                id=endpoint_id,
+                name=endpoint_name,
+                qualified_name=endpoint_name,
+                parent_id=handler_node.parent_id,
+                kind="endpoint",
+                file_path=file_path,
+                start_line=handler_node.start_line,
+                end_line=handler_node.start_line,
+                signature=endpoint_name,
+                docstring=handler_node.docstring,
+                decorators=[ann],
+                visibility="public",
+            )
+            edge = Edge(
+                from_node_id=endpoint_id,
+                to_node_id=handler_node.id,
+                relation_type="routes",
+                call_line=handler_node.start_line,
+            )
+            endpoint_nodes.append(node)
+            route_edges.append(edge)
+
+    return endpoint_nodes, route_edges
