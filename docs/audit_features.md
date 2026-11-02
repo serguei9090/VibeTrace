@@ -37,7 +37,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 8. [x] **Dynamic Test Fixture Reachability (`@pytest.mark.parametrize`)** — **8.0 / 10** *(Implemented & Verified ✅)*
 9. [x] **WebGPU Large-Scale Graph Canvas (Map Room Acceleration)** — **7.8 / 10** *(Implemented & Verified ✅)*
 10. [x] **Transitive Dependency Graph Resolution & Root-Cause Visualizer** — **7.5 / 10** *(Implemented & Verified ✅)*
-11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **7.2 / 10**
+11. [ ] **Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)** — **Roadmap (Deferred or add 10% buffer)**
 12. [x] **Automated Cognitive Complexity Method Extraction Suggester** — **7.0 / 10** *(Implemented & Verified ✅ via refactor --suggest)*
 13. [ ] **Cross-Encoder Re-Ranking for Hybrid Doc RAG** — **Roadmap (Deferred)**
 14. [ ] **Enterprise Polyglot Expansion (Java, C/C++, C# Tree-sitter)** — **6.0 / 10**
@@ -209,9 +209,10 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #11. Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace)
+### #11. Exact BPE Tokenizer Integration (`tiktoken` / HuggingFace) — Roadmap (Deferred or add 10% buffer)
 - **Category:** Margin for Improvement (Context Bundler)
 - **Score:** **7.2 / 10** (Budget Accuracy)
+- **Status:** **Roadmap (Deferred — or add 10% buffer)**
 - **What It Solves Exactly:**  
   Current token slicing budgets rely on characters-per-token approximations (e.g., $1\text{ token} \approx 4\text{ characters}$). In code with heavy indentation or symbols, this can under- or over-estimate token counts by 15–20%.
 - **Benefits:**
@@ -219,7 +220,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 - **Cons & Potential Risks:**
   - Adds a binary C-extension dependency (`tiktoken`) to our lightweight Python installation footprint.
 - **How We Address This:**  
-  Make `tiktoken` an optional fast-path: if installed, VibeTrace uses exact BPE tokenization; otherwise, it defaults to our calibrated fallback character heuristic ($3.8\text{ chars/token}$ for code).
+  Deferred to roadmap. The lightweight alternative is applying a 10% conservative safety headroom ($3.5\text{ chars/token}$ and 90% budget cap) before adding compiled tokenizer dependencies.
 
 ---
 
