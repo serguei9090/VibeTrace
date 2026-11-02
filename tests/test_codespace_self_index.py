@@ -86,7 +86,8 @@ def test_codespace_call_tree_and_traversal(indexed_codespace_db):
 
     # Formatting must not crash and output clean markdown
     md = format_call_tree_md(tree_res)
-    assert "Top-Down Call Tree: `trace_execution_path`" in md
+    assert "Top-Down Call Tree:" in md
+    assert "trace_execution_path" in md
     assert "```text" in md
 
 

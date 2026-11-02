@@ -431,13 +431,13 @@ class SymbolDocLinker:
         """Collects all relevant Markdown files in the project."""
         md_files: list[Path] = []
         for p in project_root.rglob("*.md"):
-            # Exclude ignored directories
-            if any(part in _IGNORED_DIRS for part in p.parts):
-                continue
             try:
                 rel = p.relative_to(project_root)
             except ValueError:
                 rel = p
+            # Exclude ignored directories relative to project root
+            if any(part in _IGNORED_DIRS for part in rel.parts[:-1]):
+                continue
             # Root-level markdown files must be primary docs, not scratch or changelogs
             if len(rel.parts) == 1 and rel.name.lower() in _IGNORED_ROOT_FILES:
                 continue

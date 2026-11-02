@@ -3,6 +3,12 @@ from tree_sitter import Node
 from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
+from vibetrace.indexer.parsers.python_helpers import (
+    extract_pattern_references,
+    extract_python_imports,
+    link_all_exports,
+    resolve_deferred_fixtures,
+)
 from vibetrace.indexer.parsers.route_extractor import (
     extract_python_router_prefixes,
     extract_python_routes,
@@ -85,59 +91,9 @@ class PythonParser(LanguageParser):
 
         self._traverse(tree.root_node, file_module_id, ctx)
 
-        # Resolve deferred test fixture parameter dependencies
-        for fn_node_id, fn_node, p_names in ctx.deferred_fixture_links:
-            for p_name in p_names:
-                if p_name in ("self", "cls"):
-                    continue
-                if p_name in ctx.test_fixtures:
-                    fix_id = ctx.test_fixtures[p_name]
-                    edges.append(self._create_edge(fn_node_id, fix_id, "calls", node=fn_node))
-                elif p_name in ctx.imported_symbols:
-                    target_id = self._resolve_call_target(p_name, ctx)
-                    if target_id:
-                        edges.append(
-                            self._create_edge(fn_node_id, target_id, "calls", node=fn_node)
-                        )
-
-        # Link explicit __all__ re-exports
-        for child in tree.root_node.children:
-            if child.type == "expression_statement":
-                for sub in child.children:
-                    if sub.type == "assignment":
-                        left = sub.child_by_field_name("left")
-                        if left and self._get_text(left).strip() == "__all__":
-                            right = sub.child_by_field_name("right")
-                            if right and right.type in ("list", "tuple"):
-                                for item in right.children:
-                                    if item.type == "string":
-                                        exp_name = self._get_text(item).strip("\"'")
-                                        if exp_name in ctx.imported_symbols:
-                                            target_f, orig_n = ctx.imported_symbols[exp_name]
-                                            exp_id = self._get_id(ctx.file_path, exp_name)
-                                            if not any(n.id == exp_id for n in ctx.nodes):
-                                                nodes.append(
-                                                    self._create_node(
-                                                        exp_id,
-                                                        exp_name,
-                                                        "function",
-                                                        ctx.file_path,
-                                                        item,
-                                                        visibility="public",
-                                                        parent_id=file_module_id,
-                                                    )
-                                                )
-                                                edges.append(
-                                                    self._create_edge(
-                                                        file_module_id, exp_id, "defines", node=item
-                                                    )
-                                                )
-                                                target_id = self._get_id(target_f, orig_n)
-                                                edges.append(
-                                                    self._create_edge(
-                                                        exp_id, target_id, "references", node=item
-                                                    )
-                                                )
+        # Resolve deferred fixtures and explicit __all__ re-exports via modular helpers
+        resolve_deferred_fixtures(self, ctx, edges)
+        link_all_exports(self, tree.root_node, ctx, nodes)
 
         return nodes, edges
 
@@ -618,94 +574,7 @@ class PythonParser(LanguageParser):
 
     def _extract_pattern_references(self, pat: Node, parent_id: str, ctx: ParserContext) -> None:
         """Extract type and attribute references from Python match-case patterns."""
-        for ch in pat.children:
-            if ch.type == "class_pattern":
-                if cls_name_node := ch.children[0] if ch.children else None:
-                    cls_name = self._get_text(cls_name_node).strip()
-                    if t_id := self._resolve_call_target(cls_name, ctx):
-                        ctx.edges.append(
-                            self._create_edge(parent_id, t_id, "references", node=cls_name_node)
-                        )
-            elif ch.type == "dotted_name" and "." in self._get_text(ch):
-                dot_text = self._get_text(ch).strip()
-                if t_id := self._resolve_call_target(dot_text, ctx):
-                    ctx.edges.append(self._create_edge(parent_id, t_id, "references", node=ch))
-            self._extract_pattern_references(ch, parent_id, ctx)
+        extract_pattern_references(self, pat, parent_id, ctx)
 
     def _handle_import(self, node: Node, ctx: ParserContext) -> None:
-        if node.type == "import_statement":
-            for child in node.children:
-                if child.type == "dotted_name":
-                    module_name = self._get_text(child)
-                    resolved = self._register_imported_module(module_name, ctx, node)
-                    target = resolved or "external"
-                    ctx.imported_symbols[module_name] = (target, "__module__")
-                    ctx.imported_symbols[module_name.split(".")[-1]] = (target, "__module__")
-                elif child.type == "aliased_import":
-                    name_node = child.child_by_field_name("name")
-                    alias_node = child.child_by_field_name("alias")
-                    if name_node:
-                        module_name = self._get_text(name_node)
-                        alias = self._get_text(alias_node) if alias_node else module_name
-                        resolved = self._register_imported_module(module_name, ctx, node)
-                        target = resolved or "external"
-                        ctx.imported_symbols[alias] = (target, "__module__")
-
-        elif node.type == "import_from_statement":
-            if not (module_name_node := node.child_by_field_name("module_name")):
-                return
-            module_name = self._get_text(module_name_node)
-            is_bare_dots = not module_name.strip(".")
-            resolved_mod = None
-            if not is_bare_dots:
-                resolved_mod = self._register_imported_module(module_name, ctx, node)
-            elif self.resolver:
-                resolved_mod = self.resolver.resolve(module_name, ctx.file_path)
-
-            # Collect imported symbol names after the 'import' keyword
-            seen_import_kw = False
-            for child in node.children:
-                if child.type == "import":
-                    seen_import_kw = True
-                    continue
-                if not seen_import_kw:
-                    continue
-
-                if child.type in ("wildcard_import", "*") or self._get_text(child) == "*":
-                    target_module = resolved_mod or "external"
-                    ctx.imported_symbols["*"] = (target_module, "__module__")
-                    continue
-
-                orig_name: str | None = None
-                local_name: str | None = None
-                if child.type == "dotted_name":
-                    orig_name = local_name = self._get_text(child)
-                elif child.type == "aliased_import":
-                    n_node = child.child_by_field_name("name")
-                    a_node = child.child_by_field_name("alias")
-                    if n_node:
-                        orig_name = self._get_text(n_node)
-                        local_name = self._get_text(a_node) if a_node else orig_name
-
-                if orig_name and local_name:
-                    # Check if `from pkg import submodule` points to a submodule file
-                    sub_query = (
-                        f"{module_name}{orig_name}"
-                        if module_name.endswith(".")
-                        else f"{module_name}.{orig_name}"
-                    )
-                    sub_resolved = (
-                        self.resolver.resolve(sub_query, ctx.file_path) if self.resolver else None
-                    )
-                    if sub_resolved:
-                        self._register_imported_module(sub_query, ctx, node)
-                        ctx.imported_symbols[local_name] = (sub_resolved, "__module__")
-                    else:
-                        target_mod = resolved_mod or "external"
-                        ctx.imported_symbols[local_name] = (target_mod, orig_name)
-                        if (
-                            is_bare_dots
-                            and target_mod != "external"
-                            and target_mod != ctx.file_path
-                        ):
-                            self._register_imported_module(module_name, ctx, node)
+        extract_python_imports(self, node, ctx)
