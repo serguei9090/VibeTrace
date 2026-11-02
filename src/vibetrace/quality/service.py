@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.quality.adapters.biome import BiomeAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
@@ -35,7 +36,20 @@ from vibetrace.quality.smells import analyze_python_smells
 from vibetrace.security.regex_analyzer import analyze_regex_quality
 from vibetrace.taxonomy import CweTaxonomyManager
 
-_SUPPORTED_EXTS = (".py", ".css", ".ts", ".tsx", ".js", ".jsx")
+_SUPPORTED_EXTS = (
+    ".py",
+    ".css",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".mts",
+    ".cts",
+    ".json",
+    ".jsonc",
+)
 _IGNORE_PATH_PARTS = (
     "/.venv/",
     "/venv/",
@@ -292,6 +306,15 @@ class QualityService:
             pyright_engine = PyrightAdapter()
             if pyright_engine.is_available(project_root):
                 raw_findings.extend(pyright_engine.audit_project(project_root, py_files))
+
+        # Batch execute native Biome sub-engine for JS/TS/JSON/CSS if available
+        biome_files = [
+            p for p in target_files if p.suffix.lower() in BiomeAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if biome_files:
+            biome_engine = BiomeAdapter()
+            if biome_engine.is_available(project_root):
+                raw_findings.extend(biome_engine.audit_project(project_root, biome_files))
 
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
