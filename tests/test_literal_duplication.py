@@ -6,13 +6,13 @@ from vibetrace.quality.literal_duplication import analyze_literal_duplications
 
 
 def test_detects_duplicated_string_literals() -> None:
-    code = '''
+    code = """
 def send_email(user, status):
     log("PROCESSING_TRANSACTION")
     if status == "PROCESSING_TRANSACTION":
         update("PROCESSING_TRANSACTION")
         notify("PROCESSING_TRANSACTION")
-'''
+"""
     findings = analyze_literal_duplications("sample.py", code, threshold=3)
     assert len(findings) == 1
     f = findings[0]

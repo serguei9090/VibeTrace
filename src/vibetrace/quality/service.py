@@ -303,9 +303,7 @@ class QualityService:
                     dn_file = dn_file[2:]
                 if target_rel_paths and dn_file not in target_rel_paths:
                     continue
-                hash_id = hashlib.sha256(
-                    f"{dn_file}:{dn['name']}".encode()
-                ).hexdigest()[:12]
+                hash_id = hashlib.sha256(f"{dn_file}:{dn['name']}".encode()).hexdigest()[:12]
                 raw_findings.append(
                     QualityFinding(
                         id=f"QUAL-S1144-{hash_id}",

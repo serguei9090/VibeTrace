@@ -382,4 +382,3 @@ class DBQueriesMixin:
         with self._get_conn() as conn:
             cursor = conn.execute(sql)
             return [dict(r) for r in cursor.fetchall()]
-
