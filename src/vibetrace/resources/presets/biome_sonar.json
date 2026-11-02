@@ -1,0 +1,53 @@
+{
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        "noNestedTernary": "warn",
+        "useForOf": "warn",
+        "useConst": "warn",
+        "noNonNullAssertion": "off",
+        "useTemplate": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 15
+          }
+        },
+        "noExtraBooleanCast": "warn",
+        "useMaxParams": {
+          "level": "warn",
+          "options": {
+            "max": 7
+          }
+        }
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "noUnusedVariables": "warn",
+        "noUnusedFunctionParameters": "warn",
+        "noConstantCondition": "warn",
+        "noEmptyPattern": "warn"
+      },
+      "suspicious": {
+        "noDoubleEquals": "warn",
+        "noDebugger": "error",
+        "noAsyncPromiseExecutor": "error",
+        "noCatchAssign": "error",
+        "noDuplicateParameters": "error",
+        "noAssignInExpressions": "warn",
+        "noExplicitAny": "off"
+      },
+      "security": {
+        "noGlobalEval": "error",
+        "noDangerouslySetInnerHtml": "error"
+      },
+      "a11y": {
+        "useButtonType": "warn"
+      }
+    }
+  }
+}

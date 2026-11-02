@@ -22,6 +22,10 @@ from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 
 logger = logging.getLogger(__name__)
 
+BUNDLED_PRESET_PATH = (
+    Path(__file__).parent.parent.parent / "resources" / "presets" / "biome_sonar.json"
+)
+
 SUPPORTED_EXTENSIONS = frozenset(
     {
         ".js",
@@ -142,6 +146,30 @@ BIOME_TO_SONAR: dict[str, tuple[str, str, QualityCategory, QualitySeverity]] = {
         QualityCategory.MAINTAINABILITY,
         QualitySeverity.LOW,
     ),
+    "lint/style/noNestedTernary": (
+        "S3358",
+        "RSPEC-3358",
+        QualityCategory.CODE_SMELL,
+        QualitySeverity.MEDIUM,
+    ),
+    "lint/complexity/noExcessiveCognitiveComplexity": (
+        "S3776",
+        "RSPEC-3776",
+        QualityCategory.COMPLEXITY,
+        QualitySeverity.HIGH,
+    ),
+    "lint/complexity/useMaxParams": (
+        "S107",
+        "RSPEC-107",
+        QualityCategory.CODE_SMELL,
+        QualitySeverity.LOW,
+    ),
+    "lint/style/useForOf": (
+        "S7781",
+        "RSPEC-7781",
+        QualityCategory.CODE_SMELL,
+        QualitySeverity.LOW,
+    ),
 }
 
 
@@ -154,6 +182,13 @@ class BiomeAdapter(LinterSubEngine):
     def __init__(self, timeout_sec: float = 20.0) -> None:
         self.timeout_sec = timeout_sec
         self._cached_runner: list[str] | None = None
+
+    def _resolve_config_path(self, project_root: Path) -> Path:
+        """Prefers local .vibetrace/config/biome.json if present, falling back to bundled preset."""
+        override = project_root / ".vibetrace" / "config" / "biome.json"
+        if override.is_file():
+            return override
+        return BUNDLED_PRESET_PATH
 
     def _find_runner(self, project_root: Path) -> list[str] | None:
         """Determines the best working executable runner for Biome in the workspace."""
@@ -217,7 +252,12 @@ class BiomeAdapter(LinterSubEngine):
         if not runner:
             return []
 
-        cmd = [*runner, "lint", "--reporter=sarif", "--no-errors-on-unmatched", *args]
+        config_path = self._resolve_config_path(project_root)
+        config_arg = f"--config-path={config_path}" if config_path.is_file() else None
+        cmd = [*runner, "lint"]
+        if config_arg:
+            cmd.append(config_arg)
+        cmd.extend(["--reporter=sarif", "--no-errors-on-unmatched", *args])
         try:
             res = subprocess.run(
                 cmd,
