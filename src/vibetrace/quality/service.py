@@ -11,6 +11,7 @@ from typing import Any
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.quality.adapters.biome import BiomeAdapter
 from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
+from vibetrace.quality.adapters.php_stan import PhpStanAdapter
 from vibetrace.quality.adapters.python_pyright import PyrightAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
@@ -54,6 +55,8 @@ _SUPPORTED_EXTS = (
     ".jsonc",
     ".go",
     ".rs",
+    ".php",
+    ".phtml",
 )
 _IGNORE_PATH_PARTS = (
     "/.venv/",
@@ -349,6 +352,15 @@ class QualityService:
             if rust_engine.is_available(project_root):
                 raw_findings.extend(rust_engine.audit_project(project_root, rust_files))
 
+        # Batch execute PHPStan sub-engine if available
+        php_files = [
+            p for p in target_files if p.suffix.lower() in PhpStanAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if php_files:
+            php_engine = PhpStanAdapter()
+            if php_engine.is_available(project_root):
+                raw_findings.extend(php_engine.audit_project(project_root, php_files))
+
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
             dead_nodes = db.get_uncalled_private_functions()
@@ -489,6 +501,14 @@ class QualityService:
             rust_engine = CargoClippyAdapter()
             if rust_engine.is_available(project_root):
                 results["engines"]["rust"] = rust_engine.fix_files(project_root, rust_files)
+
+        php_files = [
+            p for p in target_files if p.suffix.lower() in PhpStanAdapter.SUPPORTED_EXTENSIONS
+        ]
+        if php_files:
+            php_engine = PhpStanAdapter()
+            if php_engine.is_available(project_root):
+                results["engines"]["php"] = php_engine.fix_files(project_root, php_files)
 
         return results
 

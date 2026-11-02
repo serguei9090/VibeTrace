@@ -22,6 +22,7 @@ def test_cmd_config_quality_display(tmp_path: Path, capsys) -> None:
     assert "TypeScript (tsc)" in captured
     assert "Go (golangci-lint)" in captured
     assert "Rust (cargo clippy)" in captured
+    assert "PHP (PHPStan / Pint)" in captured
 
 
 def test_cmd_config_quality_set_mode(tmp_path: Path) -> None:
@@ -50,6 +51,11 @@ def test_cmd_config_quality_set_mode(tmp_path: Path) -> None:
     code = cmd_config_quality(args)
     assert code == 0
     assert resolve_linter_mode(tmp_path, "rust") == "project"
+
+    args = argparse.Namespace(path=str(tmp_path), set_opt="php=strict")
+    code = cmd_config_quality(args)
+    assert code == 0
+    assert resolve_linter_mode(tmp_path, "php") == "strict"
 
 
 def test_cmd_config_quality_invalid_inputs(tmp_path: Path, capsys) -> None:

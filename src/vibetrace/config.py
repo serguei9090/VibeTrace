@@ -105,6 +105,7 @@ class LinterConfigs(BaseModel):
     typescript: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
     golang: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
     rust: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
+    php: str = Field(default="auto", description="'project' | 'strict' | 'auto'")
 
 
 class QualityConfig(BaseModel):
@@ -283,6 +284,11 @@ def resolve_linter_mode(project_root: Path, engine: str) -> str:
     elif norm_engine in ("rust", "clippy"):
         has_project_cfg = any(
             (project_root / f).is_file() for f in ("Cargo.toml", "clippy.toml", ".clippy.toml")
+        )
+    elif norm_engine in ("php", "phpstan"):
+        has_project_cfg = any(
+            (project_root / f).is_file()
+            for f in ("phpstan.neon", "phpstan.neon.dist", "phpstan.dist.neon", "composer.json")
         )
 
     return "project" if has_project_cfg else "strict"

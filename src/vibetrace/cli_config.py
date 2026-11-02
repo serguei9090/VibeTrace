@@ -8,6 +8,7 @@ from pathlib import Path
 from vibetrace.config import get_config_path, load_config, resolve_linter_mode, save_linter_mode
 from vibetrace.quality.adapters.biome import BiomeAdapter
 from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
+from vibetrace.quality.adapters.php_stan import PhpStanAdapter
 from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
@@ -34,8 +35,10 @@ def cmd_config_quality(args: argparse.Namespace) -> int:
             key = "golang"
         elif key in ("clippy", "cargo-clippy"):
             key = "rust"
+        elif key in ("phpstan",):
+            key = "php"
 
-        supported_keys = ("ruff", "biome", "typescript", "golang", "rust")
+        supported_keys = ("ruff", "biome", "typescript", "golang", "rust", "php")
         if key not in supported_keys:
             print(f"[ERROR] Unknown sub-engine '{key}'. Supported: {', '.join(supported_keys)}")
             return 1
@@ -59,6 +62,7 @@ def cmd_config_quality(args: argparse.Namespace) -> int:
         ("typescript", "TypeScript (tsc)", TypeScriptAdapter),
         ("golang", "Go (golangci-lint)", GolangLintAdapter),
         ("rust", "Rust (cargo clippy)", CargoClippyAdapter),
+        ("php", "PHP (PHPStan / Pint)", PhpStanAdapter),
     ]
 
     print("# ⚙️ VibeTrace Quality Sub-Engine Configurations\n")
