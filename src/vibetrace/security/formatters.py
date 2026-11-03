@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from vibetrace.security.rules import RULES_CATALOG
@@ -20,7 +22,56 @@ def _sev_str(sev: Any) -> str:
     return str(getattr(sev, "value", sev))
 
 
-def format_security_audit_md(report: Any) -> str:
+def _build_security_summary_matrix(findings: list[Any]) -> list[str]:
+    """Builds a high-density Markdown summary matrix of security findings."""
+    groups: dict[tuple[str, str], dict[str, Any]] = defaultdict(
+        lambda: {"severity": "", "unapproved": 0, "approved": 0, "has_taint": False, "files": set()}
+    )
+    for f in findings:
+        sev = _sev_str(f.severity)
+        cwe = f.cwe_id or f.rule_id
+        g = groups[(sev, cwe)]
+        g["severity"] = sev
+        g["cwe_id"] = cwe
+        g["title"] = f.title
+        if f.status == "APPROVED":
+            g["approved"] += 1
+        else:
+            g["unapproved"] += 1
+        if f.metadata and f.metadata.get("taint_path"):
+            g["has_taint"] = True
+        g["files"].add(Path(f.file_path).name)
+
+    sev_rank = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (
+            sev_rank.get(g["severity"], 9),
+            -(g["unapproved"] + g["approved"]),
+        ),
+    )
+
+    lines = [
+        "### [SUMMARY] Executive Security Matrix",
+        "",
+        "| Severity | CWE / Rule | Unapproved | Approved | Taint Path | Impacted Files |",
+        "|:---|:---|:---:|:---:|:---:|:---|",
+    ]
+    for g in sorted_groups:
+        file_samples = sorted(g["files"])[:3]
+        file_str = ", ".join(f"`{f}`" for f in file_samples)
+        if len(g["files"]) > 3:
+            file_str += f" *(+{len(g['files']) - 3} more)*"
+        taint_str = "⚠️ **Reachable**" if g["has_taint"] else "-"
+        lines.append(
+            f"| `{g['severity']}` | `{g['cwe_id']}` | "
+            f"**{g['unapproved']}** | {g['approved']} | {taint_str} | {file_str} |"
+        )
+    lines.append("")
+    return lines
+
+
+def format_security_audit_md(report: Any, summary_only: bool = False) -> str:
     """Format security audit report as clean Markdown with SonarQube-style guidance."""
     lines = [
         "## [SECURITY] VibeTrace Security & Vulnerability Audit Report",
@@ -40,8 +91,22 @@ def format_security_audit_md(report: Any) -> str:
         "",
     ]
     if not report.findings:
-        lines.append("No security vulnerabilities detected.")
+        lines.append("✨ No security vulnerabilities detected.")
         return "\n".join(lines)
+
+    # 1. Executive Summary Table
+    lines.extend(_build_security_summary_matrix(report.findings))
+
+    if summary_only:
+        lines.extend(
+            [
+                "> [TIP] **Next Step for AI Agent:**",
+                "> To inspect code lines and compliant solutions for an impacted file, run:",
+                "> `uv run vibetrace audit security --file <impacted_file> --json`",
+                "",
+            ]
+        )
+        return "\n".join(lines).strip()
 
     for idx, f in enumerate(report.findings, 1):
         sev_icon = f"[{_sev_str(f.severity)}]"

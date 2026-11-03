@@ -37,6 +37,12 @@ _KNOWN_TOKEN_RE = re.compile(
     r"|npm_[A-Za-z0-9]{36}"  # npm Access Token
     r"|pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}"  # PyPI Upload Token
     r"|dapi[0-9a-f]{32}"  # Databricks Access Token
+    r"|mistral-[a-zA-Z0-9]{32}"  # Mistral API Token
+    r"|pplx-[a-f0-9]{48}"  # Perplexity API Key
+    r"|co-[a-zA-Z0-9]{40}"  # Cohere API Key
+    r"|tskey-auth-[a-zA-Z0-9_-]{20,}"  # Tailscale Auth Key
+    r"|PMAK-[a-f0-9]{24}-[a-f0-9]{34}"  # Postman API Key
+    r"|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{40,}"  # Supabase JWT
     r"|-----BEGIN (?:RSA |EC |OPENSSH |DSA |PRIVATE )?PRIVATE KEY-----"  # PEM Private Key
     r")"
 )
@@ -140,6 +146,33 @@ class GitSecretScanner:
                     findings.append(f)
 
         return findings
+
+    @classmethod
+    def scan_staged(cls, project_root: Path) -> list[SecurityFinding]:
+        """Scans only git staged files (git diff --cached) for pre-commit blocking."""
+        try:
+            res = subprocess.run(
+                ["git", "diff", "--cached", "-U0", "--no-color"],
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            patch_text = res.stdout.strip()
+            if not patch_text:
+                return []
+            gitleaks_ignored = _load_gitleaksignore(project_root)
+            raw = cls._scan_patch_text(patch_text, "staged", include_tests=False)
+            return [
+                f
+                for f in raw
+                if f.file_path not in gitleaks_ignored
+                and f"{f.file_path}:{f.rule_id}:{f.start_line}" not in gitleaks_ignored
+            ]
+        except OSError:
+            return []
 
     @staticmethod
     def _is_ignored_path(file_path: str, include_tests: bool) -> bool:

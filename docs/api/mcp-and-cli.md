@@ -32,7 +32,8 @@ vibetrace --help
 | `vibetrace review` | `[--ci] [--strict] [--min-coverage N]` | Unified 1-call AI review gate: Security/Taint, Splits, Caller Guard, and 80% test coverage. | `vibetrace review --ci --min-coverage 80` |
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
 | `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
-| `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --ci` |
+| `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --summary` |
+| `vibetrace audit security` | `[--summary] [--file PATH] [--staged] [--json] [--sarif] [--ci] [--skip-deps] [--approve]` | Polyglot SAST, multi-hop taint reachability, modern secret detection, staged commit blocker, and baseline triage. | `vibetrace audit security --summary` |
 | `vibetrace audit quality` | `[--summary] [--file PATH] [--json] [--sarif] [--fix] [--ci] [--fail-on SEV] [--approve]` | Polyglot code quality audit across 8 languages with Sonar RSPEC parity, safe `--fix` AST codemods, and SARIF export. | `vibetrace audit quality --summary` |
 | `vibetrace docs` | `catalog \| index \| search \| check \| sync-links` | Documentation RAG, live symbol bi-directional linking, and doc reference drift auditing. | `vibetrace docs check` |
 | `vibetrace slice` | `<symbol> [--file PATH]` | Surgical source line extraction (`start..end`) + outgoing callee contracts for LLM context savings. | `vibetrace slice IndexerDB.upsert_node` |
@@ -84,6 +85,35 @@ vibetrace audit quality --approve --tag intentional --rationale "Tight numerical
 #### Map Room REST API Endpoints
 - `GET /api/quality/audit?file_path=<path>&threshold=15`: Returns full `QualityAuditReport` JSON with cognitive complexity matrices and findings.
 - `POST /api/quality/approve`: Accepts `QualityApprovePayload` to persist 1-click in-browser exception approvals into `.vibetrace/quality.toml`.
+
+### Security Audit & Pre-Commit Protection Workflow (`vibetrace audit security`)
+
+VibeTrace protects codebases against vulnerabilities and secret leakage with an agent-first workflow:
+
+#### Step 1: High-Density Executive Findings Matrix (< 1 KB)
+```bash
+uv run vibetrace audit security --summary
+```
+Emits a compact Markdown table listing findings grouped by severity, CWE/rule ID, unapproved count, taint reachability status, and top impacted files.
+
+#### Step 2: Surgical Single-File JSON Extraction
+```bash
+uv run vibetrace audit security --file <impacted_file> --json
+```
+Emits structured JSON with exact line spans, code snippets, source-to-sink variable taint chains, and remediation guidance.
+
+#### Pre-Commit Staged Secret Blocker (`--staged`)
+```bash
+# Integrates directly into Git pre-commit hooks to block uncommitted API keys & tokens
+vibetrace audit security --staged
+```
+Scans staged diffs (`git diff --cached`) for high-entropy secrets and modern AI/SaaS tokens (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase, AWS, GitHub). Exits with code 1 if any secret is detected.
+
+#### Multi-Hop Inter-Procedural Taint & Advanced Semgrep Clauses
+- **Multi-Hop Taint Propagation:** Traces user-controlled inputs across helper function call chains (`entrypoint -> service -> sink`), tracking both positional and keyword argument bindings and multiline call expressions.
+- **Advanced Semgrep Clauses:** Supports composite `patterns` with `pattern-not` (negative assertions to eliminate false positives) and `pattern-inside` (scope enclosure validation).
+- **SARIF 2.1.0 Export:** Integrates with GitHub Advanced Security and IDE code scanners via `--sarif`.
+
 
 
 ---

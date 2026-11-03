@@ -922,6 +922,16 @@ examples:
         help="Emit JSON output for machine parsing",
     )
     p_security.add_argument(
+        "--summary",
+        action="store_true",
+        help="Emit executive summary matrix only (token-efficient for AI agents)",
+    )
+    p_security.add_argument(
+        "--staged",
+        action="store_true",
+        help="Scan git staged changes only for hardcoded secrets (pre-commit blocker)",
+    )
+    p_security.add_argument(
         "--include-tests",
         action="store_true",
         help="Include test directories and test files in AST security scanning",

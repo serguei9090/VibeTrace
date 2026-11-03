@@ -302,22 +302,75 @@ def _is_callee_sanitizer(callee: dict[str, Any], project_root: Path, callee_name
 
 
 def _resolve_next_tainted_params(
-    args: list[str], sanitizers: frozenset[str], caller_tainted: dict[str, list[str]]
+    args: list[str],
+    sanitizers: frozenset[str],
+    caller_tainted: dict[str, list[str]],
+    callee_param_names: list[str] | None = None,
 ) -> dict[int, list[str]]:
-    """Calculates tainted parameters forwarded to callee."""
+    """Calculates tainted parameters forwarded to callee, supporting positional and keyword args."""
     next_tainted: dict[int, list[str]] = {}
     for arg_idx, arg_expr in enumerate(args):
-        if any(f"{san}(" in arg_expr or f".{san}(" in arg_expr for san in sanitizers):
+        kw_m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$", arg_expr)
+        if kw_m and callee_param_names and kw_m.group(1) in callee_param_names:
+            target_idx = callee_param_names.index(kw_m.group(1))
+            val_expr = kw_m.group(2)
+        else:
+            target_idx = arg_idx
+            val_expr = kw_m.group(2) if kw_m else arg_expr
+
+        if any(f"{san}(" in val_expr or f".{san}(" in val_expr for san in sanitizers):
             continue
-        if any(src in arg_expr for src in _DIRECT_SOURCES):
-            next_tainted[arg_idx] = ["untrusted_input"]
+        if any(src in val_expr for src in _DIRECT_SOURCES):
+            next_tainted[target_idx] = ["untrusted_input"]
             continue
-        arg_idents = [tok for tok in _IDENT_RE.findall(arg_expr) if tok not in _KEYWORDS]
+        arg_idents = [tok for tok in _IDENT_RE.findall(val_expr) if tok not in _KEYWORDS]
         for tok in arg_idents:
             if tok in caller_tainted:
-                next_tainted[arg_idx] = caller_tainted[tok]
+                next_tainted[target_idx] = caller_tainted[tok]
                 break
     return next_tainted
+
+
+def _extract_call_args_multiline(lines: list[str], start_idx: int, initial_tail: str) -> list[str]:
+    """Extracts call argument strings across single- or multi-line function invocations."""
+    combined = initial_tail
+    depth = 1
+    in_quote: str | None = None
+
+    for ch in initial_tail:
+        if in_quote:
+            if ch == in_quote:
+                in_quote = None
+            continue
+        if ch in ('"', "'", "`"):
+            in_quote = ch
+        elif ch in ("(", "[", "{"):
+            depth += 1
+        elif ch in (")", "]", "}"):
+            depth -= 1
+            if depth == 0:
+                break
+
+    curr = start_idx + 1
+    while depth > 0 and curr < len(lines):
+        line = lines[curr].split("#", 1)[0]
+        for ch in line:
+            if in_quote:
+                if ch == in_quote:
+                    in_quote = None
+                continue
+            if ch in ('"', "'", "`"):
+                in_quote = ch
+            elif ch in ("(", "[", "{"):
+                depth += 1
+            elif ch in (")", "]", "}"):
+                depth -= 1
+                if depth == 0:
+                    break
+        combined += " " + line
+        curr += 1
+
+    return _split_top_level_args(combined)
 
 
 def verify_interprocedural_taint_flow(
@@ -387,7 +440,7 @@ def verify_interprocedural_taint_flow(
             tainted_params,
             contracts_map=caller_contracts,
         )
-        args = _split_top_level_args(call_arg_tail)
+        args = _extract_call_args_multiline(c_lines, call_line_idx, call_arg_tail)
         if not args:
             tainted_params = None
             continue
@@ -395,7 +448,20 @@ def verify_interprocedural_taint_flow(
         if _is_callee_sanitizer(callee, project_root, callee_name):
             return False, [], "sanitized_callee"
 
-        next_tainted_params = _resolve_next_tainted_params(args, sanitizers, caller_tainted)
+        callee_path = (project_root / str(callee.get("file_path", ""))).resolve()
+        callee_params: list[str] | None = None
+        if callee_path.is_file():
+            try:
+                cal_lines = callee_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                c_s_idx = max(0, int(callee["start_line"]) - 1)
+                callee_header = " ".join(cal_lines[c_s_idx : min(len(cal_lines), c_s_idx + 4)])
+                callee_params = _extract_params(callee_header)
+            except Exception:
+                callee_params = None
+
+        next_tainted_params = _resolve_next_tainted_params(
+            args, sanitizers, caller_tainted, callee_params
+        )
         if not next_tainted_params:
             return False, [], "untainted_call_arg"
         tainted_params = next_tainted_params

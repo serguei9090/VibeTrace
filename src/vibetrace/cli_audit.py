@@ -267,7 +267,9 @@ def _handle_security_bulk_approve(report: Any, project_root: Path, rationale: st
     return 0
 
 
-def _render_security_output(report: Any, is_sarif: bool, is_json: bool) -> None:
+def _render_security_output(
+    report: Any, is_sarif: bool, is_json: bool, is_summary: bool = False
+) -> None:
     """Renders security audit findings in SARIF, JSON, or Markdown format."""
     if is_sarif:
         from vibetrace.security.formatters import format_security_audit_sarif
@@ -276,7 +278,7 @@ def _render_security_output(report: Any, is_sarif: bool, is_json: bool) -> None:
     elif is_json:
         print(report.model_dump_json(indent=2))
     else:
-        print(safe_str(format_security_audit_md(report)))
+        print(safe_str(format_security_audit_md(report, summary_only=is_summary)))
 
 
 def _handle_security_ai_fix(db: Any, project_root: Path, file_filter: str | None) -> None:
@@ -298,6 +300,22 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
+
+    if getattr(args, "staged", False):
+        from vibetrace.security.git_secret_scanner import GitSecretScanner
+
+        staged_findings = GitSecretScanner.scan_staged(project_root)
+        if staged_findings:
+            print(
+                safe_str(
+                    f"❌ [SECURITY] Blocked: {len(staged_findings)} secret(s) in staged changes:"
+                )
+            )
+            for sf in staged_findings:
+                print(safe_str(f"   - {sf.file_path}:L{sf.start_line} [{sf.rule_id}]: {sf.title}"))
+            return 1
+        print(safe_str("✅ [SECURITY] No secrets detected in staged changes."))
+        return 0
 
     force_update = getattr(args, "update", False)
     try:
@@ -327,7 +345,8 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
 
     is_sarif = getattr(args, "sarif", False)
     is_json = getattr(args, "json", False)
-    _render_security_output(report, is_sarif, is_json)
+    is_summary = getattr(args, "summary", False)
+    _render_security_output(report, is_sarif, is_json, is_summary)
 
     if getattr(args, "fix", False):
         _handle_security_ai_fix(db, project_root, file_filter)

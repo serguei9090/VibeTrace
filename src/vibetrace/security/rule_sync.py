@@ -8,7 +8,7 @@ import re
 import time
 import tomllib
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +72,8 @@ class DeclarativeRule:
     languages: tuple[str, ...]
     compliant_snippet: str = ""
     negative_pattern: str = ""
+    patterns_not: tuple[str, ...] = field(default_factory=tuple)
+    pattern_inside: str = ""
 
 
 def compile_semgrep_pattern(semgrep_pat: str) -> str:
@@ -126,9 +128,13 @@ def parse_semgrep_yaml(yaml_text: str) -> list[dict[str, Any]]:
             continue
         if stripped.startswith("- ") and in_list_key:
             val = stripped[2:].strip().strip("'\"")
-            if val.startswith("pattern:"):
-                val = val.split(":", 1)[1].strip().strip("'\"")
-            current.setdefault(in_list_key, []).append(val)
+            if in_list_key == "patterns" and ":" in val:
+                k, v = val.split(":", 1)
+                current.setdefault(in_list_key, []).append({k.strip(): v.strip().strip("'\"")})
+            else:
+                if val.startswith("pattern:"):
+                    val = val.split(":", 1)[1].strip().strip("'\"")
+                current.setdefault(in_list_key, []).append(val)
             continue
         if ":" in stripped:
             k, v = stripped.split(":", 1)
@@ -430,6 +436,26 @@ BUILTIN_DECLARATIVE_RULES: list[DeclarativeRule] = [
 ]
 
 
+def _is_enclosed_by(lines: list[str], line_idx: int, pattern: str) -> bool:
+    """Checks if the line at line_idx (1-based) is enclosed by a scope matching pattern."""
+    if not pattern:
+        return True
+    curr_line = lines[line_idx - 1]
+    curr_indent = len(curr_line) - len(curr_line.lstrip())
+    for prev_idx in range(line_idx - 2, -1, -1):
+        prev = lines[prev_idx]
+        if not prev.strip():
+            continue
+        p_indent = len(prev) - len(prev.lstrip())
+        if p_indent < curr_indent:
+            if re.search(pattern, prev):
+                return True
+            curr_indent = p_indent
+            if curr_indent == 0:
+                break
+    return False
+
+
 class RuleCatalogManager:
     """Manages built-in, local (.vibetrace/rules/), and auto-synced SQLite rule catalogs."""
 
@@ -652,6 +678,9 @@ class RuleCatalogManager:
 
         # Extract regex pattern or compile Semgrep `pattern` / `pattern-either` / `pattern-regex`
         pat = str(data.get("pattern-regex", "")).strip()
+        patterns_not: list[str] = []
+        pattern_inside = ""
+
         if not pat:
             raw_pat = str(data.get("pattern", "")).strip()
             if raw_pat:
@@ -667,11 +696,36 @@ class RuleCatalogManager:
                         sub_pats.append(compile_semgrep_pattern(str(sp)))
                 if sub_pats:
                     pat = "(?:" + "|".join(sub_pats) + ")"
+            elif isinstance(data.get("patterns"), list):
+                for sub in data["patterns"]:
+                    if isinstance(sub, dict):
+                        if sub.get("pattern") and not pat:
+                            pat = compile_semgrep_pattern(str(sub["pattern"]))
+                        if sub.get("pattern-not"):
+                            patterns_not.append(compile_semgrep_pattern(str(sub["pattern-not"])))
+                        if sub.get("pattern-inside") and not pattern_inside:
+                            pattern_inside = compile_semgrep_pattern(str(sub["pattern-inside"]))
+                    elif isinstance(sub, str) and not pat:
+                        pat = compile_semgrep_pattern(sub)
         if not pat:
             return None
 
+        # Handle top-level pattern-not (list or string)
+        raw_not = data.get("pattern-not-regex") or data.get("pattern-not")
+        if isinstance(raw_not, list):
+            for item in raw_not:
+                if str(item).strip():
+                    patterns_not.append(compile_semgrep_pattern(str(item).strip()))
+        elif isinstance(raw_not, str) and raw_not.strip():
+            patterns_not.append(compile_semgrep_pattern(raw_not.strip()))
+
+        # Handle top-level pattern-inside
+        raw_inside = data.get("pattern-inside")
+        if isinstance(raw_inside, str) and raw_inside.strip() and not pattern_inside:
+            pattern_inside = compile_semgrep_pattern(raw_inside.strip())
+
         neg_pat = str(data.get("pattern-not-regex", "")).strip()
-        if not neg_pat and data.get("pattern-not"):
+        if not neg_pat and data.get("pattern-not") and isinstance(data["pattern-not"], str):
             neg_pat = compile_semgrep_pattern(str(data["pattern-not"]))
 
         # Map Semgrep ERROR/WARNING/INFO or CRITICAL/HIGH/MEDIUM/LOW
@@ -700,6 +754,8 @@ class RuleCatalogManager:
             languages=tuple(langs),
             compliant_snippet=str(data.get("compliant_snippet") or data.get("fix") or ""),
             negative_pattern=neg_pat,
+            patterns_not=tuple(patterns_not),
+            pattern_inside=pattern_inside,
         )
 
     @classmethod
@@ -715,7 +771,8 @@ class RuleCatalogManager:
             return []
         abs_path = (project_root / file_path).resolve()
         try:
-            lines = abs_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            file_text = abs_path.read_text(encoding="utf-8", errors="replace")
+            lines = file_text.splitlines()
         except OSError:
             return []
 
@@ -741,9 +798,15 @@ class RuleCatalogManager:
             ):
                 continue
             for rule in applicable:
+                if rule.pattern_inside and not _is_enclosed_by(
+                    lines, line_idx, rule.pattern_inside
+                ):
+                    continue
                 if not re.search(rule.pattern, line):
                     continue
                 if rule.negative_pattern and re.search(rule.negative_pattern, line):
+                    continue
+                if any(re.search(pn, line) for pn in rule.patterns_not):
                     continue
                 nosec = _NOSEC_RE.search(line)
                 if nosec and not (nosec.group(1) or nosec.group(2)):

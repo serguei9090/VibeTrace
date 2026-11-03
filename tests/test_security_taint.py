@@ -305,6 +305,44 @@ def test_semgrep_yaml_compiler_and_cwe_top25_rules(tmp_path) -> None:
     }.issubset(cwes)
 
 
+def test_semgrep_composite_patterns_not_and_inside(tmp_path) -> None:
+    """Verifies Semgrep composite patterns, list of pattern-not, and pattern-inside."""
+    from vibetrace.security.service import SecurityService
+
+    rules_dir = tmp_path / ".vibetrace" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    (rules_dir / "composite_semgrep.yaml").write_text(
+        "rules:\n"
+        "  - id: custom.semgrep.route-eval\n"
+        "    patterns:\n"
+        "      - pattern: eval($INPUT)\n"
+        '      - pattern-not: eval("safe_constant")\n'
+        "      - pattern-inside: def api_handler(...):\n"
+        "    message: Eval in api handler\n"
+        "    severity: ERROR\n"
+        "    languages: [python]\n"
+        "    cwe: CWE-95\n",
+        encoding="utf-8",
+    )
+
+    (tmp_path / "app.py").write_text(
+        "def helper():\n"
+        "    eval(untrusted)\n"
+        "def api_handler(user_input):\n"
+        '    eval("safe_constant")\n'
+        "    eval(user_input)\n",
+        encoding="utf-8",
+    )
+    db = IndexerDB(str(tmp_path / ".vibetrace" / "vibetrace.db"))
+    db.upsert_node(_node("v1", "api_handler", 3, 5))
+
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    custom_findings = [f for f in report.findings if f.rule_id == "custom.semgrep.route-eval"]
+    assert len(custom_findings) == 1
+    assert custom_findings[0].start_line == 5
+    assert custom_findings[0].non_compliant_snippet == "eval(user_input)"
+
+
 def test_language_aware_rule_filtering_and_initial_seed(tmp_path) -> None:
     """Verifies project-language detection filters rules to only languages in the repo."""
     from vibetrace.security.rule_sync import RuleCatalogManager
@@ -512,3 +550,48 @@ def test_hybrid_coverage_quality_gate(tmp_path) -> None:
     assert gate2.line_coverage_pct == 100.0
     assert gate2.effective_coverage_pct == 100.0
     assert gate2.passed
+
+
+def test_multi_hop_positional_and_keyword_taint_propagation(tmp_path) -> None:
+    """Verifies multi-hop taint propagation with keyword & multiline calls."""
+    from vibetrace.security.service import SecurityService
+
+    (tmp_path / "multi_hop.py").write_text(
+        "import subprocess\n"
+        "@app.post('/api/run')\n"
+        "def entrypoint(req_body: str):\n"
+        "    service_layer(\n"
+        "        timeout=60,\n"
+        "        cmd_input=req_body,\n"
+        "    )\n\n"
+        "def service_layer(timeout: int, cmd_input: str):\n"
+        "    run_worker(cmd_input)\n\n"
+        "def run_worker(final_cmd: str):\n"
+        "    subprocess.run(final_cmd, shell=True)\n",
+        encoding="utf-8",
+    )
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    db.upsert_node(
+        _node(
+            "e1", "entrypoint", 3, 7, file_path="multi_hop.py", decorators=["@app.post('/api/run')"]
+        )
+    )
+    db.upsert_node(_node("s1", "service_layer", 9, 10, file_path="multi_hop.py"))
+    db.upsert_node(_node("w1", "run_worker", 12, 13, file_path="multi_hop.py"))
+    db.upsert_edge(Edge(from_node_id="e1", to_node_id="s1", relation_type="calls"))
+    db.upsert_edge(Edge(from_node_id="s1", to_node_id="w1", relation_type="calls"))
+
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    findings = [f for f in report.findings if f.file_path == "multi_hop.py" and f.start_line == 13]
+    assert len(findings) == 1
+    finding = findings[0]
+
+    assert finding.category == FindingCategory.TAINT_REACHABILITY
+    assert finding.severity == Severity.CRITICAL
+    assert finding.metadata.get("taint_path") == ["entrypoint", "service_layer", "run_worker"]
+    taint_vars = finding.metadata.get("taint_vars", [])
+    assert "req_body" in taint_vars
+    assert "cmd_input" in taint_vars
+    assert "final_cmd" in taint_vars

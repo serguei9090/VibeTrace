@@ -559,3 +559,54 @@ def test_osv_deduplication_and_moderate_severity() -> None:
     assert finding.severity == Severity.MEDIUM
     assert finding.compliant_snippet == 'starlette >= "1.3.1"'
     assert finding.message == "Starlette: request.form() limits silently ignored"
+
+
+def test_security_audit_summary_output(tmp_path: Path):
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.security.formatters import format_security_audit_md
+    from vibetrace.security.service import SecurityService
+
+    (tmp_path / "unsafe.py").write_text(
+        "import subprocess\nsubprocess.run('rm -rf ' + user_input, shell=True)\n",
+        encoding="utf-8",
+    )
+    ctx = tmp_path / ".vibetrace"
+    ctx.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(ctx / "vibetrace.db"))
+    report = SecurityService.audit_project(
+        db, tmp_path, file_list=["unsafe.py"], check_dependencies=False
+    )
+
+    summary_md = format_security_audit_md(report, summary_only=True)
+    assert "### [SUMMARY] Executive Security Matrix" in summary_md
+    assert (
+        "| Severity | CWE / Rule | Unapproved | Approved | Taint Path | Impacted Files |"
+        in summary_md
+    )
+    assert "Next Step for AI Agent" in summary_md
+
+
+def test_expanded_modern_tokens_and_staged_scan(tmp_path: Path):
+    from vibetrace.security.git_secret_scanner import GitSecretScanner
+
+    mistral_tok = f"mistral-{'a' * 32}"
+    pplx_tok = f"pplx-{'0' * 48}"
+    co_tok = f"co-{'a' * 40}"
+    ts_tok = f"tskey-auth-{'k' * 25}"
+    pmak_tok = f"PMAK-{'a' * 24}-{'b' * 34}"
+
+    patch = (
+        "diff --git a/config.py b/config.py\n"
+        "--- a/config.py\n"
+        "+++ b/config.py\n"
+        "@@ -1,1 +1,6 @@\n"
+        f'+MISTRAL = "{mistral_tok}"\n'
+        f'+PERPLEXITY = "{pplx_tok}"\n'
+        f'+COHERE = "{co_tok}"\n'
+        f'+TAILSCALE = "{ts_tok}"\n'
+        f'+POSTMAN = "{pmak_tok}"\n'
+    )
+    findings = GitSecretScanner._scan_patch_text(patch, "staged", include_tests=False)
+    assert len(findings) == 5
+    rules = {f.rule_id for f in findings}
+    assert "git:leaked-api-token" in rules
