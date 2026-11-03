@@ -3,6 +3,9 @@
 Evaluates Sonar-compatible RSPEC quality rules across polyglot languages:
 - RSPEC-3776: Cognitive Complexity exceeds threshold
 - RSPEC-107: Method has too many parameters
+- RSPEC-134: Control flow statements nested too deeply
+- RSPEC-1066: Collapsible nested if statements
+- RSPEC-1192: Duplicated string literals
 - RSPEC-3358: Nested ternary operators should not be used
 - RSPEC-3626: Redundant jump / return statement
 """
@@ -10,6 +13,7 @@ Evaluates Sonar-compatible RSPEC quality rules across polyglot languages:
 from __future__ import annotations
 
 import hashlib
+from collections import defaultdict
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -39,6 +43,8 @@ _CONTROL_FLOW_TYPES = {
     "switch_statement",
     "case",
     "match_statement",
+    "match_expression",
+    "loop_expression",
     "catch_clause",
     "rescue",
     "except_clause",
@@ -61,6 +67,8 @@ _NESTING_INCREMENT_TYPES = {
     "switch_statement",
     "case",
     "match_statement",
+    "match_expression",
+    "loop_expression",
     "catch_clause",
     "rescue",
     "except_clause",
@@ -73,6 +81,27 @@ _FUNCTION_NODE_TYPES = {
     "method_definition",
     "method",
     "singleton_method",
+    "arrow_function",
+    "function_expression",
+    "function_item",
+}
+
+_STRING_NODE_TYPES = {
+    "string",
+    "string_literal",
+    "interpreted_string_literal",
+    "raw_string_literal",
+    "template_string",
+    "line_string_literal",
+}
+
+_IMPORT_NODE_TYPES = {
+    "import_statement",
+    "import_declaration",
+    "import_from_statement",
+    "use_declaration",
+    "include_statement",
+    "require_call",
 }
 
 
@@ -110,12 +139,54 @@ def analyze_treesitter_quality(
     complexity_threshold: int = 15,
     language_prefix: str = "php",
 ) -> tuple[list[FunctionComplexity], list[QualityFinding]]:
-    """Inspects a Tree-sitter parse tree for RSPEC-3776, S107, S3358, and S3626."""
+    """Inspects a Tree-sitter parse tree for RSPEC-3776, S107, S134, S1066, S1192, S3358, S3626."""
     complexities: list[FunctionComplexity] = []
     findings: list[QualityFinding] = []
+    literal_occurrences: dict[str, list[int]] = defaultdict(list)
 
-    def _walk(node: Node, in_ternary: bool = False) -> None:
+    def _walk(node: Node, in_ternary: bool = False, nesting_depth: int = 0) -> None:
+        current_nesting = nesting_depth
+        if node.type in _NESTING_INCREMENT_TYPES:
+            current_nesting = nesting_depth + 1
+            # 6. Deep Control Flow Nesting Check (RSPEC-134, max 3 allowed)
+            if current_nesting > 3:
+                n_start = node.start_point[0] + 1
+                n_end = node.end_point[0] + 1
+                n_snippet = "\n".join(source_lines[n_start - 1 : n_end])
+                n_hash = hashlib.sha256(n_snippet.strip().encode("utf-8")).hexdigest()
+                raw_id = f"{file_path}:{n_start}:{node.type}:{current_nesting}"
+                fid = f"QUAL-S134-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+                spec = QUALITY_RULES_CATALOG.get("S134")
+                findings.append(
+                    QualityFinding(
+                        id=fid,
+                        rule_id=f"{language_prefix}:S134",
+                        rspec_id="RSPEC-134",
+                        category=QualityCategory.MAINTAINABILITY,
+                        severity=QualitySeverity.MEDIUM,
+                        title=(
+                            f"Control flow statement is nested too deeply ({current_nesting} > 3)."
+                        ),
+                        message=(
+                            f"Reduce nesting level from {current_nesting} (maximum allowed is 3) "
+                            "by returning early or extracting inner blocks to separate functions."
+                        ),
+                        file_path=file_path.replace("\\", "/"),
+                        start_line=n_start,
+                        end_line=n_end,
+                        code_hash=n_hash,
+                        metric_value=float(current_nesting),
+                        metric_threshold=3.0,
+                        non_compliant_snippet=n_snippet[:200],
+                        compliant_snippet=spec.compliant_example if spec else None,
+                        remediation_guidance=spec.explanation if spec else None,
+                        status="UNAPPROVED",
+                    )
+                )
+
         if node.type in _FUNCTION_NODE_TYPES:
+            # Functions reset local control-flow nesting depth to 0
+            current_nesting = 0
             name = ""
             params: list[str] = []
             body_node: Node | None = None
@@ -322,10 +393,68 @@ def analyze_treesitter_quality(
                             )
                         )
 
+        # 7. Collect string literals for S1192
+        if node.type in _STRING_NODE_TYPES:
+            parent = node.parent
+            if not (parent and parent.type in _IMPORT_NODE_TYPES):
+                raw_bytes = node.text
+                if raw_bytes:
+                    raw_text = raw_bytes.decode("utf-8", errors="replace")
+                    clean = raw_text
+                    if len(clean) >= 2:
+                        if clean[0] in ('"', "'", "`") and clean[-1] == clean[0]:
+                            clean = clean[1:-1]
+                        elif clean.startswith(('r"', 'b"', 'f"')) and clean.endswith('"'):
+                            clean = clean[2:-1]
+                    if (
+                        len(clean) >= 8
+                        and not clean.startswith(("\\", "^", "@", "$"))
+                        and "\n" not in clean
+                    ):
+                        literal_occurrences[clean].append(node.start_point[0] + 1)
+
         # Traverse children
         child_is_ternary = in_ternary or (node.type == "conditional_expression")
         for child in node.children:
-            _walk(child, in_ternary=child_is_ternary)
+            _walk(child, in_ternary=child_is_ternary, nesting_depth=current_nesting)
 
     _walk(root_node)
+
+    # Emit Duplicated String Literals (RSPEC-1192, threshold >= 3)
+    spec_1192 = QUALITY_RULES_CATALOG.get("S1192")
+    for literal, lines in sorted(literal_occurrences.items(), key=lambda x: -len(x[1])):
+        count = len(lines)
+        if count < 3:
+            continue
+        first_line = lines[0]
+        escaped_literal = literal[:40] + ("..." if len(literal) > 40 else "")
+        hash_id = hashlib.sha256(f"{file_path}:{literal}".encode()).hexdigest()[:12]
+        line_preview = source_lines[first_line - 1] if 0 < first_line <= len(source_lines) else ""
+        findings.append(
+            QualityFinding(
+                id=f"QUAL-S1192-{hash_id}",
+                rule_id=f"{language_prefix}:S1192",
+                rspec_id="RSPEC-1192",
+                category=QualityCategory.CODE_SMELL,
+                severity=QualitySeverity.LOW,
+                title=(
+                    f"Define a constant instead of duplicating this literal "
+                    f"'{escaped_literal}' {count} times."
+                ),
+                message=(
+                    f"String literal '{escaped_literal}' is duplicated {count} times "
+                    f"at lines {', '.join(map(str, lines[:5]))}."
+                ),
+                file_path=file_path.replace("\\", "/"),
+                start_line=first_line,
+                end_line=first_line,
+                symbol_name=None,
+                code_hash=hashlib.sha256(f"{literal}:{count}".encode()).hexdigest(),
+                non_compliant_snippet=line_preview.strip() or f'"{escaped_literal}"',
+                compliant_snippet=f'const CONSTANT_NAME = "{escaped_literal}";',
+                remediation_guidance=spec_1192.explanation if spec_1192 else None,
+                status="UNAPPROVED",
+            )
+        )
+
     return complexities, findings

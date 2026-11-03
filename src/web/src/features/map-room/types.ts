@@ -265,3 +265,49 @@ export interface ProjectStatusUI {
   cross_repo_link_count: number;
   links?: CrossRepoLinkUI[];
 }
+
+export interface FunctionComplexityUI {
+  name: string;
+  start_line: number;
+  end_line: number;
+  cognitive_complexity: number;
+  cyclomatic_complexity: number;
+  code_hash: string;
+  snippet?: string | null;
+}
+
+export interface QualityFindingUI {
+  id: string;
+  rule_id: string;
+  rspec_id?: string | null;
+  category: "cognitive_complexity" | "maintainability" | "code_smell" | "clean_code" | string;
+  severity: "HIGH" | "MEDIUM" | "LOW" | "INFO" | string;
+  title: string;
+  message: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  symbol_name?: string | null;
+  code_hash: string;
+  metric_value?: number | null;
+  metric_threshold?: number | null;
+  non_compliant_snippet?: string | null;
+  compliant_snippet?: string | null;
+  remediation_guidance?: string | null;
+  status: "UNAPPROVED" | "APPROVED" | "MODIFIED_CODE" | string;
+  tag?: string | null;
+  rationale?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface QualityAuditReportUI {
+  total_functions_audited: number;
+  high_complexity_functions: number;
+  total_findings: number;
+  unapproved_count: number;
+  modified_count: number;
+  approved_count: number;
+  complexities: FunctionComplexityUI[];
+  findings: QualityFindingUI[];
+}

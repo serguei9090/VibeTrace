@@ -90,6 +90,22 @@ class SecurityRemediatePayload(BaseModel):
     file_path: str | None = None
 
 
+class QualityApprovePayload(BaseModel):
+    """Payload to record a quality exception in .vibetrace/quality.toml."""
+
+    finding_id: str
+    rule_id: str
+    file_path: str
+    code_hash: str
+    rationale: str = "Code quality review verified"
+    severity: str = "HIGH"
+    status: str = "APPROVED"
+    reviewed_by: str = "developer"
+    category: str = "cognitive_complexity"
+    symbol_name: str | None = None
+    tag: str | None = "intentional"
+
+
 # Global Managers
 class ConnectionManager:
     def __init__(self) -> None:
@@ -398,6 +414,47 @@ def remediate_security_finding_endpoint(payload: SecurityRemediatePayload):
         finding_id=payload.finding_id,
         file_filter=payload.file_path,
     )
+
+
+@app.get("/api/quality/audit")
+def get_quality_audit_endpoint(
+    file_path: str | None = Query(default=None),
+    threshold: int = Query(default=15),
+    include_tests: bool = Query(default=False),
+):
+    """Audits codebase for complexity and smells against .vibetrace/quality.toml."""
+    from vibetrace.quality.service import QualityService
+
+    report = QualityService.audit_project(
+        db=db,
+        project_root=Path(project_root),
+        file_filter=file_path,
+        complexity_threshold=threshold,
+        include_tests=include_tests,
+    )
+    return report.model_dump()
+
+
+@app.post("/api/quality/approve")
+def approve_quality_exception_endpoint(payload: QualityApprovePayload):
+    """Records an accepted quality exception into .vibetrace/quality.toml baseline."""
+    from vibetrace.quality.service import QualityService
+
+    QualityService.record_exception(
+        project_root=Path(project_root),
+        finding_id=payload.finding_id,
+        rule_id=payload.rule_id,
+        file_path=payload.file_path,
+        code_hash=payload.code_hash,
+        rationale=payload.rationale,
+        severity=payload.severity,
+        status=payload.status,
+        reviewed_by=payload.reviewed_by,
+        category=payload.category,
+        symbol_name=payload.symbol_name,
+        tag=payload.tag,
+    )
+    return {"status": "ok", "baseline_file": ".vibetrace/quality.toml"}
 
 
 @app.get("/call-tree")

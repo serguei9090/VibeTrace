@@ -446,10 +446,17 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
             include_tests=include_tests,
         )
         engines_run = [k for k, v in fix_res.get("engines", {}).items() if v.get("success")]
+        codemods = fix_res.get("codemods", {})
+        fixes_summary = []
+        if engines_run:
+            fixes_summary.append(f"linters ({', '.join(engines_run)})")
+        if codemods:
+            codemod_strs = [f"{k}: {v}" for k, v in codemods.items()]
+            fixes_summary.append(f"AST codemods ({', '.join(codemod_strs)})")
         print(
             safe_str(
                 f"[FIX] Automated safe fixes applied across {fix_res.get('total_files', 0)} "
-                f"file(s) via: {', '.join(engines_run) if engines_run else 'None'}."
+                f"file(s) via: {'; '.join(fixes_summary) if fixes_summary else 'None'}."
             )
         )
 

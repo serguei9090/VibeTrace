@@ -33,7 +33,7 @@ vibetrace --help
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
 | `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
 | `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --ci` |
-| `vibetrace audit quality` | `[--summary] [--file PATH] [--json] [--ci] [--fail-on SEV] [--approve]` | Polyglot code quality audit across 8 languages with Sonar RSPEC parity. Emits compact matrix or surgical JSON. | `vibetrace audit quality --summary` |
+| `vibetrace audit quality` | `[--summary] [--file PATH] [--json] [--sarif] [--fix] [--ci] [--fail-on SEV] [--approve]` | Polyglot code quality audit across 8 languages with Sonar RSPEC parity, safe `--fix` AST codemods, and SARIF export. | `vibetrace audit quality --summary` |
 | `vibetrace docs` | `catalog \| index \| search \| check \| sync-links` | Documentation RAG, live symbol bi-directional linking, and doc reference drift auditing. | `vibetrace docs check` |
 | `vibetrace slice` | `<symbol> [--file PATH]` | Surgical source line extraction (`start..end`) + outgoing callee contracts for LLM context savings. | `vibetrace slice IndexerDB.upsert_node` |
 | `vibetrace call-tree` | `<symbol> [--depth N]` | Top-down recursive call tree hierarchy with cycle detection and call lines. | `vibetrace call-tree hybrid_search --depth 3` |
@@ -63,6 +63,15 @@ uv run vibetrace audit quality --file <impacted_file> --json
 ```
 Emits structured JSON with exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.
 
+#### Automated Quality Fixing (`--fix`) & SARIF Export
+```bash
+# Apply automated safe fixes via Ruff, Biome, and surgical AST codemods (S7503 async def, S1066 mergeable ifs)
+vibetrace audit quality --fix
+
+# Export findings in OASIS SARIF 2.1.0 JSON format for GitHub Code Scanning and IDE viewers
+vibetrace audit quality --sarif > quality-results.sarif
+```
+
 #### Continuous Integration & Baseline Triage
 ```bash
 # CI/CD Quality Gate (fails build on unapproved or modified code smells)
@@ -71,6 +80,11 @@ vibetrace audit quality --ci --fail-on high
 # Approve benign or performance-critical exceptions into .vibetrace/quality.toml
 vibetrace audit quality --approve --tag intentional --rationale "Tight numerical processing loop"
 ```
+
+#### Map Room REST API Endpoints
+- `GET /api/quality/audit?file_path=<path>&threshold=15`: Returns full `QualityAuditReport` JSON with cognitive complexity matrices and findings.
+- `POST /api/quality/approve`: Accepts `QualityApprovePayload` to persist 1-click in-browser exception approvals into `.vibetrace/quality.toml`.
+
 
 ---
 

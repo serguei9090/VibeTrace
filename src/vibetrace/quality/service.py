@@ -49,6 +49,26 @@ from vibetrace.quality.smells import analyze_python_smells
 from vibetrace.security.regex_analyzer import analyze_regex_quality
 from vibetrace.taxonomy import CweTaxonomyManager
 
+_LANG_PREFIX_MAP: dict[str, str] = {
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".go": "go",
+    ".rs": "rust",
+    ".php": "php",
+    ".phtml": "php",
+    ".rb": "ruby",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".cs": "csharp",
+}
+
 
 def _audit_single_file(
     file_path: Path,
@@ -76,30 +96,11 @@ def _audit_single_file(
 
     if lower_suffix == ".css":
         findings = analyze_css_quality(file_path=rel_path, source_code=source_code)
-    elif lower_suffix in (
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".json",
-        ".jsonc",
-        ".go",
-        ".rs",
-        ".sh",
-        ".bash",
-        ".sql",
-    ):
-        # Delegated to specialized sub-engine adapters
-        findings = []
-    elif lower_suffix in (".yaml", ".yml"):
-        findings = analyze_k8s_quality(file_path=rel_path, source_code=source_code)
-    elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
-        findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
-    elif lower_suffix in (".php", ".phtml", ".rb"):
+    elif lower_suffix in _LANG_PREFIX_MAP:
         from vibetrace.indexer.parsers import ParserFactory
         from vibetrace.quality.treesitter_complexity import analyze_treesitter_quality
 
-        lang_prefix = "ruby" if lower_suffix == ".rb" else "php"
+        lang_prefix = _LANG_PREFIX_MAP[lower_suffix]
         parser = ParserFactory.get_parser(file_path.as_posix())
         if parser:
             try:
@@ -113,6 +114,19 @@ def _audit_single_file(
                 )
             except Exception:
                 comps, findings = [], []
+    elif lower_suffix in (
+        ".json",
+        ".jsonc",
+        ".sh",
+        ".bash",
+        ".sql",
+    ):
+        # Delegated to specialized sub-engine adapters
+        findings = []
+    elif lower_suffix in (".yaml", ".yml"):
+        findings = analyze_k8s_quality(file_path=rel_path, source_code=source_code)
+    elif lower_name == "dockerfile" or lower_name.startswith("dockerfile."):
+        findings = analyze_docker_quality(file_path=rel_path, source_code=source_code)
     else:
         file_comps, comp_findings = analyze_python_complexities(
             file_path=rel_path,
@@ -418,6 +432,16 @@ class QualityService:
         results: dict[str, Any] = {"engines": {}, "total_files": len(target_files)}
         py_files = [p for p in target_files if p.suffix.lower() == ".py"]
         if py_files:
+            from vibetrace.quality.codemods import QualityCodemodApplier
+
+            codemod_stats: dict[str, int] = {}
+            for pf in py_files:
+                file_stats = QualityCodemodApplier.fix_file(pf)
+                for rule_id, cnt in file_stats.items():
+                    codemod_stats[rule_id] = codemod_stats.get(rule_id, 0) + cnt
+            if codemod_stats:
+                results["codemods"] = codemod_stats
+
             ruff_engine = RuffAdapter()
             if ruff_engine.is_available(project_root):
                 results["engines"]["ruff"] = ruff_engine.fix_files(project_root, py_files)

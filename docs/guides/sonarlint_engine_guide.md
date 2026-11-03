@@ -89,11 +89,22 @@ To deliver Sonar-grade accuracy without requiring Java or Sonar jars, VibeTrace 
 - Call Graph query `get_uncalled_private_functions()` finds all nodes where `visibility = 'private'` and in-degree calls $= 0$.
 - Flags `php:S1144` or `python:S1144` with exact line number and symbol name.
 
-### 3. Syntax Smells (`S107`, `S1066`, `S3358`, `S3626`)
-- `php:S107`: Method parameter count $> 7$.
-- `php:S1066`: Merging consecutive `if` statements without `else`.
-- `php:S3358`: Disallowing nested ternary expressions.
-- `php:S3626`: Redundant `return` jumps at the end of void functions.
+### 3. Syntax Smells (`S107`, `S134`, `S1066`, `S1192`, `S3358`, `S3626`, `S7503`)
+- `*:S107`: Method parameter count $> 7$.
+- `*:S134`: Control flow statement nested too deeply ($> 3$ levels) — polyglot Tree-sitter AST detection across Python, TS/JS, Go, Rust, Java, C/C++, PHP, Ruby.
+- `*:S1066`: Merging consecutive `if` statements without `else` using logical `and`/`&&`.
+- `*:S1192`: String literals ($\ge 8$ chars) duplicated $\ge 3$ times — polyglot Tree-sitter and Python AST detection.
+- `*:S3358`: Disallowing nested ternary expressions.
+- `*:S3626`: Redundant `return` jumps at the end of void functions.
+- `python:S7503`: Converting `async def` without `await` to synchronous `def`.
+
+### 4. Automated Safe Fixing (`vibetrace audit quality --fix`)
+- Synthesizes surgical AST codemods (`S7503` async def to def, `S1066` nested if merging).
+- Automatically triggers ecosystem linters (`ruff check --fix`, `ruff format`, `biome check --write`, `sqlfluff --fix`).
+
+### 5. SARIF 2.1.0 & Map Room Web UI Integration
+- **SARIF Export**: `vibetrace audit quality --sarif` produces OASIS SARIF 2.1.0 JSON reports compatible with GitHub Code Scanning, SonarQube importers, and IDE SARIF extensions.
+- **Map Room Quality Card**: Real-time visualization in the Map Room drawer with Cognitive Complexity heatmaps (green $\le 15$, yellow $16-25$, red $> 25$), Executive Findings Matrix, and 1-click in-browser baseline approvals (`GET /api/quality/audit`, `POST /api/quality/approve`).
 
 ---
 
