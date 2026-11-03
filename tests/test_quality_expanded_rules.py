@@ -37,3 +37,28 @@ def test_quality_service_surfaces_regex_maintainability_smells(tmp_path: Path) -
     assert len(regex_smells) == 1
     assert "concise character class syntax '\\w'" in regex_smells[0].title
     assert regex_smells[0].category.value == "code_smell"
+
+
+def test_quality_service_surfaces_s2612_file_permissions(tmp_path: Path) -> None:
+    src_dir = tmp_path / "src"
+    src_dir.mkdir(parents=True)
+    sample_file = src_dir / "chmod_sample.py"
+    sample_file.write_text(
+        "import os\nfrom pathlib import Path\n"
+        "os.chmod('file.txt', 0o755)\n"
+        "Path('script.sh').chmod(0o600)\n",
+        encoding="utf-8",
+    )
+
+    report = QualityService.audit_project(
+        db=None,
+        project_root=tmp_path,
+        complexity_threshold=15,
+        include_tests=False,
+    )
+
+    perm_smells = [f for f in report.findings if f.rule_id == "python:S2612"]
+    assert len(perm_smells) == 1
+    assert perm_smells[0].start_line == 3
+    assert "0o755" in perm_smells[0].message
+    assert perm_smells[0].status == "UNAPPROVED"

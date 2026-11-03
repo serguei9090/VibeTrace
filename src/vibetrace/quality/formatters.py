@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from vibetrace.quality.models import QualityAuditReport
+from vibetrace.quality.models import QualityAuditReport, QualityFinding
 from vibetrace.quality.rules import QUALITY_RULES_CATALOG
 
 _SARIF_LEVEL = {
@@ -18,6 +18,57 @@ _SARIF_LEVEL = {
 
 def _sev_str(sev: Any) -> str:
     return str(getattr(sev, "value", sev))
+
+
+def _build_summary_matrix(findings: list[QualityFinding]) -> list[str]:
+    """Builds a high-signal markdown matrix table summarizing findings by rule & severity."""
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for f in findings:
+        sev = _sev_str(f.severity)
+        key = (f.rule_id, sev)
+        if key not in grouped:
+            grouped[key] = {
+                "rule_id": f.rule_id,
+                "rspec_id": f.rspec_id,
+                "severity": sev,
+                "unapproved": 0,
+                "approved": 0,
+                "files": set(),
+            }
+        if f.status == "UNAPPROVED":
+            grouped[key]["unapproved"] += 1
+        else:
+            grouped[key]["approved"] += 1
+        fname = f.file_path.split("/")[-1]
+        grouped[key]["files"].add(fname)
+
+    sev_rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "INFO": 3}
+    sorted_groups = sorted(
+        grouped.values(),
+        key=lambda g: (
+            -g["unapproved"],
+            sev_rank.get(g["severity"], 9),
+            -(g["unapproved"] + g["approved"]),
+        ),
+    )
+
+    lines = [
+        "### [SUMMARY] Executive Findings Matrix",
+        "",
+        "| Severity | Rule | Unapproved | Approved | Impacted Files |",
+        "|:---|:---|:---:|:---:|:---|",
+    ]
+    for g in sorted_groups:
+        file_samples = sorted(g["files"])[:3]
+        file_str = ", ".join(f"`{f}`" for f in file_samples)
+        if len(g["files"]) > 3:
+            file_str += f" *(+{len(g['files']) - 3} more)*"
+        lines.append(
+            f"| `{g['severity']}` | `{g['rule_id']}` ({g['rspec_id']}) | "
+            f"**{g['unapproved']}** | {g['approved']} | {file_str} |"
+        )
+    lines.append("")
+    return lines
 
 
 def format_quality_audit_md(report: QualityAuditReport) -> str:
@@ -47,7 +98,44 @@ def format_quality_audit_md(report: QualityAuditReport) -> str:
         lines.append("✨ No quality or complexity issues detected.")
         return "\n".join(lines)
 
-    for idx, f in enumerate(report.findings, 1):
+    # 1. Executive Summary Table
+    lines.extend(_build_summary_matrix(report.findings))
+
+    # 2. Prioritize Actionable Findings: UNAPPROVED HIGH -> MEDIUM -> MODIFIED -> LOW -> APPROVED
+    sev_rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "INFO": 3}
+
+    def _finding_priority(f: QualityFinding) -> tuple[int, int, str, int]:
+        is_unapp = f.status == "UNAPPROVED"
+        is_mod = f.status == "MODIFIED_CODE"
+        if is_unapp and str(getattr(f.severity, "value", f.severity)) == "HIGH":
+            cat_rank = 0
+        elif is_unapp and str(getattr(f.severity, "value", f.severity)) == "MEDIUM":
+            cat_rank = 1
+        elif is_mod:
+            cat_rank = 2
+        elif is_unapp:
+            cat_rank = 3
+        else:
+            cat_rank = 4
+        return (cat_rank, sev_rank.get(_sev_str(f.severity), 9), f.file_path, f.start_line)
+
+    sorted_findings = sorted(report.findings, key=_finding_priority)
+
+    # For large project reports (>50 findings), show all high/medium unapproved and cap tail
+    verbose_limit = 40 if len(sorted_findings) > 50 else len(sorted_findings)
+    displayed = 0
+    omitted = 0
+
+    for f in sorted_findings:
+        is_high_priority = f.status in ("UNAPPROVED", "MODIFIED_CODE") and _sev_str(f.severity) in (
+            "HIGH",
+            "MEDIUM",
+        )
+        if not is_high_priority and displayed >= verbose_limit:
+            omitted += 1
+            continue
+
+        displayed += 1
         sev_icon = f"[{_sev_str(f.severity)}]"
         st_badge = f"[{f.status}]"
         tax_badge = ""
@@ -62,7 +150,7 @@ def format_quality_audit_md(report: QualityAuditReport) -> str:
 
         lines.extend(
             [
-                f"### {idx}. {sev_icon} {f.rule_id} ({f.rspec_id}){tax_badge}: {f.title}",
+                f"### {displayed}. {sev_icon} {f.rule_id} ({f.rspec_id}){tax_badge}: {f.title}",
                 f"- **Location:** `{f.file_path}:L{f.start_line}-L{f.end_line}`",
                 f"- **Status:** {st_badge} (ID: `{f.id}`)",
                 f"- **Issue:** {f.message}",
@@ -100,6 +188,16 @@ def format_quality_audit_md(report: QualityAuditReport) -> str:
                     "",
                 ]
             )
+
+    if omitted > 0:
+        lines.extend(
+            [
+                f"> [INFO] *... and {omitted} more low-severity/approved findings omitted from "
+                "verbose detail list (see Executive Summary table above). "
+                "Use `--file <path>` to inspect individual file findings in detail.*",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 

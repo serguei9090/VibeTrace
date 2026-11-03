@@ -630,4 +630,21 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
             "is_valid = line.startswith('#') and 'nosonar' in line\n"
         ),
     ),
+    # 35. S2612: Setting loose POSIX file permissions is security-sensitive
+    "S2612": QualityRuleSpec(
+        rule_id="S2612",
+        rspec_id="RSPEC-2612",
+        category=QualityCategory.RELIABILITY,
+        severity=QualitySeverity.MEDIUM,
+        title="Make sure this permission is safe.",
+        explanation=(
+            "Granting broad write or execute permissions to group or others allows "
+            "untrusted users on the system to modify or execute sensitive files. "
+            "Assign the most restrictive permissions possible (e.g. 0o600, 0o700, 0o640)."
+        ),
+        aliases=["python:S2612", "chmod-permissions", "loose-file-permissions"],
+        non_compliant_example="os.chmod(path, 0o777)\npath.chmod(0o755)\n",
+        compliant_example="os.chmod(path, 0o700)\npath.chmod(0o600)\n",
+        cwe_ids=["CWE-732", "CWE-266"],
+    ),
 }

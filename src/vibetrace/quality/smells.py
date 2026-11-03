@@ -504,6 +504,75 @@ class PythonSmellsVisitor(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def _check_chmod_permissions(self, node: ast.Call) -> None:
+        """S2612 / RSPEC-2612: Setting loose POSIX file permissions."""
+        is_chmod = False
+        mode_arg: ast.expr | None = None
+
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "chmod":
+            is_chmod = True
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
+                if len(node.args) >= 2:
+                    mode_arg = node.args[1]
+            elif len(node.args) >= 1:
+                mode_arg = node.args[0]
+        elif isinstance(node.func, ast.Name) and node.func.id == "chmod":
+            is_chmod = True
+            if len(node.args) >= 2:
+                mode_arg = node.args[1]
+
+        if is_chmod and mode_arg is None:
+            for kw in node.keywords:
+                if kw.arg == "mode":
+                    mode_arg = kw.value
+                    break
+
+        if not is_chmod or mode_arg is None:
+            return
+
+        is_loose = False
+        mode_val: int | None = None
+        if isinstance(mode_arg, ast.Constant) and isinstance(mode_arg.value, int):
+            mode_val = mode_arg.value
+            if (mode_val & 0o007) != 0 or (mode_val & 0o022) != 0:
+                is_loose = True
+
+        if is_loose and mode_val is not None:
+            start_l = node.lineno
+            end_l = getattr(node, "end_lineno", node.lineno)
+            snippet = self._get_snippet(start_l, end_l)
+            code_hash = self._hash_snippet(snippet)
+            raw_id = f"{self.file_path}:{start_l}:S2612"
+            fid = f"QUAL-S2612-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+            spec_2612 = QUALITY_RULES_CATALOG.get("S2612")
+
+            self.findings.append(
+                QualityFinding(
+                    id=fid,
+                    rule_id="python:S2612",
+                    rspec_id="RSPEC-2612",
+                    category=QualityCategory.RELIABILITY,
+                    severity=QualitySeverity.MEDIUM,
+                    title="Make sure this permission is safe.",
+                    message=(
+                        f"Setting loose POSIX file permission {oct(mode_val)} grants broad access "
+                        "to group or others. Use restrictive permissions (0o600 or 0o700)."
+                    ),
+                    file_path=self.file_path,
+                    start_line=start_l,
+                    end_line=end_l,
+                    symbol_name=self._current_function,
+                    code_hash=code_hash,
+                    non_compliant_snippet=snippet,
+                    compliant_snippet=spec_2612.compliant_example if spec_2612 else None,
+                    remediation_guidance=spec_2612.explanation if spec_2612 else None,
+                )
+            )
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self._check_chmod_permissions(node)
+        self.generic_visit(node)
+
 
 def analyze_python_smells(
     file_path: str,
