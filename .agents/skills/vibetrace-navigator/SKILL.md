@@ -98,6 +98,32 @@ Before completing any coding task or committing, run the single unified Quality 
 - **REST API:** `GET /api/review?scope=changed&min_coverage=80`
 - **CLI:** `uv run vibetrace review` / `uv run vibetrace review --ci --strict --min-coverage 80`
 
+### 11. Sonar-Grade Code Quality & Cognitive Complexity Audit (`audit quality`)
+Audit code for Cognitive Complexity (RSPEC-3776), deeply nested control flow (RSPEC-134), mergeable conditionals (RSPEC-1066), identical function bodies (RSPEC-4144), string literal duplication (RSPEC-1192), POSIX file permissions (RSPEC-2612), and dead code (RSPEC-1144) using native AST visitors combined with polyglot linters (Ruff, Biome, Clippy, PHPStan, RuboCop, ShellCheck, SQLFluff):
+
+#### 🤖 AI Agent Token-Efficient 2-Step Remediation Workflow:
+To avoid context/terminal truncation on large repositories, follow this 2-step workflow:
+1. **Phase 1: Executive Overview (`--summary`)**:
+   ```bash
+   uv run vibetrace audit quality --summary
+   ```
+   *Returns a 20-line matrix table (<1 KB) summarizing unapproved and approved counts by rule across all languages, without dumping full text.*
+2. **Phase 2: Surgical Target Extraction (`--file <path> --json`)**:
+   ```bash
+   uv run vibetrace audit quality --file <target_file> --json
+   ```
+   *Returns compact, parseable JSON containing exact `start_line`, `end_line`, `non_compliant_snippet`, `compliant_snippet`, and `remediation_guidance` for that file.*
+3. **Automated Safe Fixes (`--fix`)**:
+   ```bash
+   uv run vibetrace audit quality --fix
+   ```
+   *Applies safe AST/linter transformations automatically (redundant parens, chained startswith tuples, import cleanup).*
+4. **Baseline Exceptions (`--approve`)**:
+   ```bash
+   uv run vibetrace audit quality --approve --tag legacy --rationale "Technical debt baseline verified"
+   ```
+   *Records unapproved findings into `.vibetrace/quality.toml`.*
+
 ---
 
 ## Standard 4-Step Surgical Workflow (`Docs -> Locate -> Trace/Impact -> Slice`)

@@ -478,8 +478,13 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
         )
         return 0
 
+    if getattr(args, "unapproved", False):
+        report.findings = [f for f in report.findings if f.status != "APPROVED"]
+        report.total_findings = len(report.findings)
+
     is_json = getattr(args, "json", False)
     is_sarif = getattr(args, "sarif", False)
+    is_summary = getattr(args, "summary", False)
     is_ci = getattr(args, "ci", False)
     is_strict = getattr(args, "strict", False)
     fail_on = getattr(args, "fail_on", "HIGH").upper()
@@ -491,7 +496,7 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
     elif is_json:
         print(report.model_dump_json(indent=2))
     else:
-        print(safe_str(format_quality_audit_md(report)))
+        print(safe_str(format_quality_audit_md(report, summary_only=is_summary)))
 
     if is_ci:
         return _evaluate_quality_ci_gate(report, fail_on, is_strict)

@@ -71,7 +71,7 @@ def _build_summary_matrix(findings: list[QualityFinding]) -> list[str]:
     return lines
 
 
-def format_quality_audit_md(report: QualityAuditReport) -> str:
+def format_quality_audit_md(report: QualityAuditReport, summary_only: bool = False) -> str:
     """Format quality audit report as clean Markdown with SonarQube-style guidance."""
     sym_desc = f"`{report.max_complexity_symbol}`" if report.max_complexity_symbol else "N/A"
     lines = [
@@ -100,6 +100,9 @@ def format_quality_audit_md(report: QualityAuditReport) -> str:
 
     # 1. Executive Summary Table
     lines.extend(_build_summary_matrix(report.findings))
+
+    if summary_only:
+        return "\n".join(lines)
 
     # 2. Prioritize Actionable Findings: UNAPPROVED HIGH -> MEDIUM -> MODIFIED -> LOW -> APPROVED
     sev_rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "INFO": 3}

@@ -997,6 +997,16 @@ examples:
         help="Emit JSON output for machine parsing",
     )
     p_quality.add_argument(
+        "--summary",
+        action="store_true",
+        help="Emit executive summary matrix only (token-efficient for AI agents)",
+    )
+    p_quality.add_argument(
+        "--unapproved",
+        action="store_true",
+        help="Filter output strictly to unapproved findings needing triage or fixing",
+    )
+    p_quality.add_argument(
         "--include-tests",
         action="store_true",
         help="Include test directories and test files in quality audit",
