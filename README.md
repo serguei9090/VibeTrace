@@ -58,6 +58,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
 - **🛡️ Security Audit (`vibetrace audit security`)**: Offline AST scanner (CWE-22/78/89/95/327/502/798) plus lockfile CVE lookup via Google OSV.dev (24h SQLite cache, silent offline fallback), SonarQube-style remediation guidance, call-graph taint reachability (injection sinks reachable from endpoints/CLI are escalated, with the source-to-sink path), hash-tripwire Git baseline (`.vibetrace/security.toml`), Map Room 🛡️ badges and 1-click triage.
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Native AST and ecosystem bridges across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL) achieving 1:1 SonarSource RSPEC parity. Features Tree-sitter Cognitive Complexity (`S3776`), Deep Nesting (`S134`), String Duplication (`S1192`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`). Uses a high-density Executive Findings Summary Matrix (`--summary`) and single-file machine-readable extraction (`--json`) to prevent AI agent context bloat (deprecating monolithic terminal dumps).
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
 - **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
@@ -74,15 +75,19 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 VibeTrace provides first-class multi-language AST extraction:
 
-| Language | Extensions | Support Level | Features |
-| :--- | :--- | :--- | :--- |
-| **Python** | `.py` | 🔥 Full | Classes, Functions, Imports, Wildcards, Decorators, Visibility, Type hints |
-| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | ES Imports, CommonJS `require()` destructuring, Dynamic `import()`, Interfaces, Classes, JSX elements |
-| **Go** | `.go` | ✅ Solid | Packages, Structs, Interfaces, Receivers, Constructor types, `var` specs |
-| **Rust** | `.rs` | ✅ Solid | Crates, `mod item;` submodules, `mod.rs` barrel resolution, Traits, Impls |
-| **Java** | `.java` | ✅ Solid | Packages, Classes, Interfaces, Method-local variable types, Call hierarchies |
-| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Solid | Functions, Classes, Structs, Preprocessor includes |
-| **C# / Ruby / PHP** | `.cs`, `.rb`, `.php` | 🛠️ Generic | Structural symbol extraction |
+| Language | Extensions | AST Indexing | Quality & Linter Bridges |
+| :--- | :--- | :---: | :--- |
+| **Python** | `.py` | 🔥 Full | Native AST + Ruff + Pyright + Tree-sitter Cognitive Complexity (`S3776`) |
+| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | Biome + `tsc` + Tree-sitter Cognitive Complexity (`S3776`) |
+| **Go** | `.go` | ✅ Solid | `golangci-lint` (revive, unused, staticcheck) + Tree-sitter (`S3776`) |
+| **Rust** | `.rs` | ✅ Solid | `cargo clippy` + Tree-sitter Cognitive Complexity (`S3776`) |
+| **PHP** | `.php` | ✅ Solid | `PHPStan` 2.x + `Pint` + Tree-sitter Cognitive Complexity (`S3776`) |
+| **Ruby** | `.rb` | ✅ Solid | `RuboCop` 1.x + Tree-sitter Cognitive Complexity (`S3776`) |
+| **Shell** | `.sh`, `.bash`, `.zsh` | ✅ Solid | `ShellCheck` 0.10.x |
+| **SQL** | `.sql` | ✅ Solid | `SQLFluff` 4.5.x |
+| **Java** | `.java` | ✅ Solid | Packages, Classes, Interfaces, Call hierarchies, Tree-sitter (`S3776`) |
+| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Solid | Functions, Classes, Structs, Preprocessor includes, Tree-sitter (`S3776`) |
+| **C#** | `.cs` | 🛠️ Generic | Structural symbol extraction + Tree-sitter (`S3776`) |
 
 ---
 
@@ -166,6 +171,16 @@ vibetrace audit security --fix
 # Export OASIS SARIF 2.1.0 for GitHub Code Scanning, or batch-approve with disposition tags
 vibetrace audit security --sarif
 vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
+
+# 6c. Code Quality & Maintainability Audit (Polyglot Sonar RSPEC Parity)
+# High-density summary matrix roadmap (<1 KB) to prevent terminal truncation
+vibetrace audit quality --summary
+# Surgical single-file JSON payload with line spans, code snippets, and compliant solutions
+vibetrace audit quality --file src/auth/service.py --json
+# CI/CD Quality Gate (fails on unapproved or modified code smells)
+vibetrace audit quality --ci --fail-on high
+# Interactive triage prompt or direct exception approval with audit rationale
+vibetrace audit quality --approve --tag intentional --rationale "Performance critical tight loop"
 
 # 7. Surgical Code Slicing (token-efficient)
 vibetrace slice "AuthService.login"

@@ -10,12 +10,13 @@ VibeTrace supports a tiered architecture for code quality:
 
 | Family | Sub-Engines | Execution Model | Auto-Fix Support | Dependencies |
 | :--- | :--- | :--- | :--- | :--- |
-| **Family 1 (Primary Native)** | Ruff, Biome, Clippy, PHPStan, Tree-Sitter AST | Subprocess CLI / In-Process Tree-Sitter AST | ✅ Native (`--fix` in Ruff, Biome, Pint) | Zero to minimal ecosystem tooling |
+| **Family 1 (Primary Native)** | Native AST + Tree-Sitter + Ruff, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff | Subprocess CLI / In-Process Tree-Sitter & Python AST | ✅ Native (`--fix` in Ruff, Biome, Pint, SQLFluff) | Zero to minimal ecosystem tooling |
 | **Family 2 (Optional Sidecar)** | SonarLint Headless Language Server (`sonarlint-ls.jar`) | Long-lived JSON-RPC stdio daemon on Java 21 | ❌ Read-only diagnostics | Java 21+ JRE & `sonarlint-ls.jar` |
 
 ### Why Family 1 Is the Default
-- **Instant Speed**: Tree-sitter analyzes PHP, Python, and TypeScript ASTs in $<10\text{ms}$ with zero cold-start delay.
-- **Auto-Fixing**: Native ecosystem linters (Ruff, Biome, Laravel Pint) can fix formatting, imports, and syntax smells automatically in-place.
+- **Instant Speed**: Tree-sitter and native AST inspect Python, TypeScript, Go, Rust, PHP, and Ruby in $<15\text{ms}$ with zero cold-start delay.
+- **SonarSource RSPEC Parity**: Native detection of Cognitive Complexity (`S3776`), Deep Nesting (`S134`), String Duplication (`S1192`), POSIX file permissions (`S2612`), and Async without Await (`S7503`).
+- **Auto-Fixing**: Native ecosystem linters (Ruff, Biome, Laravel Pint, SQLFluff) can fix formatting, imports, and syntax smells automatically in-place.
 - **Zero Binary Burden**: Developers don't need a 300MB Java runtime or Sonar jars to detect cognitive complexity, parameter bloat, or dead methods.
 
 ---

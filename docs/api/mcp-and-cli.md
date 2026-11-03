@@ -33,6 +33,7 @@ vibetrace --help
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
 | `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
 | `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --ci` |
+| `vibetrace audit quality` | `[--summary] [--file PATH] [--json] [--ci] [--fail-on SEV] [--approve]` | Polyglot code quality audit across 8 languages with Sonar RSPEC parity. Emits compact matrix or surgical JSON. | `vibetrace audit quality --summary` |
 | `vibetrace docs` | `catalog \| index \| search \| check \| sync-links` | Documentation RAG, live symbol bi-directional linking, and doc reference drift auditing. | `vibetrace docs check` |
 | `vibetrace slice` | `<symbol> [--file PATH]` | Surgical source line extraction (`start..end`) + outgoing callee contracts for LLM context savings. | `vibetrace slice IndexerDB.upsert_node` |
 | `vibetrace call-tree` | `<symbol> [--depth N]` | Top-down recursive call tree hierarchy with cycle detection and call lines. | `vibetrace call-tree hybrid_search --depth 3` |
@@ -45,6 +46,31 @@ vibetrace --help
 | `vibetrace serve` | `[--host HOST] [--port PORT]` | Launch the Map Room 2.0 visualizer and FastAPI + WebSocket daemon. | `vibetrace serve --port 8000` |
 | `vibetrace init` | `[--force] [--project]` | 1-click workspace onboarding (`.gitignore`, `.vibetrace/`, agent skill installation). | `vibetrace init` |
 | `vibetrace hooks` | `install \| remove \| status` | Configure Lefthook or native git post-commit and pre-commit automation. | `vibetrace hooks install` |
+
+### Code Quality & AI Agent Remediation Workflow (`vibetrace audit quality`)
+
+VibeTrace enforces the **Rank 1 Dynamic 2-Step "Target & Verify" Loop** to prevent terminal buffer truncation and AI agent context window overflow:
+
+#### Step 1: High-Density Executive Findings Matrix (< 1 KB)
+```bash
+uv run vibetrace audit quality --summary
+```
+Emits a compact Markdown table listing findings grouped by severity, Sonar RSPEC rule, unapproved count, and top impacted files.
+
+#### Step 2: Surgical Single-File JSON Extraction
+```bash
+uv run vibetrace audit quality --file <impacted_file> --json
+```
+Emits structured JSON with exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.
+
+#### Continuous Integration & Baseline Triage
+```bash
+# CI/CD Quality Gate (fails build on unapproved or modified code smells)
+vibetrace audit quality --ci --fail-on high
+
+# Approve benign or performance-critical exceptions into .vibetrace/quality.toml
+vibetrace audit quality --approve --tag intentional --rationale "Tight numerical processing loop"
+```
 
 ---
 
