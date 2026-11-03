@@ -505,6 +505,15 @@ def cmd_init(args: argparse.Namespace) -> int:
         mem_count = len(res.get("members", []))
         proj_msg = f"- **Federated Project**: '{res['project_name']}'"
         lines.append(f"{proj_msg} ({mem_count} member repos in .vibetrace-project.toml)")
+    if res.get("has_containers"):
+        if res.get("trivy_available"):
+            lines.append(
+                "- **Container & K8s Security**: Trivy active (OS container CVE scanning enabled)"
+            )
+        else:
+            lines.append(
+                "- **Container & K8s Security**: Native IaC (💡 install Trivy for deep OS CVEs)"
+            )
     if res["indexed"]:
         lines.append(
             f"- **Initial Index**: {res['node_count']} symbols, {res['edge_count']} relations"

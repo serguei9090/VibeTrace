@@ -45,6 +45,10 @@ Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency 
 - **Inline Auditable Suppression Tag:** `# nosec [no-alternative]: reason` (or `risk-accepted`, `false-positive`, `compensating-control`)
 - **CLI:**
   ```bash
+  uv run vibetrace audit security --summary              # <1 KB high-density findings matrix
+  uv run vibetrace audit security --file <path> --json   # Surgical single-file JSON for remediation
+  uv run vibetrace audit security --staged               # Pre-commit staged secret blocker
+  uv run vibetrace audit security --image myapp:latest   # Deep container OS CVE audit via Trivy
   uv run vibetrace audit security --skip-deps --ci
   uv run vibetrace audit security --fix
   uv run vibetrace audit security --sarif

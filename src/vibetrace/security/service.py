@@ -46,6 +46,8 @@ class SecurityService:
         include_tests: bool = False,
         git_commit_depth: int = 10,
         sarif_file: str | Path | None = None,
+        enable_trivy: bool = True,
+        image_tag: str | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
@@ -152,6 +154,15 @@ class SecurityService:
                 sarif_p = project_root / sarif_p
             sarif_findings = SarifIngestEngine.parse_sarif_file(sarif_p, project_root, db=db)
             findings.extend(sarif_findings)
+
+        # 3. Optional deep container OS and image scanning via Trivy
+        if enable_trivy and not file_filter:
+            from vibetrace.security.adapters.trivy import TrivyAdapter
+
+            if image_tag:
+                findings.extend(TrivyAdapter.scan_image(image_tag, project_root, db=db))
+            elif TrivyAdapter.has_container_configs(project_root) and TrivyAdapter.is_available():
+                findings.extend(TrivyAdapter.scan_filesystem(project_root, db=db))
 
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)

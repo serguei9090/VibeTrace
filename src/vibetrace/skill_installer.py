@@ -231,6 +231,16 @@ def initialize_workspace(
             hooks_installed = False
             hooks_message = str(e)
 
+    # 7b. Detect container & Kubernetes security tooling
+    try:
+        from vibetrace.security.adapters.trivy import TrivyAdapter
+
+        has_containers = TrivyAdapter.has_container_configs(root)
+        trivy_available = TrivyAdapter.is_available()
+    except Exception:
+        has_containers = False
+        trivy_available = False
+
     # 8. Run initial indexing if requested
     indexed_nodes = 0
     indexed_edges = 0
@@ -264,4 +274,6 @@ def initialize_workspace(
         "node_count": indexed_nodes,
         "edge_count": indexed_edges,
         "quality_rules_loaded": quality_rules_loaded,
+        "has_containers": has_containers,
+        "trivy_available": trivy_available,
     }

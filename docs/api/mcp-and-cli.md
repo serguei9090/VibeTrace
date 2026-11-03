@@ -33,7 +33,7 @@ vibetrace --help
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
 | `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
 | `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --summary` |
-| `vibetrace audit security` | `[--summary] [--file PATH] [--staged] [--json] [--sarif] [--ci] [--skip-deps] [--approve]` | Polyglot SAST, multi-hop taint reachability, modern secret detection, staged commit blocker, and baseline triage. | `vibetrace audit security --summary` |
+| `vibetrace audit security` | `[--summary] [--file PATH] [--staged] [--image TAG] [--skip-trivy] [--json] [--sarif] [--ci] [--skip-deps] [--approve]` | Polyglot SAST, taint reachability, secrets, container OS CVEs (Trivy), staged blocker, and baseline triage. | `vibetrace audit security --summary` |
 | `vibetrace audit quality` | `[--summary] [--file PATH] [--json] [--sarif] [--fix] [--ci] [--fail-on SEV] [--approve]` | Polyglot code quality audit across 8 languages with Sonar RSPEC parity, safe `--fix` AST codemods, and SARIF export. | `vibetrace audit quality --summary` |
 | `vibetrace docs` | `catalog \| index \| search \| check \| sync-links` | Documentation RAG, live symbol bi-directional linking, and doc reference drift auditing. | `vibetrace docs check` |
 | `vibetrace slice` | `<symbol> [--file PATH]` | Surgical source line extraction (`start..end`) + outgoing callee contracts for LLM context savings. | `vibetrace slice IndexerDB.upsert_node` |
@@ -113,6 +113,16 @@ Scans staged diffs (`git diff --cached`) for high-entropy secrets and modern AI/
 - **Multi-Hop Taint Propagation:** Traces user-controlled inputs across helper function call chains (`entrypoint -> service -> sink`), tracking both positional and keyword argument bindings and multiline call expressions.
 - **Advanced Semgrep Clauses:** Supports composite `patterns` with `pattern-not` (negative assertions to eliminate false positives) and `pattern-inside` (scope enclosure validation).
 - **SARIF 2.1.0 Export:** Integrates with GitHub Advanced Security and IDE code scanners via `--sarif`.
+
+#### Container & Deep OS Package CVE Auditing (Optional Trivy Bridge)
+- **Auto-Detection:** When container artifacts (`Dockerfile`, `docker-compose.yml`, `k8s/`) are present and `trivy` is installed on `$PATH`, `vibetrace audit security` automatically inspects base OS libraries (`glibc`, `openssl`, `libssl3`) and merges findings into the Executive Security Matrix.
+- **Image Scanning:**
+  ```bash
+  vibetrace audit security --image myapp:latest
+  ```
+  Audits built local or remote container image tags for OS vulnerabilities without requiring separate tools.
+- **Fast Local Bypass:** Pass `--skip-trivy` to execute an instant (< 1s) code-only audit without external binary execution.
+
 
 
 

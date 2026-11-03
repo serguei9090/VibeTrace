@@ -103,6 +103,7 @@ def format_security_audit_md(report: Any, summary_only: bool = False) -> str:
                 "> [TIP] **Next Step for AI Agent:**",
                 "> To inspect code lines and compliant solutions for an impacted file, run:",
                 "> `uv run vibetrace audit security --file <impacted_file> --json`",
+                "> Container image OS audit: `uv run vibetrace audit security --image <tag>`",
                 "",
             ]
         )

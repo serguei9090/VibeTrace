@@ -328,6 +328,8 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
     file_filter = getattr(args, "file", None)
     skip_deps = getattr(args, "skip_deps", False)
     force_update = getattr(args, "update", False)
+    skip_trivy = getattr(args, "skip_trivy", False)
+    image_tag = getattr(args, "image", None)
     report = SecurityService.audit_project(
         db,
         project_root,
@@ -336,6 +338,8 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         force_update_cves=force_update,
         analyze_taint=not getattr(args, "no_taint", False),
         include_tests=getattr(args, "include_tests", False),
+        enable_trivy=not skip_trivy,
+        image_tag=image_tag,
     )
 
     if getattr(args, "approve", False):

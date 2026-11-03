@@ -952,6 +952,16 @@ examples:
         choices=["no-alternative", "risk-accepted", "false-positive", "compensating-control"],
         help="Disposition tag saved when approving exceptions with --approve",
     )
+    p_security.add_argument(
+        "--image",
+        default=None,
+        help="Audit a built local or remote container image tag via Trivy (e.g. myapp:latest)",
+    )
+    p_security.add_argument(
+        "--skip-trivy",
+        action="store_true",
+        help="Skip external Trivy container and OS package scanning even if Trivy is installed",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     p_quality = p_audit_sub.add_parser(
