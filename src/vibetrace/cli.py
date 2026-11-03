@@ -917,6 +917,11 @@ examples:
         help="Output audit report in OASIS SARIF 2.1.0 JSON format for GitHub Code Scanning / IDEs",
     )
     p_security.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output for machine parsing",
+    )
+    p_security.add_argument(
         "--include-tests",
         action="store_true",
         help="Include test directories and test files in AST security scanning",
@@ -985,6 +990,11 @@ examples:
         "--sarif",
         action="store_true",
         help="Output audit report in OASIS SARIF 2.1.0 JSON format for GitHub Code Scanning / IDEs",
+    )
+    p_quality.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON output for machine parsing",
     )
     p_quality.add_argument(
         "--include-tests",
