@@ -102,6 +102,14 @@ def format_quality_audit_md(report: QualityAuditReport, summary_only: bool = Fal
     lines.extend(_build_summary_matrix(report.findings))
 
     if summary_only:
+        lines.extend(
+            [
+                "> [TIP] **Next Step for AI Agent:**",
+                "> To inspect code lines and compliant solutions for an impacted file, run:",
+                "> `uv run vibetrace audit quality --file <impacted_file> --json`",
+                "",
+            ]
+        )
         return "\n".join(lines)
 
     # 2. Prioritize Actionable Findings: UNAPPROVED HIGH -> MEDIUM -> MODIFIED -> LOW -> APPROVED
