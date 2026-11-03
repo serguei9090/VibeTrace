@@ -56,10 +56,9 @@ def test_rest_api_docs_endpoints(client: TestClient) -> None:
     assert resp_sync.status_code in (200, 400)
 
 
-@pytest.mark.asyncio
-async def test_mcp_explain_dependency() -> None:
+def test_mcp_explain_dependency() -> None:
     # Action 'why'
-    res = await vibetrace_explain_dependency(
+    res = vibetrace_explain_dependency(
         ExplainDependencyInput(
             package_name="fastapi", action="why", response_format=ResponseFormat.JSON
         )
@@ -68,21 +67,20 @@ async def test_mcp_explain_dependency() -> None:
     assert data["target"] == "fastapi"
 
     # Action 'conflicts'
-    res_conflicts = await vibetrace_explain_dependency(
+    res_conflicts = vibetrace_explain_dependency(
         ExplainDependencyInput(action="conflicts", response_format=ResponseFormat.JSON)
     )
     conflicts_data = json.loads(res_conflicts)
     assert "total_conflicts" in conflicts_data
 
     # Action 'tree'
-    res_tree = await vibetrace_explain_dependency(
+    res_tree = vibetrace_explain_dependency(
         ExplainDependencyInput(action="tree", max_depth=2, response_format=ResponseFormat.MARKDOWN)
     )
     assert "Transitive Dependency Tree" in res_tree
 
 
-@pytest.mark.asyncio
-async def test_mcp_refactor_method_candidates(tmp_path: Path) -> None:
+def test_mcp_refactor_method_candidates(tmp_path: Path) -> None:
     test_file = tmp_path / "sample.py"
     test_file.write_text(
         "def compute(x):\n"
@@ -94,7 +92,7 @@ async def test_mcp_refactor_method_candidates(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    res = await vibetrace_refactor_method(
+    res = vibetrace_refactor_method(
         RefactorMethodInput(
             file_path=str(test_file),
             symbol_name="compute",

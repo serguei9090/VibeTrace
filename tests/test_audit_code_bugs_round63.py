@@ -151,12 +151,12 @@ def test_rest_api_project_endpoints(tmp_path: Path):
         assert data_links[0]["contract_key"] == "POST /api/v1/checkout"
 
 
-async def test_mcp_project_tools(tmp_path: Path):
+def test_mcp_project_tools(tmp_path: Path):
     """Verify FastMCP project federation tools."""
     project_root = setup_federated_environment(tmp_path)
 
     # 1. Status tool
-    res_status = await vibetrace_project_status(
+    res_status = vibetrace_project_status(
         ProjectStatusInput(scope_path=str(project_root), response_format=ResponseFormat.MARKDOWN)
     )
     assert "Federated Project Workspace: `ApiSuite`" in res_status
@@ -164,7 +164,7 @@ async def test_mcp_project_tools(tmp_path: Path):
     assert "backend" in res_status
 
     # 2. Search tool
-    res_search = await vibetrace_project_search(
+    res_search = vibetrace_project_search(
         ProjectSearchInput(
             query="checkout",
             scope_path=str(project_root),
@@ -175,7 +175,7 @@ async def test_mcp_project_tools(tmp_path: Path):
     assert "[backend]" in res_search
 
     # 3. Guard tool
-    res_guard = await vibetrace_project_guard(
+    res_guard = vibetrace_project_guard(
         ProjectGuardInput(
             symbol="handle_checkout",
             scope_path=str(project_root),
@@ -187,7 +187,7 @@ async def test_mcp_project_tools(tmp_path: Path):
     assert "onPaymentSubmit" in res_guard
 
     # 4. Links tool
-    res_links = await vibetrace_project_links(
+    res_links = vibetrace_project_links(
         ProjectLinksInput(scope_path=str(project_root), response_format=ResponseFormat.JSON)
     )
     assert "POST /api/v1/checkout" in res_links

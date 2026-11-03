@@ -31,7 +31,7 @@ def _resolve_workspace(scope_path: str) -> ProjectWorkspace:
     return ProjectWorkspace.load(found)
 
 
-async def vibetrace_project_status(params: ProjectStatusInput) -> str:
+def vibetrace_project_status(params: ProjectStatusInput) -> str:
     """Inspect health, index status, and node counts of all member repositories in a project."""
     try:
         ws = _resolve_workspace(params.scope_path)
@@ -65,7 +65,7 @@ async def vibetrace_project_status(params: ProjectStatusInput) -> str:
         return f"Error resolving project status: {e}"
 
 
-async def vibetrace_project_search(params: ProjectSearchInput) -> str:
+def vibetrace_project_search(params: ProjectSearchInput) -> str:
     """Perform federated symbol and function search across one or all member repositories."""
     try:
         ws = _resolve_workspace(params.scope_path)
@@ -90,7 +90,7 @@ async def vibetrace_project_search(params: ProjectSearchInput) -> str:
         return f"Error executing project search: {e}"
 
 
-async def vibetrace_project_guard(params: ProjectGuardInput) -> str:
+def vibetrace_project_guard(params: ProjectGuardInput) -> str:
     """Analyze cross-repository caller blast radius before editing a shared symbol or contract."""
     try:
         ws = _resolve_workspace(params.scope_path)
@@ -123,7 +123,7 @@ async def vibetrace_project_guard(params: ProjectGuardInput) -> str:
         return f"Error running project caller guard: {e}"
 
 
-async def vibetrace_project_links(params: ProjectLinksInput) -> str:
+def vibetrace_project_links(params: ProjectLinksInput) -> str:
     """Discover cross-repository HTTP route connections and RPC service contracts."""
     try:
         ws = _resolve_workspace(params.scope_path)

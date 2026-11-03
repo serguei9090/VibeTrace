@@ -31,16 +31,20 @@ from vibetrace.services.refactor_service import RefactorService
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
+VIBETRACE_DIR = ".vibetrace"
+INDEX_DB_NAME = "index.db"
+INDEX_NOT_FOUND_MSG = "Error: VibeTrace index not found. Run index first."
+
 
 def _resolve_project_root(scope_path: str) -> Path:
     target = Path(scope_path).resolve() if scope_path else Path.cwd().resolve()
     for p in [target, *list(target.parents)]:
-        if (p / ".vibetrace").is_dir() or (p / "pyproject.toml").is_file():
+        if (p / VIBETRACE_DIR).is_dir() or (p / "pyproject.toml").is_file():
             return p
     return target
 
 
-async def vibetrace_explain_dependency(params: ExplainDependencyInput) -> str:
+def vibetrace_explain_dependency(params: ExplainDependencyInput) -> str:
     """Explain why a package is installed via causation chains, trees, or diamond conflicts."""
     try:
         root = _resolve_project_root(params.scope_path)
@@ -108,7 +112,7 @@ async def vibetrace_explain_dependency(params: ExplainDependencyInput) -> str:
         return f"Error analyzing transitive dependencies: {e}"
 
 
-async def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
+def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
     """Analyze AST variable lifetimes and execute surgical helper method extraction."""
     try:
         root = _resolve_project_root(params.scope_path)
@@ -177,13 +181,13 @@ async def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
         return f"Error executing AST refactoring: {e}"
 
 
-async def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
+def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
     """Build and apply dependency vulnerability upgrade plans or suppress unpatched CVEs."""
     try:
         root = _resolve_project_root(params.scope_path)
-        db_path = root / ".vibetrace" / "index.db"
+        db_path = root / VIBETRACE_DIR / INDEX_DB_NAME
         if not db_path.is_file():
-            return "Error: VibeTrace index not found. Run index first."
+            return INDEX_NOT_FOUND_MSG
         db = IndexerDB(db_path)
 
         report_sec = SecurityService.audit_project(
@@ -233,13 +237,13 @@ async def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
         return f"Error patching dependencies: {e}"
 
 
-async def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
+def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
     """Audit project documentation for dead codebase symbol references and sync live links."""
     try:
         root = _resolve_project_root(params.scope_path)
-        db_path = root / ".vibetrace" / "index.db"
+        db_path = root / VIBETRACE_DIR / INDEX_DB_NAME
         if not db_path.is_file():
-            return "Error: VibeTrace index not found. Run index first."
+            return INDEX_NOT_FOUND_MSG
         db = IndexerDB(db_path)
 
         synced_count = 0
@@ -272,13 +276,13 @@ async def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
         return f"Error checking documentation drift: {e}"
 
 
-async def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
+def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
     """360° symbol diagnostic: slice, callers with call lines, blast radius, specs, and tests."""
     try:
         root = _resolve_project_root(params.scope_path)
-        db_path = root / ".vibetrace" / "index.db"
+        db_path = root / VIBETRACE_DIR / INDEX_DB_NAME
         if not db_path.is_file():
-            return "Error: VibeTrace index not found. Run index first."
+            return INDEX_NOT_FOUND_MSG
         db = IndexerDB(db_path)
 
         report = DiagnoseService.diagnose_symbol(

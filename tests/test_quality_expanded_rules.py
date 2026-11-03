@@ -62,3 +62,33 @@ def test_quality_service_surfaces_s2612_file_permissions(tmp_path: Path) -> None
     assert perm_smells[0].start_line == 3
     assert "0o755" in perm_smells[0].message
     assert perm_smells[0].status == "UNAPPROVED"
+
+
+def test_quality_service_surfaces_s7503_async_without_await(tmp_path: Path) -> None:
+    src_dir = tmp_path / "src"
+    src_dir.mkdir(parents=True)
+    sample_file = src_dir / "async_sample.py"
+    sample_file.write_text(
+        "import asyncio\n\n"
+        "async def bad_sync_fn(x: int) -> int:\n"
+        "    return x * 2\n\n"
+        "async def good_async_fn(x: int) -> int:\n"
+        "    await asyncio.sleep(0.01)\n"
+        "    return x * 2\n\n"
+        "async def stub_protocol() -> None:\n"
+        "    ...\n",
+        encoding="utf-8",
+    )
+
+    report = QualityService.audit_project(
+        db=None,
+        project_root=tmp_path,
+        complexity_threshold=15,
+        include_tests=False,
+    )
+
+    async_smells = [f for f in report.findings if f.rule_id == "python:S7503"]
+    assert len(async_smells) == 1
+    assert async_smells[0].symbol_name == "bad_sync_fn"
+    assert async_smells[0].start_line == 3
+    assert "Use asynchronous features in this function" in async_smells[0].title

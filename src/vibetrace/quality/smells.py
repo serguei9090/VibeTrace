@@ -193,7 +193,100 @@ class PythonSmellsVisitor(ast.NodeVisitor):
         self.generic_visit(node)
         self._current_function = old_func
 
+    @staticmethod
+    def _is_stub_or_abstract(node: ast.AsyncFunctionDef) -> bool:
+        """Check if async function is a stub, abstract method, or interface protocol."""
+        for dec in node.decorator_list:
+            dec_id = getattr(dec, "id", "") or getattr(getattr(dec, "value", None), "id", "")
+            if dec_id in ("abstractmethod", "override"):
+                return True
+
+        stmts = node.body
+        if (
+            stmts
+            and isinstance(stmts[0], ast.Expr)
+            and isinstance(stmts[0].value, ast.Constant)
+            and isinstance(stmts[0].value.value, str)
+        ):
+            stmts = stmts[1:]
+
+        if not stmts:
+            return True
+
+        if len(stmts) == 1:
+            s = stmts[0]
+            if isinstance(s, ast.Pass):
+                return True
+            if (
+                isinstance(s, ast.Expr)
+                and isinstance(s.value, ast.Constant)
+                and s.value.value is Ellipsis
+            ):
+                return True
+            if isinstance(s, ast.Raise):
+                exc = s.exc
+                if (
+                    isinstance(exc, ast.Call)
+                    and getattr(exc.func, "id", "") == "NotImplementedError"
+                ):
+                    return True
+                if getattr(exc, "id", "") == "NotImplementedError":
+                    return True
+
+        return False
+
+    def _check_async_without_await(self, node: ast.AsyncFunctionDef) -> None:
+        """S7503 / RSPEC-7503: Functions declared async should use asynchronous features."""
+        if self._is_stub_or_abstract(node):
+            return
+
+        has_async = False
+        stack: list[ast.AST] = list(node.body)
+        while stack:
+            curr = stack.pop()
+            if isinstance(curr, (ast.Await, ast.AsyncFor, ast.AsyncWith)):
+                has_async = True
+                break
+            if isinstance(curr, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            for child in ast.iter_child_nodes(curr):
+                stack.append(child)
+
+        if not has_async:
+            raw_id = f"{self.file_path}:{node.name}:{node.lineno}:S7503"
+            fid = f"QUAL-S7503-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+            spec_7503 = QUALITY_RULES_CATALOG.get("S7503")
+            snippet = self._get_snippet(node.lineno, getattr(node, "end_lineno", node.lineno))
+            code_hash = self._hash_snippet(snippet)
+            self.findings.append(
+                QualityFinding(
+                    id=fid,
+                    rule_id="python:S7503",
+                    rspec_id="RSPEC-7503",
+                    cwe_id="CWE-1088",
+                    cwe_ids=["CWE-1088"],
+                    category=QualityCategory.CODE_SMELL,
+                    severity=QualitySeverity.MEDIUM,
+                    title=(
+                        "Use asynchronous features in this function or remove the `async` keyword."
+                    ),
+                    message=(
+                        f"Function '{node.name}' is declared 'async' but contains no "
+                        "'await', 'async with', or 'async for' expressions."
+                    ),
+                    file_path=self.file_path,
+                    start_line=node.lineno,
+                    end_line=getattr(node, "end_lineno", node.lineno),
+                    symbol_name=node.name,
+                    code_hash=code_hash,
+                    non_compliant_snippet=snippet[:200],
+                    compliant_snippet=spec_7503.compliant_example if spec_7503 else None,
+                    remediation_guidance=spec_7503.explanation if spec_7503 else None,
+                )
+            )
+
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._check_async_without_await(node)
         self.visit_FunctionDef(node)  # type: ignore[arg-type]
 
     def _check_identical_methods(self, statements: list[ast.stmt]) -> None:

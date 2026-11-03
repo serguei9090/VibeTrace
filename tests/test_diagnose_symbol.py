@@ -95,12 +95,11 @@ def test_diagnose_service_unknown_symbol(tmp_path: Path) -> None:
     assert "❌" in md
 
 
-@pytest.mark.asyncio
-async def test_mcp_diagnose_symbol(tmp_path: Path) -> None:
+def test_mcp_diagnose_symbol(tmp_path: Path) -> None:
     _create_sample_project(tmp_path)
 
     # 1. Markdown mode
-    md_res = await vibetrace_diagnose_symbol(
+    md_res = vibetrace_diagnose_symbol(
         DiagnoseSymbolInput(
             symbol_name="save_invoice",
             scope_path=str(tmp_path),
@@ -110,7 +109,7 @@ async def test_mcp_diagnose_symbol(tmp_path: Path) -> None:
     assert "# 🔬 360° Symbol Diagnosis: `save_invoice`" in md_res
 
     # 2. JSON mode
-    json_res = await vibetrace_diagnose_symbol(
+    json_res = vibetrace_diagnose_symbol(
         DiagnoseSymbolInput(
             symbol_name="save_invoice",
             scope_path=str(tmp_path),

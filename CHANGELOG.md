@@ -11,6 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.7] - 2026-11-02
+
+### Added
+- **Polyglot Code Quality Sub-Engine Integrations (`vibetrace audit quality`)**: Integrated ecosystem linters and AST analyzers across 8 languages with canonical SonarSource RSPEC parity:
+  - Python: Native AST + Ruff + Pyright
+  - JavaScript / TypeScript / CSS: Biome + incremental TypeScript compiler (`tsc`)
+  - Go: `golangci-lint` (revive, unused, staticcheck)
+  - Rust: `cargo clippy`
+  - PHP: `PHPStan` 2.x + `Pint`
+  - Ruby: `RuboCop` 1.x
+  - Shell: `ShellCheck` 0.10.x
+  - SQL: `SQLFluff` 4.5.x
+- **Executive Findings Summary Matrix & Agent Steering**: Added a high-density Markdown summary matrix table (`--summary`) providing an instant ~20-line (< 1 KB) breakdown of findings by rule, severity, unapproved count, and impacted files, complete with trailing next-step agent steering hints.
+- **POSIX File Permission Detector (`python:S2612` / CWE-732)**: Native AST visitor detecting loose octal permission bitmasks in `os.chmod` and `pathlib.Path.chmod` calls (e.g. `0o755`, `0o777`).
+- **Async Without Await Smell Detector (`python:S7503` / CWE-1088)**: Native AST check detecting functions declared `async def` that lack `await`, `async with`, or `async for` expressions, with automatic exclusions for protocol stubs and abstract methods.
+- **Machine-Readable Quality & Security Payloads (`--json`)**: Added structured JSON output (`--json`) to `vibetrace audit quality` and `vibetrace audit security` emitting exact file paths, 1-indexed line spans, non-compliant code snippets, compliant solutions, and remediation guidance.
+- **Sub-Millisecond Candidate Path Pruning**: Implemented early directory pruning in `collector.py` using in-place `os.walk` directory pruning to instantly bypass `.venv`, `node_modules`, `.git`, `.agent`, `.gemini`, `.vibetrace`, and cache directories during repository-root audits (<15 ms).
+- **Agent Skill Quality Workflow Documentation**: Added Section 11 to `.agents/skills/vibetrace-navigator/SKILL.md` codifying the token-efficient 2-step quality remediation workflow (`--summary` roadmap followed by surgical `--file <path> --json`).
+
+### Deprecated
+- **Deprecated Monolithic Full-Project Terminal Dumps**: Deprecated uncurated 500+ item raw terminal dumps in favor of the Rank 1 Dynamic 2-Step "Target & Verify" workflow (`--summary` roadmap followed by single-file `--json` extraction) to eliminate terminal truncation and agent context window blowups.
+- **Deprecated Blanket High-Complexity Baseline Approvals**: Deprecated rubber-stamping functions with high Cognitive Complexity (> 25) without explicit technical justification in `.vibetrace/quality.toml`.
+
+### Fixed
+- **SonarQube Clean Code Parity**:
+  - `treesitter_complexity.py`: Merged nested `if in_ternary:` condition (`python:S1066`).
+  - `db_retry.py`: Removed redundant subclass `sqlite3.OperationalError` from `(OperationalError, DatabaseError)` (`python:S5713`).
+  - `db_queries.py`: Simplified `[A-Za-z0-9_]+` regex character class to `\w+` (`python:S6353`).
+  - `tools_engineering.py` & `tools_project.py`: Converted FastMCP tools from `async def` to `def`, offloading CPU/I/O tasks to background worker threads, unblocking the event loop, and resolving `python:S7503` and `python:S1192` string literal duplications.
+  - `collector.py`: Decomposed complex inline ignore regex into 3 targeted patterns, reducing cyclomatic complexity from 33 to <20 (`python:S5843`).
+  - `complexity.py` & `literal_duplication.py`: Refactored duplicate visitor methods into single-line dispatchers (`python:S4144`).
+  - `literal_duplication.py`: Removed empty `if TYPE_CHECKING:` block (`python:S108`).
+  - `service.py`: Replaced nested ternary expression with clean `if/elif/else` dispatch (`python:S3358`).
+  - Chained `.startswith()` / `.endswith()` calls across 9 files: Consolidated using tuple arguments (`python:S8513`).
+- **Linter Engine Bypass**: Removed `if not ruff_engine.is_available` guard in `QualityService`, ensuring native AST smells always execute and deduplicate against linter results.
+
+---
+
 ## [0.1.6] - 2026-11-01
 
 ### Added

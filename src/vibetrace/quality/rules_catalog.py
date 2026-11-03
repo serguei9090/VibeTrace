@@ -647,4 +647,21 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
         compliant_example="os.chmod(path, 0o700)\npath.chmod(0o600)\n",
         cwe_ids=["CWE-732", "CWE-266"],
     ),
+    # 36. S7503: Functions declared async should use asynchronous features
+    "S7503": QualityRuleSpec(
+        rule_id="S7503",
+        rspec_id="RSPEC-7503",
+        category=QualityCategory.CODE_SMELL,
+        severity=QualitySeverity.MEDIUM,
+        title="Use asynchronous features in this function or remove the `async` keyword.",
+        explanation=(
+            "An 'async def' function without any 'await', 'async with', or 'async for' "
+            "expressions adds unnecessary coroutine overhead and may block the event loop "
+            "when executing synchronous code. Use standard 'def' or await an async call."
+        ),
+        aliases=["python:S7503", "ASYNC102", "async-without-await"],
+        non_compliant_example="async def process(data):\n    return transform(data)\n",
+        compliant_example="def process(data):\n    return transform(data)\n",
+        cwe_ids=["CWE-1088"],
+    ),
 }
