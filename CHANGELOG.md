@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `vibetrace audit security --summary` executive findings matrix and `--staged` pre-commit secret blocker.
+- Semgrep composite rule clauses (`pattern-not`, `pattern-inside`) and modern AI/SaaS token signatures (Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase).
+- Multi-hop inter-procedural taint propagation with keyword and multiline call arguments.
+- Optional auto-detected Trivy adapter, `--image <tag>` and `--skip-trivy` flags, and container detection in `vibetrace init`.
+
+### Changed
+- README and `docs/` updated with benefits, documentation map and manual vs AI usage guide.
+
 ---
 
 ## [0.1.7] - 2026-11-02

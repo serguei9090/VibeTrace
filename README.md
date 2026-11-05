@@ -57,8 +57,8 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🛡️ Security Audit (`vibetrace audit security`)**: Offline AST scanner (CWE-22/78/89/95/327/502/798) plus lockfile CVE lookup via Google OSV.dev (24h SQLite cache, silent offline fallback), SonarQube-style remediation guidance, call-graph taint reachability (injection sinks reachable from endpoints/CLI are escalated, with the source-to-sink path), hash-tripwire Git baseline (`.vibetrace/security.toml`), Map Room 🛡️ badges and 1-click triage.
-- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Native AST and ecosystem bridges across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL) achieving 1:1 SonarSource RSPEC parity. Features Tree-sitter Cognitive Complexity (`S3776`), Deep Nesting (`S134`), String Duplication (`S1192`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`). Uses a high-density Executive Findings Summary Matrix (`--summary`) and single-file machine-readable extraction (`--json`) to prevent AI agent context bloat (deprecating monolithic terminal dumps).
+- **🛡️ Security Audit (`vibetrace audit security`)**: Multi-language AST SAST (CWE-22/78/89/95/327/502/798), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), Semgrep YAML composite rule compiler (`pattern-not`, `pattern-inside`), multi-hop inter-procedural taint reachability (tracing user input across helper calls with keyword and multiline argument resolution), lockfile CVE lookup via Google OSV.dev across 7 lockfiles, optional deep container OS package CVE scanning via Trivy (`--image <tag>`), OASIS SARIF 2.1.0 export, and Git baselines (`.vibetrace/security.toml`).
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Native AST and ecosystem bridges across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL) achieving 1:1 SonarSource RSPEC parity. Features Tree-sitter Cognitive Complexity (`S3776`), Deep Nesting (`S134`), String Duplication (`S1192`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`). Uses a high-density Executive Findings Summary Matrix (`--summary`) and single-file machine-readable extraction (`--json`) to prevent AI agent context bloat, automated safe codemods (`--fix`), and SARIF export.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
 - **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
@@ -68,6 +68,41 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🎯 Dynamic Test Fixture Reachability**: Links `@pytest.mark.parametrize`, `@pytest.fixture`, and Jest/Vitest `test.each` parameters to underlying domain functions, preventing false alarms in coverage gates.
 - **🤖 Native Model Context Protocol (`vibetrace mcp`)**: Purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits and security findings surgically.
 - **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a 60 FPS Macro Clustered Package Graph (Option 1), live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
+
+---
+
+## 🎯 Benefits
+
+| Benefit | What you get |
+| :--- | :--- |
+| **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by 85–95% versus dumping files or terminal output. |
+| **Deterministic truth** | Exact call graph, taint paths and `:L<line>` call sites from Tree-sitter AST, not embedding guesses. |
+| **Zero-dependency security & quality** | SAST, secrets, Semgrep-style rules, Sonar RSPEC parity and OSV CVEs run offline. Trivy is optional and auto-detected for container OS CVEs. |
+| **Safe by default** | Pre-commit gates (`guard --staged`, `audit security --staged`) block breaking changes and leaked keys before they reach git. |
+| **One call per phase** | `bundle` (prepare), `diagnose` (investigate), `review` (verify) replace many round-trips. |
+
+---
+
+## 📖 Documentation & Usage Guide
+
+| Document | What it covers |
+| :--- | :--- |
+| [`docs/api/mcp-and-cli.md`](docs/api/mcp-and-cli.md) | Full CLI reference, all 29 MCP tools, and HTTP/WebSocket endpoints, with parameters |
+| [`docs/architecture/core_engines.md`](docs/architecture/core_engines.md) | How the taint, security, quality, dependency and refactor engines work |
+| [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) | Planned work |
+| [`docs/guides/sonarlint_engine_guide.md`](docs/guides/sonarlint_engine_guide.md) | Native vs optional SonarLint quality engines |
+| [`docs/guides/testing_and_coverage.md`](docs/guides/testing_and_coverage.md) | Test reachability and coverage gate |
+
+### Who uses what
+
+| Interface | Used by | Purpose |
+| :--- | :--- | :--- |
+| **CLI** (`vibetrace ...`) | Developers, CI | Manual runs, pre-commit hooks, CI gates (`--ci`), SARIF export |
+| **MCP tools** (`vibetrace mcp`) | AI agents | Same capabilities as typed tool calls, with token-bounded output |
+| **Agent skill** (`.agents/skills/vibetrace-navigator`) | AI agents | Installed by `vibetrace init`; teaches agents which command to run |
+| **REST/WebSocket** (`vibetrace serve`) | Map Room UI, integrations | Graph, audits, 1-click triage, live agent focus |
+
+**Recommended agent loop:** `bundle` → edit → `diagnose` if blocked → `audit security --summary` / `audit quality --summary` → `review --ci`.
 
 ---
 
@@ -159,10 +194,17 @@ vibetrace audit splits --approve
 # CI/CD gate with deterministic hash tripwires (exits 1 if unapproved or modified)
 vibetrace audit splits --ci --strict
 
-# 6b. Security Audit (AST + Def-Use Taint + Auto-Syncing Rule Catalog + OSV CVEs)
-vibetrace audit security
-# CI gate; --skip-deps stays fully offline, --update forces CVE + rule catalog refresh
-vibetrace audit security --ci --fail-on high --skip-deps
+# 6b. Security Audit (AST + Multi-Hop Taint + Secrets + Trivy Container CVEs)
+# High-density summary matrix roadmap (<1 KB) to prevent terminal bloat
+vibetrace audit security --summary
+# Git pre-commit staged secret blocker (detects OpenAI, Anthropic, Mistral, Postman, etc.)
+vibetrace audit security --staged
+# Surgical single-file JSON payload with line spans, code snippets, and compliant solutions
+vibetrace audit security --file src/api/routes.py --json
+# Container OS package CVE audit via Trivy (glibc, openssl, libssl3 in base images)
+vibetrace audit security --image myapp:latest
+# CI gate; --skip-deps stays fully offline, --skip-trivy bypasses container scans
+vibetrace audit security --ci --fail-on high --skip-deps --skip-trivy
 # Disable taint escalation; add custom sanitizers under [taint] sanitizers = ["fn"]
 # or configure rule auto-sync TTL under [sync] rules_ttl_days = 7 in .vibetrace/security.toml
 vibetrace audit security --no-taint
@@ -177,6 +219,10 @@ vibetrace audit security --approve --tag no-alternative --rationale "Verified sa
 vibetrace audit quality --summary
 # Surgical single-file JSON payload with line spans, code snippets, and compliant solutions
 vibetrace audit quality --file src/auth/service.py --json
+# Automated safe fixes via Ruff, Biome, and surgical Tree-sitter codemods
+vibetrace audit quality --fix
+# Export OASIS SARIF 2.1.0 for GitHub Code Scanning or IDE viewers
+vibetrace audit quality --sarif
 # CI/CD Quality Gate (fails on unapproved or modified code smells)
 vibetrace audit quality --ci --fail-on high
 # Interactive triage prompt or direct exception approval with audit rationale
@@ -247,7 +293,7 @@ The agent gains access to 29 surgical FastMCP code intelligence tools:
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
 - `vibetrace_diagnose_symbol` (Consolidated 360° symbol diagnosis: slice, callers, blast radius, specs, tests)
 - `vibetrace_check_caller_guard` (Pre-flight caller inspection and blast-radius advisory)
-- `vibetrace_audit_security` (Polyglot AST scanner, inter-procedural taint reachability, secrets & IaC)
+- `vibetrace_audit_security` (Polyglot AST scanner, multi-hop taint reachability, secrets, IaC, optional Trivy container CVEs)
 - `vibetrace_remediate_vulnerability` (Generate compliant code templates for security findings)
 - `vibetrace_approve_security_exception` (Record baseline exceptions in `.vibetrace/security.toml`)
 - `vibetrace_audit_splits` (Scan codebase for execution bifurcations and check status against baseline)

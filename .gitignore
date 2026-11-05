@@ -86,3 +86,8 @@ vibetrace_context/
 
 
 
+
+# VibeTrace Code Intelligence
+vibetrace.db
+vibetrace.db-wal
+vibetrace.db-shm

@@ -22,17 +22,21 @@ flowchart TD
     end
 
     subgraph IntelligenceEngines ["Deterministic Analysis Engines"]
-        E --> TAINT["Inter-Procedural Taint Engine"]
+        E --> TAINT["Inter-Procedural Taint & Secret Engine"]
         E --> SPLITS["Split Execution Guard (SHA-256)"]
         E & LINKS --> DIAG["360° Symbol Diagnosis Engine"]
         N & E --> REFACTOR["AST Variable Lifetime Refactor Engine"]
         DEPS --> WHY["Transitive Causation & Diamond Resolver"]
+        AST --> QUALITY["Polyglot Sonar RSPEC Quality Engine"]
+        AST --> TRIVY["Trivy Container & OS CVE Adapter"]
     end
 
     subgraph AgenticMeta ["Consolidated Agentic Meta-Endpoints"]
         TAINT & SPLITS & E --> REVIEW["vibetrace review (Unified Quality Gate)"]
         DIAG & LINKS --> BUNDLE["vibetrace bundle (One-Shot Preparation)"]
         DIAG --> DIAGNOSE["vibetrace diagnose (360° Deep Investigation)"]
+        QUALITY --> AUDIT_Q["vibetrace audit quality (Summary Matrix + Fix)"]
+        TRIVY & TAINT --> AUDIT_S["vibetrace audit security (Summary Matrix + Staged)"]
     end
 ```
 
@@ -67,6 +71,23 @@ The VibeTrace Taint Engine executes in three phases:
 4. **Dynamic Severity Escalation:**
    - If a sink is **unreachable** from any entry point: Marked `LOW` or `MEDIUM` (dormant / internal utility).
    - If a sink has a **valid, unbroken execution path** from an external entry point: Dynamically escalated to `HIGH` or `CRITICAL`, accompanied by the full hop-by-hop tracepath with exact line numbers (`entrypoint:L12 -> route:L45 -> sink:L88`).
+
+---
+
+## 1b. 🛡️ Polyglot Security, Secrets & Optional Trivy Container Bridge
+
+In addition to AST injection taint reachability, VibeTrace enforces a multi-tier security audit engine:
+
+1. **Shannon Entropy & Modern API Token Scanner (`git_secret_scanner.py`):**
+   - Real-time scanning for uncommitted API tokens (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase, GitHub, AWS).
+   - Pre-commit staged blocker (`vibetrace audit security --staged`) that stops commits before secrets hit git history.
+2. **Semgrep-Compatible Declarative Catalog Compiler (`rule_sync.py`):**
+   - Native parsing and execution of Semgrep YAML rules directly against Tree-sitter AST, supporting `pattern`, `pattern-not` (negative assertions), and `pattern-inside` (scope enclosure).
+   - Syncs CWE Top 25 and OWASP rules with a 3-day local cache, with zero external Python/CLI dependencies required.
+3. **Optional Trivy Container & OS Package Adapter (`src/vibetrace/security/adapters/trivy.py`):**
+   - Seamlessly auto-detects `trivy` on `$PATH` whenever container artifacts (`Dockerfile`, `docker-compose.yml`, `k8s/`) are present.
+   - Scans compiled C/C++ libraries in base images (`glibc`, `openssl`, `libssl3`) via `trivy fs --format sarif` or explicit image scans `vibetrace audit security --image <tag>`.
+   - Merges container findings into VibeTrace's universal Executive Findings Matrix and `.vibetrace/security.toml` baseline triage.
 
 ---
 
@@ -141,6 +162,21 @@ $$\text{Outputs} = \text{ModifiedInBlock}(B) \cap \text{ReadDownstream}(B)$$
      ```
 
 ---
+
+## 3b. 🏆 Polyglot Code Quality & Sonar RSPEC Parity Engine
+
+To combat cognitive degradation and code smells without requiring a monolithic SonarQube server, VibeTrace implements a dual-tier quality architecture:
+
+1. **Native Tree-sitter AST Rules:**
+   - Evaluates Cognitive Complexity (`RSPEC-3776`), Deep Nesting (`RSPEC-134`), String Duplication (`RSPEC-1192`), and Async Without Await (`RSPEC-7503`) in $<15\text{ms}$.
+   - Runs identically across Python, JavaScript, TypeScript, Go, and Rust.
+2. **Two-Step "Target & Verify" Remediation Workflow:**
+   - **Step 1: Executive Findings Matrix (`--summary`):** Emits a `< 1 KB` high-density matrix summarizing findings by severity, rule ID, unapproved counts, and top impacted files. Completely eliminates terminal truncation and AI context window overflow.
+   - **Step 2: Surgical JSON Extraction (`--file <path> --json`):** Emits machine-readable JSON containing exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.
+3. **Automated Safe Codemods (`--fix`):**
+   - Integrates ecosystem linters (Ruff, Biome, Pint, SQLFluff) and native AST codemods to automatically fix deterministic smells in-place.
+4. **OASIS SARIF 2.1.0 Export (`--sarif`):**
+   - Directly uploads quality and security findings into GitHub Pull Request review checks and IDEs without third-party plugins.
 
 ## 4. 🔗 Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking
 
