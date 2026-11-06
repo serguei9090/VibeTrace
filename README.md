@@ -57,8 +57,8 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🛡️ Security Audit (`vibetrace audit security`)**: Multi-language AST SAST (CWE-22/78/89/95/327/502/798), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), Semgrep YAML composite rule compiler (`pattern-not`, `pattern-inside`), multi-hop inter-procedural taint reachability (tracing user input across helper calls with keyword and multiline argument resolution), lockfile CVE lookup via Google OSV.dev across 7 lockfiles, optional deep container OS package CVE scanning via Trivy (`--image <tag>`), OASIS SARIF 2.1.0 export, and Git baselines (`.vibetrace/security.toml`).
-- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Native AST and ecosystem bridges across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL) achieving 1:1 SonarSource RSPEC parity. Features Tree-sitter Cognitive Complexity (`S3776`), Deep Nesting (`S134`), String Duplication (`S1192`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`). Uses a high-density Executive Findings Summary Matrix (`--summary`) and single-file machine-readable extraction (`--json`) to prevent AI agent context bloat, automated safe codemods (`--fix`), and SARIF export.
+- **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif`, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) a fast, zero-config native Tree-sitter AST engine computing RSPEC-inspired maintainability metrics — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`) — paired with (2) optional adapters for installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff). Emits a high-density Executive Findings Summary Matrix (`--summary`) and single-file JSON (`--json`) to avoid context bloat, plus safe codemods (`--fix`) and SARIF export.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
 - **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
@@ -77,7 +77,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 | :--- | :--- |
 | **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by 85–95% versus dumping files or terminal output. |
 | **Deterministic truth** | Exact call graph, taint paths and `:L<line>` call sites from Tree-sitter AST, not embedding guesses. |
-| **Zero-dependency security & quality** | SAST, secrets, Semgrep-style rules, Sonar RSPEC parity and OSV CVEs run offline. Trivy is optional and auto-detected for container OS CVEs. |
+| **Zero-config baseline + optional pro adapters** | Built-in Tree-sitter AST security, secrets, RSPEC-inspired complexity metrics, and OSV CVEs work out of the box; optional adapters automatically bridge Semgrep CLI, Trivy, Ruff, Pyright, Biome, Clippy, and GolangCI-Lint when installed. |
 | **Safe by default** | Pre-commit gates (`guard --staged`, `audit security --staged`) block breaking changes and leaked keys before they reach git. |
 | **One call per phase** | `bundle` (prepare), `diagnose` (investigate), `review` (verify) replace many round-trips. |
 
@@ -203,8 +203,8 @@ vibetrace audit security --staged
 vibetrace audit security --file src/api/routes.py --json
 # Container OS package CVE audit via Trivy (glibc, openssl, libssl3 in base images)
 vibetrace audit security --image myapp:latest
-# CI gate; --skip-deps stays fully offline, --skip-trivy bypasses container scans
-vibetrace audit security --ci --fail-on high --skip-deps --skip-trivy
+# CI gate; --skip-deps stays fully offline, --skip-trivy / --skip-semgrep bypass external scanners
+vibetrace audit security --ci --fail-on high --skip-deps --skip-trivy --skip-semgrep
 # Disable taint escalation; add custom sanitizers under [taint] sanitizers = ["fn"]
 # or configure rule auto-sync TTL under [sync] rules_ttl_days = 7 in .vibetrace/security.toml
 vibetrace audit security --no-taint
@@ -214,7 +214,7 @@ vibetrace audit security --fix
 vibetrace audit security --sarif
 vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
 
-# 6c. Code Quality & Maintainability Audit (Polyglot Sonar RSPEC Parity)
+# 6c. Code Quality & Maintainability Audit (Native Tree-sitter Metrics + Linter Bridges)
 # High-density summary matrix roadmap (<1 KB) to prevent terminal truncation
 vibetrace audit quality --summary
 # Surgical single-file JSON payload with line spans, code snippets, and compliant solutions

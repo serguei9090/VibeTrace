@@ -10,6 +10,8 @@ import os
 import re
 from pathlib import Path
 
+import pathspec
+
 from vibetrace.quality.models import QualityFinding
 from vibetrace.quality.rules import resolve_canonical_rule_id
 
@@ -184,18 +186,44 @@ def resolve_candidate_paths(
     return _walk_candidate_paths(search_root)
 
 
-def is_path_allowed(path: Path, include_tests: bool) -> bool:
-    """Checks whether a resolved path is allowed for quality auditing."""
+def is_path_allowed(
+    path: Path,
+    include_tests: bool,
+    project_root: Path | None = None,
+    spec: pathspec.PathSpec | None = None,
+) -> bool:
+    """Checks whether a resolved path is allowed for quality or security auditing."""
     posix_path = path.as_posix()
     if any(seg in posix_path for seg in IGNORE_PATH_PARTS):
         return False
+    rel_posix = posix_path
+    if project_root is not None:
+        try:
+            rel_posix = path.resolve().relative_to(project_root.resolve()).as_posix()
+        except ValueError:
+            rel_posix = posix_path
+    if spec is not None and spec.match_file(rel_posix):
+        return False
     if not include_tests:
-        parts = posix_path.split("/")
-        if any(p in ("tests", "test", "e2e", "__tests__") for p in parts[:-1]):
+        parts = rel_posix.lower().split("/")
+        if any(p in ("tests", "test", "e2e", "__tests__", "fixtures") for p in parts[:-1]):
             return False
         fname = path.name.lower()
-        if fname.startswith("test_") or fname.endswith(
-            ("_test.py", "_test.go", ".spec.ts", ".test.ts", ".spec.tsx", ".test.tsx")
+        if (
+            fname.startswith("test_")
+            or fname == "conftest.py"
+            or fname.endswith(
+                (
+                    "_test.py",
+                    "_test.go",
+                    ".spec.ts",
+                    ".test.ts",
+                    ".spec.tsx",
+                    ".test.tsx",
+                    ".spec.js",
+                    ".test.js",
+                )
+            )
         ):
             return False
     return True
@@ -208,5 +236,23 @@ def collect_source_files(
     include_tests: bool = False,
 ) -> list[Path]:
     """Resolves and filters all target files for quality auditing."""
+    from vibetrace.config import load_config
+
+    cfg = load_config(project_root)
+    effective_include_tests = include_tests or cfg.quality.include_tests
+    patterns = list(cfg.indexer.exclude_patterns)
+    if not effective_include_tests:
+        patterns.extend(cfg.quality.exclude_patterns)
+    spec = pathspec.PathSpec.from_lines("gitignore", patterns) if patterns else None
+
     candidates = resolve_candidate_paths(project_root, file_filter, file_list)
-    return [p for p in candidates if is_path_allowed(p, include_tests)]
+    return [
+        p
+        for p in candidates
+        if is_path_allowed(
+            p,
+            effective_include_tests,
+            project_root=project_root if not file_filter else None,
+            spec=spec if not file_filter else None,
+        )
+    ]

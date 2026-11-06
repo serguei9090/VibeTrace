@@ -116,6 +116,8 @@ class IndexerDB(DBQueriesMixin):
                 edge_cols = {row["name"] for row in cursor.fetchall()}
                 if edge_cols and "call_line" not in edge_cols:
                     conn.execute("ALTER TABLE edges ADD COLUMN call_line INTEGER")
+                if edge_cols and "confidence" not in edge_cols:
+                    conn.execute("ALTER TABLE edges ADD COLUMN confidence TEXT DEFAULT 'exact'")
             except Exception:
                 pass
 
@@ -174,14 +176,20 @@ class IndexerDB(DBQueriesMixin):
     def upsert_edge(self, edge: Edge) -> None:
         """Insert an edge."""
         sql = (
-            "INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line) "
-            "VALUES (?, ?, ?, ?)"
+            "INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line, confidence) "
+            "VALUES (?, ?, ?, ?, ?)"
         )
         with self._get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 sql,
-                (edge.from_node_id, edge.to_node_id, edge.relation_type, edge.call_line),
+                (
+                    edge.from_node_id,
+                    edge.to_node_id,
+                    edge.relation_type,
+                    edge.call_line,
+                    getattr(edge, "confidence", "exact"),
+                ),
             )
             conn.commit()
 
@@ -193,6 +201,8 @@ class IndexerDB(DBQueriesMixin):
         nodes: list[Node],
         edges: list[Edge],
         indexed_time: int | None = None,
+        imported_symbols: dict[str, tuple[str, str]] | None = None,
+        target_symbols: dict[str, tuple[str, str]] | None = None,
     ) -> None:
         """Atomically clear old file data and persist new nodes, edges, FTS5, and hash."""
         file_path = _clean_path(file_path)
@@ -233,6 +243,7 @@ class IndexerDB(DBQueriesMixin):
                     e.to_node_id,
                     e.relation_type,
                     e.call_line,
+                    getattr(e, "confidence", "exact"),
                 )
                 for e in edges
             )
@@ -311,11 +322,47 @@ class IndexerDB(DBQueriesMixin):
             if edge_tuples:
                 conn.executemany(
                     """
-                    INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO edges (
+                        from_node_id, to_node_id, relation_type, call_line, confidence
+                    )
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     edge_tuples,
                 )
+
+            # 3b. Persist cross-file import mappings for transitive re-export & heuristic linking
+            conn.execute("DELETE FROM file_imports WHERE file_path = ?", (file_path,))
+            if imported_symbols:
+                import_tuples = [
+                    (file_path, alias, _clean_path(tgt_f), tgt_sym)
+                    for alias, (tgt_f, tgt_sym) in imported_symbols.items()
+                    if tgt_f and tgt_f != "external"
+                ]
+                if import_tuples:
+                    conn.executemany(
+                        """
+                        INSERT OR REPLACE INTO file_imports (
+                            file_path, local_alias, target_file, target_symbol
+                        ) VALUES (?, ?, ?, ?)
+                        """,
+                        import_tuples,
+                    )
+
+            if target_symbols:
+                target_tuples = [
+                    (tid, _clean_path(t_file), t_sym)
+                    for tid, (t_file, t_sym) in target_symbols.items()
+                    if t_file and t_sym
+                ]
+                if target_tuples:
+                    conn.executemany(
+                        """
+                        INSERT OR REPLACE INTO edge_targets (
+                            target_id, target_file, target_symbol
+                        ) VALUES (?, ?, ?)
+                        """,
+                        target_tuples,
+                    )
 
             # 4. Update file hash tracking
             conn.execute(
@@ -358,6 +405,7 @@ class IndexerDB(DBQueriesMixin):
                     self.vector_store.delete_file_embeddings(file_path)
                 except Exception:
                     pass
+            conn.execute("DELETE FROM file_imports WHERE file_path = ?", (file_path,))
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
 

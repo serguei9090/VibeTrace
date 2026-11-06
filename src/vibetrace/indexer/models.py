@@ -49,3 +49,4 @@ class Edge(BaseModel):
         "routes",
     ]
     call_line: int | None = None
+    confidence: Literal["exact", "inferred"] = "exact"

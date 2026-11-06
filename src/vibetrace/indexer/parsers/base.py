@@ -60,6 +60,8 @@ class ParserContext:
     deferred_fixture_links: list[tuple[str, Any, list[str]]] = field(default_factory=list)
     # Enterprise framework base route prefix (e.g. Spring @RequestMapping or C# [Route])
     current_class_prefix: str = ""
+    # Maps generated target node IDs -> bare called symbol/method name for 2-pass linker
+    unresolved_target_symbols: dict[str, str] = field(default_factory=dict)
 
 
 _LANGUAGE_FACTORIES: dict[str, Callable[[], Any]] = {
@@ -101,6 +103,8 @@ class LanguageParser(ABC):
         self.language: Language = get_language(language_name)
         self.parser: Parser = get_parser(language_name)
         self.resolver = resolver
+        self.last_imported_symbols: dict[str, tuple[str, str]] = {}
+        self.last_target_symbols: dict[str, tuple[str, str]] = {}
         self.builtins: set[str] = set()
         if language_name == "python":
             self.builtins = PYTHON_BUILTINS
@@ -172,9 +176,12 @@ class LanguageParser(ABC):
             return hashlib.md5(
                 f"module::{qualified_name}".encode(), usedforsecurity=False
             ).hexdigest()
-        return hashlib.md5(
+        nid = hashlib.md5(
             f"{file_path}::{qualified_name}".encode(), usedforsecurity=False
         ).hexdigest()
+        if hasattr(self, "last_target_symbols"):
+            self.last_target_symbols[nid] = (file_path, qualified_name)
+        return nid
 
     def _scoped_name(self, name: str, scope_stack: list[str] | None = None) -> str:
         """Build a dotted qualified name from the active scope stack."""
@@ -375,6 +382,7 @@ class LanguageParser(ABC):
         relation: Any = "defines",
         node: Node | None = None,
         call_line: int | None = None,
+        confidence: str = "exact",
     ) -> Edge:
         """Create an edge between two nodes, optionally recording the 1-indexed call line."""
         if call_line is not None:
@@ -383,7 +391,13 @@ class LanguageParser(ABC):
             line = node.start_point[0] + 1
         else:
             line = None
-        return Edge(from_node_id=from_id, to_node_id=to_id, relation_type=relation, call_line=line)
+        return Edge(
+            from_node_id=from_id,
+            to_node_id=to_id,
+            relation_type=relation,
+            call_line=line,
+            confidence=confidence,  # type: ignore[arg-type]
+        )
 
     def _add_node(
         self,

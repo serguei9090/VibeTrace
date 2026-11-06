@@ -17,28 +17,35 @@ from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 from vibetrace.security.rules import RULES_CATALOG
 
 DEFAULT_RULES_TTL_DAYS = 7
+PINNED_CATALOG_REF = "v0.1.8"
 DEFAULT_RULES_FEED_URL = (
-    "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/rules/security_catalog.json"
+    f"https://raw.githubusercontent.com/serguei9090/VibeTrace/{PINNED_CATALOG_REF}/"
+    "rules/security_catalog.json"
 )
-# Official public Semgrep Community Registry rule feeds mapped by language extension
+BUNDLED_SECURITY_CATALOG_PATH = Path(__file__).parent.parent / "resources" / "security_catalog.json"
+EXPECTED_FEED_SHA256: dict[str, str] = {
+    DEFAULT_RULES_FEED_URL: "7933de55c47db5534274e3bf62ac2ffec7146c273195a68cc8e466def27c35ae",
+}
+# Official public Semgrep Community Registry rule feeds pinned to immutable tag
+_SEMGREP_PINNED_REF = "v1.69.0"
 TRUSTED_COMMUNITY_YAML_FEEDS: dict[str, tuple[str, ...]] = {
     "py": (
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/python/lang/security/audit/dangerous-system-call.yaml",
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/python/lang/security/deserialization/pickle.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/python/lang/security/audit/dangerous-system-call.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/python/lang/security/deserialization/pickle.yaml",
     ),
     "js": (
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/detect-eval-with-expression.yaml",
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/audit/unsafe-dynamic-method.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/javascript/lang/security/detect-eval-with-expression.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/javascript/lang/security/audit/unsafe-dynamic-method.yaml",
     ),
     "ts": (
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/javascript/lang/security/detect-eval-with-expression.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/javascript/lang/security/detect-eval-with-expression.yaml",
     ),
     "go": (
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/go/lang/security/audit/crypto/math_random.yaml",
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/go/lang/security/audit/net/use-tls.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/go/lang/security/audit/crypto/math_random.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/go/lang/security/audit/net/use-tls.yaml",
     ),
     "rs": (
-        "https://raw.githubusercontent.com/semgrep/semgrep-rules/develop/rust/lang/security/unsafe-usage.yaml",
+        f"https://raw.githubusercontent.com/semgrep/semgrep-rules/{_SEMGREP_PINNED_REF}/rust/lang/security/unsafe-usage.yaml",
     ),
 }
 _NOSEC_RE = re.compile(
@@ -573,6 +580,18 @@ class RuleCatalogManager:
 
     @classmethod
     def _seed_builtin_cache(cls, db: IndexerDB, now: float, project_langs: set[str]) -> None:
+        bundled_items: list[dict[str, Any]] = []
+        if BUNDLED_SECURITY_CATALOG_PATH.is_file():
+            try:
+                raw_json = json.loads(
+                    BUNDLED_SECURITY_CATALOG_PATH.read_text(encoding="utf-8", errors="replace")
+                )
+                rules_list = raw_json if isinstance(raw_json, list) else raw_json.get("rules", [])
+                if isinstance(rules_list, list):
+                    bundled_items.extend(rules_list)
+            except Exception:
+                pass
+
         with db._get_conn() as conn:
             for r in BUILTIN_DECLARATIVE_RULES:
                 if project_langs and not (set(r.languages) & project_langs):
@@ -594,6 +613,19 @@ class RuleCatalogManager:
                     """,
                     (r.id, json.dumps(item), now),
                 )
+            for item in bundled_items:
+                parsed = cls._rule_from_dict(item)
+                if not parsed:
+                    continue
+                if project_langs and not (set(parsed.languages) & project_langs):
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO security_rules_cache (rule_id, rule_json, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (parsed.id, json.dumps(item), now),
+                )
             conn.commit()
 
     @classmethod
@@ -604,6 +636,7 @@ class RuleCatalogManager:
         now: float,
         fetcher: Any = None,
         project_langs: set[str] | None = None,
+        expected_sha256: str | None = None,
     ) -> None:
         items: list[dict[str, Any]] = []
         try:
@@ -612,7 +645,18 @@ class RuleCatalogManager:
             else:
                 req = urllib.request.Request(feed_url, headers={"User-Agent": "VibeTrace/1.0"})
                 with urllib.request.urlopen(req, timeout=2.5) as resp:  # nosec
-                    raw_text = resp.read().decode("utf-8")
+                    raw_bytes = resp.read()
+                    pin_hash = expected_sha256 or EXPECTED_FEED_SHA256.get(feed_url)
+                    if pin_hash:
+                        normalized = raw_bytes.replace(b"\r\n", b"\n")
+                        actual_raw = hashlib.sha256(raw_bytes).hexdigest()
+                        actual_norm = hashlib.sha256(normalized).hexdigest()
+                        if pin_hash.lower() not in (actual_raw, actual_norm):
+                            raise ValueError(
+                                f"Supply-chain SHA-256 mismatch for {feed_url}: "
+                                f"expected {pin_hash}, got {actual_raw}"
+                            )
+                    raw_text = raw_bytes.decode("utf-8")
                     payload = (
                         parse_semgrep_yaml(raw_text)
                         if feed_url.endswith((".yaml", ".yml"))

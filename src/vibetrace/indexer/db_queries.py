@@ -30,6 +30,109 @@ class DBQueriesMixin:
     def get_nodes_by_ids(self, node_ids: list[str]) -> dict[str, dict[str, Any]]:
         raise NotImplementedError
 
+    @with_write_retry()
+    def link_cross_file_edges(self) -> int:
+        """Resolves transitive re-exports and 2-level fallback edges across indexed files."""
+        with self._get_conn() as conn:
+            unresolved = conn.execute(
+                """
+                SELECT e.id, e.from_node_id, e.to_node_id, n.file_path AS caller_file,
+                       et.target_file, et.target_symbol
+                FROM edges e
+                JOIN nodes n ON e.from_node_id = n.id
+                LEFT JOIN nodes tgt ON e.to_node_id = tgt.id
+                LEFT JOIN edge_targets et ON e.to_node_id = et.target_id
+                WHERE tgt.id IS NULL
+                  AND e.relation_type IN ('calls', 'references', 'inherits')
+                """
+            ).fetchall()
+            if not unresolved:
+                return 0
+
+            # Build in-memory lookup maps for fast single-pass linking
+            imports_map: dict[tuple[str, str], tuple[str, str]] = {}
+            for r in conn.execute(
+                "SELECT file_path, local_alias, target_file, target_symbol FROM file_imports"
+            ).fetchall():
+                imports_map[(r["file_path"], r["local_alias"])] = (
+                    r["target_file"],
+                    r["target_symbol"],
+                )
+
+            nodes_by_file_qual: dict[tuple[str, str], str] = {}
+            nodes_by_name: dict[str, list[tuple[str, str]]] = {}
+            for r in conn.execute(
+                "SELECT id, name, qualified_name, file_path, kind FROM nodes WHERE kind != 'module'"
+            ).fetchall():
+                fp = r["file_path"]
+                qn = r["qualified_name"]
+                nm = r["name"]
+                nid = r["id"]
+                nodes_by_file_qual[(fp, qn)] = nid
+                nodes_by_file_qual[(fp, nm)] = nid
+                nodes_by_name.setdefault(nm, []).append((fp, nid))
+
+            updates: list[tuple[str, str, int]] = []
+            for row in unresolved:
+                edge_id = row["id"]
+                caller_file = row["caller_file"]
+                t_file = row["target_file"] or caller_file
+                t_sym = row["target_symbol"] or ""
+                if not t_sym:
+                    continue
+
+                # Level 1: Follow transitive re-exports in `file_imports` (up to 4 hops)
+                cur_file, cur_sym = t_file, t_sym
+                resolved_exact_id: str | None = None
+                for _ in range(4):
+                    prefix = cur_sym.split(".", 1)[0]
+                    rest = cur_sym.split(".", 1)[1] if "." in cur_sym else ""
+                    imp = imports_map.get((cur_file, cur_sym)) or imports_map.get(
+                        (cur_file, prefix)
+                    )
+                    if not imp:
+                        break
+                    next_file, next_sym = imp
+                    if next_sym == "__module__":
+                        cur_file = next_file
+                        cur_sym = rest if rest else prefix
+                    else:
+                        cur_file = next_file
+                        cur_sym = f"{next_sym}.{rest}" if rest else next_sym
+                    cand_id = nodes_by_file_qual.get((cur_file, cur_sym))
+                    if cand_id:
+                        resolved_exact_id = cand_id
+                        break
+
+                if resolved_exact_id:
+                    updates.append((resolved_exact_id, "exact", edge_id))
+                    continue
+
+                # Level 2: Heuristic fallback on bare method/function name
+                bare_name = t_sym.split(".")[-1]
+                candidates = nodes_by_name.get(bare_name, [])
+                if not candidates:
+                    continue
+
+                # 2a. Check if any candidate resides in a file directly imported by caller_file
+                caller_imported_files = {
+                    tf for (cf, _), (tf, _) in imports_map.items() if cf == caller_file
+                }
+                imported_matches = [nid for fp, nid in candidates if fp in caller_imported_files]
+                if len(imported_matches) == 1:
+                    updates.append((imported_matches[0], "inferred", edge_id))
+                elif len(candidates) == 1:
+                    # 2b. Unique symbol across the entire repository
+                    updates.append((candidates[0][1], "inferred", edge_id))
+
+            if updates:
+                conn.executemany(
+                    "UPDATE edges SET to_node_id = ?, confidence = ? WHERE id = ?",
+                    updates,
+                )
+                conn.commit()
+            return len(updates)
+
     def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Search nodes using SQLite FTS5 BM25 ranking."""
         tokens = re.findall(r"\w+", query)

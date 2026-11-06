@@ -21,18 +21,32 @@ def _escape_toml_str(val: str) -> str:
     return val.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
+_FUNCTION_SCOPED_RULES = (":S3776", ":S107", ":S1144", "S3776", "S107", "S1144")
+_GENERIC_SYMBOL_NAMES = ("", "anonymous", "<anonymous>", "<lambda>", "module")
+
+
+def _is_function_scoped_rule(rule_id: str, symbol_name: str = "") -> bool:
+    """Returns True if a rule applies once per named function/symbol rather than per line."""
+    if symbol_name in _GENERIC_SYMBOL_NAMES:
+        return False
+    return rule_id.endswith(_FUNCTION_SCOPED_RULES) or rule_id in _FUNCTION_SCOPED_RULES
+
+
 def _upsert_exception_entry(
     exceptions_list: list[dict[str, Any]],
     record: QualityExceptionRecord,
     now_str: str,
 ) -> None:
     """Updates an existing matching entry in-place or appends a new entry."""
+    allow_pos = _is_function_scoped_rule(record.rule_id, record.symbol_name or "")
     for entry in exceptions_list:
         id_match = entry.get("id") == record.id
-        pos_match = (
-            entry.get("rule_id") == record.rule_id
+        pos_match = bool(
+            allow_pos
+            and record.symbol_name
+            and entry.get("rule_id") == record.rule_id
             and entry.get("file_path") == record.file_path
-            and entry.get("symbol_name") == (record.symbol_name or "")
+            and entry.get("symbol_name") == record.symbol_name
         )
         if id_match or pos_match:
             entry.update(record.model_dump(by_alias=False, exclude_none=True))
@@ -89,7 +103,7 @@ class QualityBaselineManager:
 
     @classmethod
     def load_baseline(cls, project_root: Path) -> dict[str, dict[str, Any]]:
-        """Loads accepted quality exceptions keyed by finding ID and rule_id:file_path:symbol."""
+        """Loads accepted quality exceptions keyed by finding ID."""
         path = cls.get_baseline_path(project_root)
         if not path.is_file():
             return {}
@@ -101,8 +115,9 @@ class QualityBaselineManager:
                 if exc_id := exc.get("id"):
                     exceptions[exc_id] = exc
                 if (r_id := exc.get("rule_id")) and (f_path := exc.get("file_path")):
-                    sym = exc.get("symbol_name", "")
-                    exceptions[f"{r_id}:{f_path}:{sym}"] = exc
+                    sym = str(exc.get("symbol_name", ""))
+                    if sym and _is_function_scoped_rule(str(r_id), sym):
+                        exceptions[f"{r_id}:{f_path}:{sym}"] = exc
             return exceptions
         except Exception:
             return {}
@@ -116,8 +131,12 @@ class QualityBaselineManager:
             return "APPROVED"
 
         key = f.id
-        alt_key = f"{f.rule_id}:{f.file_path}:{f.symbol_name or ''}"
-        match = baseline.get(key) or baseline.get(alt_key)
+        alt_key = (
+            f"{f.rule_id}:{f.file_path}:{f.symbol_name}"
+            if (f.symbol_name and _is_function_scoped_rule(f.rule_id, f.symbol_name))
+            else None
+        )
+        match = baseline.get(key) or (baseline.get(alt_key) if alt_key else None)
         if not match:
             f.status = "UNAPPROVED"
             return "UNAPPROVED"
@@ -191,3 +210,32 @@ class QualityBaselineManager:
         _upsert_exception_entry(exceptions_list, record, now_str)
         content = _serialize_quality_toml(exceptions_list, now_str)
         path.write_text(content, encoding="utf-8")
+
+    @classmethod
+    def record_exceptions_batch(
+        cls,
+        project_root: Path,
+        records: list[QualityExceptionRecord],
+    ) -> int:
+        """Records or updates a batch of quality exceptions in a single atomic file write."""
+        if not records:
+            return 0
+        path = cls.get_baseline_path(project_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        existing_text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        existing_doc: dict[str, Any] = {}
+        if existing_text:
+            try:
+                existing_doc = tomllib.loads(existing_text)
+            except Exception:
+                existing_doc = {}
+
+        now_str = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        exceptions_list = existing_doc.get("exceptions", [])
+        for rec in records:
+            _upsert_exception_entry(exceptions_list, rec, now_str)
+
+        content = _serialize_quality_toml(exceptions_list, now_str)
+        path.write_text(content, encoding="utf-8")
+        return len(records)

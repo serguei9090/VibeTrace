@@ -23,15 +23,43 @@ class SecurityService:
     """Provides high-level security audit and exception recording workflows."""
 
     @staticmethod
-    def _is_test_path(rel_path: str) -> bool:
+    def _is_test_path(rel_path: str, project_root: Path | None = None) -> bool:
         norm = rel_path.replace("\\", "/")
-        parts = norm.split("/")
-        if any(p in ("tests", "test", "e2e", "__tests__") for p in parts[:-1]):
+        parts = norm.lower().split("/")
+        if any(p in ("tests", "test", "e2e", "__tests__", "fixtures") for p in parts[:-1]):
             return True
         fname = parts[-1]
-        return fname.startswith("test_") or fname.endswith(
-            ("_test.py", "_test.go", ".spec.ts", ".test.ts", ".spec.tsx")
-        )
+        if (
+            fname.startswith("test_")
+            or fname == "conftest.py"
+            or fname.endswith(
+                (
+                    "_test.py",
+                    "_test.go",
+                    ".spec.ts",
+                    ".test.ts",
+                    ".spec.tsx",
+                    ".test.tsx",
+                    ".spec.js",
+                    ".test.js",
+                )
+            )
+        ):
+            return True
+        if project_root is not None:
+            try:
+                import pathspec
+
+                from vibetrace.config import load_config
+
+                cfg = load_config(project_root)
+                patterns = [*cfg.indexer.exclude_patterns, *cfg.quality.exclude_patterns]
+                spec = pathspec.PathSpec.from_lines("gitignore", patterns)
+                if spec.match_file(norm):
+                    return True
+            except Exception:
+                pass
+        return False
 
     @classmethod
     def audit_project(
@@ -47,16 +75,24 @@ class SecurityService:
         git_commit_depth: int = 10,
         sarif_file: str | Path | None = None,
         enable_trivy: bool = True,
+        enable_semgrep: bool = True,
         image_tag: str | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
         findings: list[SecurityFinding] = []
 
+        from vibetrace.config import load_config
+
+        cfg = load_config(project_root)
+        effective_include_tests = include_tests or cfg.quality.include_tests
+
         if file_filter:
             target_files = [file_filter]
         elif file_list is not None:
             target_files = (
-                file_list if include_tests else [f for f in file_list if not cls._is_test_path(f)]
+                file_list
+                if effective_include_tests
+                else [f for f in file_list if not cls._is_test_path(f, project_root)]
             )
         else:
             with db._get_conn() as conn:
@@ -65,10 +101,10 @@ class SecurityService:
                 )
                 rows = cursor.fetchall()
                 all_files = [r[0] for r in rows if r[0]]
-            if include_tests:
+            if effective_include_tests:
                 target_files = all_files
             else:
-                non_tests = [f for f in all_files if not cls._is_test_path(f)]
+                non_tests = [f for f in all_files if not cls._is_test_path(f, project_root)]
                 target_files = non_tests if non_tests else all_files
 
         # 1. Source code AST + declarative rule catalog inspection
@@ -163,6 +199,19 @@ class SecurityService:
                 findings.extend(TrivyAdapter.scan_image(image_tag, project_root, db=db))
             elif TrivyAdapter.has_container_configs(project_root) and TrivyAdapter.is_available():
                 findings.extend(TrivyAdapter.scan_filesystem(project_root, db=db))
+
+        # 4. Optional external Semgrep CLI SAST adapter
+        if enable_semgrep and not sarif_file:
+            from vibetrace.security.adapters.semgrep import SemgrepAdapter
+
+            if SemgrepAdapter.is_available():
+                findings.extend(
+                    SemgrepAdapter.scan_project(
+                        project_root=project_root,
+                        db=db,
+                        target_files=target_files if (file_filter or file_list) else None,
+                    )
+                )
 
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)

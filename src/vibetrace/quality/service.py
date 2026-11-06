@@ -543,3 +543,15 @@ class QualityService:
             record=record,
             **kwargs,
         )
+
+    @classmethod
+    def record_exceptions_batch(
+        cls,
+        project_root: Path,
+        records: list[QualityExceptionRecord],
+    ) -> int:
+        """Records a batch of approved quality exceptions in .vibetrace/quality.toml."""
+        return QualityBaselineManager.record_exceptions_batch(
+            project_root=project_root,
+            records=records,
+        )

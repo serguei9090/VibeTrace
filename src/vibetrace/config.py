@@ -111,6 +111,27 @@ class LinterConfigs(BaseModel):
 class QualityConfig(BaseModel):
     """Quality rules synchronization and custom Sonar/remote feed configuration."""
 
+    include_tests: bool = Field(
+        default=False,
+        description="Whether to include test files (*test*, tests/**) in quality/security gates",
+    )
+    exclude_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "tests/**",
+            "test/**",
+            "__tests__/**",
+            "e2e/**",
+            "fixtures/**",
+            "**/test_*",
+            "**/*_test.*",
+            "**/*.spec.*",
+            "**/*.test.*",
+            "**/conftest.py",
+            "src/vibetrace/resources/*.json",
+            "rules/*.json",
+        ],
+        description="Glob patterns excluded from audits unless include_tests=true",
+    )
     sonar_url: str = Field(
         default="http://localhost:9000",
         description="SonarQube Server URL for syncing or importing custom quality profiles",
@@ -121,7 +142,7 @@ class QualityConfig(BaseModel):
     )
     rules_feed_url: str = Field(
         default=(
-            "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/"
+            "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/"
             "src/vibetrace/resources/quality_rules_catalog.json"
         ),
         description="Remote JSON rules feed URL for community/enterprise catalog updates",
@@ -162,9 +183,13 @@ def get_config_path(project_root: Path) -> Path | None:
     return None
 
 
-def generate_default_config_toml(project_name: str = "project") -> str:
+def generate_default_config_toml(
+    project_name: str = "project",
+    include_tests: bool = False,
+) -> str:
     """Generate documented default TOML configuration."""
     safe_name = project_name.replace('"', '\\"')
+    inc_str = "true" if include_tests else "false"
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
 
@@ -204,11 +229,26 @@ exclude_patterns = [
 ]
 
 [quality]
+# Include test files (*test*, tests/**, *.spec.*) in Quality & Security audits
+include_tests = {inc_str}
+# Glob patterns excluded from Quality & Security gates
+exclude_patterns = [
+    "tests/**",
+    "test/**",
+    "__tests__/**",
+    "e2e/**",
+    "fixtures/**",
+    "**/test_*",
+    "**/*_test.*",
+    "**/*.spec.*",
+    "**/*.test.*",
+    "**/conftest.py",
+]
 # SonarQube Server URL & Auth token (optional, for custom company rule syncing)
 # sonar_url = "http://localhost:9000"
 # sonar_token = "squ_..."
 # Remote JSON manifest feed URL (defaults to official VibeTrace GitHub repo)
-# rules_feed_url = "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/src/vibetrace/resources/quality_rules_catalog.json"
+# rules_feed_url = "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/src/vibetrace/resources/quality_rules_catalog.json"
 ttl_days = 7
 """
 
@@ -242,7 +282,11 @@ def load_config(project_root: Path | str | None = None) -> VibeTraceConfig:
     return cfg
 
 
-def save_default_config(project_root: Path | str, project_name: str | None = None) -> Path:
+def save_default_config(
+    project_root: Path | str,
+    project_name: str | None = None,
+    include_tests: bool = False,
+) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
     if root.is_file():
@@ -250,7 +294,7 @@ def save_default_config(project_root: Path | str, project_name: str | None = Non
     target = root / ".vibetrace.toml"
     if not target.exists():
         name = project_name or root.name
-        content = generate_default_config_toml(name)
+        content = generate_default_config_toml(name, include_tests=include_tests)
         target.write_text(content, encoding="utf-8")
     return target
 

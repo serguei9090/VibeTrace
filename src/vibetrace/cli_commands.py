@@ -460,12 +460,30 @@ def cmd_init(args: argparse.Namespace) -> int:
     no_index = getattr(args, "no_index", False)
     global_skill = getattr(args, "global_skill", False)
     configure_hooks = getattr(args, "hooks", False)
+    is_json = getattr(args, "json", False)
+
+    include_tests = False
+    if not is_json and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists():
+        try:
+            ans = (
+                input(
+                    "Exclude test files (*test*, tests/**, *.spec.*) from Quality & Security "
+                    "gates by default? [Y/n]: "
+                )
+                .strip()
+                .lower()
+            )
+            if ans in ("n", "no"):
+                include_tests = True
+        except (EOFError, KeyboardInterrupt):
+            print()
 
     res = initialize_workspace(
         root,
         no_index=no_index,
         global_skill=global_skill,
         configure_hooks=configure_hooks,
+        include_tests=include_tests,
     )
 
     if getattr(args, "project", False):
@@ -505,6 +523,13 @@ def cmd_init(args: argparse.Namespace) -> int:
         mem_count = len(res.get("members", []))
         proj_msg = f"- **Federated Project**: '{res['project_name']}'"
         lines.append(f"{proj_msg} ({mem_count} member repos in .vibetrace-project.toml)")
+    if res.get("semgrep_available"):
+        lines.append("- **SAST Security**: Native AST + Semgrep CLI active")
+    else:
+        lines.append(
+            "- **SAST Security**: Native AST active "
+            "(💡 run `vibetrace tools install semgrep` for external Semgrep SAST)"
+        )
     if res.get("has_containers"):
         if res.get("trivy_available"):
             lines.append(
@@ -512,7 +537,8 @@ def cmd_init(args: argparse.Namespace) -> int:
             )
         else:
             lines.append(
-                "- **Container & K8s Security**: Native IaC (💡 install Trivy for deep OS CVEs)"
+                "- **Container & K8s Security**: Native IaC "
+                "(💡 run `vibetrace tools install trivy` for deep OS CVEs)"
             )
     if res["indexed"]:
         lines.append(

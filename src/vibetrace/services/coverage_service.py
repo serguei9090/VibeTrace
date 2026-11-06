@@ -25,11 +25,12 @@ class CoverageGateReport(BaseModel):
     threshold_pct: float = 80.0
     enforced: bool = False
     passed: bool = True
+    status: str = "N/A"
     total_target_symbols: int = 0
     tested_symbols_count: int = 0
-    ast_symbol_coverage_pct: float = 100.0
+    ast_symbol_coverage_pct: float | None = None
     line_coverage_pct: float | None = None
-    effective_coverage_pct: float = 100.0
+    effective_coverage_pct: float | None = None
     coverage_source: str = "ast_call_graph"
     untested_symbols: list[UntestedSymbol] = Field(default_factory=list)
 
@@ -240,24 +241,33 @@ class CoverageService:
                 )
 
         total_targets = len(target_nodes)
-        ast_pct = round((tested_count / total_targets) * 100.0, 1) if total_targets > 0 else 100.0
+        ast_pct: float | None = (
+            round((tested_count / total_targets) * 100.0, 1) if total_targets > 0 else None
+        )
 
         line_pct, ext_src = _parse_external_line_coverage(project_root, changed_files, file_ranges)
         if line_pct is not None and ext_src:
-            effective_pct = line_pct
+            effective_pct: float | None = line_pct
             cov_source = f"hybrid (ast + {ext_src})"
         else:
             effective_pct = ast_pct
             cov_source = "ast_call_graph"
 
         gate_passed = True
-        if enforced and total_targets > 0 and effective_pct < threshold:
-            gate_passed = False
+        if effective_pct is None:
+            gate_status = "N/A"
+        elif effective_pct < threshold:
+            gate_status = "FAILED" if enforced else "ADVISORY"
+            if enforced and total_targets > 0:
+                gate_passed = False
+        else:
+            gate_status = "PASSED"
 
         return CoverageGateReport(
             threshold_pct=threshold,
             enforced=enforced,
             passed=gate_passed,
+            status=gate_status,
             total_target_symbols=total_targets,
             tested_symbols_count=tested_count,
             ast_symbol_coverage_pct=ast_pct,

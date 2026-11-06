@@ -27,8 +27,8 @@ flowchart TD
         E & LINKS --> DIAG["360° Symbol Diagnosis Engine"]
         N & E --> REFACTOR["AST Variable Lifetime Refactor Engine"]
         DEPS --> WHY["Transitive Causation & Diamond Resolver"]
-        AST --> QUALITY["Polyglot Sonar RSPEC Quality Engine"]
-        AST --> TRIVY["Trivy Container & OS CVE Adapter"]
+        AST --> QUALITY["Tree-sitter Quality Engine + Linter Bridges"]
+        AST --> TRIVY["Semgrep CLI & Trivy Container Adapters"]
     end
 
     subgraph AgenticMeta ["Consolidated Agentic Meta-Endpoints"]
@@ -74,20 +74,20 @@ The VibeTrace Taint Engine executes in three phases:
 
 ---
 
-## 1b. 🛡️ Polyglot Security, Secrets & Optional Trivy Container Bridge
+## 1b. 🛡️ Polyglot Security, Secrets & Optional Semgrep / Trivy Bridges
 
-In addition to AST injection taint reachability, VibeTrace enforces a multi-tier security audit engine:
+In addition to AST injection taint reachability, VibeTrace enforces a two-layer security audit architecture:
 
 1. **Shannon Entropy & Modern API Token Scanner (`git_secret_scanner.py`):**
    - Real-time scanning for uncommitted API tokens (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase, GitHub, AWS).
    - Pre-commit staged blocker (`vibetrace audit security --staged`) that stops commits before secrets hit git history.
-2. **Semgrep-Compatible Declarative Catalog Compiler (`rule_sync.py`):**
-   - Native parsing and execution of Semgrep YAML rules directly against Tree-sitter AST, supporting `pattern`, `pattern-not` (negative assertions), and `pattern-inside` (scope enclosure).
-   - Syncs CWE Top 25 and OWASP rules with a 3-day local cache, with zero external Python/CLI dependencies required.
-3. **Optional Trivy Container & OS Package Adapter (`src/vibetrace/security/adapters/trivy.py`):**
-   - Seamlessly auto-detects `trivy` on `$PATH` whenever container artifacts (`Dockerfile`, `docker-compose.yml`, `k8s/`) are present.
-   - Scans compiled C/C++ libraries in base images (`glibc`, `openssl`, `libssl3`) via `trivy fs --format sarif` or explicit image scans `vibetrace audit security --image <tag>`.
-   - Merges container findings into VibeTrace's universal Executive Findings Matrix and `.vibetrace/security.toml` baseline triage.
+2. **Offline-First Heuristic Catalog & Supply-Chain Integrity (`rule_sync.py`):**
+   - Evaluates lightweight declarative YAML/JSON patterns (`pattern`, `pattern-not`, `pattern-inside`) directly against Tree-sitter AST and source lines with zero external dependencies.
+   - Ships with an offline-first bundled catalog (`src/vibetrace/resources/security_catalog.json`) and enforces pinned release tags + `SHA-256` cryptographic verification whenever syncing remote catalog updates.
+3. **Optional External Semgrep CLI & Trivy Adapters (`src/vibetrace/security/adapters/`):**
+   - **`SemgrepAdapter` (`semgrep.py`):** Automatically detects `semgrep` on `$PATH` (bypassed via `--skip-semgrep`), runs `semgrep scan --sarif --quiet`, and feeds results through `SarifIngestEngine` to enrich findings with VibeTrace's AST call-graph reachability.
+   - **`TrivyAdapter` (`trivy.py`):** Automatically detects `trivy` on `$PATH` (bypassed via `--skip-trivy`) whenever container artifacts (`Dockerfile`, `docker-compose.yml`, `k8s/`) are present, or via explicit image scans (`vibetrace audit security --image <tag>`).
+   - Merges external SARIF findings into VibeTrace's universal Executive Findings Matrix and `.vibetrace/security.toml` baseline triage.
 
 ---
 
@@ -163,20 +163,19 @@ $$\text{Outputs} = \text{ModifiedInBlock}(B) \cap \text{ReadDownstream}(B)$$
 
 ---
 
-## 3b. 🏆 Polyglot Code Quality & Sonar RSPEC Parity Engine
+## 3b. 🏆 Polyglot Code Quality: Native Tree-sitter Metrics & Linter Adapters
 
-To combat cognitive degradation and code smells without requiring a monolithic SonarQube server, VibeTrace implements a dual-tier quality architecture:
+To detect cognitive complexity and code smells without requiring a SonarQube server, VibeTrace implements a transparent two-layer quality architecture:
 
-1. **Native Tree-sitter AST Rules:**
-   - Evaluates Cognitive Complexity (`RSPEC-3776`), Deep Nesting (`RSPEC-134`), String Duplication (`RSPEC-1192`), and Async Without Await (`RSPEC-7503`) in $<15\text{ms}$.
-   - Runs identically across Python, JavaScript, TypeScript, Go, and Rust.
-2. **Two-Step "Target & Verify" Remediation Workflow:**
+1. **Layer 1 — Zero-Config Native Tree-sitter AST Heuristics:**
+   - Computes RSPEC-inspired structural metrics — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), and Async Without Await (`S7503`) — in $<15\text{ms}$ across Python, JavaScript, TypeScript, Go, and Rust.
+2. **Layer 2 — Optional Native Ecosystem Linter Bridges:**
+   - Automatically invokes installed ecosystem linters (`Ruff`, `Pyright`, `Biome`, `Clippy`, `GolangCI-Lint`, `PHPStan`, `RuboCop`, `ShellCheck`, `SQLFluff`) and maps their diagnostics into unified rule IDs.
+3. **Two-Step "Target & Verify" Remediation Workflow:**
    - **Step 1: Executive Findings Matrix (`--summary`):** Emits a `< 1 KB` high-density matrix summarizing findings by severity, rule ID, unapproved counts, and top impacted files. Completely eliminates terminal truncation and AI context window overflow.
    - **Step 2: Surgical JSON Extraction (`--file <path> --json`):** Emits machine-readable JSON containing exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.
-3. **Automated Safe Codemods (`--fix`):**
-   - Integrates ecosystem linters (Ruff, Biome, Pint, SQLFluff) and native AST codemods to automatically fix deterministic smells in-place.
-4. **OASIS SARIF 2.1.0 Export (`--sarif`):**
-   - Directly uploads quality and security findings into GitHub Pull Request review checks and IDEs without third-party plugins.
+4. **Automated Safe Codemods (`--fix`) & OASIS SARIF 2.1.0 Export (`--sarif`):**
+   - Integrates ecosystem linters and native AST codemods to fix deterministic smells in-place, and exports SARIF 2.1.0 for GitHub Code Scanning.
 
 ## 4. 🔗 Live Codebase Symbol $\leftrightarrow$ Documentation Bi-Directional Linking
 

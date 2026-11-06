@@ -210,6 +210,36 @@ class ToolsManager:
             auto_installable=shutil.which("uv") is not None or shutil.which("pip") is not None,
         )
 
+        # 9. Semgrep (External SAST Adapter)
+        semgrep_bin = "semgrep.exe" if is_win else "semgrep"
+        which_semgrep = shutil.which(semgrep_bin) or shutil.which("semgrep")
+        if not which_semgrep:
+            venv_semgrep = root / ".venv" / ("Scripts" if is_win else "bin") / semgrep_bin
+            if venv_semgrep.is_file():
+                which_semgrep = str(venv_semgrep)
+        status["semgrep"] = ToolStatus(
+            language="semgrep",
+            engine="Semgrep SAST CLI",
+            is_available=which_semgrep is not None,
+            version_or_path=which_semgrep,
+            install_hint="vibetrace tools install semgrep  # installs semgrep via uv tool or pip",
+            auto_installable=shutil.which("uv") is not None or shutil.which("pip") is not None,
+        )
+
+        # 10. Trivy (Container & OS CVE Adapter)
+        trivy_bin = "trivy.exe" if is_win else "trivy"
+        which_trivy = shutil.which(trivy_bin) or shutil.which("trivy")
+        status["trivy"] = ToolStatus(
+            language="trivy",
+            engine="Aqua Trivy (Container & OS CVEs)",
+            is_available=which_trivy is not None,
+            version_or_path=which_trivy,
+            install_hint="vibetrace tools install trivy  # installs trivy via winget or brew",
+            auto_installable=(
+                shutil.which("winget") is not None or shutil.which("brew") is not None
+            ),
+        )
+
         return status
 
     @classmethod
@@ -385,5 +415,49 @@ class ToolsManager:
                     return True, "Installed SQLFluff via pip."
             return False, "Python package manager (uv/pip) not found to install sqlfluff."
 
-        langs = "python, typescript, go, rust, php, ruby, shell, sql"
-        return False, f"Unknown language '{language}'. Supported: {langs}."
+        if lang == "semgrep":
+            which_uv = shutil.which("uv")
+            if which_uv:
+                res = subprocess.run([which_uv, "tool", "install", "semgrep"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed Semgrep CLI via uv tool."
+                res2 = subprocess.run(
+                    [which_uv, "pip", "install", "semgrep"], cwd=str(root), check=False
+                )
+                if res2.returncode == 0:
+                    return True, "Installed Semgrep CLI via uv pip."
+            which_pipx = shutil.which("pipx")
+            if which_pipx:
+                res = subprocess.run([which_pipx, "install", "semgrep"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed Semgrep CLI via pipx."
+            which_pip = shutil.which("pip")
+            if which_pip:
+                res = subprocess.run([which_pip, "install", "semgrep"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed Semgrep CLI via pip."
+            which_brew = shutil.which("brew")
+            if which_brew:
+                res = subprocess.run(["brew", "install", "semgrep"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed Semgrep CLI via Homebrew."
+            return False, "Package manager (uv/pipx/pip/brew) not found to install semgrep."
+
+        if lang == "trivy":
+            which_winget = shutil.which("winget")
+            if which_winget:
+                res = subprocess.run(
+                    ["winget", "install", "--id", "AquaSecurity.Trivy", "-e", "--silent"],
+                    check=False,
+                )
+                if res.returncode == 0:
+                    return True, "Installed Aqua Trivy via Windows winget."
+            which_brew = shutil.which("brew")
+            if which_brew:
+                res = subprocess.run(["brew", "install", "trivy"], check=False)
+                if res.returncode == 0:
+                    return True, "Installed Aqua Trivy via Homebrew."
+            return False, "Package manager (winget/brew) not found to install Trivy."
+
+        langs = "python, typescript, go, rust, php, ruby, shell, sql, semgrep, trivy"
+        return False, f"Unknown language/tool '{language}'. Supported: {langs}."

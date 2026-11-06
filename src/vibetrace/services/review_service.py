@@ -256,12 +256,27 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
     """Formats UnifiedReviewReport as a token-compact markdown gate for AI agents."""
     verdict = "✅ PASS (Ready to Commit)" if report.passed else "⚠️ ACTION REQUIRED"
     cg = report.coverage_gate
-    if cg.effective_coverage_pct >= cg.threshold_pct:
+    if cg.effective_coverage_pct is None:
+        cov_icon = "⚪"
+        cov_str = f"N/A (0/0 symbols in scope — target: {cg.threshold_pct}%)"
+    elif cg.effective_coverage_pct >= cg.threshold_pct:
         cov_icon = "✅"
+        cov_str = (
+            f"{cg.effective_coverage_pct}% ({cg.tested_symbols_count}/{cg.total_target_symbols} "
+            f"symbols tested — target: {cg.threshold_pct}%)"
+        )
     elif cg.enforced:
         cov_icon = "❌"
+        cov_str = (
+            f"{cg.effective_coverage_pct}% ({cg.tested_symbols_count}/{cg.total_target_symbols} "
+            f"symbols tested — target: {cg.threshold_pct}%)"
+        )
     else:
         cov_icon = "⚠️"
+        cov_str = (
+            f"{cg.effective_coverage_pct}% ({cg.tested_symbols_count}/{cg.total_target_symbols} "
+            f"symbols tested — target: {cg.threshold_pct}%)"
+        )
     lines = [
         f"## 🔍 VibeTrace Unified AI Code Review (`scope={report.scope}`): {verdict}",
         "",
@@ -278,11 +293,7 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
             f"- **🔀 Architectural Splits:** {report.new_splits_count} new unapproved, "
             f"{report.modified_splits_count} modified tripwires"
         ),
-        (
-            f"- **🧪 Quality Gate Test Coverage ({cg.coverage_source}):** {cov_icon} "
-            f"{cg.effective_coverage_pct}% ({cg.tested_symbols_count}/{cg.total_target_symbols} "
-            f"symbols tested — target: {cg.threshold_pct}%)"
-        ),
+        f"- **🧪 Quality Gate Test Coverage ({cg.coverage_source}):** {cov_icon} {cov_str}",
         (
             f"- **📞 Caller Guard Advisories:** {report.modified_symbols_with_callers} "
             "modified symbol(s) with active callers"

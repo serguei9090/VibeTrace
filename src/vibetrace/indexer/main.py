@@ -84,10 +84,19 @@ def index_file(
 
         if verbose:
             print(f"Indexing {rel_path}...")
+        parser.last_imported_symbols = {}
+        parser.last_target_symbols = {}
         nodes, edges = parser.extract(rel_path, source_code)
 
         # Atomically clear and persist in a single transaction
-        db.batch_save_file_index(rel_path, content_hash, nodes, edges)
+        db.batch_save_file_index(
+            rel_path,
+            content_hash,
+            nodes,
+            edges,
+            imported_symbols=getattr(parser, "last_imported_symbols", None),
+            target_symbols=getattr(parser, "last_target_symbols", None),
+        )
 
         if verbose:
             print(f"  -> Extracted {len(nodes)} nodes, {len(edges)} edges.")
@@ -177,6 +186,7 @@ def reindex_all(
                 except ValueError:
                     rel_p = str(target_path).replace("\\", "/")
                 resolver.add_file(rel_p)
+            db.link_cross_file_edges()
             db.update_centrality_scores()
     elif target_path.is_dir():
         target_rel = ""
@@ -229,6 +239,7 @@ def reindex_all(
                     if resolver:
                         resolver.add_file(c)
             if indexed_any or len(deleted) > 0:
+                db.link_cross_file_edges()
                 db.update_centrality_scores()
             # Only advance the sync cursor when every file persisted; otherwise retry next run.
             if current_sha and target_rel in ("", ".") and not failed:
@@ -282,6 +293,7 @@ def reindex_all(
                     if resolver:
                         resolver.remove_file(indexed_file)
 
+            db.link_cross_file_edges()
             db.update_centrality_scores()
             if current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", current_sha)

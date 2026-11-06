@@ -962,6 +962,11 @@ examples:
         action="store_true",
         help="Skip external Trivy container and OS package scanning even if Trivy is installed",
     )
+    p_security.add_argument(
+        "--skip-semgrep",
+        action="store_true",
+        help="Skip external Semgrep CLI SAST scanning even if Semgrep is installed",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     p_quality = p_audit_sub.add_parser(
@@ -1228,7 +1233,10 @@ examples:
         "language",
         nargs="?",
         default="",
-        help="Target language for install (e.g. php, python, typescript, go, rust, or all)",
+        help=(
+            "Target language/tool for install "
+            "(e.g. php, python, typescript, go, rust, semgrep, trivy, or all)"
+        ),
     )
     p_tools.add_argument(
         "--path",

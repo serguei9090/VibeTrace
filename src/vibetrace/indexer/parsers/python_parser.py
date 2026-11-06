@@ -94,6 +94,7 @@ class PythonParser(LanguageParser):
         # Resolve deferred fixtures and explicit __all__ re-exports via modular helpers
         resolve_deferred_fixtures(self, ctx, edges)
         link_all_exports(self, tree.root_node, ctx, nodes)
+        self.last_imported_symbols = dict(ctx.imported_symbols)
 
         return nodes, edges
 

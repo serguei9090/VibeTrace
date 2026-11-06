@@ -532,6 +532,111 @@ class AstSecurityScanner:
 
     # --- Rule 7: Path Traversal (CWE-22) ---
     @classmethod
+    def _is_tainted_or_dynamic_path_arg(
+        cls,
+        node: Node,
+        first_arg: Node,
+        arg_text: str,
+        lines: list[str],
+    ) -> bool:
+        """Determines whether a filesystem sink argument is dynamically interpolated or tainted."""
+        if _is_static_str_expr(first_arg):
+            return False
+
+        # 1. Inline f-string / template interpolation with path separators
+        is_fstr = any(c.type == "interpolation" for c in first_arg.children) or (
+            first_arg.type == "string" and arg_text.startswith(("f'", 'f"', "F'", 'F"'))
+        )
+        if is_fstr and ("/" in arg_text or "\\" in arg_text):
+            return True
+
+        # 2. Direct call or expression referencing an untrusted input source
+        _untrusted = (
+            "request.",
+            "req.",
+            "sys.argv",
+            "input(",
+            "params[",
+            "params.get",
+            "query[",
+            "query.get",
+            "form[",
+            "form.get",
+            "args[",
+            "args.get",
+            "GET[",
+            "GET.get",
+            "POST[",
+            "POST.get",
+        )
+        if any(src in arg_text for src in _untrusted):
+            return True
+
+        # 3. Binary string concatenation (`"/var/data/" + filename`)
+        if first_arg.type in ("binary_operator", "binary_expression") and (
+            "/" in arg_text or "\\" in arg_text
+        ):
+            return True
+
+        # 4. Variable identifier (`open(filename)`): inspect enclosing function for untrusted flow
+        if first_arg.type == "identifier" or re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", arg_text):
+            var_name = arg_text.strip()
+            curr = node.parent
+            while curr is not None and curr.type not in (
+                "function_definition",
+                "method_definition",
+                "function_declaration",
+                "arrow_function",
+            ):
+                curr = curr.parent
+
+            s_line = (curr.start_point[0] + 1) if curr else 1
+            e_line = node.start_point[0] + 1
+            func_slice = "\n".join(lines[max(0, s_line - 1) : min(len(lines), e_line)])
+
+            # Check if sanitized before reaching sink
+            _sanitizers = ("os.path.basename", "secure_filename", ".resolve(", "is_relative_to")
+            if any(s in func_slice for s in _sanitizers):
+                return False
+
+            # Check if assigned from untrusted input inside the enclosing scope
+            for raw_ln in lines[max(0, s_line - 1) : min(len(lines), e_line)]:
+                ln = raw_ln.split("#", 1)[0].strip()
+                if re.match(rf"^{re.escape(var_name)}\s*(?::[^=]+)?=\s*", ln) and any(
+                    src in ln for src in _untrusted
+                ):
+                    return True
+
+            # Check if enclosing function is a decorated route/endpoint and `var_name` is a param
+            if curr is not None:
+                parent_node = curr.parent
+                check_node = (
+                    parent_node
+                    if parent_node and parent_node.type == "decorated_definition"
+                    else curr
+                )
+                header_start = check_node.start_point[0]
+                header_lines = "\n".join(
+                    lines[max(0, header_start) : min(len(lines), curr.start_point[0] + 3)]
+                )
+                is_route = bool(
+                    re.search(
+                        r"@\w+\.(?:route|get|post|put|delete|patch|websocket)\b",
+                        header_lines,
+                    )
+                )
+                params_node = curr.child_by_field_name("parameters")
+                params_txt = (
+                    params_node.text.decode("utf-8", errors="replace")
+                    if params_node and params_node.text
+                    else ""
+                )
+                if is_route and re.search(rf"\b{re.escape(var_name)}\b", params_txt):
+                    return True
+
+        return False
+
+    @classmethod
     def _check_path_traversal(
         cls,
         node: Node,
@@ -546,7 +651,14 @@ class AstSecurityScanner:
             if not fn_node or not args_node or not fn_node.text:
                 return
             fn_text = fn_node.text.decode("utf-8", errors="replace")
-            if fn_text not in ("open", "os.remove", "os.unlink", "shutil.rmtree", "send_file"):
+            if fn_text not in (
+                "open",
+                "os.remove",
+                "os.unlink",
+                "shutil.rmtree",
+                "send_file",
+                "send_from_directory",
+            ):
                 return
             first_arg = next(
                 (c for c in args_node.children if c.type not in ("(", ")", ",")),
@@ -555,10 +667,7 @@ class AstSecurityScanner:
             if not first_arg or not first_arg.text:
                 return
             arg_text = first_arg.text.decode("utf-8", errors="replace")
-            is_fstr = any(c.type == "interpolation" for c in first_arg.children) or (
-                first_arg.type == "string" and arg_text.startswith(("f'", 'f"'))
-            )
-            if is_fstr and ("/" in arg_text or "\\" in arg_text):
+            if cls._is_tainted_or_dynamic_path_arg(node, first_arg, arg_text, lines):
                 findings.append(
                     cls._create_finding(
                         "CWE-22",

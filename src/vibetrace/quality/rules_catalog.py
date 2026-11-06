@@ -665,3 +665,5 @@ QUALITY_RULES_CATALOG: dict[str, QualityRuleSpec] = {
         cwe_ids=["CWE-1088"],
     ),
 }
+
+NATIVE_RULE_KEYS: frozenset[str] = frozenset(QUALITY_RULES_CATALOG.keys())

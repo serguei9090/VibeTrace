@@ -6,6 +6,7 @@ remote manifests or local bundled resources.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -23,16 +24,23 @@ from vibetrace.quality.rules import (
     register_ruff_rule,
     register_rule_alias,
 )
+from vibetrace.quality.rules_catalog import NATIVE_RULE_KEYS
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUALITY_RULES_TTL_DAYS = 7
+PINNED_QUALITY_CATALOG_REF = "v0.1.8"
 DEFAULT_QUALITY_RULES_FEED_URL = (
-    "https://raw.githubusercontent.com/serguei9090/VibeTrace/main/"
+    f"https://raw.githubusercontent.com/serguei9090/VibeTrace/{PINNED_QUALITY_CATALOG_REF}/"
     "src/vibetrace/resources/quality_rules_catalog.json"
 )
 
 BUNDLED_CATALOG_PATH = Path(__file__).parent.parent / "resources" / "quality_rules_catalog.json"
+EXPECTED_QUALITY_FEED_SHA256: dict[str, str] = {
+    DEFAULT_QUALITY_RULES_FEED_URL: (
+        "40779ae8255028d26fe411e05b61b80b90e3ab5a94f87fc54184a750f158bdcc"
+    ),
+}
 
 _SEVERITY_MAP: dict[str, QualitySeverity] = {
     "BLOCKER": QualitySeverity.HIGH,
@@ -80,9 +88,12 @@ class QualityRuleCatalogManager:
 
     @classmethod
     def _fetch_remote_manifest(
-        cls, feed_url: str, timeout_seconds: int = 5
+        cls,
+        feed_url: str,
+        timeout_seconds: int = 5,
+        expected_sha256: str | None = None,
     ) -> dict[str, Any] | None:
-        """Fetches remote JSON manifest over HTTP with conservative timeout."""
+        """Fetches remote JSON manifest over HTTP with conservative timeout and SHA-256 check."""
         try:
             req = urllib.request.Request(
                 feed_url,
@@ -90,7 +101,21 @@ class QualityRuleCatalogManager:
             )
             with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
                 if resp.status == 200:
-                    raw = resp.read().decode("utf-8")
+                    raw_bytes = resp.read()
+                    pin_hash = expected_sha256 or EXPECTED_QUALITY_FEED_SHA256.get(feed_url)
+                    if pin_hash:
+                        normalized = raw_bytes.replace(b"\r\n", b"\n")
+                        actual_raw = hashlib.sha256(raw_bytes).hexdigest()
+                        actual_norm = hashlib.sha256(normalized).hexdigest()
+                        if pin_hash.lower() not in (actual_raw, actual_norm):
+                            logger.warning(
+                                "Supply-chain SHA-256 mismatch for %s: expected %s, got %s",
+                                feed_url,
+                                pin_hash,
+                                actual_raw,
+                            )
+                            return None
+                    raw = raw_bytes.decode("utf-8")
                     return json.loads(raw)
         except Exception as e:
             logger.debug("Failed to fetch quality rules from %s: %s", feed_url, e)
@@ -254,12 +279,13 @@ class QualityRuleCatalogManager:
             clean_key = raw_key.split(":")[-1].upper()
 
             # Preserve native hand-crafted rules that already have specialized Python AST handlers
-            if clean_key in QUALITY_RULES_CATALOG:
+            if clean_key in NATIVE_RULE_KEYS:
                 continue
 
             spec = cls._build_rule_spec(r, clean_key, raw_key)
-            QUALITY_RULES_CATALOG[clean_key] = spec
             QUALITY_RULES_CATALOG[raw_key] = spec
+            if clean_key not in QUALITY_RULES_CATALOG or raw_key.startswith(("python:", "py:")):
+                QUALITY_RULES_CATALOG[clean_key] = spec
             register_rule_alias(clean_key, clean_key)
             register_rule_alias(raw_key, clean_key)
             for tag in r.get("tags", []):

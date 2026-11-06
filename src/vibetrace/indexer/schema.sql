@@ -34,8 +34,26 @@ CREATE TABLE IF NOT EXISTS edges (
     to_node_id TEXT,               -- The callee/definition
     relation_type TEXT,            -- 'calls', 'defines', 'inherits', 'references', 'imports', 'implements'
     call_line INTEGER,             -- Exact 1-indexed line number where the call occurs
+    confidence TEXT DEFAULT 'exact', -- 'exact' (AST/type resolved) or 'inferred' (2-level heuristic fallback)
     FOREIGN KEY(from_node_id) REFERENCES nodes(id),
     FOREIGN KEY(to_node_id) REFERENCES nodes(id)
+);
+
+-- Persistent Cross-File Import Symbol Table (enables transitive re-export & 2-pass linking)
+CREATE TABLE IF NOT EXISTS file_imports (
+    file_path TEXT NOT NULL,
+    local_alias TEXT NOT NULL,
+    target_file TEXT NOT NULL,
+    target_symbol TEXT NOT NULL,
+    PRIMARY KEY (file_path, local_alias)
+);
+CREATE INDEX IF NOT EXISTS idx_file_imports_file ON file_imports(file_path);
+
+-- Candidate Target Metadata (maps generated target_node_id -> target_file, target_symbol for 2-pass linker)
+CREATE TABLE IF NOT EXISTS edge_targets (
+    target_id TEXT PRIMARY KEY,
+    target_file TEXT NOT NULL,
+    target_symbol TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path);

@@ -329,6 +329,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
     skip_deps = getattr(args, "skip_deps", False)
     force_update = getattr(args, "update", False)
     skip_trivy = getattr(args, "skip_trivy", False)
+    skip_semgrep = getattr(args, "skip_semgrep", False)
     image_tag = getattr(args, "image", None)
     report = SecurityService.audit_project(
         db,
@@ -339,6 +340,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         analyze_taint=not getattr(args, "no_taint", False),
         include_tests=getattr(args, "include_tests", False),
         enable_trivy=not skip_trivy,
+        enable_semgrep=not skip_semgrep,
         image_tag=image_tag,
     )
 
@@ -495,12 +497,12 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
     if getattr(args, "approve", False):
         rationale = getattr(args, "rationale", "Quality baseline approved via CLI")
         tag = getattr(args, "tag", "intentional")
-        approved_now = 0
-        for f in report.findings:
-            if f.status != "APPROVED":
-                rec = QualityExceptionRecord.from_finding(f, rationale=rationale, tag=tag)
-                QualityService.record_exception(project_root=project_root, record=rec)
-                approved_now += 1
+        records = [
+            QualityExceptionRecord.from_finding(f, rationale=rationale, tag=tag)
+            for f in report.findings
+            if f.status != "APPROVED"
+        ]
+        approved_now = QualityService.record_exceptions_batch(project_root, records)
         print(
             safe_str(
                 f"Approved {approved_now} finding(s) in .vibetrace/quality.toml ({rationale})."
