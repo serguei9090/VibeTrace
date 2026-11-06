@@ -29,6 +29,7 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
@@ -652,4 +653,30 @@ body {
   opacity: 0.9;
   font-weight: 700;
   color: #a5b4fc;
+}
+
+/* Accessibility: Focus Visible Indicators (WCAG 2.4.7) */
+.vibe-btn:focus-visible,
+.vibe-button:focus-visible,
+.vibe-segment-btn:focus-visible,
+.tree-action-btn:focus-visible,
+.node-expand-pill:focus-visible,
+.tree-dir-header:focus-visible,
+.tree-file-header:focus-visible,
+.tree-symbol-row:focus-visible,
+.symbol-info-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Global Prefers-Reduced-Motion Fallback */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

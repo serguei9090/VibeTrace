@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
-
 :root {
   --bg-color: #0d0e12;
   --panel-bg: rgba(22, 23, 30, 0.8);
@@ -55,7 +53,9 @@ body {
     border-color 0.2s ease,
     box-shadow 0.2s ease,
     background-color 0.2s ease;
-  width: 300px;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
 }
 
 .vibe-input:focus {
