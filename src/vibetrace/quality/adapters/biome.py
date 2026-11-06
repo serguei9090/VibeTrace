@@ -230,16 +230,6 @@ class BiomeAdapter(LinterSubEngine):
         if which_biome:
             candidates.append([which_biome])
 
-        # 4. bunx @biomejs/biome
-        if shutil.which("bunx"):
-            candidates.append(["bunx", "@biomejs/biome"])
-        elif shutil.which("bun"):
-            candidates.append(["bun", "x", "@biomejs/biome"])
-
-        # 5. npx @biomejs/biome
-        if shutil.which("npx"):
-            candidates.append(["npx", "--yes", "@biomejs/biome"])
-
         for cand in candidates:
             try:
                 res = subprocess.run(

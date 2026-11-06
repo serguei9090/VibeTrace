@@ -246,13 +246,14 @@ def collect_source_files(
     spec = pathspec.PathSpec.from_lines("gitignore", patterns) if patterns else None
 
     candidates = resolve_candidate_paths(project_root, file_filter, file_list)
+    explicit_targets = bool(file_filter or file_list)
     return [
         p
         for p in candidates
         if is_path_allowed(
             p,
-            effective_include_tests,
-            project_root=project_root if not file_filter else None,
-            spec=spec if not file_filter else None,
+            effective_include_tests or explicit_targets,
+            project_root=project_root if not explicit_targets else None,
+            spec=spec if not explicit_targets else None,
         )
     ]
