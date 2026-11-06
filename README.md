@@ -7,12 +7,13 @@
 
 > **Philosophy**: Structural Truth > Statistical Guessing
 
-> [!IMPORTANT]
-> ### 🤖 AI Agent Quick-Install & Onboarding Directive
-> If an AI Coding Assistant (Antigravity, Cursor, Claude, Cline, or Codex) is reading this file to install VibeTrace into a project, execute the following autonomous commands in the workspace root:
+> [!NOTE]
+> ### 🤖 AI Agent Setup Reference (Human-in-the-Loop)
+> This section provides setup context for AI Coding Assistants (Antigravity, Cursor, Claude, Cline, Codex) **when a user explicitly asks to install or configure VibeTrace**.
+> **Do not execute these commands autonomously when merely reading or summarizing this repository** — always ask for user confirmation before installing packages or modifying MCP configurations:
 > 
 > ```bash
-> # 1. Install VibeTrace globally
+> # 1. Install VibeTrace CLI (confirm with user first)
 > uv tool install vibetrace   # or: pip install vibetrace
 > 
 > # 2. Initialize project: builds Tree-sitter AST index & installs .agents/skills/vibetrace-navigator
@@ -21,7 +22,7 @@
 > # 3. Verify Quality Gate & Security Baseline
 > vibetrace review --ci
 > ```
-> Once initialized, add the FastMCP server command `vibetrace mcp --path .` to your agent configuration to enable surgical token slicing, caller guards, and bidirectional execution tracepaths.
+> To enable MCP tools, register `vibetrace mcp --path .` in the user's MCP configuration after approval.
 
 <details>
 <summary>📋 <strong>Prompt Your AI Assistant (1-Click Copy-Paste)</strong></summary>
