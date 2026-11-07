@@ -207,8 +207,8 @@ class DocDB:
         sql = """
             SELECT d.id, d.catalog, d.file_path, d.heading_path,
                    d.start_line, d.end_line, d.content, bm25(doc_chunks_fts) as rank
-            FROM doc_chunks_fts f
-            JOIN doc_chunks d ON f.id = d.id
+            FROM doc_chunks_fts
+            JOIN doc_chunks d ON doc_chunks_fts.id = d.id
             WHERE doc_chunks_fts MATCH ?
         """
         params: list[Any] = [fts_query]

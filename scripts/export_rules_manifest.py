@@ -12,6 +12,7 @@ import base64
 import gzip
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -21,8 +22,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_SONAR_URL = "http://localhost:9000"
-DEFAULT_SONAR_TOKEN = "squ_ad7988f2648bd7c51476ffbf1f65922697a98147"
+DEFAULT_SONAR_URL = os.getenv("SONAR_URL", "http://localhost:9000")
+DEFAULT_SONAR_TOKEN = os.getenv("SONAR_TOKEN", "")
 TARGET_LANGS = "py,ts,js,css,docker"
 
 

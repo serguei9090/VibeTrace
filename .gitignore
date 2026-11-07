@@ -67,6 +67,8 @@ test-results/
 
 # Scratch & Automation Scratchpad
 /scratch/
+docs/reviews_temp/
+CodeRcomments.txt
 
 # VibeTrace local storage & vectors
 .vibetrace/*

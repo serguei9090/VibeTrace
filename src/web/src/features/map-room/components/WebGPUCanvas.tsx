@@ -121,9 +121,15 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = ({
     const renderer = new WebGPURenderer(canvas);
     rendererRef.current = renderer;
 
-    renderer.initialize().then((backend) => {
-      onRendererStatusChange?.(backend, renderer.getFps());
-    });
+    renderer
+      .initialize()
+      .then((backend) => {
+        onRendererStatusChange?.(backend, renderer.getFps());
+      })
+      .catch((err) => {
+        console.warn("WebGPU initialization failed, falling back to 2D canvas:", err);
+        onRendererStatusChange?.("canvas2d", 0);
+      });
 
     const handleResize = () => {
       if (!canvas) return;

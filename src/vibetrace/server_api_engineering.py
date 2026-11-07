@@ -96,6 +96,9 @@ def get_engineering_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
     ) -> list[CandidateSplitBlock]:
         """Suggest candidate contiguous AST blocks suitable for method extraction."""
         root = _get_project_root()
+        target_p = (root / file_path).resolve()
+        if not target_p.is_relative_to(root.resolve()):
+            raise HTTPException(status_code=400, detail="file_path escapes project root boundary")
         try:
             return RefactorService.suggest_split_candidates(root, file_path, symbol_name)
         except Exception as e:
@@ -105,6 +108,9 @@ def get_engineering_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
     def post_refactor_split(body: RefactorSplitRequest) -> dict[str, Any]:
         """Construct or execute an AST-based helper method extraction refactoring."""
         root = _get_project_root()
+        target_p = (root / body.file_path).resolve()
+        if not target_p.is_relative_to(root.resolve()):
+            raise HTTPException(status_code=400, detail="file_path escapes project root boundary")
         try:
             plan = RefactorService.build_refactor_plan(
                 project_root=root,

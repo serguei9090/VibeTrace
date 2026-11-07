@@ -157,9 +157,15 @@ class SarifIngestEngine:
         # Clean URI path relative to project root
         file_p = Path(uri_str)
         try:
-            rel_path = file_p.relative_to(project_root).as_posix()
+            rel_path = file_p.resolve().relative_to(project_root.resolve()).as_posix()
         except ValueError:
-            rel_path = uri_str.lstrip("/")
+            # Normalize and ensure no directory traversal escapes project root
+            cleaned = uri_str.lstrip("/").replace("../", "").replace("..\\", "")
+            resolved = (project_root / cleaned).resolve()
+            if resolved.is_relative_to(project_root.resolve()):
+                rel_path = resolved.relative_to(project_root.resolve()).as_posix()
+            else:
+                rel_path = Path(uri_str).name
 
         region = first_loc.get("region") or {}
         start_line = int(region.get("startLine") or 1)

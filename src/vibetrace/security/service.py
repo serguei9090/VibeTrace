@@ -187,7 +187,11 @@ class SecurityService:
         if sarif_file:
             sarif_p = Path(sarif_file)
             if not sarif_p.is_absolute():
-                sarif_p = project_root / sarif_p
+                sarif_p = (project_root / sarif_p).resolve()
+            else:
+                sarif_p = sarif_p.resolve()
+            if not sarif_p.is_relative_to(project_root.resolve()):
+                raise ValueError("SARIF file path escapes project root boundary")
             sarif_findings = SarifIngestEngine.parse_sarif_file(sarif_p, project_root, db=db)
             findings.extend(sarif_findings)
 

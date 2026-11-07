@@ -374,6 +374,8 @@ class DeclarativeQualityRuleManager:
             return []
 
         abs_path = (project_root / file_path).resolve()
+        if not abs_path.is_relative_to(project_root.resolve()):
+            return []
         try:
             content = abs_path.read_text(encoding="utf-8", errors="replace")
         except OSError:

@@ -129,10 +129,15 @@ class ProjectWorkspace:
         from vibetrace.indexer.main import reindex_all
 
         repo_dir = (self.root / member.path).resolve()
+        if not repo_dir.is_relative_to(self.root.resolve()):
+            raise ValueError(f"Member path escapes project root: '{member.path}'")
         if not repo_dir.exists():
             raise FileNotFoundError(f"Member repository directory does not exist: '{repo_dir}'")
 
         db_file = (repo_dir / member.storage_path).resolve()
+        if not db_file.is_relative_to(repo_dir):
+            msg = f"Member storage_path escapes repository directory: '{member.storage_path}'"
+            raise ValueError(msg)
         db_file.parent.mkdir(parents=True, exist_ok=True)
         db = IndexerDB(str(db_file))
 

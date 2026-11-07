@@ -155,7 +155,7 @@ class PredictiveTestService:
                 rows = conn.execute(
                     f"SELECT id, name, kind, file_path, start_line, end_line FROM nodes "
                     f"WHERE name IN ({placeholders}) AND kind IN ('function', 'method')",
-                    target_symbols,
+                    tuple(target_symbols),
                 ).fetchall()
                 for r in rows:
                     modified_nodes.append(

@@ -114,7 +114,18 @@ async def agent_loop(
         tool_start_ts = time.time()
         try:
             tool_result = await connection.call_tool(tool_name, tool_input)
-            tool_response = json.dumps(tool_result) if isinstance(tool_result, (dict, list)) else str(tool_result)
+            if hasattr(tool_result, "content") and isinstance(tool_result.content, list):
+                # Extract text content from MCP content blocks
+                text_blocks = [
+                    getattr(b, "text", str(b))
+                    for b in tool_result.content
+                    if getattr(b, "type", "") == "text" or hasattr(b, "text")
+                ]
+                tool_response = "\n".join(text_blocks) if text_blocks else str(tool_result)
+            elif isinstance(tool_result, (dict, list)):
+                tool_response = json.dumps(tool_result, default=str)
+            else:
+                tool_response = str(tool_result)
         except Exception as e:
             tool_response = f"Error executing tool {tool_name}: {str(e)}\n"
             tool_response += traceback.format_exc()

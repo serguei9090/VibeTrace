@@ -510,9 +510,10 @@ class QualityService:
                 by_file[f.file_path].append(f)
 
         commented_count = 0
+        resolved_root = project_root.resolve()
         for rel_path, file_findings in by_file.items():
             abs_path = (project_root / rel_path).resolve()
-            if not abs_path.is_file():
+            if not abs_path.is_file() or not abs_path.is_relative_to(resolved_root):
                 continue
             lines = abs_path.read_text(encoding="utf-8").splitlines()
             sorted_f = sorted(file_findings, key=lambda x: x.start_line, reverse=True)

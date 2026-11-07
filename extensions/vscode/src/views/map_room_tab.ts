@@ -25,6 +25,16 @@ export function openMapRoomTab(
 
   activePanel.iconPath = vscode.Uri.joinPath(context.extensionUri, "resources", "icon.svg");
 
+  let safeUrl = "http://localhost:4000";
+  try {
+    const parsed = new URL(daemonUrl);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      safeUrl = parsed.toString();
+    }
+  } catch {
+    safeUrl = "http://localhost:4000";
+  }
+
   activePanel.webview.html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +58,7 @@ export function openMapRoomTab(
   </style>
 </head>
 <body>
-  <iframe src="${daemonUrl}" allow="cross-origin-isolated; fullscreen"></iframe>
+  <iframe src="${encodeURI(safeUrl)}" allow="cross-origin-isolated; fullscreen"></iframe>
 </body>
 </html>`;
 

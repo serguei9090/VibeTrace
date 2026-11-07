@@ -117,11 +117,14 @@ class SqlFluffAdapter(LinterSubEngine):
 
         if file_list is not None:
             rel_files: list[str] = []
+            resolved_root = project_root.resolve()
             for p in file_list:
                 try:
-                    rel_files.append(str(p.relative_to(project_root)))
+                    rel_p = p.resolve().relative_to(resolved_root)
+                    rel_files.append(str(rel_p))
                 except ValueError:
-                    rel_files.append(str(p))
+                    # Ignore files outside project root to prevent path traversal
+                    continue
             if not rel_files:
                 return []
             cmd.extend(rel_files)

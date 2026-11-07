@@ -43,7 +43,11 @@ class FederatedSQLiteEngine:
 
             for member in self.members:
                 repo_dir = (self.project_root / member.path).resolve()
+                if not repo_dir.is_relative_to(self.project_root.resolve()):
+                    continue
                 db_path = (repo_dir / member.storage_path).resolve()
+                if not db_path.is_relative_to(self.project_root.resolve()):
+                    continue
                 if db_path.exists():
                     alias = _sanitize_alias(member.name)
                     # Deduplicate alias if collision occurs

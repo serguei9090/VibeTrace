@@ -178,7 +178,7 @@ class TaintEngine:
                 continue
             rel_file = node["file_path"]
             abs_path = (project_root / rel_file).resolve()
-            if not abs_path.is_file():
+            if not abs_path.is_file() or not abs_path.is_relative_to(project_root.resolve()):
                 continue
             s_line = node.get("start_line") or 1
             e_line = node.get("end_line") or s_line

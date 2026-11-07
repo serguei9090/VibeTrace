@@ -60,7 +60,7 @@ def compute_symbol_code_hash(
     """Computes a deterministic SHA-256 hash of a function's normalized source lines."""
     clean_path = file_path.replace("\\", "/").lstrip("/")
     abs_file = (project_root / clean_path).resolve()
-    if not abs_file.is_file():
+    if not abs_file.is_file() or not abs_file.is_relative_to(project_root.resolve()):
         return hashlib.sha256(b"").hexdigest()
 
     try:

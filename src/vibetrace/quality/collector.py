@@ -163,10 +163,12 @@ def resolve_candidate_paths(
 ) -> list[Path]:
     """Resolves candidate source files across all supported extensions."""
     if file_list:
+        resolved_root = project_root.resolve()
         return [
             p
             for p_str in file_list
             if (p := (project_root / p_str).resolve()).is_file()
+            and p.is_relative_to(resolved_root)
             and (
                 p_str.endswith(SUPPORTED_EXTS)
                 or p.name.lower() == "dockerfile"
@@ -174,7 +176,10 @@ def resolve_candidate_paths(
             )
         ]
     if file_filter:
+        resolved_root = project_root.resolve()
         target = (project_root / file_filter).resolve()
+        if not target.is_relative_to(resolved_root):
+            return []
         if target.is_file():
             return [target]
         if target.is_dir():

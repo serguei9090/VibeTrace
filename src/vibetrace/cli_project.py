@@ -80,7 +80,14 @@ def cmd_project(args: argparse.Namespace) -> int:
         )
         return 1
 
-    root = Path(args.root).resolve() if getattr(args, "root", None) else Path.cwd().resolve()
+    root_arg = getattr(args, "root", None)
+    if root_arg:
+        root = Path(root_arg).resolve()
+        if not root.is_dir():
+            print(f"Error: Specified root directory does not exist: {root}", file=sys.stderr)
+            return 1
+    else:
+        root = Path.cwd().resolve()
     as_json = getattr(args, "json", False)
 
     try:

@@ -158,7 +158,7 @@ class EmbeddingEngine:
         st_mod = importlib.import_module("sentence_transformers")
         sentence_transformer_cls = st_mod.SentenceTransformer
         try:
-            self._st_model = sentence_transformer_cls(self.config.model_id, trust_remote_code=True)
+            self._st_model = sentence_transformer_cls(self.config.model_id)
         except Exception as err:
             hf_url = f"https://huggingface.co/{self.config.model_id}"
             raise RuntimeError(

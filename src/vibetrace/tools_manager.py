@@ -317,6 +317,11 @@ class ToolsManager:
 
             try:
                 urllib.request.urlretrieve(PHPSTAN_PHAR_URL, str(target_phar))
+                # Validate downloaded phar is not empty or corrupted HTML error page
+                if not target_phar.is_file() or target_phar.stat().st_size < 100_000:
+                    target_phar.unlink(missing_ok=True)
+                    msg = "Downloaded phpstan.phar failed integrity check (truncated/invalid)."
+                    return False, msg
                 # Create companion wrapper on Windows (.bat) or POSIX (bash script)
                 if os.name == "nt":
                     bat_path = target_dir / "phpstan.bat"
