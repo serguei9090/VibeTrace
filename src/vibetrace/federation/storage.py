@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -92,8 +92,6 @@ class FederatedSQLiteEngine:
             last_mod = None
 
             if is_indexed:
-                from datetime import datetime
-
                 mtime = db_path.stat().st_mtime
                 last_mod = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
                 alias = self._attached.get(member.name)

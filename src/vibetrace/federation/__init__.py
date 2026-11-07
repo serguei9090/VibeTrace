@@ -11,11 +11,14 @@ from vibetrace.federation.models import (
     FederatedCaller,
     FederatedGuardReport,
     FederatedNode,
+    MemberStatus,
     ProjectManifest,
+    ProjectSettings,
     RepoMember,
 )
 from vibetrace.federation.project import ProjectWorkspace
 from vibetrace.federation.storage import FederatedSQLiteEngine
+from vibetrace.federation.storage_base import StorageBackend
 
 __all__ = [
     "PROJECT_CONFIG_FILENAME",
@@ -23,9 +26,12 @@ __all__ = [
     "FederatedGuardReport",
     "FederatedNode",
     "FederatedSQLiteEngine",
+    "MemberStatus",
     "ProjectManifest",
+    "ProjectSettings",
     "ProjectWorkspace",
     "RepoMember",
+    "StorageBackend",
     "auto_discover_members",
     "find_project_root",
     "load_project_manifest",

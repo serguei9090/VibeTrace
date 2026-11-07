@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import tomllib
 from pathlib import Path
 
 from vibetrace.federation.models import ProjectManifest, ProjectSettings, RepoMember
+
+logger = logging.getLogger(__name__)
 
 PROJECT_CONFIG_FILENAME = ".vibetrace-project.toml"
 
@@ -53,13 +57,21 @@ def load_project_manifest(project_root: Path) -> ProjectManifest:
     )
 
     members: list[RepoMember] = []
-    for item in project_raw.get("members", []):
+    raw_members = project_raw.get("members", [])
+    if not isinstance(raw_members, list):
+        raise ValueError(f"Invalid 'members' field in '{manifest_file}': expected list")
+
+    for idx, item in enumerate(raw_members):
+        if not isinstance(item, dict) or "name" not in item or "path" not in item:
+            raise ValueError(
+                f"Invalid member at index {idx} in '{manifest_file}': 'name' & 'path' required"
+            )
         members.append(
             RepoMember(
-                name=item["name"],
-                path=item["path"],
-                description=item.get("description", ""),
-                storage_path=item.get("storage_path", ".vibetrace/vibetrace.db"),
+                name=str(item["name"]),
+                path=str(item["path"]),
+                description=str(item.get("description", "")),
+                storage_path=str(item.get("storage_path", ".vibetrace/vibetrace.db")),
             )
         )
 
@@ -80,26 +92,26 @@ def save_project_manifest(project_root: Path, manifest: ProjectManifest) -> None
         "# Generated automatically. Edit or add member repositories below.",
         "",
         "[project]",
-        f'name = "{manifest.name}"',
-        f'version = "{manifest.version}"',
-        f'description = "{manifest.description}"',
+        f"name = {json.dumps(manifest.name)}",
+        f"version = {json.dumps(manifest.version)}",
+        f"description = {json.dumps(manifest.description)}",
         "",
         "[project.settings]",
-        f'storage_backend = "{manifest.settings.storage_backend}"',
+        f"storage_backend = {json.dumps(manifest.settings.storage_backend)}",
     ]
     if manifest.settings.postgres_url:
-        lines.append(f'postgres_url = "{manifest.settings.postgres_url}"')
+        lines.append(f"postgres_url = {json.dumps(manifest.settings.postgres_url)}")
 
     lines.append("")
 
     for member in manifest.members:
         lines.append("[[project.members]]")
-        lines.append(f'name = "{member.name}"')
-        lines.append(f'path = "{member.path}"')
+        lines.append(f"name = {json.dumps(member.name)}")
+        lines.append(f"path = {json.dumps(member.path)}")
         if member.description:
-            lines.append(f'description = "{member.description}"')
+            lines.append(f"description = {json.dumps(member.description)}")
         if member.storage_path != ".vibetrace/vibetrace.db":
-            lines.append(f'storage_path = "{member.storage_path}"')
+            lines.append(f"storage_path = {json.dumps(member.storage_path)}")
         lines.append("")
 
     manifest_file.write_text("\n".join(lines), encoding="utf-8")
@@ -110,7 +122,8 @@ def auto_discover_members(project_root: Path) -> list[RepoMember]:
     candidates: list[RepoMember] = []
     try:
         entries = sorted(project_root.iterdir())
-    except Exception:
+    except OSError as e:
+        logger.warning("Failed to inspect directory %s for member repos: %s", project_root, e)
         return candidates
 
     for entry in entries:

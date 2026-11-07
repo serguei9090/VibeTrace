@@ -35,8 +35,8 @@ class DocCatalogInfo(BaseModel):
 class DocSearchQuery(BaseModel):
     """Request model for documentation search."""
 
-    query: str
+    query: str = Field(..., min_length=1)
     catalog: str | None = None
     scope: Literal["local", "global", "all"] = "local"
-    limit: int = 5
+    limit: int = Field(default=5, ge=1, le=50)
     file_pattern: str | None = None

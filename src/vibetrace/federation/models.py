@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class RepoMember(BaseModel):
@@ -18,11 +19,20 @@ class RepoMember(BaseModel):
         description="Relative path from repo root to its SQLite database",
     )
 
+    @field_validator("name")
+    @classmethod
+    def _validate_repo_name(cls, v: str) -> str:
+        clean = v.strip()
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", clean):
+            msg = f"Invalid repo name '{clean}': only alphanumerics, '-', and '_' are permitted"
+            raise ValueError(msg)
+        return clean
+
 
 class ProjectSettings(BaseModel):
     """Configuration settings for federated multi-repo storage and queries."""
 
-    storage_backend: str = Field(
+    storage_backend: Literal["sqlite", "postgres"] = Field(
         default="sqlite",
         description="Storage backend: 'sqlite' (local ATTACH) or 'postgres' (enterprise server)",
     )
@@ -30,6 +40,12 @@ class ProjectSettings(BaseModel):
         default=None,
         description="Connection URL when storage_backend is 'postgres'",
     )
+
+    @model_validator(mode="after")
+    def _require_postgres_url(self) -> ProjectSettings:
+        if self.storage_backend == "postgres" and not self.postgres_url:
+            raise ValueError("postgres_url is required when storage_backend is 'postgres'")
+        return self
 
 
 class ProjectManifest(BaseModel):
@@ -76,7 +92,7 @@ class FederatedGuardReport(BaseModel):
     target_file: str
     total_callers: int
     callers_by_repo: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
-    risk_level: str = "LOW"
+    risk_level: Literal["LOW", "MEDIUM", "HIGH"] = "LOW"
     safety_advisory: str = ""
 
 

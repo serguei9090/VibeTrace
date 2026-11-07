@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import logging
 import os
+import re
 import sqlite3
 import struct
+import threading
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
 from vibetrace.docs.chunker import HeadingChunk
+
+logger = logging.getLogger(__name__)
 
 
 class DocDB:
@@ -41,11 +46,15 @@ class DocDB:
 
     def _init_schema(self) -> None:
         with self._get_conn() as conn:
-            # Fast check if schema already initialized (avoid write lock on read paths)
-            row = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='doc_chunks'"
-            ).fetchone()
-            if row is not None:
+            # Check if all required tables exist
+            tables = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type IN ('table', 'shadow') "
+                    "AND name IN ('doc_chunks', 'doc_chunks_fts')"
+                ).fetchall()
+            }
+            if "doc_chunks" in tables and "doc_chunks_fts" in tables:
                 return
 
             conn.execute("BEGIN IMMEDIATE")
@@ -222,7 +231,12 @@ class DocDB:
             try:
                 rows = conn.execute(sql, params).fetchall()
                 return [dict(r) for r in rows]
-            except sqlite3.OperationalError:
+            except sqlite3.OperationalError as e:
+                err_msg = str(e).lower()
+                if "fts5" in err_msg or "syntax error" in err_msg:
+                    logger.debug("FTS5 search syntax error for query %r: %s", fts_query, e)
+                else:
+                    logger.warning("FTS5 query failed: %s", e)
                 return []
 
     def search_vector(
@@ -246,6 +260,7 @@ class DocDB:
             params.append(catalog)
 
         scored: list[tuple[float, dict[str, Any]]] = []
+        mismatched_dim_count = 0
         with self._get_conn() as conn:
             for row in conn.execute(sql, params):
                 emb_bytes = row["embedding"]
@@ -253,6 +268,7 @@ class DocDB:
                     continue
                 v_count = len(emb_bytes) // 4
                 if v_count != dim:
+                    mismatched_dim_count += 1
                     continue
                 v = struct.unpack(f"{dim}f", emb_bytes)
                 dot = sum(a * b for a, b in zip(query_vec, v, strict=True))
@@ -261,6 +277,13 @@ class DocDB:
                 item = dict(row)
                 del item["embedding"]
                 scored.append((sim, item))
+
+        if mismatched_dim_count > 0:
+            logger.debug(
+                "Skipped %d doc embeddings due to dimension mismatch (query dim: %d)",
+                mismatched_dim_count,
+                dim,
+            )
 
         scored.sort(key=lambda s: s[0], reverse=True)
         return [{"score": s, **item} for s, item in scored[:limit]]
@@ -282,12 +305,11 @@ class DocDB:
 
 def re_clean_query(query: str) -> list[str]:
     """Extract clean alphanumeric words for FTS5 queries."""
-    import re
-
     return [w.strip() for w in re.findall(r"\w+", query) if len(w.strip()) > 1]
 
 
 _DOC_DB_CACHE: dict[str, DocDB] = {}
+_CACHE_LOCK = threading.Lock()
 
 
 def get_global_doc_db() -> DocDB:
@@ -295,14 +317,16 @@ def get_global_doc_db() -> DocDB:
     env_global = os.environ.get("VIBETRACE_GLOBAL_ROOT")
     user_home = Path(env_global) if env_global else Path.home() / ".vibetrace"
     key = str((user_home / "docs.db").resolve())
-    if key not in _DOC_DB_CACHE:
-        _DOC_DB_CACHE[key] = DocDB(user_home / "docs.db")
-    return _DOC_DB_CACHE[key]
+    with _CACHE_LOCK:
+        if key not in _DOC_DB_CACHE:
+            _DOC_DB_CACHE[key] = DocDB(user_home / "docs.db")
+        return _DOC_DB_CACHE[key]
 
 
 def get_local_doc_db(project_root: Path) -> DocDB:
     """Return database handle to project-local docs store (.vibetrace/vibetrace.db)."""
     key = str((project_root / ".vibetrace" / "vibetrace.db").resolve())
-    if key not in _DOC_DB_CACHE:
-        _DOC_DB_CACHE[key] = DocDB(project_root / ".vibetrace" / "vibetrace.db")
-    return _DOC_DB_CACHE[key]
+    with _CACHE_LOCK:
+        if key not in _DOC_DB_CACHE:
+            _DOC_DB_CACHE[key] = DocDB(project_root / ".vibetrace" / "vibetrace.db")
+        return _DOC_DB_CACHE[key]

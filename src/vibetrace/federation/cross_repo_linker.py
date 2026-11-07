@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
 
 
 def _normalize_route(route_str: str) -> str:
@@ -18,16 +23,15 @@ def _normalize_route(route_str: str) -> str:
         '/api/checkout' -> 'ANY /api/checkout'
     """
     clean = route_str.strip()
-    # Strip URL origin if present
-    clean = re.sub(r"^https?://[^/]+", "", clean)
     parts = clean.split(maxsplit=1)
-    if len(parts) == 2:
+    if len(parts) == 2 and parts[0].upper() in _HTTP_METHODS:
         method = parts[0].upper()
-        path = parts[1].rstrip("/")
+        path = re.sub(r"^https?://[^/]+", "", parts[1]).rstrip("/")
         if not path.startswith("/"):
             path = f"/{path}"
         return f"{method} {path}"
-    path = clean.rstrip("/")
+
+    path = re.sub(r"^https?://[^/]+", "", clean).rstrip("/")
     if not path.startswith("/"):
         path = f"/{path}"
     return f"ANY {path}"
@@ -64,20 +68,21 @@ class CrossRepoLinker:
         # 2. Map server routes: contract_key -> list of handler nodes
         server_handlers: dict[str, list[dict[str, Any]]] = {}
 
-        ep_filter = (
-            "WHERE ep.kind = 'endpoint' OR ep.name LIKE 'GET %' OR ep.name LIKE 'POST %' "
-            "OR ep.name LIKE 'PUT %' OR ep.name LIKE 'DELETE %' OR ep.name LIKE 'PATCH %'"
-        )
-
         for repo_name, alias in self.attached.items():
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", alias):
+                logger.warning("Skipping unsafe schema alias %r", alias)
+                continue
+
             try:
+                methods_like = " OR ".join(f"ep.name LIKE '{m} %'" for m in _HTTP_METHODS)
                 sql_client = (
                     f"SELECT n.name AS caller_name, n.file_path, e.call_line, "
                     f"ep.name AS endpoint_name "
                     f"FROM {alias}.edges e "
                     f"JOIN {alias}.nodes n ON e.from_node_id = n.id "
                     f"JOIN {alias}.nodes ep ON e.to_node_id = ep.id "
-                    f"{ep_filter}"
+                    f"WHERE e.relation_type IN ('calls', 'invokes', 'http_call') "
+                    f"  AND (ep.kind = 'endpoint' OR {methods_like})"
                 )
                 cur_client = self.conn.execute(sql_client)
                 for row in cur_client.fetchall():
@@ -90,8 +95,8 @@ class CrossRepoLinker:
                             "line": row["call_line"],
                         }
                     )
-            except Exception:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Client edge query failed for %s (%s): %s", repo_name, alias, exc)
 
             try:
                 sql_server = (
@@ -116,8 +121,8 @@ class CrossRepoLinker:
                             "line": row["start_line"],
                         }
                     )
-            except Exception:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Server edge query failed for %s (%s): %s", repo_name, alias, exc)
 
         links: list[CrossRepoLink] = []
 

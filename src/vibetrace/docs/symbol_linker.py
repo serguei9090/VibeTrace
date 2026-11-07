@@ -7,6 +7,7 @@ for broken symbol references (preventing architectural documentation drift).
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -16,6 +17,8 @@ from pydantic import BaseModel, Field
 
 from vibetrace.docs.chunker import chunk_markdown
 from vibetrace.indexer.db import IndexerDB
+
+logger = logging.getLogger(__name__)
 
 # Filter out common programming keywords, schema entities, parameters, and primitives
 _DOC_SYMBOL_IGNORE = frozenset(
@@ -477,11 +480,13 @@ class SymbolDocLinker:
         chunk_tokens = estimate_tokens(chunk.content)
         created = 0
         for sym in set(symbols):
+            escaped_sym = sym.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             cursor = conn.execute(
                 "SELECT id, name, qualified_name FROM nodes "
-                "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? "
+                "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? ESCAPE '\\' "
+                "ORDER BY (qualified_name = ?) DESC, LENGTH(qualified_name) ASC "
                 "LIMIT 1",
-                (sym, sym, f"%.{sym}"),
+                (sym, sym, f"%.{escaped_sym}", sym),
             )
             row = cursor.fetchone()
             if not row:
@@ -491,7 +496,14 @@ class SymbolDocLinker:
             sym_name = row["qualified_name"] or row["name"]
             conn.execute(
                 """
-                INSERT OR REPLACE INTO symbol_doc_links (
+                DELETE FROM symbol_doc_links 
+                WHERE symbol_id = ? AND doc_path = ? AND heading_path = ? AND start_line = ?
+                """,
+                (sym_id, rel_doc_path, chunk.heading_path, chunk.start_line),
+            )
+            conn.execute(
+                """
+                INSERT INTO symbol_doc_links (
                     symbol_id, symbol_name, doc_path, heading,
                     heading_path, start_line, end_line, content, token_count
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -551,19 +563,23 @@ class SymbolDocLinker:
         with db._get_conn() as conn:
             try:
                 # Query by ID or by symbol name suffix
+                escaped_name = (
+                    symbol_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                )
                 cursor = conn.execute(
                     """
                     SELECT doc_path, heading, heading_path, start_line, end_line,
                            content, token_count
                     FROM symbol_doc_links
-                    WHERE symbol_id = ? OR symbol_name = ? OR symbol_name LIKE ?
-                    ORDER BY token_count ASC
+                    WHERE symbol_id = ? OR symbol_name = ? OR symbol_name LIKE ? ESCAPE '\\'
+                    ORDER BY token_count ASC, start_line ASC
                     LIMIT 3
                     """,
-                    (symbol_id or "", symbol_name, f"%.{symbol_name}"),
+                    (symbol_id or "", symbol_name, f"%.{escaped_name}"),
                 )
                 rows = cursor.fetchall()
-            except Exception:
+            except sqlite3.Error as e:
+                logger.warning("DB error fetching linked docs for %s: %s", symbol_name, e)
                 return []
 
             for r in rows:
@@ -573,14 +589,12 @@ class SymbolDocLinker:
                 if token_budget < 20:
                     break
 
-                # If single chunk exceeds remaining budget, truncate cleanly
+                # If single chunk exceeds remaining budget, truncate reserving room for marker
                 if cost > token_budget:
-                    char_limit = token_budget * 4
-                    content = (
-                        content[:char_limit].rstrip()
-                        + "\n... [Remaining architectural specification truncated for token budget]"
-                    )
-                    cost = token_budget
+                    marker = "\n... [Remaining architectural specification truncated]"
+                    char_limit = max(0, token_budget * 4 - len(marker))
+                    content = content[:char_limit].rstrip() + marker
+                    cost = estimate_tokens(content)
 
                 results.append(
                     LinkedDocReference(
@@ -667,8 +681,17 @@ class SymbolDocLinker:
                 except OSError:
                     continue
 
+                fence_delim: str | None = None
                 for line_idx, line in enumerate(lines, start=1):
-                    if line.strip().startswith(("```", "~~~")):
+                    stripped = line.strip()
+                    if stripped.startswith(("```", "~~~")):
+                        if fence_delim is None:
+                            fence_delim = stripped[:3]
+                        elif stripped.startswith(fence_delim):
+                            fence_delim = None
+                        continue
+
+                    if fence_delim is not None:
                         continue
 
                     ref_c, val_c, line_findings = cls._audit_line_symbols(

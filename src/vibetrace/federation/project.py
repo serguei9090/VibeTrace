@@ -99,8 +99,11 @@ class ProjectWorkspace:
                 raise ValueError(f"Member repository '{name}' is already registered.")
 
         member = RepoMember(name=name, path=path, description=description)
-        self.manifest.members.append(member)
-        save_project_manifest(self.root, self.manifest)
+        new_manifest = self.manifest.model_copy(
+            update={"members": [*self.manifest.members, member]}
+        )
+        save_project_manifest(self.root, new_manifest)
+        self.manifest = new_manifest
         self.close()  # Reset engine connection to pick up new member
         return member
 
@@ -141,24 +144,27 @@ class ProjectWorkspace:
         db_file.parent.mkdir(parents=True, exist_ok=True)
         db = IndexerDB(str(db_file))
 
-        reindex_all(
-            db,
-            str(repo_dir),
-            verbose=verbose,
-            force=force,
-            project_root=repo_dir,
-        )
-        self.close()  # Invalidate cached DB connection
+        try:
+            reindex_all(
+                db,
+                str(repo_dir),
+                verbose=verbose,
+                force=force,
+                project_root=repo_dir,
+            )
+            self.close()  # Invalidate cached DB connection
 
-        node_count = 0
-        edge_count = 0
-        with db._get_conn() as conn:
-            rn = conn.execute("SELECT count(*) FROM nodes").fetchone()
-            if rn:
-                node_count = rn[0]
-            re = conn.execute("SELECT count(*) FROM edges").fetchone()
-            if re:
-                edge_count = re[0]
+            node_count = 0
+            edge_count = 0
+            with db._get_conn() as conn:
+                rn = conn.execute("SELECT count(*) FROM nodes").fetchone()
+                if rn:
+                    node_count = rn[0]
+                re = conn.execute("SELECT count(*) FROM edges").fetchone()
+                if re:
+                    edge_count = re[0]
+        finally:
+            db.close()
 
         return {
             "name": repo_name,

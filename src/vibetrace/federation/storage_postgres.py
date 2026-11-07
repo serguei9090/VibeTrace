@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from vibetrace.federation.models import (
@@ -11,6 +12,8 @@ from vibetrace.federation.models import (
     MemberStatus,
     RepoMember,
 )
+
+logger = logging.getLogger(__name__)
 
 POSTGRES_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS vibetrace_projects (
@@ -130,8 +133,12 @@ class PostgresStorageBackend:
                     row_e = cur.fetchone()
                     if row_e:
                         edge_count = row_e[0]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Error fetching Postgres status for member %s: %s", member.name, e)
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
 
             statuses.append(
                 MemberStatus(
@@ -210,13 +217,15 @@ class PostgresStorageBackend:
                 if not def_repo:
                     cur.execute(
                         "SELECT repo_id, id, file_path FROM vibetrace_nodes "
-                        "WHERE project_id = %s AND name = %s LIMIT 1",
+                        "WHERE project_id = %s AND name = %s "
+                        "ORDER BY repo_id ASC, file_path ASC, start_line ASC LIMIT 1",
                         (self.project_id, symbol_name),
                     )
                 else:
                     cur.execute(
                         "SELECT repo_id, id, file_path FROM vibetrace_nodes "
-                        "WHERE project_id = %s AND repo_id = %s AND name = %s LIMIT 1",
+                        "WHERE project_id = %s AND repo_id = %s AND name = %s "
+                        "ORDER BY file_path ASC, start_line ASC LIMIT 1",
                         (self.project_id, def_repo, symbol_name),
                     )
                 row = cur.fetchone()
@@ -224,8 +233,12 @@ class PostgresStorageBackend:
                     def_repo = row[0]
                     target_id = row[1]
                     def_file = row[2]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error looking up definition for %s in Postgres: %s", symbol_name, e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         callers_by_repo: dict[str, list[dict[str, Any]]] = {}
         total_callers = 0
@@ -262,8 +275,12 @@ class PostgresStorageBackend:
                     )
                     callers_by_repo.setdefault(r_id, []).append(caller.model_dump())
                     total_callers += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Error looking up callers for %s in Postgres: %s", symbol_name, e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         risk = "LOW"
         if total_callers > 10 or len(callers_by_repo) > 1:

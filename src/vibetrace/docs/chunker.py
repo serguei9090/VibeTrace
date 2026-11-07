@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -139,6 +142,10 @@ def _split_long_section(
 
 def chunk_text(content: str, max_chars: int = 1200, overlap_lines: int = 4) -> list[HeadingChunk]:
     """Chunk plain text files using sliding window with line preservation."""
+    if max_chars <= 0:
+        raise ValueError("max_chars must be greater than 0")
+    overlap_lines = max(0, overlap_lines)
+
     lines = content.splitlines()
     if not lines:
         return []
@@ -197,6 +204,7 @@ def chunk_pdf(pdf_path: Path, max_chars: int = 1500) -> list[HeadingChunk]:
     try:
         from pypdf import PdfReader
     except ImportError:
+        logger.debug("pypdf not installed, skipping PDF chunking for %s", pdf_path)
         return []
 
     try:
@@ -204,13 +212,15 @@ def chunk_pdf(pdf_path: Path, max_chars: int = 1500) -> list[HeadingChunk]:
         if getattr(reader, "is_encrypted", False):
             try:
                 dec_res = reader.decrypt("")
-                # If decrypt returns 0, password was required and empty pass failed
                 if dec_res == 0:
+                    logger.warning("PDF %s is password protected and cannot be decrypted", pdf_path)
                     return []
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to decrypt PDF %s: %s", pdf_path, e)
                 return []
         pages = list(reader.pages)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to read PDF file %s: %s", pdf_path, e)
         return []
 
     chunks: list[HeadingChunk] = []

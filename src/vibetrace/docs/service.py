@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import tomllib
 from pathlib import Path
@@ -11,6 +13,8 @@ from vibetrace.docs.chunker import HeadingChunk, chunk_markdown, chunk_pdf, chun
 from vibetrace.docs.db import DocDB, get_global_doc_db, get_local_doc_db
 from vibetrace.docs.schemas import DocCatalogInfo, DocChunkItem
 from vibetrace.indexer.embeddings import EmbeddingEngine
+
+logger = logging.getLogger(__name__)
 
 
 def get_global_config_path() -> Path:
@@ -42,7 +46,8 @@ def _read_catalogs_from_toml(path: Path) -> dict[str, list[str]]:
             elif isinstance(v, str):
                 res[k] = [v]
         return res
-    except Exception:
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        logger.warning("Failed to parse catalogs from TOML %s: %s", path, e)
         return {}
 
 
@@ -53,7 +58,8 @@ def _write_catalogs_to_toml(path: Path, catalogs: dict[str, list[str]]) -> None:
         try:
             content = path.read_text(encoding="utf-8")
             lines = content.splitlines()
-        except Exception:
+        except OSError as e:
+            logger.warning("Failed to read existing TOML %s: %s", path, e)
             lines = []
 
     # Strip existing [docs.catalogs] section
@@ -76,8 +82,8 @@ def _write_catalogs_to_toml(path: Path, catalogs: dict[str, list[str]]) -> None:
     filtered_lines.append("[docs.catalogs]")
     for cat_name, paths in sorted(catalogs.items()):
         norm_paths = [p.replace("\\", "/") for p in paths]
-        paths_json = ", ".join(f'"{p}"' for p in norm_paths)
-        filtered_lines.append(f"{cat_name} = [{paths_json}]")
+        paths_json = ", ".join(json.dumps(p) for p in norm_paths)
+        filtered_lines.append(f"{json.dumps(cat_name)} = [{paths_json}]")
 
     path.write_text("\n".join(filtered_lines) + "\n", encoding="utf-8")
 
@@ -250,7 +256,10 @@ class DocIndexService:
             return 0
 
         chunks = cls._extract_chunks(fpath)
-        if not chunks:
+        if chunks is None:
+            # Error reading/parsing file; do not delete old chunks
+            return 0
+        if len(chunks) == 0:
             db.delete_file_chunks(catalog_name, rel_file)
             return 0
 
@@ -281,7 +290,15 @@ class DocIndexService:
         eff_engine = engine if engine.is_available() else None
 
         files_to_index = cls._collect_catalog_files(paths, base_dir)
+        seen_rel_files: set[str] = set()
+
         for fpath in files_to_index:
+            rel_file = (
+                str(fpath.relative_to(base_dir)).replace("\\", "/")
+                if fpath.is_relative_to(base_dir)
+                else str(fpath).replace("\\", "/")
+            )
+            seen_rel_files.add(rel_file)
             chunk_count = cls._index_file_entry(
                 fpath=fpath,
                 catalog_name=catalog_name,
@@ -294,10 +311,21 @@ class DocIndexService:
                 indexed_files += 1
                 total_chunks += chunk_count
 
+        # Clean up deleted files from this catalog
+        with db._get_conn() as conn:
+            stored_rows = conn.execute(
+                "SELECT DISTINCT file_path FROM doc_chunks WHERE catalog = ?",
+                (catalog_name,),
+            ).fetchall()
+            for r in stored_rows:
+                old_fp = r[0]
+                if old_fp not in seen_rel_files:
+                    db.delete_file_chunks(catalog_name, old_fp)
+
         return {"files": indexed_files, "chunks": total_chunks}
 
     @classmethod
-    def _extract_chunks(cls, fpath: Path) -> list[HeadingChunk]:
+    def _extract_chunks(cls, fpath: Path) -> list[HeadingChunk] | None:
         try:
             ext = fpath.suffix.lower()
             if ext in (".md", ".markdown"):
@@ -308,8 +336,9 @@ class DocIndexService:
             else:
                 content = fpath.read_text(encoding="utf-8", errors="replace")
                 return chunk_text(content)
-        except Exception:
-            return []
+        except Exception as e:
+            logger.warning("Failed to extract chunks from %s: %s", fpath, e)
+            return None
 
 
 class DocSearchService:
@@ -317,15 +346,14 @@ class DocSearchService:
 
     @classmethod
     def _resolve_query_vector(cls, query: str, project_root: Path | None) -> list[float] | None:
-        if not project_root:
-            return None
         engine = EmbeddingEngine(project_root=project_root)
         if not engine.is_available():
             return None
         try:
             emb_res = engine.embed_texts([query])
             return emb_res[0] if emb_res else None
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to embed search query: %s", e)
             return None
 
     @classmethod
@@ -381,11 +409,20 @@ class DocSearchService:
         limit: int = 5,
     ) -> list[DocChunkItem]:
         """Search documentation using hybrid reciprocal rank fusion."""
+        limit = max(1, min(50, limit))
         targets: list[tuple[DocDB, Literal["local", "global"]]] = []
-        if scope in ("local", "all") and project_root:
-            targets.append((get_local_doc_db(project_root), "local"))
-        if scope in ("global", "all"):
-            targets.append((get_global_doc_db(), "global"))
+
+        # If a specific catalog is requested, prioritize local over global shadowing
+        if catalog and project_root and scope in ("local", "all"):
+            local_cats = _read_catalogs_from_toml(get_project_config_path(project_root))
+            if catalog in local_cats:
+                targets.append((get_local_doc_db(project_root), "local"))
+
+        if not targets:
+            if scope in ("local", "all") and project_root:
+                targets.append((get_local_doc_db(project_root), "local"))
+            if scope in ("global", "all"):
+                targets.append((get_global_doc_db(), "global"))
 
         q_vec = cls._resolve_query_vector(query, project_root)
         bm25_hits: list[tuple[Literal["local", "global"], dict[str, Any]]] = []

@@ -16,7 +16,7 @@ class StorageBackend(Protocol):
     """Protocol defining storage operations for multi-repo federation."""
 
     def close(self) -> None:
-        """Release active database connections and resources."""
+        """Release active database connections and resources. Must be idempotent and not raise."""
         ...
 
     def get_member_statuses(self) -> list[MemberStatus]:
