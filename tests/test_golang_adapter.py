@@ -111,11 +111,8 @@ def test_golang_adapter_output_shapes_and_fix_scope(tmp_path: Path, monkeypatch)
 
     findings = adapter.audit_project(tmp_path)
     assert len(findings) == 1
-    assert (
-        findings[0].rule_id == "go:S3776"
-        or findings[0].rspec_id == "RSPEC-1135"
-        or "errcheck" in findings[0].title
-    )
+    assert findings[0].rule_id == "go:S2970"
+    assert findings[0].rspec_id == "RSPEC-2970"
 
     # 2. Process exit with error code (e.g. 2 for syntax error)
     monkeypatch.setattr(
