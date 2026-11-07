@@ -1,0 +1,83 @@
+{
+  "nodes": [
+    {
+      "name": "UserProfile",
+      "qualified_name": "UserProfile",
+      "kind": "function",
+      "signature": "({ userId, onUpdate })",
+      "docstring": null
+    },
+    {
+      "name": "handleClick",
+      "qualified_name": "UserProfile.handleClick",
+      "kind": "function",
+      "signature": "()",
+      "docstring": null
+    },
+    {
+      "name": "UserProfileProps",
+      "qualified_name": "UserProfileProps",
+      "kind": "interface",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "react",
+      "qualified_name": "react",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "ts_sample.tsx",
+      "qualified_name": "ts_sample.tsx",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "[name, setName]",
+      "qualified_name": "UserProfile.[name, setName]",
+      "kind": "variable",
+      "signature": null,
+      "docstring": null
+    }
+  ],
+  "edges": [
+    {
+      "from_node_id": "195a757e68d386353918a4bbf9cccc50",
+      "to_node_id": "75317c33938cc70b0d8b11b3c89ad949",
+      "relation_type": "calls"
+    },
+    {
+      "from_node_id": "8b8d480f57890dd11e3fdb8ce23472de",
+      "to_node_id": "53fa76ebe83b18bb3b4eeaa2a790eff5",
+      "relation_type": "calls"
+    },
+    {
+      "from_node_id": "4cd475aeeb95f05f968367024c794025",
+      "to_node_id": "8b8d480f57890dd11e3fdb8ce23472de",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "4cd475aeeb95f05f968367024c794025",
+      "to_node_id": "e94621bac69af6f1480349481858b4bc",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "8b8d480f57890dd11e3fdb8ce23472de",
+      "to_node_id": "060c08f351c7061fe7da24d2cb787b58",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "8b8d480f57890dd11e3fdb8ce23472de",
+      "to_node_id": "195a757e68d386353918a4bbf9cccc50",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "4cd475aeeb95f05f968367024c794025",
+      "to_node_id": "686eb7141b502bde8c261ef50a506e1a",
+      "relation_type": "imports"
+    }
+  ]
+}

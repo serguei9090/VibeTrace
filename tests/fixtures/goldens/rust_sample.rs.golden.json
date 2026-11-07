@@ -1,0 +1,49 @@
+{
+  "nodes": [
+    {
+      "name": "is_valid",
+      "qualified_name": "Config.is_valid",
+      "kind": "function",
+      "signature": "(&self) -> bool",
+      "docstring": null
+    },
+    {
+      "name": "new",
+      "qualified_name": "Config.new",
+      "kind": "function",
+      "signature": "(port: u16) -> Self",
+      "docstring": null
+    },
+    {
+      "name": "rust_sample.rs",
+      "qualified_name": "rust_sample.rs",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "Config",
+      "qualified_name": "Config",
+      "kind": "struct",
+      "signature": null,
+      "docstring": null
+    }
+  ],
+  "edges": [
+    {
+      "from_node_id": "15cb073fd81796ac7067598869d645b5",
+      "to_node_id": "3447f3370e77ef881e55a18d4ff63ec5",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "15cb073fd81796ac7067598869d645b5",
+      "to_node_id": "a029865e2c00c0c68e8fdf9f869846a7",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "b5bb73124c7f3d20d721d88f3f37bd9f",
+      "to_node_id": "15cb073fd81796ac7067598869d645b5",
+      "relation_type": "defines"
+    }
+  ]
+}

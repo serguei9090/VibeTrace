@@ -1,0 +1,71 @@
+{
+  "nodes": [
+    {
+      "name": "Charge",
+      "qualified_name": "Service.Charge",
+      "kind": "function",
+      "signature": "(amount float64) error",
+      "docstring": null
+    },
+    {
+      "name": "NewService",
+      "qualified_name": "NewService",
+      "kind": "function",
+      "signature": "(endpoint string) *Service",
+      "docstring": null
+    },
+    {
+      "name": "fmt",
+      "qualified_name": "fmt",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "go_sample.go",
+      "qualified_name": "go_sample.go",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "Service",
+      "qualified_name": "Service",
+      "kind": "struct",
+      "signature": null,
+      "docstring": null
+    }
+  ],
+  "edges": [
+    {
+      "from_node_id": "45d6607c0be611387c137f04da27baa4",
+      "to_node_id": "084668ad588823ed3340646276dbbfbd",
+      "relation_type": "calls"
+    },
+    {
+      "from_node_id": "0015ffce62b0cbb101fd53c1a8c5e3ea",
+      "to_node_id": "3fa8f3e83d04d595b70c584f37efd7c3",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "0015ffce62b0cbb101fd53c1a8c5e3ea",
+      "to_node_id": "45d6607c0be611387c137f04da27baa4",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "0015ffce62b0cbb101fd53c1a8c5e3ea",
+      "to_node_id": "b8a5da52754c485bf6d3025343460812",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "3fa8f3e83d04d595b70c584f37efd7c3",
+      "to_node_id": "45d6607c0be611387c137f04da27baa4",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "0015ffce62b0cbb101fd53c1a8c5e3ea",
+      "to_node_id": "15b3b0a8042ec4f972024101365c6cd3",
+      "relation_type": "imports"
+    }
+  ]
+}

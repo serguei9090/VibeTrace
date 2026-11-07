@@ -1,0 +1,78 @@
+{
+  "nodes": [
+    {
+      "name": "OrderProcessor",
+      "qualified_name": "OrderProcessor",
+      "kind": "class",
+      "signature": null,
+      "docstring": "Manages order lifecycles and notifications."
+    },
+    {
+      "name": "__init__",
+      "qualified_name": "OrderProcessor.__init__",
+      "kind": "function",
+      "signature": "(self, api_key: str)",
+      "docstring": null
+    },
+    {
+      "name": "_notify",
+      "qualified_name": "OrderProcessor._notify",
+      "kind": "function",
+      "signature": "(self, order_id: str) -> bool",
+      "docstring": null
+    },
+    {
+      "name": "process",
+      "qualified_name": "OrderProcessor.process",
+      "kind": "function",
+      "signature": "(self, order_id: str, items: List[Any]) -> bool",
+      "docstring": null
+    },
+    {
+      "name": "python_sample",
+      "qualified_name": "python_sample",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    },
+    {
+      "name": "typing",
+      "qualified_name": "typing",
+      "kind": "module",
+      "signature": null,
+      "docstring": null
+    }
+  ],
+  "edges": [
+    {
+      "from_node_id": "4c926288d259e1f09103d017017b7ab7",
+      "to_node_id": "baa2b44616e61b510d8c75af6344f009",
+      "relation_type": "calls"
+    },
+    {
+      "from_node_id": "398e97490c3338e719685055ef921ffc",
+      "to_node_id": "4c926288d259e1f09103d017017b7ab7",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "398e97490c3338e719685055ef921ffc",
+      "to_node_id": "baa2b44616e61b510d8c75af6344f009",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "398e97490c3338e719685055ef921ffc",
+      "to_node_id": "d960e93c6f5b656037181bbae5099636",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "8c3fe3bcebf02396609275c819d2e017",
+      "to_node_id": "398e97490c3338e719685055ef921ffc",
+      "relation_type": "defines"
+    },
+    {
+      "from_node_id": "8c3fe3bcebf02396609275c819d2e017",
+      "to_node_id": "d9ceedd44b13ae21641161e438b8724d",
+      "relation_type": "imports"
+    }
+  ]
+}
