@@ -662,6 +662,121 @@ body {
   color: #a5b4fc;
 }
 
+/* Package Node Dedicated Styling */
+.package-node {
+  background: linear-gradient(135deg, rgba(23, 26, 42, 0.96) 0%, rgba(15, 17, 28, 0.98) 100%);
+  border: 1.5px solid rgba(99, 102, 241, 0.35);
+  border-left: 4px solid #6366f1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 260px;
+  max-width: 300px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.package-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.package-node-title-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.package-node-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.package-node-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.package-node-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.package-node-metrics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.package-node-metric-chip {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.package-node-symbols-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.package-node-symbols-title {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.package-node-symbols-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.package-node-symbol-tag {
+  font-size: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.package-node-explore-btn {
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* Accessibility: Focus Visible Indicators (WCAG 2.4.7) */
 .vibe-btn:focus-visible,
 .vibe-segment-btn:focus-visible,

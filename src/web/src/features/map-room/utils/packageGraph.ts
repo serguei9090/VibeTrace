@@ -151,6 +151,8 @@ export const buildPackageGraph = (
       id: `pkg-edge:${key}`,
       source: `pkg:${agg.fromDir}`,
       target: `pkg:${agg.toDir}`,
+      sourceHandle: "source-right",
+      targetHandle: "target-left",
       label,
       type: "smoothstep",
       markerEnd: {

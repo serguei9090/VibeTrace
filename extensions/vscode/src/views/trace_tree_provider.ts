@@ -1,5 +1,14 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import type { TraceHopData, TracePathResponse } from "../client/api_client.js";
+
+const ROUTE_THEME_COLORS = ["charts.blue", "charts.orange", "charts.purple"];
+
+function getRouteThemeColor(index: number): vscode.ThemeColor {
+  const colorId = ROUTE_THEME_COLORS[index % ROUTE_THEME_COLORS.length];
+  return new vscode.ThemeColor(colorId);
+}
 
 export type TraceItemType = "header" | "route" | "hop" | "empty";
 
@@ -60,16 +69,34 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
     this._onDidChangeTreeData.event;
 
   private currentTrace: TracePathResponse | null = null;
+  private activeRouteIndex = 0;
 
   public setTrace(trace: TracePathResponse | null): void {
-    this.currentTrace = trace;
-    if (this.currentTrace?.paths && this.currentTrace.paths.length > 0) {
-      if (this.currentTrace.activeRouteIndex === undefined) {
-        this.currentTrace.activeRouteIndex = 0;
-      }
-      this.currentTrace.hops =
-        this.currentTrace.paths[this.currentTrace.activeRouteIndex] || this.currentTrace.hops;
+    if (!trace) {
+      this.currentTrace = null;
+      this.activeRouteIndex = 0;
+      this._onDidChangeTreeData.fire();
+      return;
     }
+
+    // Clone to prevent mutating caller-owned objects
+    this.currentTrace = {
+      ...trace,
+      hops: trace.hops ? [...trace.hops] : [],
+      paths: trace.paths ? trace.paths.map((p) => [...p]) : undefined,
+    };
+
+    if (this.currentTrace.paths && this.currentTrace.paths.length > 0) {
+      const candidateIdx = trace.activeRouteIndex ?? 0;
+      const clampedIdx =
+        candidateIdx >= 0 && candidateIdx < this.currentTrace.paths.length ? candidateIdx : 0;
+      this.activeRouteIndex = clampedIdx;
+      this.currentTrace.activeRouteIndex = clampedIdx;
+      this.currentTrace.hops = this.currentTrace.paths[clampedIdx] || this.currentTrace.hops;
+    } else {
+      this.activeRouteIndex = 0;
+    }
+
     this._onDidChangeTreeData.fire();
   }
 
@@ -77,13 +104,21 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
     if (!this.currentTrace?.paths?.[routeIndex]) {
       return;
     }
+    this.activeRouteIndex = routeIndex;
     this.currentTrace.activeRouteIndex = routeIndex;
     this.currentTrace.hops = this.currentTrace.paths[routeIndex];
     this._onDidChangeTreeData.fire();
   }
 
   public getTrace(): TracePathResponse | null {
-    return this.currentTrace;
+    if (!this.currentTrace) {
+      return null;
+    }
+    return {
+      ...this.currentTrace,
+      activeRouteIndex: this.activeRouteIndex,
+      hops: [...(this.currentTrace.hops || [])],
+    };
   }
 
   public refresh(): void {
@@ -144,11 +179,7 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
           );
           routeItem.iconPath = new vscode.ThemeIcon(
             isActive ? "pass-filled" : "circle-outline",
-            r === 0
-              ? new vscode.ThemeColor("charts.blue")
-              : r === 1
-                ? new vscode.ThemeColor("charts.orange")
-                : new vscode.ThemeColor("charts.purple")
+            getRouteThemeColor(r)
           );
           routeItem.tooltip = `Click to switch to Route ${r + 1} (${tag}, ${routeHops.length} hops)`;
           items.push(routeItem);
@@ -162,7 +193,7 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
         const toName = hop.to_node?.name || "anonymous";
         const relation = hop.relation_type || "calls";
         const file = hop.from_node?.file_path || "";
-        const callLine = hop.call_line || hop.from_node?.start_line || 1;
+        const callLine = hop.call_line ?? hop.from_node?.start_line ?? 1;
 
         const label = `[${stepNum}] ${fromName} --(${relation})--> ${toName}`;
         const item = new TraceTreeItem(
@@ -182,18 +213,23 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
       if (hops.length > 0) {
         const lastHop = hops[hops.length - 1];
         const targetNode = lastHop.to_node;
-        const targetLabel = `[Goal] ${targetNode.qualified_name || targetNode.name}`;
+        if (!targetNode) {
+          return Promise.resolve(items);
+        }
+        const targetLabel = `[Goal] ${targetNode.qualified_name || targetNode.name || "unknown"}`;
+        const targetFilePath = targetNode.file_path || "";
+        const targetStartLine = targetNode.start_line ?? 1;
         const targetItem = new TraceTreeItem(
           targetLabel,
           vscode.TreeItemCollapsibleState.None,
           "hop",
           undefined,
-          this.resolveFilePath(targetNode.file_path),
-          targetNode.start_line
+          this.resolveFilePath(targetFilePath),
+          targetStartLine
         );
         targetItem.iconPath = new vscode.ThemeIcon("target");
-        targetItem.description = `${this.basename(targetNode.file_path)}:${targetNode.start_line}`;
-        targetItem.tooltip = `Destination reached: ${targetNode.file_path}:${targetNode.start_line}`;
+        targetItem.description = `${this.basename(targetFilePath)}:${targetStartLine}`;
+        targetItem.tooltip = `Destination reached: ${targetFilePath}:${targetStartLine}`;
         items.push(targetItem);
       }
 
@@ -209,12 +245,19 @@ export class VibeTraceTraceTreeProvider implements vscode.TreeDataProvider<Trace
   }
 
   private resolveFilePath(filePath: string): string {
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-      for (const folder of vscode.workspace.workspaceFolders) {
-        const abs = vscode.Uri.joinPath(folder.uri, filePath).fsPath;
+    if (!filePath) {
+      return filePath;
+    }
+    if (path.isAbsolute(filePath)) {
+      return filePath;
+    }
+    const folders = vscode.workspace.workspaceFolders || [];
+    for (const folder of folders) {
+      const abs = vscode.Uri.joinPath(folder.uri, filePath).fsPath;
+      if (fs.existsSync(abs)) {
         return abs;
       }
     }
-    return filePath;
+    return folders.length > 0 ? vscode.Uri.joinPath(folders[0].uri, filePath).fsPath : filePath;
   }
 }
