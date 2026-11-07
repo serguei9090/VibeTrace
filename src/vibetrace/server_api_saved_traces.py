@@ -39,19 +39,19 @@ def get_saved_traces_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
     def post_saved_trace_endpoint(payload: SavedTraceCreate) -> dict[str, Any]:
         return create_saved_trace(get_db(), payload).model_dump()
 
-    @router.delete("/{trace_id}")
-    def delete_saved_trace_endpoint(trace_id: int) -> dict[str, Any]:
-        deleted = delete_saved_trace(get_db(), trace_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Saved trace not found")
-        return {"status": "deleted", "id": trace_id}
-
     @router.delete("/by-name/{name}")
     def delete_saved_trace_by_name_endpoint(name: str) -> dict[str, Any]:
         deleted = delete_saved_trace_by_name(get_db(), name)
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Saved trace '{name}' not found")
         return {"status": "deleted", "name": name}
+
+    @router.delete("/{trace_id}")
+    def delete_saved_trace_endpoint(trace_id: int) -> dict[str, Any]:
+        deleted = delete_saved_trace(get_db(), trace_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Saved trace not found")
+        return {"status": "deleted", "id": trace_id}
 
     @router.get("/{name}/run")
     def run_saved_trace_endpoint(name: str) -> dict[str, Any]:

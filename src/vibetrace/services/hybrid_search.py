@@ -125,7 +125,7 @@ def hybrid_search(
     def _rank_key(nid: str) -> tuple[float, float, str, int, str]:
         c = node_cache.get(nid, {})
         return (
-            -scores[nid],
+            -scores.get(nid, 0.0),
             -float(c.get("centrality") or 0.0),
             str(c.get("file_path") or ""),
             int(c.get("start_line") or 0),

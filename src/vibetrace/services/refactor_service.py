@@ -398,6 +398,9 @@ class RefactorService:
             )
 
         # Detect block indentation
+        if actual_start_line < 1 or actual_start_line > len(lines):
+            msg = f"Line {actual_start_line} is outside source file range (1..{len(lines)})."
+            raise ValueError(msg)
         first_line_raw = lines[actual_start_line - 1]
         block_indent = len(first_line_raw) - len(first_line_raw.lstrip())
 

@@ -78,7 +78,7 @@ def _detect_git_changed_files(project_root: Path) -> tuple[set[str], str]:
             check=False,
         )
         diff_text = df.stdout or ""
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         pass
     return changed, diff_text
 
