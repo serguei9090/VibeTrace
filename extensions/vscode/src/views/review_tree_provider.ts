@@ -61,6 +61,9 @@ export class VibeTraceReviewTreeProvider implements vscode.TreeDataProvider<Revi
         this.isLoading = true;
         try {
           this.cachedReport = await this.apiClient.getReview("changed");
+        } catch (err) {
+          console.error("VibeTrace Review Tree fetch failed:", err);
+          this.cachedReport = null;
         } finally {
           this.isLoading = false;
         }

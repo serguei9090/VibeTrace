@@ -16,13 +16,15 @@ export async function isPortAvailable(port: number): Promise<boolean> {
   });
 }
 
+export const DEFAULT_DAEMON_PORT = 8000;
+
 export async function findAvailablePort(startPort: number, maxAttempts = 30): Promise<number> {
   for (let p = startPort; p < startPort + maxAttempts; p++) {
     if (await isPortAvailable(p)) {
       return p;
     }
   }
-  return startPort;
+  throw new Error(`Could not find an available port after ${maxAttempts} attempts.`);
 }
 
 export class VibeTraceDaemonManager implements vscode.Disposable {
@@ -30,7 +32,7 @@ export class VibeTraceDaemonManager implements vscode.Disposable {
   private outputChannel: vscode.OutputChannel;
   private daemonProcess: cp.ChildProcess | null = null;
   private isShuttingDown = false;
-  private activePort = 8000;
+  private activePort = DEFAULT_DAEMON_PORT;
 
   constructor(apiClient: VibeTraceApiClient) {
     this.apiClient = apiClient;
@@ -42,7 +44,7 @@ export class VibeTraceDaemonManager implements vscode.Disposable {
   }
 
   public async ensureDaemonRunning(
-    requestedPort = 8000
+    requestedPort = DEFAULT_DAEMON_PORT
   ): Promise<{ success: boolean; port: number }> {
     if (await this.apiClient.isAvailable()) {
       this.outputChannel.appendLine(

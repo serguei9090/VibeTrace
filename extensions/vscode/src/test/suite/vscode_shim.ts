@@ -56,11 +56,14 @@ mock.module("vscode", () => {
     Uri: {
       file: (path: string) => ({ fsPath: path, scheme: "file", toString: () => path }),
       parse: (str: string) => ({ fsPath: str, scheme: "file", toString: () => str }),
-      joinPath: (base: any, ...parts: string[]) => ({
-        fsPath: `${base.fsPath}/${parts.join("/")}`,
-        scheme: "file",
-        toString: () => `${base.fsPath}/${parts.join("/")}`,
-      }),
+      joinPath: (base: { fsPath: string }, ...parts: string[]) => {
+        const normalized = [base.fsPath, ...parts].join("/").replace(/\\/g, "/");
+        return {
+          fsPath: normalized,
+          scheme: "file",
+          toString: () => normalized,
+        };
+      },
     },
     workspace: {
       getConfiguration: () => ({

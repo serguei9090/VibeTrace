@@ -1,3 +1,4 @@
+import sys
 from tree_sitter_languages import get_language
 
 languages = [
@@ -25,9 +26,11 @@ for lang in languages:
     try:
         get_language(lang)
         supported.append(lang)
-    except Exception as e:
+    except (ValueError, LookupError) as e:
         print(f"{lang}: {e}")
 
 print("\nSupported languages:")
 for lang in supported:
     print(f"  - {lang}")
+
+sys.exit(0 if len(supported) == len(languages) else 1)

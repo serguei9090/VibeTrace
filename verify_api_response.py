@@ -1,10 +1,11 @@
 import json
 import sys
+import urllib.error
 import urllib.request
 
 try:
     print("Testing GET http://localhost:8000/graph ...")
-    with urllib.request.urlopen("http://localhost:8000/graph") as response:
+    with urllib.request.urlopen("http://localhost:8000/graph", timeout=10) as response:
         if response.status != 200:
             print("Status Code:", response.status)
             sys.exit(1)
@@ -35,6 +36,6 @@ try:
     else:
         print("\nWARNING: No nodes returned. Database might be empty.")
 
-except Exception as e:
+except (urllib.error.URLError, json.JSONDecodeError, UnicodeDecodeError, TimeoutError) as e:
     print(f"Request failed: {e}")
     sys.exit(1)

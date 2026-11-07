@@ -15,11 +15,21 @@ const buildOptions = {
   logLevel: "info",
 };
 
-if (watch) {
-  const ctx = await esbuild.context(buildOptions);
-  await ctx.watch();
-  console.log("Watching for changes in extensions/vscode/src...");
-} else {
-  await esbuild.build(buildOptions);
-  console.log("Successfully built extensions/vscode/dist/extension.js");
+try {
+  if (watch) {
+    const ctx = await esbuild.context(buildOptions);
+    try {
+      await ctx.watch();
+      console.log("Watching for changes in extensions/vscode/src...");
+    } catch (err) {
+      await ctx.dispose();
+      throw err;
+    }
+  } else {
+    await esbuild.build(buildOptions);
+    console.log("Successfully built extensions/vscode/dist/extension.js");
+  }
+} catch (err) {
+  console.error("esbuild failure in extensions/vscode:", err);
+  process.exitCode = 1;
 }

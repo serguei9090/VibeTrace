@@ -58,7 +58,7 @@ export class VibeTraceWsClient {
 
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.type === "agent_focus") {
+          if (parsed && typeof parsed === "object" && parsed.type === "agent_focus") {
             for (const listener of this.agentFocusListeners) {
               try {
                 listener(parsed);

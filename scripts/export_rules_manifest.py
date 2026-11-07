@@ -74,7 +74,7 @@ def fetch_ruff_rules() -> dict[str, dict[str, Any]]:
                         }
                 print(f"[SUCCESS] Exported {len(ruff_dict)} Ruff rules into dictionary.")
                 return ruff_dict
-        except Exception:
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
             continue
     print("[WARNING] Could not execute ruff command; proceeding without local Ruff dump.")
     return {}
@@ -109,7 +109,7 @@ def fetch_all_sonar_rules(
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.URLError as e:
             print(f"Error fetching rules from {url}: {e}", file=sys.stderr)
-            break
+            raise
 
         rules = data.get("rules", [])
         if not rules:

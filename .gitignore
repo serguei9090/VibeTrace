@@ -22,9 +22,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Environment
+# Environment & Secrets
 .env*
 !.env.example
+secrets.json
+credentials.yml
+.secrets*
 .venv
 .venv_trash/
 env/
@@ -85,9 +88,6 @@ vibetrace_context/
 .fastembed_cache
 .last_review_hash
 .scannerwork/
-
-
-
 
 # VibeTrace Code Intelligence
 vibetrace.db
