@@ -9,8 +9,10 @@ from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 
 # Matches @app.get("/path"), @router.post('/path', ...), @api_router.delete(...)
+# Constrained to router-like variables or explicit router_prefixes
 FASTAPI_ROUTE_RE = re.compile(
-    r"@(?:\w+\.)?(\w+)\.(get|post|put|delete|patch|options|head)\s*\(\s*[\"']([^\"']+)[\"']",
+    r"@(?:\w+\.)?(\w*(?:app|router|bp|blueprint|server|api)\w*)\."
+    r"(get|post|put|delete|patch|options|head)\s*\(\s*[\"']([^\"']+)[\"']",
     re.IGNORECASE,
 )
 
@@ -40,12 +42,12 @@ API_ROUTE_RE = re.compile(
 # Java Spring Boot route annotations
 SPRING_MAPPING_RE = re.compile(
     r"@(?:\w+\.)?(Get|Post|Put|Delete|Patch)Mapping"
-    r"(?:\s*\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"']\s*\)|\s*\(\s*\))?",
+    r"(?:\s*\([^)]*?(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"'][^)]*\)|\s*\(\s*\))?",
     re.IGNORECASE,
 )
 SPRING_REQUEST_MAPPING_RE = re.compile(
     r"@(?:\w+\.)?RequestMapping"
-    r"(?:\s*\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"']\s*\)|\s*\(\s*\))?",
+    r"(?:\s*\([^)]*?(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"'][^)]*\)|\s*\(\s*\))?",
     re.IGNORECASE,
 )
 
@@ -252,18 +254,20 @@ def extract_js_endpoint_route(
 
     lower_func = called_name.lower()
     fn_part = lower_func.split(".")[-1]
-    method = next(
-        (
-            m.upper()
-            for m in ("post", "put", "delete", "patch", "options", "head", "get")
-            if fn_part == m or f".{m}" in lower_func
-        ),
-        "GET",
-    )
-    if fn_part == "fetch" and len(args) > 1:
+
+    # Explicit HTTP client method check or config argument method check
+    method: str | None = None
+    if fn_part in ("post", "put", "delete", "patch", "options", "head", "get"):
+        method = fn_part.upper()
+    elif len(args) > 1:
+        # Check options/config argument (e.g. fetch(url, {method: 'POST'}), axios)
         opts_text = get_text_fn(args[1])
         if m_meth := re.search(r"""method\s*:\s*['"]([A-Za-z]+)['"]""", opts_text, re.IGNORECASE):
             method = m_meth.group(1).upper()
+
+    if not method:
+        method = "GET"
+
     endpoint_name = f"{method} {raw_url}"
     endpoint_id = get_id_fn("__endpoint__", endpoint_name, kind="endpoint")
     if not any(n.id == endpoint_id for n in nodes):
@@ -315,7 +319,10 @@ def extract_enterprise_class_prefix(
         # 1. Java Spring @RequestMapping("/api/orders")
         m_spring = SPRING_REQUEST_MAPPING_RE.search(ann)
         if m_spring:
-            return (m_spring.group(1) or "").strip()
+            pfx = (m_spring.group(1) or "").strip()
+            if pfx and not pfx.startswith("/"):
+                pfx = "/" + pfx
+            return pfx
 
         # 2. C# [Route("api/[controller]")]
         m_csharp = CSHARP_ROUTE_RE.search(ann)
@@ -326,6 +333,8 @@ def extract_enterprise_class_prefix(
                     r"Controller$", "", controller_name, flags=re.IGNORECASE
                 ).lower()
                 prefix = re.sub(r"\[controller\]", ctrl_clean, prefix, flags=re.IGNORECASE)
+            if prefix and not prefix.startswith("/"):
+                prefix = "/" + prefix
             return prefix
     return ""
 
@@ -359,6 +368,13 @@ def extract_enterprise_routes(
         full_path = (pfx + sub) if (pfx or sub) else "/"
         return f"{method.upper()} {full_path}"
 
+    # Check for ASP.NET method-level [Route("...")] template
+    aspnet_method_route: str = ""
+    for ann in annotations:
+        if m_r := CSHARP_ROUTE_RE.search(ann):
+            aspnet_method_route = m_r.group(1) or ""
+            break
+
     for ann in annotations:
         method: str | None = None
         subpath: str = ""
@@ -372,21 +388,25 @@ def extract_enterprise_routes(
         # 2. Java Spring @RequestMapping(method = ...)
         elif m_spring_req := SPRING_REQUEST_MAPPING_RE.search(ann):
             subpath = m_spring_req.group(1) or ""
-            if "method" in ann.lower():
-                m_meth = re.search(r"RequestMethod\.([A-Za-z]+)", ann, re.IGNORECASE)
-                method = m_meth.group(1).upper() if m_meth else "GET"
+            m_meth = re.search(r"method\s*=\s*RequestMethod\.([A-Za-z]+)", ann, re.IGNORECASE)
+            if m_meth:
+                method = m_meth.group(1).upper()
             else:
-                method = "GET"
+                method = "ANY"
 
         # 3. C# ASP.NET [HttpGet], [HttpPost], etc.
         elif m_csharp_http := CSHARP_HTTP_RE.search(ann):
             method = m_csharp_http.group(1).upper()
-            subpath = m_csharp_http.group(2) or ""
+            # If [HttpGet("subpath")] has template, use it; else fallback to sibling [Route]
+            subpath = m_csharp_http.group(2) or aspnet_method_route
 
-        # 4. C# [Route("...")]
+        # 4. Standalone C# [Route("...")] without HTTP verb attribute
+        # Only emits if no explicit HTTP verb attribute exists on this method
         elif m_csharp_route := CSHARP_ROUTE_RE.search(ann):
-            method = "GET"
-            subpath = m_csharp_route.group(1) or ""
+            has_http_verb = any(CSHARP_HTTP_RE.search(a) for a in annotations)
+            if not has_http_verb:
+                method = "ANY"
+                subpath = m_csharp_route.group(1) or ""
 
         if method:
             endpoint_name = _format_route(method, subpath)

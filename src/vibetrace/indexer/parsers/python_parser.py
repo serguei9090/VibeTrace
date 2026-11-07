@@ -38,11 +38,8 @@ class PythonParser(LanguageParser):
         if not node.named_children:
             return None
         first = node.named_children[0]
-        candidates = (
-            [first]
-            + list(first.children)
-            + (list(first.children[0].children) if first.children else [])
-        )
+        extra = list(first.children[0].children) if first.children else []
+        candidates = [first, *first.children, *extra]
         id_node = next((c for c in candidates if c.type == "identifier"), None)
         return self._get_text(id_node).strip() if id_node else None
 
@@ -337,11 +334,11 @@ class PythonParser(LanguageParser):
                         self._create_edge(parent_id, target_id, "references", node=node)
                     )
 
-        # 9. Match case pattern references (e.g. case Point(x, y): or case Status.OK:)
+        # 9. Match case pattern references
         elif parent_id and node.type == "case_clause":
             for ch in node.children:
                 if ch.type == "case_pattern":
-                    self._extract_pattern_references(ch, parent_id, ctx)
+                    extract_pattern_references(self, ch, parent_id, ctx)
 
         # Recurse
         current_scope_id = node_id if node_id else parent_id
@@ -597,10 +594,6 @@ class PythonParser(LanguageParser):
         target_id = self._resolve_call_target(called_name, ctx)
         if target_id:
             ctx.edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
-
-    def _extract_pattern_references(self, pat: Node, parent_id: str, ctx: ParserContext) -> None:
-        """Extract type and attribute references from Python match-case patterns."""
-        extract_pattern_references(self, pat, parent_id, ctx)
 
     def _handle_import(self, node: Node, ctx: ParserContext) -> None:
         extract_python_imports(self, node, ctx)

@@ -131,3 +131,76 @@ def test_fastapi_router_camelcase_prefix_extraction(tmp_path: Path) -> None:
     charge_ep = db.find_nodes_by_name("POST /api/v2/charge")
     assert len(charge_ep) == 1
     assert charge_ep[0]["kind"] == "endpoint"
+
+
+def test_enterprise_spring_and_aspnet_route_enhancements() -> None:
+    """Verify Spring ANY fallback and ASP.NET sibling [Route]/[HttpGet] combination."""
+    from vibetrace.indexer.db import Node as DBNode
+    from vibetrace.indexer.parsers.route_extractor import (
+        extract_enterprise_class_prefix,
+        extract_enterprise_routes,
+    )
+
+    dummy_handler = DBNode(
+        id="file.cs::OrderController.Search",
+        name="Search",
+        qualified_name="OrderController.Search",
+        parent_id="file.cs::OrderController",
+        kind="method",
+        file_path="file.cs",
+        start_line=10,
+        end_line=20,
+    )
+
+    def mock_id(fp: str, name: str, kind: str) -> str:
+        return f"{fp}::{name}"
+
+    # 1. Spring prefix normalization without leading slash
+    spring_prefix = extract_enterprise_class_prefix(
+        ['@RequestMapping("api/orders")'], "OrderController"
+    )
+    assert spring_prefix == "/api/orders"
+
+    # 2. Spring @RequestMapping without explicit method maps to ANY
+    nodes_any, _ = extract_enterprise_routes(
+        ['@RequestMapping("/search")'],
+        dummy_handler,
+        "OrderController.java",
+        mock_id,
+        class_prefix="/api/orders",
+    )
+    assert len(nodes_any) == 1
+    assert nodes_any[0].name == "ANY /api/orders/search"
+
+    # 3. Spring @RequestMapping with explicit method=RequestMethod.POST
+    nodes_post, _ = extract_enterprise_routes(
+        ['@RequestMapping(value = "/create", method = RequestMethod.POST)'],
+        dummy_handler,
+        "OrderController.java",
+        mock_id,
+        class_prefix="/api/orders",
+    )
+    assert len(nodes_post) == 1
+    assert nodes_post[0].name == "POST /api/orders/create"
+
+    # 4. ASP.NET combined [Route("details/{id}")] and [HttpGet]
+    nodes_csharp, _ = extract_enterprise_routes(
+        ['[Route("details/{id}")]', "[HttpGet]"],
+        dummy_handler,
+        "OrderController.cs",
+        mock_id,
+        class_prefix="/api/orders",
+    )
+    assert len(nodes_csharp) == 1
+    assert nodes_csharp[0].name == "GET /api/orders/details/{id}"
+
+    # 5. ASP.NET standalone [Route("ping")] without HTTP verb maps to ANY
+    nodes_csharp_standalone, _ = extract_enterprise_routes(
+        ['[Route("ping")]'],
+        dummy_handler,
+        "OrderController.cs",
+        mock_id,
+        class_prefix="/api/orders",
+    )
+    assert len(nodes_csharp_standalone) == 1
+    assert nodes_csharp_standalone[0].name == "ANY /api/orders/ping"
