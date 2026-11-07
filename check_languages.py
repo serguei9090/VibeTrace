@@ -1,4 +1,5 @@
 import sys
+
 from tree_sitter_languages import get_language
 
 languages = [
