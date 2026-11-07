@@ -1,0 +1,11 @@
+{
+  "exclude": [
+    "**/CodeIngestTest/**",
+    "**/codebase_test/**",
+    "**/scratch/**",
+    "**/build/**",
+    "*lock*.json",
+    "*.lock"
+  ],
+  "rules": []
+}

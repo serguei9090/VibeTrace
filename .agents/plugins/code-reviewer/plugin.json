@@ -1,5 +1,0 @@
-{
-  "name": "code-reviewer",
-  "description": "Automated code reviewer hook powered by Google Gemini Flash free tier, triggered on Stop before task completion",
-  "disabled": false
-}
