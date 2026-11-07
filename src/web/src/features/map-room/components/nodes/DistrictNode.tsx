@@ -27,7 +27,7 @@ export const DistrictNode = memo(({ data }: { data: DistrictNodeData }) => {
         }}
       >
         <Folder size={20} />
-        {data.label}
+        {data.label || "Root District"}
       </div>
     </div>
   );

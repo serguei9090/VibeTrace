@@ -1,3 +1,17 @@
+export interface SplitUI {
+  node_id: string;
+  symbol: string;
+  qualified_name: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  code_hash: string;
+  branches_count: number;
+  branches?: string[];
+  status: string;
+  rationale?: string | null;
+}
+
 export type LayoutMode = "map" | "trace" | "impact";
 export type ViewMode = "explorer" | "full";
 export type WorkspaceMode = "map" | "dashboard" | "docs";
@@ -208,32 +222,8 @@ export interface UnifiedReviewReportUI {
   coverage_gate: CoverageGateReportUI;
   security_findings: SecurityFindingUI[];
   all_security_findings?: SecurityFindingUI[];
-  actionable_splits: Array<{
-    node_id: string;
-    symbol: string;
-    qualified_name: string;
-    file_path: string;
-    start_line: number;
-    end_line: number;
-    code_hash: string;
-    branches_count: number;
-    branches?: string[];
-    status: string;
-    rationale?: string | null;
-  }>;
-  all_splits?: Array<{
-    node_id: string;
-    symbol: string;
-    qualified_name: string;
-    file_path: string;
-    start_line: number;
-    end_line: number;
-    code_hash: string;
-    branches_count: number;
-    branches?: string[];
-    status: string;
-    rationale?: string | null;
-  }>;
+  actionable_splits: SplitUI[];
+  all_splits?: SplitUI[];
   actions_required: string[];
 }
 

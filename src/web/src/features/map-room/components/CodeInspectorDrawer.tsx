@@ -70,16 +70,18 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
   const targetNode = selectedNode || callerNode;
   const highlightCallLine = selectedEdge?.call_line || null;
 
+  const rawNodesMap = useMemo(() => new Map(rawNodes.map((n) => [n.id, n])), [rawNodes]);
+
   const incomingCallers = useMemo(() => {
     if (!targetNode) return [];
     return rawEdges
       .filter((e) => e.to_node_id === targetNode.id && e.relation_type !== "defines")
       .map((e) => ({
         edge: e,
-        node: rawNodes.find((n) => n.id === e.from_node_id),
+        node: rawNodesMap.get(e.from_node_id),
       }))
       .filter((c): c is { edge: RawGraphEdge; node: RawGraphNode } => Boolean(c.node));
-  }, [targetNode, rawEdges, rawNodes]);
+  }, [targetNode, rawEdges, rawNodesMap]);
 
   const outgoingCallees = useMemo(() => {
     if (!targetNode) return [];
@@ -87,10 +89,10 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
       .filter((e) => e.from_node_id === targetNode.id && e.relation_type !== "defines")
       .map((e) => ({
         edge: e,
-        node: rawNodes.find((n) => n.id === e.to_node_id),
+        node: rawNodesMap.get(e.to_node_id),
       }))
       .filter((c): c is { edge: RawGraphEdge; node: RawGraphNode } => Boolean(c.node));
-  }, [targetNode, rawEdges, rawNodes]);
+  }, [targetNode, rawEdges, rawNodesMap]);
 
   useEffect(() => {
     if (!targetNode?.file_path || targetNode.file_path === "external") {
@@ -537,13 +539,13 @@ export const CodeInspectorDrawer: React.FC<CodeInspectorDrawerProps> = ({
         {errText && <div style={{ color: "#f87171" }}>{errText}</div>}
         {!loading &&
           !errText &&
-          sourceData?.source_code.split("\n").map((line) => {
+          sourceData?.source_code.split("\n").map((line, idx) => {
             const match = /^(\d+):/.exec(line);
             const lineNum = match ? Number(match[1]) : null;
             const isCallLine = highlightCallLine !== null && lineNum === highlightCallLine;
             return (
               <div
-                key={line}
+                key={`source-line-${lineNum ?? idx}`}
                 style={{
                   whiteSpace: "pre",
                   padding: "1px 6px",

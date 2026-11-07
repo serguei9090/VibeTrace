@@ -39,7 +39,8 @@ export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) 
         const res = await axios.get<DocCatalog[]>(`${apiUrl}/api/docs/catalogs`);
         cachedCatalogs = res.data;
         setCatalogs(res.data);
-      } catch {
+      } catch (err) {
+        console.error("Failed to fetch doc catalogs:", err);
         setCatalogs([]);
       } finally {
         setLoadingCatalogs(false);
@@ -69,7 +70,8 @@ export const DocsWorkspaceView: React.FC<DocsWorkspaceViewProps> = ({ apiUrl }) 
         });
         cachedSearches.set(key, res.data);
         setSearchResults(res.data);
-      } catch {
+      } catch (err) {
+        console.error("Failed to execute docs search:", err);
         setSearchResults([]);
       } finally {
         setSearching(false);

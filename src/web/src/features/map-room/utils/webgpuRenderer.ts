@@ -27,12 +27,25 @@ export interface GPUEdgeData {
 
 export type RendererBackend = "webgpu" | "webgl" | "canvas2d" | "off";
 
+// Minimal structural WebGPU interfaces to avoid external ambient type dependency
+export interface WebGPUDeviceLike {
+  destroy(): void;
+}
+
+export interface WebGPUAdapterLike {
+  requestDevice(): Promise<WebGPUDeviceLike>;
+}
+
+export interface WebGPUNavigatorLike {
+  requestAdapter(): Promise<WebGPUAdapterLike | null>;
+}
+
 export class WebGPURenderer {
   private canvas: HTMLCanvasElement;
   private backend: RendererBackend = "canvas2d";
   private ctx2d: CanvasRenderingContext2D | null = null;
   private gl: WebGL2RenderingContext | null = null;
-  private gpuDevice: any = null;
+  private gpuDevice: WebGPUDeviceLike | null = null;
   private fps = 60;
   private frameCount = 0;
   private lastFpsUpdate = performance.now();
@@ -41,15 +54,29 @@ export class WebGPURenderer {
     this.canvas = canvas;
   }
 
-  public getDevice(): any {
+  public getDevice(): WebGPUDeviceLike | null {
     return this.gpuDevice;
+  }
+
+  public dispose(): void {
+    if (this.gpuDevice) {
+      this.gpuDevice.destroy();
+      this.gpuDevice = null;
+    }
+    if (this.gl) {
+      const ext = this.gl.getExtension("WEBGL_lose_context");
+      ext?.loseContext();
+      this.gl = null;
+    }
+    this.ctx2d = null;
+    this.backend = "off";
   }
 
   public async initialize(): Promise<RendererBackend> {
     // 1. Attempt WebGPU initialization
     if (typeof navigator !== "undefined" && "gpu" in navigator) {
       try {
-        const gpu = (navigator as any).gpu;
+        const gpu = (navigator as unknown as { gpu?: WebGPUNavigatorLike }).gpu;
         const adapter = await gpu?.requestAdapter();
         if (adapter) {
           const device = await adapter.requestDevice();
@@ -59,8 +86,8 @@ export class WebGPURenderer {
             return "webgpu";
           }
         }
-      } catch {
-        // Fall back to WebGL2
+      } catch (e) {
+        console.warn("WebGPU initialization failed, falling back:", e);
       }
     }
 
@@ -200,7 +227,6 @@ export class WebGPURenderer {
     viewport: { x: number; y: number; zoom: number },
     timeMs: number
   ): void {
-    // For WebGL2, fallback gracefully to Canvas2D overlay if shaders uncompiled
     const gl = this.gl;
     if (!gl) return;
 
@@ -208,8 +234,7 @@ export class WebGPURenderer {
     gl.clearColor(0.05, 0.05, 0.07, 0.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // If advanced GL shader pipeline is active, dispatch draw calls
-    // Otherwise fallback to 2D canvas context
+    // If ctx2d exists (fallback canvas), route to canvas2D without redundant clear
     if (this.ctx2d) {
       this.renderCanvas2D(nodes, edges, viewport, timeMs);
     }

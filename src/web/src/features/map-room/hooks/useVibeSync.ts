@@ -19,10 +19,15 @@ export function useVibeSync({ wsUrl, onRefresh }: UseVibeSyncOptions) {
     let isCancelled = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+    let retryCount = 0;
+
     const connectWS = () => {
       if (isCancelled) return;
       wsRef.current = new WebSocket(wsUrl);
-      wsRef.current.onopen = () => console.log("Vibe-Sync Active");
+      wsRef.current.onopen = () => {
+        retryCount = 0;
+        console.log("Vibe-Sync Active");
+      };
       wsRef.current.onmessage = (event) => {
         if (event.data === "refresh") {
           onRefreshRef.current();
@@ -39,7 +44,9 @@ export function useVibeSync({ wsUrl, onRefresh }: UseVibeSyncOptions) {
       };
       wsRef.current.onclose = () => {
         if (!isCancelled) {
-          reconnectTimer = setTimeout(connectWS, 3000);
+          const delay = Math.min(1000 * 2 ** retryCount, 15000);
+          retryCount++;
+          reconnectTimer = setTimeout(connectWS, delay);
         }
       };
     };

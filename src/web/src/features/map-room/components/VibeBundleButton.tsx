@@ -16,6 +16,8 @@ interface VibeBundleButtonProps {
   symbolName: string;
 }
 
+const VIBE_BUNDLE_BUDGET = 1500;
+
 export const VibeBundleButton: React.FC<VibeBundleButtonProps> = ({ apiUrl, symbolName }) => {
   const [loading, setLoading] = useState(false);
   const [copiedTokens, setCopiedTokens] = useState<number | null>(null);
@@ -29,17 +31,21 @@ export const VibeBundleButton: React.FC<VibeBundleButtonProps> = ({ apiUrl, symb
         params: {
           intent: symbolName,
           symbol: symbolName,
-          budget: 1500,
+          budget: VIBE_BUNDLE_BUDGET,
         },
       });
 
       if (res.data?.formatted_prompt) {
-        await navigator.clipboard.writeText(res.data.formatted_prompt);
-        setCopiedTokens(res.data.estimated_tokens || 1000);
-        setTimeout(() => setCopiedTokens(null), 2500);
+        try {
+          await navigator.clipboard.writeText(res.data.formatted_prompt);
+          setCopiedTokens(res.data.estimated_tokens || 1000);
+          setTimeout(() => setCopiedTokens(null), 2500);
+        } catch (clipboardErr) {
+          console.warn("Failed to copy bundle prompt to clipboard:", clipboardErr);
+        }
       }
-    } catch {
-      // Graceful fallback
+    } catch (err) {
+      console.error("Vibe bundle API error:", err);
     } finally {
       setLoading(false);
     }

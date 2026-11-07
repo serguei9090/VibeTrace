@@ -17,6 +17,9 @@ export interface SelectionHighlightResult {
   splitMap: Map<string, SplitPointInfo>;
 }
 
+export const getEdgeId = (fromNodeId: string, toNodeId: string, relationType: string): string =>
+  `${fromNodeId}-${toNodeId}-${relationType}`;
+
 export const computeSelectionHighlights = (
   selectedElement: SelectedElement | null,
   filteredEdges: RawGraphEdge[],
@@ -54,7 +57,7 @@ export const computeSelectionHighlights = (
       highlightedNodes.add(hop.to_node.id);
       traceStepMap.set(hop.from_node.id, hop.step_index);
       traceStepMap.set(hop.to_node.id, hop.step_index + 1);
-      highlightedEdges.add(`${hop.from_node.id}-${hop.to_node.id}-${hop.relation_type}`);
+      highlightedEdges.add(getEdgeId(hop.from_node.id, hop.to_node.id, hop.relation_type));
     });
     return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
   }
@@ -66,7 +69,7 @@ export const computeSelectionHighlights = (
     });
     filteredEdges.forEach((e) => {
       if (highlightedNodes.has(e.from_node_id) && highlightedNodes.has(e.to_node_id)) {
-        highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
+        highlightedEdges.add(getEdgeId(e.from_node_id, e.to_node_id, e.relation_type));
       }
     });
     return { highlightedNodes, highlightedEdges, impactDepthMap, traceStepMap, splitMap };
@@ -114,7 +117,7 @@ export const computeSelectionHighlights = (
                 impactDepthMap.set(e.from_node_id, depth);
                 nextLevel.add(e.from_node_id);
               }
-              highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
+              highlightedEdges.add(getEdgeId(e.from_node_id, e.to_node_id, e.relation_type));
             }
           }
         }
@@ -130,7 +133,7 @@ export const computeSelectionHighlights = (
           if (outgoing) {
             for (const e of outgoing) {
               if (e.relation_type === "defines") continue;
-              highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
+              highlightedEdges.add(getEdgeId(e.from_node_id, e.to_node_id, e.relation_type));
               if (!highlightedNodes.has(e.to_node_id)) {
                 highlightedNodes.add(e.to_node_id);
                 traceStepMap.set(e.to_node_id, step);
@@ -148,14 +151,14 @@ export const computeSelectionHighlights = (
         for (const e of directIncoming) {
           if (e.relation_type === "defines") continue;
           highlightedNodes.add(e.from_node_id);
-          highlightedEdges.add(`${e.from_node_id}-${e.to_node_id}-${e.relation_type}`);
+          highlightedEdges.add(getEdgeId(e.from_node_id, e.to_node_id, e.relation_type));
         }
       }
     }
   } else if (selectedElement.type === "edge") {
     highlightedEdges.add(selectedElement.id);
     const matchedEdge = filteredEdges.find(
-      (e) => `${e.from_node_id}-${e.to_node_id}-${e.relation_type}` === selectedElement.id
+      (e) => getEdgeId(e.from_node_id, e.to_node_id, e.relation_type) === selectedElement.id
     );
     if (matchedEdge) {
       highlightedNodes.add(matchedEdge.from_node_id);
@@ -236,7 +239,7 @@ export const buildFlowElements = (
   const flowEdges: Edge[] = [];
 
   filteredEdges.forEach((e) => {
-    const edgeId = `${e.from_node_id}-${e.to_node_id}-${e.relation_type}`;
+    const edgeId = getEdgeId(e.from_node_id, e.to_node_id, e.relation_type);
     if (!uniqueEdgeIds.has(edgeId)) {
       uniqueEdgeIds.add(edgeId);
 

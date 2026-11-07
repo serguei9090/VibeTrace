@@ -6,49 +6,35 @@ import type { VibeNodeData } from "../../types";
 
 export const VibeNode = memo(({ id, data }: { id?: string; data: VibeNodeData }) => {
   const nodeId = id || (data.id as string);
-  const isClass = data.kind === "class";
-  const isInterface = data.kind === "interface";
-  const isStruct = data.kind === "struct";
-  const isTrait = data.kind === "trait";
-  const isImpl = data.kind === "impl";
-  const isEnum = data.kind === "enum";
-  const isVariable = data.kind === "variable";
-  const isModule = data.kind === "module";
-  const isEndpoint = data.kind === "endpoint";
   const isHighlighted = data.isHighlighted;
   const isDimmed = data.isDimmed;
   const isPrivate = data.visibility === "private";
   const isTraceMode = data.layoutMode === "trace";
-  const decorators = data.decorators ? String(data.decorators).split(",").filter(Boolean) : [];
+  const decorators =
+    typeof data.decorators === "string"
+      ? data.decorators.split(",").filter(Boolean)
+      : Array.isArray(data.decorators)
+        ? data.decorators
+        : [];
 
-  let accentColor = "#818cf8"; // indigo-400
-  let glowColor = "rgba(129, 140, 248, 0.4)";
+  const KIND_COLOR_MAP: Record<string, { accent: string; glow: string }> = {
+    endpoint: { accent: "#f59e0b", glow: "rgba(245, 158, 11, 0.4)" },
+    class: { accent: "#c084fc", glow: "rgba(192, 132, 252, 0.4)" },
+    interface: { accent: "#34d399", glow: "rgba(52, 211, 153, 0.4)" },
+    trait: { accent: "#34d399", glow: "rgba(52, 211, 153, 0.4)" },
+    struct: { accent: "#06b6d4", glow: "rgba(6, 182, 212, 0.4)" },
+    impl: { accent: "#a855f7", glow: "rgba(168, 85, 247, 0.4)" },
+    enum: { accent: "#fb923c", glow: "rgba(251, 146, 60, 0.4)" },
+    variable: { accent: "#94a3b8", glow: "rgba(148, 163, 184, 0.4)" },
+    module: { accent: "#38bdf8", glow: "rgba(56, 189, 248, 0.4)" },
+  };
 
-  if (isEndpoint) {
-    accentColor = "#f59e0b"; // amber-500
-    glowColor = "rgba(245, 158, 11, 0.4)";
-  } else if (isClass) {
-    accentColor = "#c084fc"; // purple-400
-    glowColor = "rgba(192, 132, 252, 0.4)";
-  } else if (isInterface || isTrait) {
-    accentColor = "#34d399"; // emerald-400
-    glowColor = "rgba(52, 211, 153, 0.4)";
-  } else if (isStruct) {
-    accentColor = "#06b6d4"; // cyan-500
-    glowColor = "rgba(6, 182, 212, 0.4)";
-  } else if (isImpl) {
-    accentColor = "#a855f7"; // purple-500
-    glowColor = "rgba(168, 85, 247, 0.4)";
-  } else if (isEnum) {
-    accentColor = "#fb923c"; // orange-400
-    glowColor = "rgba(251, 146, 60, 0.4)";
-  } else if (isVariable) {
-    accentColor = "#94a3b8"; // slate-400
-    glowColor = "rgba(148, 163, 184, 0.4)";
-  } else if (isModule) {
-    accentColor = "#38bdf8"; // sky-400
-    glowColor = "rgba(56, 189, 248, 0.4)";
-  }
+  const kindTheme = KIND_COLOR_MAP[data.kind || ""] || {
+    accent: "#818cf8",
+    glow: "rgba(129, 140, 248, 0.4)",
+  };
+  let accentColor = kindTheme.accent;
+  let glowColor = kindTheme.glow;
 
   if (data.isImpact) {
     accentColor = "#f87171"; // red-400

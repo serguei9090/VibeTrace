@@ -141,6 +141,8 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = ({
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      renderer.dispose();
+      rendererRef.current = null;
     };
   }, [onRendererStatusChange]);
 

@@ -92,9 +92,9 @@ export const DocChunkCard: React.FC<DocChunkCardProps> = ({ chunk }) => {
         }}
       >
         <FileText size={14} color="#60a5fa" />
-        <span style={{ fontWeight: 600 }}>{chunk.file_path}</span>
+        <span style={{ fontWeight: 600 }}>{chunk?.file_path || "Unknown document"}</span>
         <span style={{ color: "var(--text-muted)" }}>
-          (L{chunk.start_line}-L{chunk.end_line})
+          (L{chunk?.start_line ?? 0}-L{chunk?.end_line ?? 0})
         </span>
       </div>
 

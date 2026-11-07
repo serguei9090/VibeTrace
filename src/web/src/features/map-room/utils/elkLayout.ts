@@ -31,7 +31,9 @@ const layoutArchitectureMap = async (
   const tree: Record<string, Record<string, Node<VibeNodeData>[]>> = {};
 
   for (const node of contentNodes) {
-    const filePath = String(node.data?.file_path || "unknown");
+    const rawPath = node.data?.file_path;
+    const filePath =
+      typeof rawPath === "string" && rawPath.trim().length > 0 ? rawPath : `untracked-${node.id}`;
     const parts = filePath.split(/[\\/]/);
     const districtName = parts.length > 1 ? parts.slice(0, -1).join("/") : "root";
 

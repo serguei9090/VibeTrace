@@ -13,7 +13,16 @@
   --node-class-bg: #4c1d95;
   --node-class-border: #7c3aed;
 
+  --input-bg: #1e2029;
+  --input-focus-bg: #282a36;
+
   color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -23,7 +32,7 @@ body {
   background-color: var(--bg-color);
   color: var(--text-main);
   overflow: hidden;
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
@@ -52,7 +61,7 @@ body {
 
 /* Modern Input */
 .vibe-input {
-  background: #1e2029;
+  background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 8px 12px 8px 36px;
@@ -64,14 +73,13 @@ body {
     background-color 0.2s ease;
   width: 100%;
   max-width: 300px;
-  box-sizing: border-box;
 }
 
 .vibe-input:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--accent-glow);
-  background: #282a36;
+  background: var(--input-focus-bg);
 }
 
 /* Modern Button */
@@ -157,7 +165,7 @@ body {
 
 /* React Flow Overrides */
 .react-flow__background {
-  background-color: #0a0b0e;
+  background-color: var(--bg-color);
 }
 
 #root .react-flow__controls {
