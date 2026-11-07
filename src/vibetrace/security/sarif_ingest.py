@@ -168,8 +168,14 @@ class SarifIngestEngine:
                 rel_path = Path(uri_str).name
 
         region = first_loc.get("region") or {}
-        start_line = int(region.get("startLine") or 1)
-        end_line = int(region.get("endLine") or start_line)
+        try:
+            start_line = int(region.get("startLine") or 1)
+        except (ValueError, TypeError):
+            start_line = 1
+        try:
+            end_line = int(region.get("endLine") or start_line)
+        except (ValueError, TypeError):
+            end_line = start_line
 
         # Correlate symbol with IndexerDB if available
         symbol_name = None

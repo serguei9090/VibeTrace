@@ -193,7 +193,7 @@ def format_security_audit_sarif(report: Any) -> str:
                 "severity": sev,
                 "category": _sev_str(f.category),
                 "status": f.status,
-                "taintPath": f.metadata.get("taint_path"),
+                "taintPath": (f.metadata or {}).get("taint_path"),
             },
             "locations": [
                 {

@@ -194,6 +194,8 @@ class DependencyAutoPatcher:
         report = AutoPatchReport(total_vulnerable_packages=len(grouped))
 
         for (eco, pkg_name), pkg_findings in grouped.items():
+            if not pkg_findings:
+                continue
             first = pkg_findings[0]
             current_ver = ""
             if "@" in first.title:
