@@ -1,18 +1,21 @@
 pre-commit:
   parallel: false
   commands:
-    python-lint:
-      glob: "*.py"
-      run: uv run ruff check --fix {staged_files}
     python-format:
       glob: "*.py"
       run: uv run ruff format {staged_files}
+      stage_fixed: true
+    python-lint:
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files}
+      stage_fixed: true
     python-types:
       glob: "*.py"
       run: uv run pyright
     web-lint:
       glob: "{src/web,extensions/vscode}/**/*.{ts,tsx,js,json,css}"
       run: biome check --write {staged_files}
+      stage_fixed: true
 
 # --- VibeTrace Automated Sync ---
 post-commit:
