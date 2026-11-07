@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -17,6 +18,8 @@ from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.db_queries import _clean_path
 from vibetrace.indexer.db_retry import with_write_retry
 
+logger = logging.getLogger(__name__)
+
 
 class LSPClient:
     """Lightweight stdio JSON-RPC 2.0 client for LSP servers."""
@@ -29,7 +32,9 @@ class LSPClient:
         self._pending_requests: dict[int, concurrent.futures.Future[Any]] = {}
         self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self._write_lock = threading.Lock()
         self._running = False
+        self._opened_uris: set[str] = set()
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
@@ -66,6 +71,7 @@ class LSPClient:
             if init_res is not None:
                 self.send_notification("initialized", {})
                 return True
+            self.stop()
         except (subprocess.SubprocessError, OSError):
             self.stop()
         return False
@@ -87,7 +93,11 @@ class LSPClient:
                     if line == "\r\n":
                         break
                     if line.lower().startswith("content-length:"):
-                        content_length = int(line.split(":", 1)[1].strip())
+                        try:
+                            content_length = int(line.split(":", 1)[1].strip())
+                        except ValueError as ve:
+                            logger.debug("Malformed LSP Content-Length header: %s (%s)", line, ve)
+                            content_length = None
 
                 if not self._running or content_length is None:
                     break
@@ -98,12 +108,26 @@ class LSPClient:
 
                 msg = json.loads(body_bytes.decode("utf-8"))
                 req_id = msg.get("id")
-                if req_id is not None:
+                # Distinguish responses from server-initiated requests
+                if req_id is not None and "method" not in msg:
                     with self._lock:
                         fut = self._pending_requests.pop(req_id, None)
                     if fut and not fut.done():
                         fut.set_result(msg.get("result"))
-            except Exception:
+                elif req_id is not None and "method" in msg:
+                    # Reply with null result to server-initiated requests
+                    resp_dict = {"jsonrpc": "2.0", "id": req_id, "result": None}
+                    resp = json.dumps(resp_dict).encode("utf-8")
+                    hdr = f"Content-Length: {len(resp)}\r\n\r\n".encode("ascii")
+                    with self._write_lock:
+                        if self.process and self.process.stdin:
+                            try:
+                                self.process.stdin.write(hdr + resp)
+                                self.process.stdin.flush()
+                            except (BrokenPipeError, OSError):
+                                pass
+            except Exception as e:
+                logger.debug("LSP reader loop error: %s", e)
                 break
 
         with self._lock:
@@ -118,11 +142,12 @@ class LSPClient:
             return
         payload = json.dumps({"jsonrpc": "2.0", "method": method, "params": params}).encode("utf-8")
         header = f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii")
-        try:
-            self.process.stdin.write(header + payload)
-            self.process.stdin.flush()
-        except (BrokenPipeError, OSError):
-            pass
+        with self._write_lock:
+            try:
+                self.process.stdin.write(header + payload)
+                self.process.stdin.flush()
+            except (BrokenPipeError, OSError):
+                pass
 
     def send_request(self, method: str, params: dict[str, Any], timeout: float = 3.0) -> Any:
         """Send a JSON-RPC request and wait with an enforceable timeout for the response."""
@@ -141,8 +166,9 @@ class LSPClient:
         header = f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii")
 
         try:
-            self.process.stdin.write(header + payload)
-            self.process.stdin.flush()
+            with self._write_lock:
+                self.process.stdin.write(header + payload)
+                self.process.stdin.flush()
             return future.result(timeout=timeout)
         except (FuturesTimeoutError, TimeoutError):
             return None
@@ -152,10 +178,41 @@ class LSPClient:
             with self._lock:
                 self._pending_requests.pop(req_id, None)
 
+    def ensure_document_opened(self, file_path: Path) -> None:
+        """Send textDocument/didOpen if not previously opened."""
+        uri = file_path.resolve().as_uri()
+        if uri in self._opened_uris:
+            return
+        try:
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+            ext = file_path.suffix.lower()
+            lang_id = {
+                ".py": "python",
+                ".ts": "typescript",
+                ".js": "javascript",
+                ".rs": "rust",
+                ".go": "go",
+            }.get(ext, "plaintext")
+            self.send_notification(
+                "textDocument/didOpen",
+                {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": lang_id,
+                        "version": 1,
+                        "text": text,
+                    }
+                },
+            )
+            self._opened_uris.add(uri)
+        except Exception as e:
+            logger.debug("Failed to didOpen %s: %s", file_path, e)
+
     def get_definition(
         self, file_path: Path, line: int, character: int = 0
     ) -> tuple[str, int] | None:
         """Query textDocument/definition and return (relative_file_path, 1-indexed line)."""
+        self.ensure_document_opened(file_path)
         file_uri = file_path.resolve().as_uri()
         res = self.send_request(
             "textDocument/definition",
@@ -198,6 +255,16 @@ class LSPClient:
 
     def stop(self) -> None:
         """Terminate the LSP server process and reader thread conforming to LSP spec."""
+        if self.process:
+            try:
+                try:
+                    self.send_request("shutdown", {}, timeout=1.0)
+                except Exception:
+                    pass
+                self.send_notification("exit", {})
+            except Exception:
+                pass
+
         self._running = False
         with self._lock:
             for fut in self._pending_requests.values():
@@ -207,11 +274,6 @@ class LSPClient:
 
         if self.process:
             try:
-                try:
-                    self.send_request("shutdown", {}, timeout=1.0)
-                except Exception:
-                    pass
-                self.send_notification("exit", {})
                 if self.process.stdin:
                     self.process.stdin.close()
                 self.process.terminate()
@@ -252,21 +314,28 @@ def resolve_unresolved_edges(
 
     # Resolve definitions via LSP OUTSIDE of any database transaction
     rewire_candidates: list[tuple[int, str, int]] = []
+    file_lines_cache: dict[Path, list[str]] = {}
+
     for row in rows:
         caller_file = project_root / row["caller_file"]
         call_line = row["call_line"]
         if not caller_file.exists():
             continue
 
+        if caller_file not in file_lines_cache:
+            try:
+                file_lines_cache[caller_file] = caller_file.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines()
+            except Exception as e:
+                logger.debug("Failed to read caller file %s: %s", caller_file, e)
+                file_lines_cache[caller_file] = []
+
+        lines = file_lines_cache[caller_file]
         char_offset = 0
-        try:
-            with open(caller_file, encoding="utf-8", errors="replace") as f:
-                for idx, line_str in enumerate(f, start=1):
-                    if idx == call_line:
-                        char_offset = len(line_str) - len(line_str.lstrip())
-                        break
-        except Exception:
-            pass
+        if 1 <= call_line <= len(lines):
+            line_str = lines[call_line - 1]
+            char_offset = len(line_str) - len(line_str.lstrip())
 
         def_target = lsp_client.get_definition(caller_file, call_line, character=char_offset)
         if not def_target:

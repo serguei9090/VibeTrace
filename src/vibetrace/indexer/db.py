@@ -1,5 +1,7 @@
 import json
+import logging
 import sqlite3
+import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -9,6 +11,8 @@ from typing import Any
 from vibetrace.indexer.db_queries import DBQueriesMixin, _clean_path
 from vibetrace.indexer.db_retry import with_write_retry
 from vibetrace.indexer.models import Edge, Node
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["Edge", "IndexerDB", "Node", "_clean_path", "with_write_retry"]
 
@@ -32,11 +36,13 @@ class IndexerDB(DBQueriesMixin):
             isinstance(self.db_path, str) and "mode=memory" in self.db_path
         )
         self._mem_conn: sqlite3.Connection | None = None
+        self._lock = threading.RLock()
         if self._is_memory:
             self._mem_conn = sqlite3.connect(
                 self.db_path,
                 timeout=30.0,
                 uri="mode=memory" in str(self.db_path),
+                check_same_thread=False,
             )
             self._mem_conn.row_factory = sqlite3.Row
 
@@ -64,8 +70,9 @@ class IndexerDB(DBQueriesMixin):
     @contextmanager
     def _get_conn(self) -> Generator[sqlite3.Connection, None, None]:
         if getattr(self, "_is_memory", False) and self._mem_conn is not None:
-            with self._mem_conn:
-                yield self._mem_conn
+            with self._lock:
+                with self._mem_conn:
+                    yield self._mem_conn
             return
 
         conn = sqlite3.connect(self.db_path, timeout=30.0)
@@ -108,8 +115,8 @@ class IndexerDB(DBQueriesMixin):
                     conn.execute("ALTER TABLE nodes ADD COLUMN parent_id TEXT")
                 if cols and "centrality" not in cols:
                     conn.execute("ALTER TABLE nodes ADD COLUMN centrality REAL DEFAULT 0.0")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Error running migration on nodes table: %s", e)
 
             try:
                 cursor = conn.execute("PRAGMA table_info(edges)")
@@ -118,8 +125,8 @@ class IndexerDB(DBQueriesMixin):
                     conn.execute("ALTER TABLE edges ADD COLUMN call_line INTEGER")
                 if edge_cols and "confidence" not in edge_cols:
                     conn.execute("ALTER TABLE edges ADD COLUMN confidence TEXT DEFAULT 'exact'")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Error running migration on edges table: %s", e)
 
             with open(schema_path, encoding="utf-8") as f:
                 conn.executescript(f.read())
@@ -127,6 +134,7 @@ class IndexerDB(DBQueriesMixin):
     @with_write_retry()
     def upsert_node(self, node: Node) -> None:
         """Insert or replace a node and update FTS5 search index."""
+        clean_fp = _clean_path(node.file_path)
         qualified = node.qualified_name or node.name
         with self._get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -143,7 +151,7 @@ class IndexerDB(DBQueriesMixin):
                     qualified,
                     node.parent_id,
                     node.kind,
-                    node.file_path,
+                    clean_fp,
                     node.start_line,
                     node.end_line,
                     node.signature,
@@ -167,7 +175,7 @@ class IndexerDB(DBQueriesMixin):
                     qualified,
                     node.signature or "",
                     node.docstring or "",
-                    node.file_path,
+                    clean_fp,
                 ),
             )
             conn.commit()
@@ -206,6 +214,7 @@ class IndexerDB(DBQueriesMixin):
     ) -> None:
         """Atomically clear old file data and persist new nodes, edges, FTS5, and hash."""
         file_path = _clean_path(file_path)
+        self._resolve_vector_store()
         idx_time = indexed_time if indexed_time is not None else int(time.time())
         node_tuples = [
             (
@@ -290,13 +299,6 @@ class IndexerDB(DBQueriesMixin):
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
-            self._resolve_vector_store()
-            if self.vector_store and self.vector_store.is_available():
-                try:
-                    self.vector_store.delete_file_embeddings(file_path)
-                except Exception:
-                    pass
-
             # 2. Batch insert nodes and maintain FTS5
             if node_tuples:
                 conn.executemany(
@@ -374,6 +376,12 @@ class IndexerDB(DBQueriesMixin):
             )
             conn.commit()
 
+        if self.vector_store and self.vector_store.is_available():
+            try:
+                self.vector_store.delete_file_embeddings(file_path)
+            except Exception as e:
+                logger.warning("Failed to delete old file embeddings for %s: %s", file_path, e)
+
     @with_write_retry()
     def clear_file(self, file_path: str) -> None:
         """Remove all nodes, edges (inbound & outbound), FTS5, and file metadata."""
@@ -399,15 +407,16 @@ class IndexerDB(DBQueriesMixin):
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
-            self._resolve_vector_store()
-            if self.vector_store and self.vector_store.is_available():
-                try:
-                    self.vector_store.delete_file_embeddings(file_path)
-                except Exception:
-                    pass
             conn.execute("DELETE FROM file_imports WHERE file_path = ?", (file_path,))
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
+
+        self._resolve_vector_store()
+        if self.vector_store and self.vector_store.is_available():
+            try:
+                self.vector_store.delete_file_embeddings(file_path)
+            except Exception as e:
+                logger.warning("Failed to delete file embeddings for %s: %s", file_path, e)
 
     def get_all_indexed_file_paths(self) -> set[str]:
         """Retrieve all indexed file paths currently recorded in the database."""
@@ -464,14 +473,19 @@ class IndexerDB(DBQueriesMixin):
 
     def get_graph_data(self, file_path: str | None = None) -> dict[str, list[dict[str, Any]]]:
         """Return nodes and connected edges for visualization, optionally filtered by file."""
-        if file_path:
-            file_path = file_path.replace("\\", "/")
+        clean_fp = _clean_path(file_path) if file_path else None
         with self._get_conn() as conn:
-            if file_path:
-                pattern = f"{file_path.rstrip('/')}/%"
+            if clean_fp:
+                escaped = (
+                    clean_fp.rstrip("/")
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                pattern = f"{escaped}/%"
                 nodes_cursor = conn.execute(
-                    "SELECT * FROM nodes WHERE file_path = ? OR file_path LIKE ?",
-                    (file_path, pattern),
+                    "SELECT * FROM nodes WHERE file_path = ? OR file_path LIKE ? ESCAPE '\\'",
+                    (clean_fp, pattern),
                 )
             else:
                 pattern = ""
@@ -481,18 +495,30 @@ class IndexerDB(DBQueriesMixin):
             if not nodes:
                 return {"nodes": [], "edges": []}
 
-            if file_path:
+            if clean_fp:
+                node_ids = {n["id"] for n in nodes}
                 edges_cursor = conn.execute(
                     """
                     SELECT * FROM edges WHERE from_node_id IN (
-                        SELECT id FROM nodes WHERE file_path = ? OR file_path LIKE ?
+                        SELECT id FROM nodes WHERE file_path = ? OR file_path LIKE ? ESCAPE '\\'
                     ) OR to_node_id IN (
-                        SELECT id FROM nodes WHERE file_path = ? OR file_path LIKE ?
+                        SELECT id FROM nodes WHERE file_path = ? OR file_path LIKE ? ESCAPE '\\'
                     )
                     """,
-                    (file_path, pattern, file_path, pattern),
+                    (clean_fp, pattern, clean_fp, pattern),
                 )
-                edges = [dict(row) for row in edges_cursor.fetchall()]
+                all_edges = [dict(row) for row in edges_cursor.fetchall()]
+                missing_endpoint_ids = (
+                    {e["from_node_id"] for e in all_edges} | {e["to_node_id"] for e in all_edges}
+                ) - node_ids
+                if missing_endpoint_ids:
+                    placeholders = ",".join("?" for _ in missing_endpoint_ids)
+                    extra_cursor = conn.execute(
+                        f"SELECT * FROM nodes WHERE id IN ({placeholders})",
+                        tuple(missing_endpoint_ids),
+                    )
+                    nodes.extend(dict(row) for row in extra_cursor.fetchall())
+                edges = all_edges
             else:
                 edges_cursor = conn.execute("SELECT * FROM edges")
                 edges = [dict(row) for row in edges_cursor.fetchall()]

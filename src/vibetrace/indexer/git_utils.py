@@ -32,6 +32,18 @@ def get_git_sha(repo_root: Path) -> str | None:
     return None
 
 
+def _decode_git_path(raw_path: str) -> str:
+    """Safely decode Git C-style quoted paths without corrupting literal separators."""
+    p = raw_path.strip()
+    if p.startswith('"') and p.endswith('"') and len(p) >= 2:
+        try:
+            # Git escapes double quotes and backslashes in octal/C-style
+            p = p[1:-1].encode("latin1").decode("unicode_escape")
+        except Exception:
+            p = p[1:-1]
+    return p.replace("\\", "/")
+
+
 def get_git_delta(
     repo_root: Path,
     base_sha: str | None = None,
@@ -46,6 +58,13 @@ def get_git_delta(
     if not base_sha or not shutil.which("git"):
         return None
 
+    # Validate that base_sha looks like a valid git commit SHA to avoid option injection
+    clean_sha = base_sha.strip()
+    if not (
+        len(clean_sha) in (40, 64) and all(c in "0123456789abcdefABCDEF" for c in clean_sha)
+    ):
+        return None
+
     try:
         # 1. Compare base_sha against current HEAD and staged/unstaged changes
         diff_res = subprocess.run(
@@ -58,7 +77,8 @@ def get_git_delta(
                 "diff",
                 "--name-status",
                 "-M",
-                base_sha,
+                clean_sha,
+                "--",
             ],
             capture_output=True,
             text=True,
@@ -103,19 +123,19 @@ def get_git_delta(
             status = parts[0]
             if status.startswith("D"):
                 if len(parts) > 1:
-                    deleted.add(parts[1].strip("\"'").replace("\\", "/"))
+                    deleted.add(_decode_git_path(parts[1]))
             elif status.startswith("R"):
                 if len(parts) >= 3:
-                    deleted.add(parts[1].strip("\"'").replace("\\", "/"))
-                    changed.add(parts[2].strip("\"'").replace("\\", "/"))
+                    deleted.add(_decode_git_path(parts[1]))
+                    changed.add(_decode_git_path(parts[2]))
             elif status.startswith("C"):
                 if len(parts) >= 3:
-                    changed.add(parts[2].strip("\"'").replace("\\", "/"))
+                    changed.add(_decode_git_path(parts[2]))
                 elif len(parts) > 1:
-                    changed.add(parts[1].strip("\"'").replace("\\", "/"))
+                    changed.add(_decode_git_path(parts[1]))
             else:
                 if len(parts) > 1:
-                    changed.add(parts[1].strip("\"'").replace("\\", "/"))
+                    changed.add(_decode_git_path(parts[1]))
 
         for raw_line in status_res.stdout.splitlines():
             line = raw_line.rstrip("\r\n")
@@ -130,13 +150,13 @@ def get_git_delta(
             # 'R  old -> new' or 'C  orig -> copy'
             if " -> " in raw_path:
                 old_p, new_p = raw_path.split(" -> ", 1)
-                clean_old = old_p.strip("\"'").replace("\\", "/")
-                clean_new = new_p.strip("\"'").replace("\\", "/")
+                clean_old = _decode_git_path(old_p)
+                clean_new = _decode_git_path(new_p)
                 if "R" in status:
                     deleted.add(clean_old)
                 changed.add(clean_new)
             else:
-                clean_p = raw_path.strip("\"'").replace("\\", "/")
+                clean_p = _decode_git_path(raw_path)
                 if "D" in status:
                     deleted.add(clean_p)
                 else:
@@ -145,7 +165,9 @@ def get_git_delta(
         # Disk is the source of truth: a path deleted in history but present now
         # (re-created, `git rm --cached`, reverted delete) must be re-indexed, not purged.
         all_paths = changed | deleted
-        verified_changed = {p for p in all_paths if (repo_root / p).is_file()}
+        verified_changed = {
+            p for p in all_paths if (repo_root / p).exists() or (repo_root / p).is_symlink()
+        }
         return verified_changed, all_paths - verified_changed
 
     except (subprocess.SubprocessError, OSError):

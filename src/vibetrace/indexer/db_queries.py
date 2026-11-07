@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 from typing import Any, Literal
 
 from vibetrace.indexer.db_retry import with_write_retry
+
+logger = logging.getLogger(__name__)
 
 
 def _clean_path(path: str) -> str:
@@ -69,7 +72,8 @@ class DBQueriesMixin:
                 nm = r["name"]
                 nid = r["id"]
                 nodes_by_file_qual[(fp, qn)] = nid
-                nodes_by_file_qual[(fp, nm)] = nid
+                if qn == nm or (fp, nm) not in nodes_by_file_qual:
+                    nodes_by_file_qual[(fp, nm)] = nid
                 nodes_by_name.setdefault(nm, []).append((fp, nid))
 
             updates: list[tuple[str, str, int]] = []
@@ -165,7 +169,8 @@ class DBQueriesMixin:
                             results.append(r_dict)
                             if len(results) >= limit:
                                 return results
-                except sqlite3.OperationalError:
+                except sqlite3.OperationalError as e:
+                    logger.debug("FTS search syntax or operational error for expr %s: %s", expr, e)
                     continue
             return results
 
@@ -294,7 +299,8 @@ class DBQueriesMixin:
             if raw_dec and isinstance(raw_dec, str):
                 try:
                     r["decorators"] = json.loads(raw_dec)
-                except Exception:
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning("Malformed decorators JSON for node %s: %s", r.get("id"), e)
                     r["decorators"] = []
             elif not raw_dec:
                 r["decorators"] = []
@@ -451,16 +457,29 @@ class DBQueriesMixin:
                 cursor = conn.execute("SELECT node_id, embedding, dimensions FROM node_embeddings")
             return [(row[0], bytes(row[1]), int(row[2])) for row in cursor.fetchall()]
 
-    def get_nodes_missing_embeddings(self, model_id: str) -> list[dict[str, Any]]:
-        """Return nodes that do not yet have embeddings for the specified model."""
-        sql = (
-            "SELECT n.* FROM nodes n "
-            "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
-            "WHERE e.node_id IS NULL "
-            "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
-        )
+    def get_nodes_missing_embeddings(
+        self, model_id: str, dimensions: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Return nodes that do not yet have embeddings for the specified model and dimension."""
+        if dimensions is not None:
+            sql = (
+                "SELECT n.* FROM nodes n "
+                "LEFT JOIN node_embeddings e ON n.id = e.node_id "
+                "  AND e.model_id = ? AND e.dimensions = ? "
+                "WHERE e.node_id IS NULL "
+                "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
+            )
+            params: tuple[Any, ...] = (model_id, dimensions)
+        else:
+            sql = (
+                "SELECT n.* FROM nodes n "
+                "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
+                "WHERE e.node_id IS NULL "
+                "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
+            )
+            params = (model_id,)
         with self._get_conn() as conn:
-            cursor = conn.execute(sql, (model_id,))
+            cursor = conn.execute(sql, params)
             return [dict(r) for r in cursor.fetchall()]
 
     def get_uncalled_private_functions(self, include_tests: bool = False) -> list[dict[str, Any]]:

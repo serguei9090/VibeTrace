@@ -335,3 +335,59 @@ def test_in_memory_db_path_guard(tmp_path: Path):
     # Hybrid search on in-memory DB should run without error
     results = hybrid_search(db, "test_query")
     assert results == []
+
+
+def test_write_retry_validation_and_behavior():
+    """Verify with_write_retry enforces max_attempts >= 1 and skips sleep on last attempt."""
+    import sqlite3
+
+    from vibetrace.indexer.db_retry import with_write_retry
+
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        with_write_retry(max_attempts=0)
+
+    call_count = 0
+
+    @with_write_retry(max_attempts=2, initial_delay=0.01)
+    def flaky_func():
+        nonlocal call_count
+        call_count += 1
+        raise sqlite3.OperationalError("database is locked")
+
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        flaky_func()
+    assert call_count == 2
+
+
+def test_embeddings_vector_unpack_and_dimension_validation():
+    """Verify unpack_vector rejects truncated blobs and protects dimensions."""
+    from vibetrace.indexer.embeddings import pack_vector, unpack_vector
+
+    vec = [1.0, 2.0, 3.0, 4.0]
+    blob = pack_vector(vec)
+    assert len(blob) == 16
+
+    unpacked = unpack_vector(blob, dimensions=4)
+    assert list(unpacked) == [1.0, 2.0, 3.0, 4.0]
+
+    with pytest.raises(ValueError, match="Truncated embedding blob"):
+        unpack_vector(blob[:8], dimensions=4)
+
+
+def test_git_hooks_dir_resolution_and_submodule_support(tmp_path: Path):
+    """Verify _get_git_hooks_dir resolves correctly for standard repo and gitdir pointer."""
+    from vibetrace.indexer.hooks import _get_git_hooks_dir
+
+    # 1. Standard repo
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    assert _get_git_hooks_dir(tmp_path) == git_dir / "hooks"
+
+    # 2. Submodule or worktree with gitdir: pointer
+    sub_root = tmp_path / "submodule"
+    sub_root.mkdir()
+    target_git = tmp_path / "main_repo_git" / "modules" / "sub"
+    target_git.mkdir(parents=True)
+    (sub_root / ".git").write_text(f"gitdir: {target_git}\n", encoding="utf-8")
+
+    assert _get_git_hooks_dir(sub_root) == target_git / "hooks"

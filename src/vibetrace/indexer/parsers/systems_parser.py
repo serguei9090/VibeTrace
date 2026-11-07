@@ -1,4 +1,4 @@
-"""Multi-language systems parser facade (Go, Rust, C++, Java).
+"""Multi-language systems parser facade (Go, Rust, and polyglot GenericParser).
 
 Re-exports language parsers from focused modular subcomponents to adhere to file line ceilings.
 """

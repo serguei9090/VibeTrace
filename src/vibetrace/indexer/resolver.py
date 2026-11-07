@@ -1,5 +1,8 @@
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ModuleResolver:
@@ -59,8 +62,8 @@ class ModuleResolver:
                                 )
                                 modules[mod_name] = "" if rel == "." else rel
                                 break
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to parse go.mod at %s: %s", g_path, e)
         return modules
 
     def _detect_cargo_packages(self) -> dict[str, str]:
@@ -90,8 +93,8 @@ class ModuleResolver:
                                 )
                                 packages[pkg_name] = "" if rel == "." else rel
                                 break
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to parse Cargo.toml at %s: %s", c_path, e)
         return packages
 
     def _detect_go_module(self) -> str | None:

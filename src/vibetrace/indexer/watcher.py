@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 import time
@@ -11,6 +12,8 @@ from watchdog.observers import Observer
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import index_file, is_ignored_path, load_gitignore
 from vibetrace.indexer.resolver import ModuleResolver
+
+logger = logging.getLogger(__name__)
 
 
 class CodeChangeHandler(FileSystemEventHandler):
@@ -59,7 +62,7 @@ class CodeChangeHandler(FileSystemEventHandler):
             try:
                 self.on_change()
             except Exception as e:
-                print(f"Error in watcher callback: {e}")
+                logger.error("Error in watcher callback: %s", e)
 
     def _schedule_post_sync(self) -> None:
         """Debounce centrality recalculation and WebSocket broadcast across burst changes."""
@@ -113,8 +116,8 @@ class CodeChangeHandler(FileSystemEventHandler):
                             )
                             print(f"Doc file synchronized: {rel_file}")
                         return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Doc change handling skipped or failed: %s", e)
         return False
 
     def on_modified(self, event):

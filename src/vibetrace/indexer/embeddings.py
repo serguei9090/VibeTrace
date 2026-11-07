@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import heapq
 import importlib
+import logging
 import math
 import sqlite3
 import struct
@@ -15,6 +16,8 @@ from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.vector_store import VectorStore
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingConfig(BaseModel):
@@ -68,6 +71,10 @@ def pack_vector(vec: Sequence[float]) -> bytes:
 def unpack_vector(blob: bytes, dimensions: int | None = None) -> tuple[float, ...]:
     """Deserialize a little-endian float32 binary blob."""
     dim = dimensions if dimensions is not None else len(blob) // 4
+    if len(blob) < dim * 4:
+        raise ValueError(
+            f"Truncated embedding blob: expected at least {dim * 4} bytes, got {len(blob)}"
+        )
     return struct.unpack(f"<{dim}f", blob[: dim * 4])
 
 
@@ -126,7 +133,8 @@ class EmbeddingEngine:
                 vec_cfg,
                 project_name=cfg.project.name,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to initialize vector store: %s", e)
             self.vector_store = None
 
     def _resolve_vector_store(self, db: IndexerDB) -> None:
@@ -189,12 +197,14 @@ class EmbeddingEngine:
         ]
 
     def index_missing_embeddings(self, db: IndexerDB) -> int:
-        """Compute and store embeddings for any nodes lacking vectors for the current model."""
+        """Compute and store embeddings for any nodes lacking vectors for model and dim."""
         if not self.is_available():
             return 0
 
         self._resolve_vector_store(db)
-        missing_nodes = db.get_nodes_missing_embeddings(self.config.model_id)
+        missing_nodes = db.get_nodes_missing_embeddings(
+            self.config.model_id, dimensions=self.config.dimensions
+        )
         if not missing_nodes:
             return 0
 
@@ -205,16 +215,6 @@ class EmbeddingEngine:
             docs = [build_symbol_document(n) for n in batch]
             vectors = self.embed_texts(docs)
 
-            rows = [
-                (
-                    node["id"],
-                    pack_vector(vec),
-                    self.config.dimensions,
-                    self.config.model_id,
-                )
-                for node, vec in zip(batch, vectors, strict=True)
-            ]
-            db.upsert_embeddings(rows)
             if self.vector_store and self.vector_store.is_available():
                 lance_records = [
                     {
@@ -228,7 +228,21 @@ class EmbeddingEngine:
                     }
                     for node, vec in zip(batch, vectors, strict=True)
                 ]
-                self.vector_store.upsert_embeddings(lance_records)
+                try:
+                    self.vector_store.upsert_embeddings(lance_records)
+                except Exception as e:
+                    logger.warning("LanceDB upsert failed; continuing to SQLite: %s", e)
+
+            rows = [
+                (
+                    node["id"],
+                    pack_vector(vec),
+                    self.config.dimensions,
+                    self.config.model_id,
+                )
+                for node, vec in zip(batch, vectors, strict=True)
+            ]
+            db.upsert_embeddings(rows)
             total_indexed += len(rows)
 
         return total_indexed
@@ -255,9 +269,11 @@ class EmbeddingEngine:
         ):
             query_vecs = self.embed_texts([query])
             if query_vecs:
-                return self.vector_store.search_semantic(
+                store_results = self.vector_store.search_semantic(
                     query_vecs[0], limit=limit, model_id=self.config.model_id
                 )
+                if store_results:
+                    return store_results
 
         # Fast check: avoid expensive neural forward-pass if database has no vectors
         with db._get_conn() as conn:
@@ -282,11 +298,11 @@ class EmbeddingEngine:
                         """
                         SELECT node_id, (1.0 - vec_distance_cosine(embedding, ?)) AS score
                         FROM node_embeddings
-                        WHERE model_id = ?
+                        WHERE model_id = ? AND dimensions = ?
                         ORDER BY score DESC
                         LIMIT ?
                         """,
-                        (q_blob, self.config.model_id, limit),
+                        (q_blob, self.config.model_id, self.config.dimensions, limit),
                     )
                     results = [(row[0], float(row[1])) for row in cursor.fetchall()]
                     if results:
@@ -296,11 +312,12 @@ class EmbeddingEngine:
 
         # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
         top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
+        sql_scan = (
+            "SELECT node_id, embedding, dimensions FROM node_embeddings "
+            "WHERE model_id = ? AND dimensions = ?"
+        )
         with db._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT node_id, embedding, dimensions FROM node_embeddings WHERE model_id = ?",
-                (self.config.model_id,),
-            )
+            cursor = conn.execute(sql_scan, (self.config.model_id, self.config.dimensions))
             while True:
                 batch = cursor.fetchmany(1000)
                 if not batch:
@@ -308,7 +325,10 @@ class EmbeddingEngine:
                 for node_id, blob, dims in batch:
                     if dims != len(q_vec):
                         continue
-                    cand_vec = unpack_vector(blob, dims)
+                    try:
+                        cand_vec = unpack_vector(blob, dims)
+                    except (struct.error, ValueError):
+                        continue
                     score = cosine_similarity(q_vec, cand_vec)
                     if len(top_heap) < limit:
                         heapq.heappush(top_heap, (score, node_id))

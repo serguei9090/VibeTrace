@@ -2,6 +2,7 @@
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 30000;
+PRAGMA foreign_keys = ON;
 
 -- Files tracking for incremental content-hash indexing
 CREATE TABLE IF NOT EXISTS indexed_files (
@@ -61,6 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 CREATE INDEX IF NOT EXISTS idx_nodes_qualified_name ON nodes(qualified_name);
 CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_node_id);
 CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_node_id);
+CREATE INDEX IF NOT EXISTS idx_edges_from_to ON edges(from_node_id, to_node_id);
 
 -- Full-Text Search Virtual Table (FTS5 BM25)
 CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(

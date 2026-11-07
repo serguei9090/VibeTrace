@@ -68,21 +68,28 @@ class RustParser(LanguageParser):
                     raw = self._get_text(arg).strip("; ")
                     items: list[tuple[str, str, str]] = []
                     if "::{" in raw:
-                        base, grp = raw.split("::{", 1)
-                        for it in grp.rstrip("}").split(","):
-                            if s := it.strip():
-                                sym = s.split(" as ")[-1].strip()
-                                orig = s.split(" as ")[0].strip()
-                                items.append((sym, orig, f"{base}::{orig}".replace("::", "/")))
+                        split_res = raw.split("::{", 1)
+                        if len(split_res) == 2:
+                            base, grp = split_res
+                            for it in grp.rstrip("}").split(","):
+                                if s := it.strip():
+                                    as_parts = s.split(" as ")
+                                    sym = as_parts[-1].strip()
+                                    orig = as_parts[0].strip()
+                                    items.append((sym, orig, f"{base}::{orig}".replace("::", "/")))
                     elif "::" in raw:
                         parts = raw.split("::")
-                        last = parts[-1]
-                        sym = last.split(" as ")[-1].strip()
-                        orig = last.split(" as ")[0].strip()
-                        items.append((sym, orig, "/".join(parts[:-1])))
+                        if parts:
+                            last = parts[-1]
+                            as_parts = last.split(" as ")
+                            sym = as_parts[-1].strip()
+                            orig = as_parts[0].strip()
+                            mod_path = "/".join(parts[:-1]) if len(parts) > 1 else orig
+                            items.append((sym, orig, mod_path))
                     else:
-                        sym = raw.split(" as ")[-1].strip()
-                        orig = raw.split(" as ")[0].strip()
+                        as_parts = raw.split(" as ")
+                        sym = as_parts[-1].strip()
+                        orig = as_parts[0].strip()
                         items.append((sym, orig, orig))
                     for sym, orig, mod in items:
                         res = self._register_imported_module(mod, ctx, node)

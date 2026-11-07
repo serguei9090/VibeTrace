@@ -547,16 +547,17 @@ class GenericParser(LanguageParser):
                             )
 
             current_scope_id = node_id if node_id else parent_id
-            for child in node.children:
-                traverse(child, current_scope_id)
+            try:
+                for child in node.children:
+                    traverse(child, current_scope_id)
+            finally:
+                if pushed_scope:
+                    ctx.scope_stack.pop()
+                    if saved_class_prefix is not None:
+                        ctx.current_class_prefix = saved_class_prefix
 
-            if pushed_scope:
-                ctx.scope_stack.pop()
-                if saved_class_prefix is not None:
-                    ctx.current_class_prefix = saved_class_prefix
-
-            if saved_local_types is not None:
-                ctx.local_types = saved_local_types
+                if saved_local_types is not None:
+                    ctx.local_types = saved_local_types
 
         traverse(tree.root_node, file_module_id)
         return nodes, edges

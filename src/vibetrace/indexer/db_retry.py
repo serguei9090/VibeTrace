@@ -12,6 +12,8 @@ from typing import Any
 
 def with_write_retry(max_attempts: int = 5, initial_delay: float = 0.05) -> Callable[..., Any]:
     """Decorator to retry SQLite writes when locked or busy under concurrent agent access."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
@@ -22,18 +24,16 @@ def with_write_retry(max_attempts: int = 5, initial_delay: float = 0.05) -> Call
                     return func(*args, **kwargs)
                 except sqlite3.DatabaseError as err:
                     err_msg = str(err).lower()
-                    if (
-                        "locked" in err_msg
-                        or "busy" in err_msg
-                        or "cannot start a transaction within a transaction" in err_msg
-                    ):
+                    if "locked" in err_msg or "busy" in err_msg:
                         last_err = err
-                        sleep_time = initial_delay * (2**attempt) + random.uniform(0.01, 0.05)
-                        time.sleep(sleep_time)
+                        if attempt < max_attempts - 1:
+                            sleep_time = initial_delay * (2**attempt) + random.uniform(0.01, 0.05)
+                            time.sleep(sleep_time)
                         continue
                     raise
             if last_err:
                 raise last_err
+            raise RuntimeError("with_write_retry: no attempts were made")
 
         return wrapper
 

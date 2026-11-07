@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from tree_sitter import Node
@@ -10,6 +11,8 @@ from vibetrace.indexer.db import Edge
 from vibetrace.indexer.db import Node as DBNode
 from vibetrace.indexer.parsers.base import LanguageParser, ParserContext
 from vibetrace.indexer.resolver import ModuleResolver
+
+logger = logging.getLogger(__name__)
 
 
 class GoParser(LanguageParser):
@@ -182,8 +185,12 @@ class GoParser(LanguageParser):
                                         ):
                                             struct_file = kf
                                             break
-                                    except Exception:
-                                        pass
+                                    except OSError as e:
+                                        logger.debug(
+                                            "Failed to read sibling Go file %s: %s",
+                                            sibling_abs,
+                                            e,
+                                        )
                         struct_id = self._get_id(struct_file, recv_text)
                         edges.append(self._create_edge(struct_id, node_id, "defines", node=node))
 

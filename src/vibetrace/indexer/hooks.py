@@ -23,6 +23,32 @@ fi
 """
 
 
+def _get_git_hooks_dir(root: Path) -> Path | None:
+    """Resolve the git hooks directory, supporting regular repos, worktrees, and submodules."""
+    git_entry = root / ".git"
+    if not git_entry.exists():
+        return None
+    if git_entry.is_dir():
+        return git_entry / "hooks"
+    # In worktrees/submodules, .git is a file containing 'gitdir: <path>'
+    try:
+        content = git_entry.read_text(encoding="utf-8").strip()
+        if content.startswith("gitdir:"):
+            git_path = Path(content.split(":", 1)[1].strip())
+            if not git_path.is_absolute():
+                git_path = (root / git_path).resolve()
+            common_dir_file = git_path / "commondir"
+            if common_dir_file.exists():
+                common_dir = Path(common_dir_file.read_text(encoding="utf-8").strip())
+                if not common_dir.is_absolute():
+                    common_dir = (git_path / common_dir).resolve()
+                return common_dir / "hooks"
+            return git_path / "hooks"
+    except OSError:
+        pass
+    return None
+
+
 def detect_hook_provider(project_root: Path) -> str:
     """Detect whether the repository uses Lefthook or standard Git hooks."""
     if (project_root / "lefthook.yml").exists() or (project_root / ".lefthook.yml").exists():
@@ -40,27 +66,29 @@ def get_hooks_status(project_root: Path) -> dict[str, Any]:
     if lh_file.exists():
         try:
             content = lh_file.read_text(encoding="utf-8")
-            lh_installed = "vibetrace" in content
+            lh_installed = "vibetrace-sync:" in content or "vibetrace index" in content
         except OSError:
             pass
 
-    git_hooks_dir = root / ".git" / "hooks"
-    post_commit_file = git_hooks_dir / "post-commit"
-    post_merge_file = git_hooks_dir / "post-merge"
-
+    git_hooks_dir = _get_git_hooks_dir(root)
     git_pc_installed = False
-    if post_commit_file.exists():
-        try:
-            git_pc_installed = "vibetrace" in post_commit_file.read_text(encoding="utf-8")
-        except OSError:
-            pass
-
     git_pm_installed = False
-    if post_merge_file.exists():
-        try:
-            git_pm_installed = "vibetrace" in post_merge_file.read_text(encoding="utf-8")
-        except OSError:
-            pass
+
+    if git_hooks_dir and git_hooks_dir.exists():
+        post_commit_file = git_hooks_dir / "post-commit"
+        post_merge_file = git_hooks_dir / "post-merge"
+
+        if post_commit_file.exists():
+            try:
+                git_pc_installed = "vibetrace" in post_commit_file.read_text(encoding="utf-8")
+            except OSError:
+                pass
+
+        if post_merge_file.exists():
+            try:
+                git_pm_installed = "vibetrace" in post_merge_file.read_text(encoding="utf-8")
+            except OSError:
+                pass
 
     return {
         "provider": detect_hook_provider(root),
@@ -72,7 +100,7 @@ def get_hooks_status(project_root: Path) -> dict[str, Any]:
         "git": {
             "post_commit": git_pc_installed,
             "post_merge": git_pm_installed,
-            "hooks_dir": str(git_hooks_dir) if git_hooks_dir.exists() else None,
+            "hooks_dir": str(git_hooks_dir) if (git_hooks_dir and git_hooks_dir.exists()) else None,
         },
     }
 
@@ -123,9 +151,20 @@ def _inject_lefthook_hook(content: str, hook_name: str) -> str:
 def _clean_lefthook_content(content: str) -> str:
     """Safely strip VibeTrace commands and prune empty parent keys from lefthook.yml."""
     lines = content.splitlines()
-    clean_lines = [
-        line for line in lines if "vibetrace" not in line and "VibeTrace Automated Sync" not in line
-    ]
+    clean_lines: list[str] = []
+    skip_indent: int | None = None
+    for line in lines:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        if skip_indent is not None:
+            if stripped and indent <= skip_indent:
+                skip_indent = None
+            else:
+                continue
+        if stripped == "vibetrace-sync:":
+            skip_indent = indent
+            continue
+        clean_lines.append(line)
     result: list[str] = []
     i = 0
     while i < len(clean_lines):
@@ -187,12 +226,21 @@ def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
         except OSError as e:
             return False, f"Failed to read {lh_file.name}: {e}"
 
-    if "vibetrace" in existing_content:
-        return True, f"VibeTrace hook is already configured in {lh_file.name}."
+    # Check each hook independently so a partially configured file still gets completed.
+    already = [
+        h
+        for h in ("post-commit", "post-merge")
+        if f"{h}:" in existing_content
+        and ("vibetrace-sync:" in existing_content or "vibetrace index" in existing_content)
+    ]
+    if len(already) == 2:
+        return True, f"VibeTrace hooks are already configured in {lh_file.name}."
 
     content = existing_content
-    content = _inject_lefthook_hook(content, "post-commit")
-    content = _inject_lefthook_hook(content, "post-merge")
+    if "post-commit" not in already:
+        content = _inject_lefthook_hook(content, "post-commit")
+    if "post-merge" not in already:
+        content = _inject_lefthook_hook(content, "post-merge")
 
     try:
         lh_file.write_text(content.strip() + "\n", encoding="utf-8")
@@ -202,9 +250,16 @@ def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
     # If lefthook CLI is present, run lefthook install
     if shutil.which("lefthook"):
         try:
-            subprocess.run(["lefthook", "install"], cwd=str(root), check=False, capture_output=True)
-        except OSError:
-            pass
+            result = subprocess.run(
+                ["lefthook", "install"], cwd=str(root), check=False, capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                return False, (
+                    "Updated lefthook.yml but 'lefthook install' failed: "
+                    f"{result.stderr.strip() or result.stdout.strip()}"
+                )
+        except OSError as e:
+            return False, f"Failed to run lefthook install: {e}"
 
     return True, f"Successfully appended post-commit & post-merge to {lh_file.name}."
 
@@ -212,12 +267,14 @@ def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
 def install_git_hooks(project_root: Path) -> tuple[bool, str]:
     """Install native Git hook scripts into .git/hooks/."""
     root = project_root.resolve()
-    git_dir = root / ".git"
-    if not git_dir.exists():
-        return False, f"Directory '{root}' is not a Git repository (.git not found)."
+    hooks_dir = _get_git_hooks_dir(root)
+    if not hooks_dir:
+        return False, f"Directory '{root}' is not a Git repository (.git not found or invalid)."
 
-    hooks_dir = git_dir / "hooks"
-    hooks_dir.mkdir(exist_ok=True)
+    try:
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return False, f"Failed to create hooks directory: {e}"
 
     installed_hooks: list[str] = []
     for hook_name in ("post-commit", "post-merge"):
@@ -226,8 +283,8 @@ def install_git_hooks(project_root: Path) -> tuple[bool, str]:
         if hook_path.exists():
             try:
                 current_content = hook_path.read_text(encoding="utf-8")
-            except OSError:
-                pass
+            except OSError as e:
+                return False, f"Failed to read existing hook {hook_name}: {e}"
 
         if "vibetrace" in current_content:
             installed_hooks.append(f"{hook_name} (already present)")
@@ -283,17 +340,25 @@ def uninstall_hooks(project_root: Path) -> tuple[bool, str]:
                 pass
 
     # 2. Clean .git/hooks
-    git_hooks_dir = root / ".git" / "hooks"
-    if git_hooks_dir.exists():
+    git_hooks_dir = _get_git_hooks_dir(root)
+    if git_hooks_dir and git_hooks_dir.exists():
         for hook_name in ("post-commit", "post-merge"):
             hook_path = git_hooks_dir / hook_name
             if hook_path.exists():
                 try:
                     content = hook_path.read_text(encoding="utf-8")
                     if "vibetrace" in content:
-                        lines = [line for line in content.splitlines() if "vibetrace" not in line]
-                        hook_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-                        removed_items.append(f"removed from .git/hooks/{hook_name}")
+                        start = content.find("# --- VibeTrace Automated Indexer ---")
+                        end = content.find("# --- End VibeTrace ---")
+                        marker_len = len("# --- End VibeTrace ---")
+                        if start != -1 and end != -1:
+                            cleaned = content[:start] + content[end + marker_len :]
+                        else:
+                            cleaned = "\n".join(
+                                line for line in content.splitlines() if "vibetrace" not in line
+                            )
+                        hook_path.write_text(cleaned.strip() + "\n", encoding="utf-8")
+                        removed_items.append(f"removed from hooks/{hook_name}")
                 except OSError:
                     pass
 

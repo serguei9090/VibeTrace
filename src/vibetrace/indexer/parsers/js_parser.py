@@ -30,6 +30,14 @@ class JavaScriptParser(LanguageParser):
     def __init__(self, resolver: ModuleResolver | None = None, language: str = "javascript"):
         super().__init__(language, resolver)
 
+    def _get_module_stem(self, file_path: str) -> str:
+        """Extract module stem, falling back to parent folder if named index or mod."""
+        stem = file_path.rsplit(".", 1)[0].split("/")[-1]
+        if stem in ("index", "mod") and "/" in file_path:
+            parts = file_path.split("/")
+            return parts[-2] if len(parts) >= 2 else stem
+        return stem
+
     def _extract_js_matrix_targets(
         self,
         node: Node,
@@ -124,7 +132,8 @@ class JavaScriptParser(LanguageParser):
                             loc = self._get_text(sn)
                             an = spec.child_by_field_name("alias")
                             exp = self._get_text(an) if an else loc
-                            ctx.defined_symbols.update((loc, exp))
+                            ctx.defined_symbols.add(loc)
+                            ctx.defined_symbols.add(exp)
                             if an:
                                 exp_id = self._get_id(ctx.file_path, exp)
                                 if not any(n.id == exp_id for n in ctx.nodes):
@@ -283,10 +292,7 @@ class JavaScriptParser(LanguageParser):
                                 else:
                                     name = ln_t
                         elif curr.type == "export_statement":
-                            stem = file_path.rsplit(".", 1)[0].split("/")[-1]
-                            if stem in ("index", "mod") and "/" in file_path:
-                                parts = file_path.split("/")
-                                stem = parts[-2] if len(parts) >= 2 else stem
+                            stem = self._get_module_stem(file_path)
                             name = stem or "<anonymous>"
                             visibility = "exported"
 
@@ -430,11 +436,7 @@ class JavaScriptParser(LanguageParser):
                         if decl_name := node.parent.child_by_field_name("name"):
                             name = self._get_text(decl_name)
                     elif node.parent.type == "export_statement":
-                        stem = file_path.rsplit(".", 1)[0].split("/")[-1]
-                        if stem in ("index", "mod") and "/" in file_path:
-                            parts = file_path.split("/")
-                            stem = parts[-2] if len(parts) >= 2 else stem
-                        name = stem
+                        name = self._get_module_stem(file_path)
                 if name:
                     qualified_name = self._scoped_name(name, ctx.scope_stack)
                     node_id = self._get_id(file_path, qualified_name)

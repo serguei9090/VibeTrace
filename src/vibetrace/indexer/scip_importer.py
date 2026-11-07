@@ -64,8 +64,8 @@ class ScipImporter:
                     continue
 
                 roles = occ.get("symbol_roles", 0)
-                rng = occ.get("range", [1, 0, 1, 0])
-                start_line = rng[0] + 1 if rng else 1
+                rng = occ.get("range", [1, 0, 1, 0]) or [1, 0, 1, 0]
+                start_line = (rng[0] + 1) if len(rng) > 0 else 1
                 end_line = (rng[2] + 1) if len(rng) >= 3 else start_line
 
                 is_definition = bool(roles & 1)  # Role: Definition = 1

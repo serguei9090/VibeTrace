@@ -193,7 +193,7 @@ def reindex_all(
         try:
             target_rel = str(target_path.relative_to(eff_root)).replace("\\", "/")
         except ValueError:
-            pass
+            target_rel = str(target_path).replace("\\", "/")
 
         current_sha = get_git_sha(eff_root)
         last_sha = db.get_meta("last_indexed_git_sha") if not force else None
