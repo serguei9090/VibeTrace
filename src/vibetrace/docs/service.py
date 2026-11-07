@@ -311,16 +311,19 @@ class DocIndexService:
                 indexed_files += 1
                 total_chunks += chunk_count
 
-        # Clean up deleted files from this catalog
-        with db._get_conn() as conn:
-            stored_rows = conn.execute(
-                "SELECT DISTINCT file_path FROM doc_chunks WHERE catalog = ?",
-                (catalog_name,),
-            ).fetchall()
-            for r in stored_rows:
-                old_fp = r[0]
-                if old_fp not in seen_rel_files:
-                    db.delete_file_chunks(catalog_name, old_fp)
+        # Clean up deleted files from this catalog only if whole directory/paths were scanned
+        # Avoid deleting siblings when indexing a single specific file
+        is_targeted_file = len(paths) == 1 and Path(paths[0]).is_file()
+        if not is_targeted_file:
+            with db._get_conn() as conn:
+                stored_rows = conn.execute(
+                    "SELECT DISTINCT file_path FROM doc_chunks WHERE catalog = ?",
+                    (catalog_name,),
+                ).fetchall()
+                for r in stored_rows:
+                    old_fp = r[0]
+                    if old_fp not in seen_rel_files:
+                        db.delete_file_chunks(catalog_name, old_fp)
 
         return {"files": indexed_files, "chunks": total_chunks}
 

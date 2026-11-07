@@ -496,7 +496,6 @@ class IndexerDB(DBQueriesMixin):
                 return {"nodes": [], "edges": []}
 
             if clean_fp:
-                node_ids = {n["id"] for n in nodes}
                 edges_cursor = conn.execute(
                     """
                     SELECT * FROM edges WHERE from_node_id IN (
@@ -507,18 +506,7 @@ class IndexerDB(DBQueriesMixin):
                     """,
                     (clean_fp, pattern, clean_fp, pattern),
                 )
-                all_edges = [dict(row) for row in edges_cursor.fetchall()]
-                missing_endpoint_ids = (
-                    {e["from_node_id"] for e in all_edges} | {e["to_node_id"] for e in all_edges}
-                ) - node_ids
-                if missing_endpoint_ids:
-                    placeholders = ",".join("?" for _ in missing_endpoint_ids)
-                    extra_cursor = conn.execute(
-                        f"SELECT * FROM nodes WHERE id IN ({placeholders})",
-                        tuple(missing_endpoint_ids),
-                    )
-                    nodes.extend(dict(row) for row in extra_cursor.fetchall())
-                edges = all_edges
+                edges = [dict(row) for row in edges_cursor.fetchall()]
             else:
                 edges_cursor = conn.execute("SELECT * FROM edges")
                 edges = [dict(row) for row in edges_cursor.fetchall()]

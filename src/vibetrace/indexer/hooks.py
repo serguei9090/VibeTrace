@@ -247,8 +247,8 @@ def install_lefthook_config(project_root: Path) -> tuple[bool, str]:
     except OSError as e:
         return False, f"Failed to write to {lh_file.name}: {e}"
 
-    # If lefthook CLI is present, run lefthook install
-    if shutil.which("lefthook"):
+    # If lefthook CLI is present and this is an actual git repository, run lefthook install
+    if shutil.which("lefthook") and (root / ".git").exists():
         try:
             result = subprocess.run(
                 ["lefthook", "install"], cwd=str(root), check=False, capture_output=True, text=True

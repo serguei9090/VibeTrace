@@ -65,6 +65,13 @@ def test_tools_manager_install_unsupported(tmp_path: Path):
 @patch("urllib.request.urlretrieve")
 def test_tools_manager_install_php_mocked(mock_retrieve: MagicMock, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    def fake_retrieve(url, filename):
+        p = Path(filename)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x" * 150_000)
+
+    mock_retrieve.side_effect = fake_retrieve
     ok, msg = ToolsManager.install("php", tmp_path)
     assert ok
     assert "phpstan.phar" in msg
