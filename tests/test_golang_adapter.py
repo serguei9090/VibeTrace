@@ -87,3 +87,57 @@ def test_golang_adapter_availability_detection(tmp_path: Path) -> None:
 
     if adapter._find_runner(tmp_path):
         assert adapter.is_available(tmp_path) is True
+
+
+def test_golang_adapter_output_shapes_and_fix_scope(tmp_path: Path, monkeypatch) -> None:
+    """Verifies parsing of JSON array/dict shapes, exit code handling, and fix scope arguments."""
+    import subprocess
+
+    adapter = GolangLintAdapter()
+
+    # 1. Output shape: raw JSON array
+    array_json = (
+        '[{"FromLinter": "errcheck", "Text": "Error return value not checked", '
+        '"Pos": {"Filename": "main.go", "Line": 10}}]'
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout=array_json, stderr=""
+        ),
+    )
+    monkeypatch.setattr(adapter, "_find_runner", lambda root: ["golangci-lint"])
+
+    findings = adapter.audit_project(tmp_path)
+    assert len(findings) == 1
+    assert (
+        findings[0].rule_id == "go:S3776"
+        or findings[0].rspec_id == "RSPEC-1135"
+        or "errcheck" in findings[0].title
+    )
+
+    # 2. Process exit with error code (e.g. 2 for syntax error)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=2, stdout="", stderr="compilation failure"
+        ),
+    )
+    assert adapter._run_golangci_lint(tmp_path, ["./..."]) == []
+
+    # 3. fix_files targets specific files
+    executed_cmds = []
+
+    def mock_fix_run(cmd, **kwargs):
+        executed_cmds.append(cmd)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", mock_fix_run)
+    file_to_fix = tmp_path / "pkg" / "service.go"
+    adapter.fix_files(tmp_path, [file_to_fix])
+
+    assert len(executed_cmds) == 1
+    assert "pkg/service.go" in executed_cmds[0]
+    assert "./..." not in executed_cmds[0]

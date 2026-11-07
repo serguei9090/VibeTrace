@@ -50,6 +50,7 @@ class GolangLintAdapter(LinterSubEngine):
     def __init__(self, timeout_sec: float = 30.0) -> None:
         self.timeout_sec = timeout_sec
         self._cached_runner: list[str] | None = None
+        self._runner_probed: bool = False
 
     def _find_go_mod(self, project_root: Path) -> Path | None:
         """Locates go.mod at project root or subdirectories."""
@@ -72,8 +73,8 @@ class GolangLintAdapter(LinterSubEngine):
         return None
 
     def _find_runner(self, project_root: Path) -> list[str] | None:
-        """Finds golangci-lint executable in PATH or workspace bin."""
-        if self._cached_runner is not None:
+        """Finds golangci-lint executable in PATH or workspace (caches pos & neg)."""
+        if self._runner_probed:
             return self._cached_runner
 
         candidates: list[list[str]] = []
@@ -97,11 +98,15 @@ class GolangLintAdapter(LinterSubEngine):
         if home_go_bin.is_file():
             candidates.append([str(home_go_bin)])
 
-        # 4. go run fallback if go exists
+        # 4. go run fallback if go exists (pinned version)
         which_go = shutil.which("go")
         if which_go:
             candidates.append(
-                [which_go, "run", "github.com/golangci/golangci-lint/cmd/golangci-lint@latest"]
+                [
+                    which_go,
+                    "run",
+                    "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0",
+                ]
             )
 
         for cand in candidates:
@@ -115,10 +120,13 @@ class GolangLintAdapter(LinterSubEngine):
                 )
                 if res.returncode == 0:
                     self._cached_runner = cand
+                    self._runner_probed = True
                     return self._cached_runner
             except (OSError, subprocess.SubprocessError):
                 continue
 
+        self._runner_probed = True
+        self._cached_runner = None
         return None
 
     def is_available(self, project_root: Path) -> bool:
@@ -160,7 +168,7 @@ class GolangLintAdapter(LinterSubEngine):
             rspec_id = "RSPEC-1135"
             category = QualityCategory.CODE_SMELL
             severity = QualitySeverity.LOW
-            sonar_rule_id = f"go:{linter}"
+            sonar_rule_id = f"go:{s_code}"
 
         hash_id = hashlib.sha256(f"{rel_file}:{start_line}:{linter}:{text}".encode()).hexdigest()[
             :12
@@ -218,19 +226,28 @@ class GolangLintAdapter(LinterSubEngine):
             return []
 
         output = res.stdout.strip()
+        if res.returncode not in (0, 1):
+            logger.warning(
+                "golangci-lint exited with error code %s: %s",
+                res.returncode,
+                res.stderr.strip()[:500],
+            )
+            return []
+
         if not output:
             return []
 
         try:
             parsed = json.loads(output)
-            if (
-                isinstance(parsed, dict)
-                and "Issues" in parsed
-                and isinstance(parsed["Issues"], list)
-            ):
-                return parsed["Issues"]
+            if isinstance(parsed, list):
+                return [i for i in parsed if isinstance(i, dict)]
+            if isinstance(parsed, dict):
+                if isinstance(parsed.get("Issues"), list):
+                    return [i for i in parsed["Issues"] if isinstance(i, dict)]
+                if "Pos" in parsed:
+                    return [parsed]
         except json.JSONDecodeError:
-            pass
+            logger.debug("Unparsable golangci-lint JSON output: %s", output[:500])
 
         return []
 
@@ -289,7 +306,14 @@ class GolangLintAdapter(LinterSubEngine):
 
         config_path = self._resolve_config_path(project_root)
         config_arg = ["--config", str(config_path)] if config_path else []
-        cmd = [*runner, "run", "--fix", *config_arg, "./..."]
+
+        target_args = [
+            p.relative_to(project_root).as_posix()
+            if p.is_absolute() and str(p).startswith(str(project_root))
+            else str(p).replace("\\", "/")
+            for p in (file_list or [])
+        ]
+        cmd = [*runner, "run", "--fix", *config_arg, *(target_args or ["./..."])]
 
         try:
             res = subprocess.run(

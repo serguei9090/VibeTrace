@@ -6,11 +6,26 @@ and instant cloud scaling (s3://) for 256d Matryoshka symbol embeddings.
 
 from __future__ import annotations
 
+import functools
 import importlib
+import logging
 from pathlib import Path
 from typing import Any, Protocol
 
 from vibetrace.config import VectorConfig
+
+logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=1)
+def _check_lancedb_available() -> bool:
+    """Check and cache whether lancedb and pyarrow are installed and importable."""
+    try:
+        importlib.import_module("lancedb")
+        importlib.import_module("pyarrow")
+        return True
+    except ImportError:
+        return False
 
 
 class VectorStore(Protocol):
@@ -52,13 +67,8 @@ class LanceDBVectorStore:
         self._table: Any = None
 
     def is_available(self) -> bool:
-        """Check if lancedb and pyarrow are installed and importable."""
-        try:
-            importlib.import_module("lancedb")
-            importlib.import_module("pyarrow")
-            return True
-        except ImportError:
-            return False
+        """Check if lancedb and pyarrow are installed and importable (cached)."""
+        return _check_lancedb_available()
 
     def _get_table(self) -> Any:
         if self._table is not None:
@@ -98,34 +108,44 @@ class LanceDBVectorStore:
 
         return self._table
 
+    def _build_project_filter(self, extra_filter: str | None = None) -> str:
+        """Build SQL filter predicate with project_name isolation."""
+        safe_proj = self.project_name.replace("'", "''")
+        proj_filter = f"project_name = '{safe_proj}'"
+        return f"{proj_filter} AND ({extra_filter})" if extra_filter else proj_filter
+
     def has_embeddings(self, model_id: str | None = None) -> bool:
         """Check if vector store contains indexed embeddings."""
         table = self._get_table()
         if table is None:
             return False
-        try:
-            if table.count_rows() == 0:
-                return False
-            if not model_id:
-                return True
+        extra = None
+        if model_id:
             safe_model = model_id.replace("'", "''")
-            filtered = table.search().where(f"model_id = '{safe_model}'").limit(1).to_list()
+            extra = f"model_id = '{safe_model}'"
+        filter_expr = self._build_project_filter(extra)
+        try:
+            filtered = table.search().where(filter_expr).limit(1).to_list()
             return len(filtered) > 0
-        except Exception:
-            return False
+        except Exception as err:
+            logger.warning("LanceDB has_embeddings failed on '%s': %s", self.uri, err)
+            raise
 
     def count(self, model_id: str | None = None) -> int:
         """Return total number of vector embeddings."""
         table = self._get_table()
         if table is None:
             return 0
-        try:
-            if not model_id:
-                return int(table.count_rows())
+        extra = None
+        if model_id:
             safe_model = model_id.replace("'", "''")
-            return int(table.count_rows(f"model_id = '{safe_model}'"))
-        except Exception:
-            return 0
+            extra = f"model_id = '{safe_model}'"
+        filter_expr = self._build_project_filter(extra)
+        try:
+            return int(table.count_rows(filter_expr))
+        except Exception as err:
+            logger.warning("LanceDB count failed on '%s': %s", self.uri, err)
+            raise
 
     def upsert_embeddings(self, records: list[dict[str, Any]]) -> int:
         """Upsert a batch of symbol vector records into LanceDB."""
@@ -135,17 +155,34 @@ class LanceDBVectorStore:
         if table is None:
             return 0
 
-        # Purge existing records for the same node IDs to ensure idempotency
-        node_ids = [r["node_id"] for r in records if "node_id" in r]
-        if node_ids:
-            try:
-                # Batch delete in chunks of 500 to keep SQL filter string safe
-                for i in range(0, len(node_ids), 500):
-                    chunk = node_ids[i : i + 500]
-                    escaped_ids = ", ".join("'" + nid.replace("'", "''") + "'" for nid in chunk)
-                    table.delete(f"node_id IN ({escaped_ids})")
-            except Exception:
-                pass
+        # Purge existing records for the same node IDs scoped by model_id and project_name
+        model_groups: dict[str, list[str]] = {}
+        for r in records:
+            nid = r.get("node_id")
+            mid = r.get("model_id", "")
+            if nid:
+                model_groups.setdefault(mid, []).append(nid)
+
+        safe_proj = self.project_name.replace("'", "''")
+        for mid, nids in model_groups.items():
+            safe_mid = mid.replace("'", "''")
+            for i in range(0, len(nids), 500):
+                chunk = nids[i : i + 500]
+                escaped_ids = ", ".join("'" + n.replace("'", "''") + "'" for n in chunk)
+                delete_filter = (
+                    f"project_name = '{safe_proj}' AND model_id = '{safe_mid}' "
+                    f"AND node_id IN ({escaped_ids})"
+                )
+                try:
+                    table.delete(delete_filter)
+                except Exception as err:
+                    logger.error(
+                        "LanceDB purge failed for model '%s' in project '%s': %s",
+                        mid,
+                        self.project_name,
+                        err,
+                    )
+                    raise
 
         # Filter fields against existing table schema to prevent invalid field exceptions
         schema_cols = set(table.schema.names)
@@ -180,10 +217,12 @@ class LanceDBVectorStore:
         if table is None:
             return
         clean_path = file_path.replace("\\", "/").replace("'", "''")
+        safe_proj = self.project_name.replace("'", "''")
         try:
-            table.delete(f"file_path = '{clean_path}'")
-        except Exception:
-            pass
+            table.delete(f"project_name = '{safe_proj}' AND file_path = '{clean_path}'")
+        except Exception as err:
+            logger.error("LanceDB file delete failed for '%s': %s", file_path, err)
+            raise
 
     def search_semantic(
         self,
@@ -204,12 +243,14 @@ class LanceDBVectorStore:
             if len(query_vec) != expected_dim:
                 return []
 
-        try:
-            query = table.search(query_vec).metric("cosine").limit(limit)
-            if model_id:
-                safe_model = model_id.replace("'", "''")
-                query = query.where(f"model_id = '{safe_model}'")
+        extra = None
+        if model_id:
+            safe_model = model_id.replace("'", "''")
+            extra = f"model_id = '{safe_model}'"
+        filter_expr = self._build_project_filter(extra)
 
+        try:
+            query = table.search(query_vec).metric("cosine").where(filter_expr).limit(limit)
             rows = query.to_list()
             results: list[tuple[str, float]] = []
             for r in rows:
@@ -220,8 +261,9 @@ class LanceDBVectorStore:
                 if nid:
                     results.append((nid, score))
             return results
-        except Exception:
-            return []
+        except Exception as err:
+            logger.error("LanceDB search_semantic failed on '%s': %s", self.uri, err)
+            raise
 
 
 def get_vector_store(
@@ -247,4 +289,9 @@ def get_vector_store(
             project_name=project_name,
         )
 
-    return None
+    if cfg.engine == "sqlite-vec":
+        raise NotImplementedError("Vector engine 'sqlite-vec' is planned but not yet implemented.")
+
+    raise ValueError(
+        f"Unsupported vector engine '{cfg.engine}'. Must be 'lancedb', 'sqlite-vec', or 'none'."
+    )

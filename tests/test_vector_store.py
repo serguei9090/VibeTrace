@@ -164,3 +164,92 @@ def test_lancedb_robustness_and_sql_quote_escapes(tmp_path: Path):
     # Purge with single quote in path
     store.delete_file_embeddings("src/user's_file.py")
     assert store.count("quote's_model") == 0
+
+
+def test_vector_store_project_and_model_isolation(tmp_path: Path) -> None:
+    """Verify that project_name and model_id isolate counts, upserts, and searches."""
+    dim = 256
+    vec1 = [0.9] + [0.0] * (dim - 1)
+    vec2 = [0.0, 0.9] + [0.0] * (dim - 2)
+
+    store_a = LanceDBVectorStore(
+        uri=tmp_path / "shared_vectors.lance",
+        dimensions=dim,
+        project_name="proj-alpha",
+    )
+    store_b = LanceDBVectorStore(
+        uri=tmp_path / "shared_vectors.lance",
+        dimensions=dim,
+        project_name="proj-beta",
+    )
+
+    # 1. Project A indexes node_1 under model_x
+    store_a.upsert_embeddings(
+        [
+            {
+                "node_id": "common_node",
+                "name": "foo",
+                "kind": "function",
+                "vector": vec1,
+                "dimensions": dim,
+                "model_id": "model_x",
+                "file_path": "a.py",
+            }
+        ]
+    )
+
+    # 2. Project B indexes node_1 under model_y
+    store_b.upsert_embeddings(
+        [
+            {
+                "node_id": "common_node",
+                "name": "foo",
+                "kind": "function",
+                "vector": vec2,
+                "dimensions": dim,
+                "model_id": "model_y",
+                "file_path": "b.py",
+            }
+        ]
+    )
+
+    # Isolation checks
+    assert store_a.count() == 1
+    assert store_b.count() == 1
+    assert store_a.count(model_id="model_x") == 1
+    assert store_a.count(model_id="model_y") == 0
+    assert store_b.count(model_id="model_x") == 0
+    assert store_b.count(model_id="model_y") == 1
+
+    # Multi-model upsert in Project A: adding model_z must not wipe model_x
+    store_a.upsert_embeddings(
+        [
+            {
+                "node_id": "common_node",
+                "name": "foo",
+                "kind": "function",
+                "vector": vec1,
+                "dimensions": dim,
+                "model_id": "model_z",
+                "file_path": "a.py",
+            }
+        ]
+    )
+    assert store_a.count() == 2
+    assert store_a.count(model_id="model_x") == 1
+    assert store_a.count(model_id="model_z") == 1
+    # Project B remains untouched
+    assert store_b.count() == 1
+
+    # Engine factory validation
+    import pytest
+
+    from vibetrace.config import VectorConfig
+
+    cfg_unsupported = VectorConfig(engine="unknown-engine")
+    with pytest.raises(ValueError, match="Unsupported vector engine"):
+        get_vector_store(tmp_path, cfg_unsupported)
+
+    cfg_sqlite_vec = VectorConfig(engine="sqlite-vec")
+    with pytest.raises(NotImplementedError, match="sqlite-vec"):
+        get_vector_store(tmp_path, cfg_sqlite_vec)
