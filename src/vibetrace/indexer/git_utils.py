@@ -60,9 +60,7 @@ def get_git_delta(
 
     # Validate that base_sha looks like a valid git commit SHA to avoid option injection
     clean_sha = base_sha.strip()
-    if not (
-        len(clean_sha) in (40, 64) and all(c in "0123456789abcdefABCDEF" for c in clean_sha)
-    ):
+    if not (len(clean_sha) in (40, 64) and all(c in "0123456789abcdefABCDEF" for c in clean_sha)):
         return None
 
     try:
