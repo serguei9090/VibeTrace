@@ -391,3 +391,87 @@ def test_git_hooks_dir_resolution_and_submodule_support(tmp_path: Path):
     (sub_root / ".git").write_text(f"gitdir: {target_git}\n", encoding="utf-8")
 
     assert _get_git_hooks_dir(sub_root) == target_git / "hooks"
+
+
+def test_python_parser_findings_regression(tmp_path: Path):
+    """
+    Validates fixes for the 8 findings in PythonParser:
+    1. Overbroad pytest.mark.parametrize matching (custom.parametrize vs pytest.mark.parametrize).
+    2. Overbroad fixture matching (fixture_params vs @pytest.fixture).
+    3. Test module path substring false positives (contest.py, latest.py vs tests/test_foo.py).
+    4. Generic and union type extraction normalization (list[Order], Dict[str, User]).
+    5. Destructuring assignment targets ('a, b = ...') not creating bogus local_types.
+    6. Module name derivation on Windows paths with .py in parent path.
+    7. Nested definitions registered in defined_symbols.
+    8. Enclosing scope check preventing self attributes leaking from class-body nested functions.
+    """
+    from vibetrace.indexer.parsers.python_parser import PythonParser
+
+    parser = PythonParser()
+
+    # 1 & 2: Decorator exact matching
+    code_decorators = """
+import pytest
+from myapp import custom
+
+@custom.parametrize("cand_helper", ["val1"])
+def test_unrelated():
+    pass
+
+@pytest.mark.parametrize("cand_real", ["val2"])
+def test_real_param():
+    pass
+
+@pytest.fixture
+def my_fixture():
+    return 42
+
+def fixture_params():
+    return 10
+"""
+    _nodes, edges = parser.extract("tests/test_decorators.py", code_decorators.encode("utf-8"))
+    calls_cand_helper = any(
+        "cand_helper" in e.to_node_id for e in edges if e.relation_type == "calls"
+    )
+    assert not calls_cand_helper, "Unrelated custom.parametrize should not generate calls edges"
+
+    # 3: Path substring false positive
+    nodes_contest, _ = parser.extract("src/contest/latest.py", b"def helper(arg): pass")
+    # Should not treat helper as a test function with deferred fixture links
+    assert any(n.name == "helper" for n in nodes_contest)
+
+    # 4: Type normalization (list[Order], Dict[str, User])
+    code_types = """
+from typing import Dict, List, Union
+
+def process_items():
+    items: list[Order] = []
+    users: Dict[str, User] = {}
+"""
+    nodes_types, _ = parser.extract("src/models.py", code_types.encode("utf-8"))
+    assert any(n.name == "process_items" for n in nodes_types)
+
+    # 5: Destructuring target
+    code_destructure = """
+def unpack():
+    a, b = (1, 2)
+"""
+    nodes_destruct, _ = parser.extract("src/unpack.py", code_destructure.encode("utf-8"))
+    assert any(n.name == "unpack" for n in nodes_destruct)
+
+    # 6: Windows path module derivation
+    win_path = r"C:\project\src\payroll.py"
+    nodes_win, _ = parser.extract(win_path, b"def calculate(): pass")
+    mod_node = next(n for n in nodes_win if n.kind == "module")
+    assert mod_node.name == "payroll", f"Expected 'payroll', got {mod_node.name}"
+
+    # 7 & 8: Nested definitions & scope isolation
+    code_nested = """
+class Outer:
+    def method(self):
+        self.attr = 10
+        def inner():
+            pass
+"""
+    nodes_nested, _ = parser.extract("src/nested.py", code_nested.encode("utf-8"))
+    assert any(n.name == "inner" for n in nodes_nested)

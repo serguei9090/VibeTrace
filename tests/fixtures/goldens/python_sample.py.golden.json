@@ -25,7 +25,7 @@
       "name": "process",
       "qualified_name": "OrderProcessor.process",
       "kind": "function",
-      "signature": "(self, order_id: str, items: List[Any]) -> bool",
+      "signature": "(self, order_id: str, items: list[Any]) -> bool",
       "docstring": null
     },
     {

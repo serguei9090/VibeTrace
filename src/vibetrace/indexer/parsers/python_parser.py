@@ -55,7 +55,10 @@ class PythonParser(LanguageParser):
         edges: list[Edge] = []
 
         # Create a node for the file itself (module)
-        module_name = file_path.split("/")[-1].replace(".py", "")
+        norm_mod_path = file_path.replace("\\", "/").rstrip("/")
+        module_name = norm_mod_path.rsplit("/", 1)[-1]
+        if module_name.endswith(".py"):
+            module_name = module_name[:-3]
         if self.resolver:
             canonical = self.resolver.get_module_name(file_path)
             if canonical:
@@ -109,6 +112,11 @@ class PythonParser(LanguageParser):
             parts = [p.strip() for p in text[6:-1].split(",") if p.strip() != "None"]
             if parts:
                 text = parts[0]
+        elif "[" in text and text.endswith("]"):
+            inner = text[text.index("[") + 1 : -1].strip()
+            inner_parts = [p.strip() for p in inner.split(",") if p.strip()]
+            if inner_parts:
+                text = inner_parts[0]
         if "|" in text:
             parts = [p.strip() for p in text.split("|") if p.strip() != "None"]
             if parts:
@@ -194,7 +202,10 @@ class PythonParser(LanguageParser):
             if not func_node:
                 continue
             func_text = self._get_text(func_node).strip()
-            if "parametrize" not in func_text:
+            # Require the decorator to be a pytest/mark parametrize
+            if func_text.split(".")[-1] != "parametrize":
+                continue
+            if "pytest" not in func_text and "mark" not in func_text:
                 continue
 
             args_node = call_node.child_by_field_name("arguments")
@@ -233,6 +244,9 @@ class PythonParser(LanguageParser):
         """Record local variable types from explicit annotations, constructors, or assignments."""
         left_node = node.child_by_field_name("left") or node.child_by_field_name("name")
         if not left_node:
+            return
+        # Only record simple identifier or attribute targets (avoid destructuring targets)
+        if left_node.type not in ("identifier", "attribute"):
             return
         var_name = self._get_text(left_node).strip()
 
@@ -338,11 +352,17 @@ class PythonParser(LanguageParser):
             ctx.scope_stack.pop()
 
         if saved_local_types is not None:
+            # Inside a class method: preserve instance attributes on self for sibling methods
             if node.type == "function_definition" and ctx.scope_stack:
-                # Inside a class method: preserve instance attributes on self for sibling methods
-                for k, v in ctx.local_types.items():
-                    if k.startswith(("self.", "this.")):
-                        saved_local_types[k] = v
+                enclosing_scope_name = ".".join(ctx.scope_stack)
+                is_enclosing_class = any(
+                    n.qualified_name == enclosing_scope_name and n.kind in ("class", "enum")
+                    for n in ctx.nodes
+                )
+                if is_enclosing_class:
+                    for k, v in ctx.local_types.items():
+                        if k.startswith(("self.", "this.")):
+                            saved_local_types[k] = v
             # Restore saved_local_types (cleanly isolates top-level functions and class scopes)
             ctx.local_types = saved_local_types
 
@@ -420,6 +440,10 @@ class PythonParser(LanguageParser):
 
         visibility = "private" if name.startswith("_") and not name.startswith("__") else "public"
 
+        # Pre-register definition name in defined_symbols (including nested classes/functions)
+        ctx.defined_symbols.add(name)
+        ctx.defined_symbols.add(qualified_name)
+
         new_node = self._create_node(
             node_id,
             name,
@@ -469,7 +493,7 @@ class PythonParser(LanguageParser):
         is_fixture = False
         if decorators and node.type == "function_definition":
             is_fixture = any(
-                d.strip().startswith(("@pytest.fixture", "@fixture", "pytest.fixture", "fixture"))
+                d.strip().lstrip("@").split("(")[0].strip() in ("pytest.fixture", "fixture")
                 for d in decorators
             )
             if is_fixture:
@@ -482,7 +506,8 @@ class PythonParser(LanguageParser):
         if node.type == "function_definition" and params_node:
             p_names = self._extract_param_names(params_node)
             norm_path = ctx.file_path.replace("\\", "/").lower()
-            is_test = name.startswith("test_") or "test" in norm_path or "tests" in norm_path
+            segments = {seg for seg in norm_path.split("/") if seg}
+            is_test = name.startswith("test_") or bool(segments & {"test", "tests"})
             if is_fixture or is_test:
                 ctx.deferred_fixture_links.append((node_id, node, p_names))
 
