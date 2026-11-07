@@ -188,7 +188,12 @@ def generate_default_config_toml(
     include_tests: bool = False,
 ) -> str:
     """Generate documented default TOML configuration."""
-    safe_name = project_name.replace('"', '\\"')
+    # Sanitize project name against invalid characters / multiline injections
+    sanitized_name = (
+        "".join(c for c in project_name if c.isalnum() or c in ("-", "_", ".", " ")).strip()
+        or "project"
+    )
+    safe_name = sanitized_name.replace('"', '\\"')
     inc_str = "true" if include_tests else "false"
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
@@ -269,12 +274,20 @@ def load_config(project_root: Path | str | None = None) -> VibeTraceConfig:
         return VibeTraceConfig(project=ProjectConfig(name=root.name))
 
     raw_data: dict[str, Any] = {}
-    if tomllib is not None:
-        try:
-            with cfg_file.open("rb") as f:
-                raw_data = tomllib.load(f)
-        except Exception:
-            raw_data = {}
+    try:
+        with cfg_file.open("rb") as f:
+            raw_data = tomllib.load(f)
+    except tomllib.TOMLDecodeError as err:
+        import sys
+
+        warn_msg = f"Warning: Syntax error in {cfg_file}: {err}. Falling back to default config."
+        print(warn_msg, file=sys.stderr)
+        raw_data = {}
+    except OSError as err:
+        import sys
+
+        print(f"Warning: Could not read {cfg_file}: {err}. Using default config.", file=sys.stderr)
+        raw_data = {}
 
     cfg = VibeTraceConfig.model_validate(raw_data)
     if not raw_data.get("project", {}).get("name"):
@@ -299,37 +312,60 @@ def save_default_config(
     return target
 
 
-def resolve_linter_mode(project_root: Path, engine: str) -> str:
+def _canonical_linter_engine(engine: str) -> str:
+    """Normalizes linter alias to canonical LinterConfigs field name."""
+    norm = engine.lower().strip()
+    alias_map = {
+        "tsc": "typescript",
+        "typescript": "typescript",
+        "golangci-lint": "golang",
+        "golang": "golang",
+        "go": "golang",
+        "clippy": "rust",
+        "rust": "rust",
+        "phpstan": "php",
+        "php": "php",
+        "ruff": "ruff",
+        "biome": "biome",
+    }
+    return alias_map.get(norm, norm)
+
+
+def resolve_linter_mode(
+    project_root: Path,
+    engine: str,
+    preloaded_config: VibeTraceConfig | None = None,
+) -> str:
     """Resolves whether an engine should use 'project' config or VibeTrace 'strict' preset."""
-    cfg = load_config(project_root)
-    val = getattr(cfg.quality.linter_configs, engine.lower(), "auto")
+    canonical_engine = _canonical_linter_engine(engine)
+    cfg = preloaded_config or load_config(project_root)
+    val = getattr(cfg.quality.linter_configs, canonical_engine, "auto")
     if val in ("project", "strict"):
         return val
 
     # In 'auto' mode: check if project-level config file exists
-    norm_engine = engine.lower()
     has_project_cfg = False
-    if norm_engine == "ruff":
+    if canonical_engine == "ruff":
         has_project_cfg = any(
             (project_root / f).is_file() for f in ("ruff.toml", ".ruff.toml", "pyproject.toml")
         )
-    elif norm_engine == "biome":
+    elif canonical_engine == "biome":
         has_project_cfg = any((project_root / f).is_file() for f in ("biome.json", "biome.jsonc"))
-    elif norm_engine in ("typescript", "tsc"):
+    elif canonical_engine == "typescript":
         has_project_cfg = any(
             (project_root / f).is_file()
             for f in ("tsconfig.json", "src/web/tsconfig.app.json", "src/web/tsconfig.json")
         )
-    elif norm_engine in ("golang", "go", "golangci-lint"):
+    elif canonical_engine == "golang":
         has_project_cfg = any(
             (project_root / f).is_file()
             for f in (".golangci.yml", ".golangci.yaml", ".golangci.toml", "go.mod")
         )
-    elif norm_engine in ("rust", "clippy"):
+    elif canonical_engine == "rust":
         has_project_cfg = any(
             (project_root / f).is_file() for f in ("Cargo.toml", "clippy.toml", ".clippy.toml")
         )
-    elif norm_engine in ("php", "phpstan"):
+    elif canonical_engine == "php":
         has_project_cfg = any(
             (project_root / f).is_file()
             for f in ("phpstan.neon", "phpstan.neon.dist", "phpstan.dist.neon", "composer.json")
@@ -340,13 +376,23 @@ def resolve_linter_mode(project_root: Path, engine: str) -> str:
 
 def save_linter_mode(project_root: Path, engine: str, mode: str) -> None:
     """Persists engine configuration choice into .vibetrace.toml."""
+    valid_modes = {"project", "strict", "auto"}
+    norm_mode = mode.lower().strip()
+    if norm_mode not in valid_modes:
+        raise ValueError(f"Invalid linter mode '{mode}'. Allowed: {sorted(valid_modes)}")
+
+    canonical_engine = _canonical_linter_engine(engine)
     cfg_file = get_config_path(project_root) or (project_root / ".vibetrace.toml")
     header_block = "[quality.linter_configs]\n"
-    line_to_set = f'{engine.lower()} = "{mode}"\n'
+    line_to_set = f'{canonical_engine} = "{norm_mode}"\n'
 
     content = ""
     if cfg_file.is_file():
         content = cfg_file.read_text(encoding="utf-8", errors="replace")
+
+    import re
+
+    pattern = re.compile(rf"^\s*{re.escape(canonical_engine)}\s*=\s*.*$", re.MULTILINE)
 
     if "[quality.linter_configs]" in content:
         lines = content.splitlines(keepends=True)
@@ -357,20 +403,27 @@ def save_linter_mode(project_root: Path, engine: str, mode: str) -> None:
             s_line = line.strip()
             if s_line.startswith("[") and not s_line.startswith("[quality.linter_configs]"):
                 if in_section and not replaced:
+                    if new_lines and not new_lines[-1].endswith("\n"):
+                        new_lines[-1] += "\n"
                     new_lines.append(line_to_set)
                     replaced = True
                 in_section = False
             elif s_line == "[quality.linter_configs]":
                 in_section = True
-            elif in_section and s_line.startswith(f"{engine.lower()} ="):
+            elif in_section and pattern.match(line):
                 line = line_to_set
                 replaced = True
             new_lines.append(line)
         if in_section and not replaced:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines[-1] += "\n"
             new_lines.append(line_to_set)
         content = "".join(new_lines)
     else:
-        content = content.rstrip() + f"\n\n{header_block}{line_to_set}"
+        content = content.rstrip()
+        if content:
+            content += "\n\n"
+        content += f"{header_block}{line_to_set}"
 
     cfg_file.parent.mkdir(parents=True, exist_ok=True)
     cfg_file.write_text(content, encoding="utf-8")
