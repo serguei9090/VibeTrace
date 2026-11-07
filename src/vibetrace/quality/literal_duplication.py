@@ -49,7 +49,7 @@ class StringLiteralVisitor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self.literal_occurrences: dict[str, list[int]] = defaultdict(list)
-        self._ignored_nodes: set[int] = set()
+        self._ignored_nodes: set[ast.Constant] = set()
 
     def _visit_scope(self, node: ast.AST, body: list[ast.stmt]) -> None:
         self._mark_docstring(body)
@@ -64,10 +64,10 @@ class StringLiteralVisitor(ast.NodeVisitor):
     def _visit_func(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._mark_docstring(node.body)
         if node.returns and isinstance(node.returns, ast.Constant):
-            self._ignored_nodes.add(id(node.returns))
+            self._ignored_nodes.add(node.returns)
         for arg in node.args.args + node.args.kwonlyargs:
             if arg.annotation and isinstance(arg.annotation, ast.Constant):
-                self._ignored_nodes.add(id(arg.annotation))
+                self._ignored_nodes.add(arg.annotation)
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -80,7 +80,7 @@ class StringLiteralVisitor(ast.NodeVisitor):
         """Ignores string literal keys within dictionary literals."""
         for k in node.keys:
             if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
-                self._ignored_nodes.add(id(k))
+                self._ignored_nodes.add(k)
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
@@ -91,13 +91,13 @@ class StringLiteralVisitor(ast.NodeVisitor):
         if is_all_export and isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
             for elt in node.value.elts:
                 if isinstance(elt, ast.Constant):
-                    self._ignored_nodes.add(id(elt))
+                    self._ignored_nodes.add(elt)
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         """Ignores string type annotations."""
         if node.annotation and isinstance(node.annotation, ast.Constant):
-            self._ignored_nodes.add(id(node.annotation))
+            self._ignored_nodes.add(node.annotation)
         self.generic_visit(node)
 
     def _mark_docstring(self, body: list[ast.stmt]) -> None:
@@ -105,10 +105,10 @@ class StringLiteralVisitor(ast.NodeVisitor):
         if body and isinstance(body[0], ast.Expr):
             val = body[0].value
             if isinstance(val, ast.Constant) and isinstance(val.value, str):
-                self._ignored_nodes.add(id(val))
+                self._ignored_nodes.add(val)
 
     def visit_Constant(self, node: ast.Constant) -> None:
-        if id(node) in self._ignored_nodes:
+        if node in self._ignored_nodes:
             return
         if not isinstance(node.value, str):
             return

@@ -527,7 +527,10 @@ class QualityService:
                 comment_line = f"{indent}# vibetrace:ignore[{rule_short}]: {rationale}  # NOSONAR"
                 lines.insert(idx, comment_line)
                 commented_count += 1
-            abs_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            try:
+                abs_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            except OSError:
+                continue
 
         return commented_count
 

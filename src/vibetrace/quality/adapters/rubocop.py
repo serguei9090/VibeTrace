@@ -196,14 +196,14 @@ class RuboCopAdapter(LinterSubEngine):
             if not raw_stdout:
                 return []
             return self.parse_rubocop_output(raw_stdout, project_root)
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             logger.warning("Failed executing RuboCop on %s: %s", project_root, e)
             return []
 
     def parse_rubocop_output(self, raw_json: str, project_root: Path) -> list[QualityFinding]:
         try:
             payload = json.loads(extract_json_payload(raw_json))
-        except Exception:
+        except (json.JSONDecodeError, ValueError, TypeError):
             return []
 
         findings: list[QualityFinding] = []
@@ -304,5 +304,5 @@ class RuboCopAdapter(LinterSubEngine):
                 check=False,
             )
             return {"status": "success", "returncode": res.returncode}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return {"status": "error", "error": str(e)}

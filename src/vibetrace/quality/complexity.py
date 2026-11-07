@@ -57,27 +57,26 @@ class PythonCognitiveVisitor(ast.NodeVisitor):
         self._nesting -= 1
 
         # Check if orelse is an elif vs plain else
-        if node.orelse:
-            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+        # Traverse elif / else chain without in-place mutation of node.orelse
+        current_orelse = node.orelse
+        while current_orelse:
+            if len(current_orelse) == 1 and isinstance(current_orelse[0], ast.If):
                 # Elif gets +1 structural increment without nesting penalty increment
                 self.cognitive_score += 1
                 self.cyclomatic_score += 1
-                # Continue visiting elif body with same nesting
+                elif_node = current_orelse[0]
                 self._nesting += 1
-                for child in node.orelse[0].body:
+                for child in elif_node.body:
                     self.visit(child)
                 self._nesting -= 1
-                if node.orelse[0].orelse:
-                    # Recursive tail for further elif/else
-                    fake_if = node.orelse[0]
-                    node.orelse = fake_if.orelse
-                    self.visit_If(fake_if)
+                current_orelse = elif_node.orelse
             else:
                 self.cognitive_score += 1  # else adds 1 cognitive
                 self._nesting += 1
-                for child in node.orelse:
+                for child in current_orelse:
                     self.visit(child)
                 self._nesting -= 1
+                break
 
     def visit_IfExp(self, node: ast.IfExp) -> None:
         # Ternary conditional expression

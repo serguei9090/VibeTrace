@@ -391,58 +391,59 @@ class PythonSmellsVisitor(ast.NodeVisitor):
         max_depth = spec_134.default_threshold if spec_134 and spec_134.default_threshold else 3
 
         self._nesting_depth += 1
-        if self._nesting_depth > max_depth:
-            snippet = self._get_snippet(node.lineno, getattr(node, "end_lineno", node.lineno))
-            code_hash = self._hash_snippet(snippet)
-            raw_id = f"{self.file_path}:{node.lineno}"
-            fid = f"QUAL-S134-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
-            self.findings.append(
-                QualityFinding(
-                    id=fid,
-                    rule_id="python:S134",
-                    rspec_id="RSPEC-134",
-                    category=QualityCategory.MAINTAINABILITY,
-                    severity=QualitySeverity.MEDIUM,
-                    title=(
-                        f"Control flow statement is nested too deeply "
-                        f"({self._nesting_depth} > {max_depth})."
-                    ),
-                    message=(
-                        "Reduce nesting level by returning early or extracting inner blocks "
-                        "to separate functions."
-                    ),
-                    file_path=self.file_path,
-                    start_line=node.lineno,
-                    end_line=getattr(node, "end_lineno", node.lineno),
-                    symbol_name=self._current_function,
-                    code_hash=code_hash,
-                    metric_value=float(self._nesting_depth),
-                    metric_threshold=float(max_depth),
-                    non_compliant_snippet=snippet[:200],
-                    compliant_snippet=spec_134.compliant_example if spec_134 else None,
-                    remediation_guidance=spec_134.explanation if spec_134 else None,
+        try:
+            if self._nesting_depth > max_depth:
+                snippet = self._get_snippet(node.lineno, getattr(node, "end_lineno", node.lineno))
+                code_hash = self._hash_snippet(snippet)
+                raw_id = f"{self.file_path}:{node.lineno}"
+                fid = f"QUAL-S134-{hashlib.sha256(raw_id.encode()).hexdigest()[:12]}"
+                self.findings.append(
+                    QualityFinding(
+                        id=fid,
+                        rule_id="python:S134",
+                        rspec_id="RSPEC-134",
+                        category=QualityCategory.MAINTAINABILITY,
+                        severity=QualitySeverity.MEDIUM,
+                        title=(
+                            f"Control flow statement is nested too deeply "
+                            f"({self._nesting_depth} > {max_depth})."
+                        ),
+                        message=(
+                            "Reduce nesting level by returning early or extracting inner blocks "
+                            "to separate functions."
+                        ),
+                        file_path=self.file_path,
+                        start_line=node.lineno,
+                        end_line=getattr(node, "end_lineno", node.lineno),
+                        symbol_name=self._current_function,
+                        code_hash=code_hash,
+                        metric_value=float(self._nesting_depth),
+                        metric_threshold=float(max_depth),
+                        non_compliant_snippet=snippet[:200],
+                        compliant_snippet=spec_134.compliant_example if spec_134 else None,
+                        remediation_guidance=spec_134.explanation if spec_134 else None,
+                    )
                 )
-            )
 
-        for child in node.body:
-            self.visit(child)
-
-        # Handle elif without incrementing nesting level
-        orelse = node.orelse
-        while orelse and len(orelse) == 1 and isinstance(orelse[0], ast.If):
-            elif_node = orelse[0]
-            self.visit(elif_node.test)
-            self._check_mergeable_if(elif_node)
-            self._check_block_unreachable(elif_node.body)
-            for child in elif_node.body:
-                self.visit(child)
-            orelse = elif_node.orelse
-
-        if orelse:
-            for child in orelse:
+            for child in node.body:
                 self.visit(child)
 
-        self._nesting_depth -= 1
+            # Handle elif without incrementing nesting level
+            orelse = node.orelse
+            while orelse and len(orelse) == 1 and isinstance(orelse[0], ast.If):
+                elif_node = orelse[0]
+                self.visit(elif_node.test)
+                self._check_mergeable_if(elif_node)
+                self._check_block_unreachable(elif_node.body)
+                for child in elif_node.body:
+                    self.visit(child)
+                orelse = elif_node.orelse
+
+            if orelse:
+                for child in orelse:
+                    self.visit(child)
+        finally:
+            self._nesting_depth -= 1
 
     def visit_Compare(self, node: ast.Compare) -> None:
         """S1764 / Google:SelfComparison: Comparing identical expressions."""
