@@ -12,7 +12,7 @@ from vibetrace.services.caller_guard import (
     format_caller_guard_md,
     format_staged_guard_md,
 )
-from vibetrace.services.vibe_bundle import VibeBundleService
+from vibetrace.services.vibe_bundle import AdaptiveSessionManager, VibeBundleService
 
 
 def cmd_guard(args: argparse.Namespace) -> int:
@@ -65,13 +65,13 @@ def cmd_bundle(args: argparse.Namespace) -> int:
     auto_sync = not getattr(args, "no_sync", False)
     root_override = getattr(args, "root", None)
     path_hint = getattr(args, "path", ".")
-
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
 
     session_id = getattr(args, "session", None)
-    if session_id and getattr(args, "reset_session", False):
-        from vibetrace.services.vibe_bundle import AdaptiveSessionManager
-
+    if getattr(args, "reset_session", False):
+        if not session_id:
+            print("Error: '--reset-session' requires '--session <session_id>'", file=sys.stderr)
+            return 1
         ok = AdaptiveSessionManager.reset_session(root, session_id)
         if getattr(args, "json", False):
             print(json.dumps({"status": "reset" if ok else "not_found", "session_id": session_id}))
@@ -82,18 +82,19 @@ def cmd_bundle(args: argparse.Namespace) -> int:
 
     intent = getattr(args, "intent", "")
     target_symbol = getattr(args, "symbol", None)
-    focus_symbol = getattr(args, "focus", None) or target_symbol
-    budget = getattr(args, "budget", 1500)
+    focus_symbol = getattr(args, "focus", None)
+    if not session_id and focus_symbol and not target_symbol:
+        target_symbol = focus_symbol
+    effective_focus = focus_symbol or target_symbol
+    budget = max(500, int(getattr(args, "budget", 1500) or 1500))
 
     if session_id:
-        from vibetrace.services.vibe_bundle import AdaptiveSessionManager
-
         res = AdaptiveSessionManager.process_session_turn(
             db=db,
             root=root,
             session_id=session_id,
             intent=intent,
-            focus_symbol=focus_symbol,
+            focus_symbol=effective_focus,
             token_budget=budget,
         )
         if getattr(args, "json", False):

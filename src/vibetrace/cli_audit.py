@@ -185,11 +185,16 @@ def _evaluate_security_ci_gate(report: Any, fail_on: str, is_strict: bool) -> in
         f for f in report.findings if f.severity == "MEDIUM" and f.status != "APPROVED"
     ]
 
-    has_crit_or_high = bool(
-        unapproved_critical or (fail_on in ("HIGH", "MEDIUM", "LOW") and unapproved_high)
+    severity_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+    fail_on_level = severity_order.get(fail_on.upper(), 3)
+
+    has_unapproved_at_threshold = bool(
+        unapproved_critical
+        or (fail_on_level <= 3 and unapproved_high)
+        or (fail_on_level <= 2 and unapproved_medium)
+        or (is_strict and unapproved_medium)
     )
-    has_med = bool((is_strict or fail_on in ("MEDIUM", "LOW")) and unapproved_medium)
-    has_failure = has_crit_or_high or has_med or (report.modified_count > 0)
+    has_failure = has_unapproved_at_threshold or (report.modified_count > 0)
 
     if has_failure:
         print(
@@ -317,17 +322,16 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         print(safe_str("✅ [SECURITY] No secrets detected in staged changes."))
         return 0
 
-    force_update = getattr(args, "update", False)
+    force_update = bool(getattr(args, "update", False))
     try:
         from vibetrace.quality.rule_sync import QualityRuleCatalogManager
 
         QualityRuleCatalogManager.sync_catalog(db=db, force_update=force_update)
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         pass
 
     file_filter = getattr(args, "file", None)
     skip_deps = getattr(args, "skip_deps", False)
-    force_update = getattr(args, "update", False)
     skip_trivy = getattr(args, "skip_trivy", False)
     skip_semgrep = getattr(args, "skip_semgrep", False)
     image_tag = getattr(args, "image", None)
@@ -381,9 +385,15 @@ def _evaluate_quality_ci_gate(report: Any, fail_on: str, is_strict: bool) -> int
         f for f in report.findings if f.severity == "MEDIUM" and f.status != "APPROVED"
     ]
 
-    has_high = bool(unapproved_high or (fail_on in ("MEDIUM", "LOW") and unapproved_med))
-    has_med = bool(is_strict and unapproved_med)
-    has_failure = has_high or has_med or (report.modified_count > 0)
+    severity_order = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
+    fail_on_level = severity_order.get(fail_on.upper(), 3)
+
+    has_unapproved_at_threshold = bool(
+        (fail_on_level <= 3 and unapproved_high)
+        or (fail_on_level <= 2 and unapproved_med)
+        or (is_strict and unapproved_med)
+    )
+    has_failure = has_unapproved_at_threshold or (report.modified_count > 0)
 
     if has_failure:
         print(
@@ -406,7 +416,7 @@ def _handle_single_quality_triage(f: Any, project_root: Path) -> bool:
             .lower()
         )
     except (EOFError, KeyboardInterrupt):
-        print()
+        print(file=sys.stderr)
         return False
 
     if choice in ("a", "i"):
