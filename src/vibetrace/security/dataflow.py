@@ -10,15 +10,21 @@ from vibetrace.security.contracts import FunctionTaintContract, TaintContractMan
 
 _IDENT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _ASSIGN_RE = re.compile(
-    r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?(\+?=|\|=)\s*(.+)$"
+    r"^\s*(?:(?:const|let|var|public|private|protected|static|final|val)\s+)?"
+    r"(?:[A-Za-z0-9_<>,\[\]?]+\s+)?"
+    r"([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::[^=]+)?(\+?=|\|=|:=)\s*(.+)$"
 )
 _DICT_ACCESS_RE = re.compile(
-    r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\s*["\']([^"\']+)["\']\s*\]|\.get\s*\(\s*["\']([^"\']+)["\']\s*(?:,\s*[^)]+)?\))'
+    r'([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:\[\s*["\']([^"\']+)["\']\s*\]|\.get\s*\(\s*["\']([^"\']+)["\']\s*(?:,\s*[^)]+)?\))'
 )
 _SAFE_DICT_KEYS = frozenset(
     {"page", "per_page", "limit", "offset", "count", "format", "version", "verbose"}
 )
-_FUNC_PARAMS_RE = re.compile(r"(?:def|function|func|fn)\s+[A-Za-z0-9_]+\s*\(([^)]*)\)")
+_FUNC_PARAMS_RE = re.compile(
+    r"(?:(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?[A-Za-z0-9_$]+|"
+    r"(?:(?:public|private|protected|static|async|override)\s+)*[A-Za-z0-9_<>,\[\]?]+\s+[A-Za-z0-9_$]+|"
+    r"(?:const|let|var)\s+[A-Za-z0-9_$]+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)"
+)
 _DIRECT_SOURCES = (
     "request.",
     "req.",
@@ -72,14 +78,71 @@ _KEYWORDS = {
 def _extract_params(header_text: str) -> list[str]:
     m = _FUNC_PARAMS_RE.search(header_text)
     if not m:
-        return []
+        # Fallback for arrow functions like: (req, res) => or (req: Request, res: Response) =>
+        m = re.search(r"\(([^)]*)\)\s*(?::\s*[^=>]+)?\s*=>", header_text)
+        if not m:
+            return []
     params: list[str] = []
     for raw in m.group(1).split(","):
-        part = raw.strip().split(":")[0].split("=")[0].strip().lstrip("*&")
+        trimmed = raw.strip()
+        if not trimmed:
+            continue
+        words = trimmed.split()
+        # TypeScript: `name: Type` or Python `name: type = val`
+        if ":" in trimmed:
+            part = trimmed.split(":")[0].strip().lstrip("*&$")
+            tokens = _IDENT_RE.findall(part)
+            if tokens and tokens[-1].lower() not in ("self", "cls", "ctx", "context", "this"):
+                params.append(tokens[-1])
+            continue
+
+        # Go: `varName Type` vs Java/C/C++/C#: `Type varName`
+        if len(words) >= 2 and not trimmed.startswith(("final ", "const ", "let ", "var ")):
+            type_first_keywords = {
+                "string",
+                "int",
+                "long",
+                "short",
+                "byte",
+                "char",
+                "boolean",
+                "bool",
+                "float",
+                "double",
+                "void",
+                "object",
+                "list",
+                "map",
+                "set",
+            }
+            first_w = words[0].rstrip("*&[]?").lower()
+            if first_w in type_first_keywords or words[0].startswith(
+                ("ResponseEntity", "Map<", "List<", "Set<")
+            ):
+                ident = words[-1].split("=")[0].strip().lstrip("*&$")
+                if _IDENT_RE.fullmatch(ident) and ident.lower() not in (
+                    "self",
+                    "cls",
+                    "ctx",
+                    "context",
+                    "this",
+                ):
+                    params.append(ident)
+                    continue
+
+            # Default Go `varName Type`: first token is the identifier
+            first_ident = words[0].lstrip("*&")
+            if _IDENT_RE.fullmatch(first_ident):
+                if first_ident.lower() not in ("self", "cls", "ctx", "context", "this"):
+                    params.append(first_ident)
+                continue
+
+        # Python / vanilla JS untyped: `def func(a, b)`
+        part = trimmed.split("=")[0].strip().lstrip("*&$")
         tokens = _IDENT_RE.findall(part)
         if tokens:
             name = tokens[-1]
-            if name not in ("self", "cls", "ctx"):
+            if name.lower() not in ("self", "cls", "ctx", "context", "this"):
                 params.append(name)
     return params
 

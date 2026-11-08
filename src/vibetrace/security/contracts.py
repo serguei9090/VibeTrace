@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import json
 import logging
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -284,24 +285,114 @@ class TaintContractManager:
         )
 
     @classmethod
+    def _build_polyglot_contract(
+        cls,
+        func_name: str,
+        param_names: list[str],
+        body_lines: list[str],
+        symbol_id: str,
+        file_path: str,
+    ) -> FunctionTaintContract:
+        """Heuristic polyglot contract extractor for TS/JS, Go, Rust, Java, C#, PHP."""
+        param_taints_return = dict.fromkeys(range(len(param_names)), False)
+        internal_sinks: list[dict[str, Any]] = []
+        has_sanitizer = False
+
+        func_lower = func_name.lower()
+        is_sanitizer_name = any(
+            san in func_lower for san in ("sanitize", "escape", "clean", "validate", "filter")
+        )
+
+        for line_no, raw_line in enumerate(body_lines, start=1):
+            line = raw_line.split("//")[0].split("#")[0].strip()
+            if not line:
+                continue
+
+            for san in _KNOWN_SANITIZERS:
+                if f"{san}(" in line or f".{san}(" in line:
+                    has_sanitizer = True
+
+            for sink_call, cwe in _SINK_CALL_PATTERNS.items():
+                if f"{sink_call}(" in line or f".{sink_call}(" in line:
+                    affected = [
+                        idx
+                        for idx, p in enumerate(param_names)
+                        if re.search(rf"\b{re.escape(p)}\b", line)
+                    ]
+                    if affected:
+                        internal_sinks.append(
+                            {
+                                "call": sink_call,
+                                "cwe": cwe,
+                                "line": line_no,
+                                "param_indices": affected,
+                            }
+                        )
+
+            if line.startswith("return ") or "return " in line:
+                for idx, p in enumerate(param_names):
+                    if re.search(rf"\b{re.escape(p)}\b", line):
+                        param_taints_return[idx] = True
+
+        is_san = has_sanitizer or is_sanitizer_name
+
+        return FunctionTaintContract(
+            symbol_id=symbol_id,
+            func_name=func_name,
+            file_path=file_path,
+            param_names=tuple(param_names),
+            param_taints_return=param_taints_return,
+            internal_sinks=internal_sinks,
+            is_sanitizer=is_san,
+        )
+
+    @classmethod
     def analyze_source_code(
         cls, source_code: str, file_path: str
     ) -> dict[str, FunctionTaintContract]:
-        """Parses a Python source file and computes contracts for all defined functions."""
-        try:
-            tree = ast.parse(source_code, filename=file_path)
-        except SyntaxError:
-            return {}
-
-        contracts: dict[str, FunctionTaintContract] = {}
+        """Parses a source file (Python via AST, polyglot via regex) and returns contracts."""
         norm_path = file_path.replace("\\", "/")
+        contracts: dict[str, FunctionTaintContract] = {}
 
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                symbol_id = f"{norm_path}::{node.name}"
-                contract = cls.build_contract_from_ast(node, symbol_id, norm_path)
-                contracts[symbol_id] = contract
-                contracts[node.name] = contract  # alias by short name
+        # 1. Try Python native AST parse
+        if norm_path.endswith((".py", ".pyw")):
+            try:
+                tree = ast.parse(source_code, filename=file_path)
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        symbol_id = f"{norm_path}::{node.name}"
+                        contract = cls.build_contract_from_ast(node, symbol_id, norm_path)
+                        contracts[symbol_id] = contract
+                        contracts[node.name] = contract
+                return contracts
+            except SyntaxError:
+                pass
+
+        # 2. Polyglot fallback (TS/JS, Go, Rust, Java, C#, PHP)
+        from vibetrace.security.dataflow import _extract_params
+
+        lines = source_code.splitlines()
+        func_sig_re = re.compile(
+            r"(?:(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)|"
+            r"(?:(?:public|private|protected|static|async|override)\s+)*[A-Za-z0-9_<>,\[\]?]+\s+([A-Za-z0-9_$]+)|"
+            r"(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)"
+        )
+
+        for idx, line in enumerate(lines):
+            m = func_sig_re.search(line)
+            if not m:
+                continue
+            name = m.group(1) or m.group(2) or m.group(3)
+            if not name or name in ("if", "for", "while", "switch", "catch"):
+                continue
+
+            header_slice = " ".join(lines[idx : min(len(lines), idx + 3)])
+            params = _extract_params(header_slice)
+            body_slice = lines[idx + 1 : min(len(lines), idx + 100)]
+            symbol_id = f"{norm_path}::{name}"
+            contract = cls._build_polyglot_contract(name, params, body_slice, symbol_id, norm_path)
+            contracts[symbol_id] = contract
+            contracts[name] = contract
 
         return contracts
 

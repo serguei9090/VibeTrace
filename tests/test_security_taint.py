@@ -131,6 +131,42 @@ def test_intraprocedural_def_use_taint_and_untainted_local(tmp_path: Path):
     assert by_line[8].metadata.get("dataflow") == "untainted_local"
 
 
+def test_polyglot_parameter_and_contract_extraction(tmp_path: Path):
+    """Verifies dataflow parameter extraction and contracts on Go, TS/JS, and Java."""
+    from vibetrace.security.contracts import TaintContractManager
+    from vibetrace.security.dataflow import _extract_params
+
+    # 1. Go function with receiver and Context
+    go_header = (
+        "func (s *OrderService) CreateOrder(ctx context.Context, userID string, amount int) error {"
+    )
+    params = _extract_params(go_header)
+    assert params == ["userID", "amount"]
+
+    # 2. TypeScript arrow function
+    ts_header = "const handleRequest = async (req: Request, res: Response): Promise<void> => {"
+    ts_params = _extract_params(ts_header)
+    assert ts_params == ["req", "res"]
+
+    # 3. Java method
+    java_header = "public ResponseEntity<String> executeQuery(String userSql, int timeout) {"
+    java_params = _extract_params(java_header)
+    assert java_params == ["userSql", "timeout"]
+
+    # 4. Polyglot contract extraction from TypeScript code
+    ts_code = (
+        "function formatUserQuery(rawInput: string): string {\n"
+        "    const sanitized = DOMPurify(rawInput);\n"
+        "    return sanitized;\n"
+        "}\n"
+    )
+    contracts = TaintContractManager.analyze_source_code(ts_code, "service.ts")
+    assert "formatUserQuery" in contracts
+    contract = contracts["formatUserQuery"]
+    assert contract.is_sanitizer is True
+    assert contract.param_names == ("rawInput",)
+
+
 def test_rule_catalog_sync_ttl_and_declarative_rules(tmp_path: Path):
     import json
 
