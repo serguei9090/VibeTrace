@@ -44,9 +44,15 @@ SANITIZERS = frozenset(
         "validator",
         "clean",
         "encodeURIComponent",
+        "encodeURI",
         "DOMPurify",
         "bleach",
         "html.escape",
+        "shlex.quote",
+        "QueryEscape",
+        "HTMLEscapeString",
+        "Uri.EscapeDataString",
+        "HtmlEncoder.Default.Encode",
     }
 )
 _SOURCE_DECORATOR_RE = re.compile(

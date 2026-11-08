@@ -124,4 +124,14 @@ CREATE INDEX IF NOT EXISTS idx_sdl_symbol_id ON symbol_doc_links(symbol_id);
 CREATE INDEX IF NOT EXISTS idx_sdl_symbol_name ON symbol_doc_links(symbol_name);
 CREATE INDEX IF NOT EXISTS idx_sdl_doc_path ON symbol_doc_links(doc_path);
 
+-- Function Taint Contracts Cache
+CREATE TABLE IF NOT EXISTS function_taint_contracts (
+    symbol_id TEXT PRIMARY KEY,
+    contract_json TEXT NOT NULL,
+    file_hash TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ftc_symbol_id ON function_taint_contracts(symbol_id);
+
+
 

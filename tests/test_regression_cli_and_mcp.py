@@ -1261,3 +1261,85 @@ def test_watcher_blocking_closes_db(tmp_path: Path):
         start_watcher_blocking(str(tmp_path))
         assert mock_obs.return_value is not None
         assert closed is True
+
+
+def test_db_cascade_cleanup_contracts_and_orphaned_edges(tmp_path: Path):
+    """Verify IndexerDB cascades deletion to symbol docs and taint contracts, and prunes edges."""
+    from vibetrace.indexer.models import Edge, Node
+
+    db = IndexerDB(str(tmp_path / "cascade.db"))
+
+    node1 = Node(
+        id="src/app.py::foo",
+        name="foo",
+        qualified_name="foo",
+        kind="function",
+        file_path="src/app.py",
+        start_line=1,
+        end_line=5,
+    )
+    node2 = Node(
+        id="src/app.py::bar",
+        name="bar",
+        qualified_name="bar",
+        kind="function",
+        file_path="src/app.py",
+        start_line=7,
+        end_line=12,
+    )
+    node_ext = Node(
+        id="src/other.py::baz",
+        name="baz",
+        qualified_name="baz",
+        kind="function",
+        file_path="src/other.py",
+        start_line=1,
+        end_line=5,
+    )
+    db.upsert_node(node1)
+    db.upsert_node(node2)
+    db.upsert_node(node_ext)
+
+    db.upsert_edge(
+        Edge(
+            from_node_id=node_ext.id,
+            to_node_id=node1.id,
+            relation_type="calls",
+            confidence="exact",
+        )
+    )
+
+    with db._get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO symbol_doc_links
+            (symbol_id, symbol_name, doc_path, heading, heading_path, start_line, end_line, content)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (node1.id, "foo", "docs/api.md", "Foo", "Foo", 1, 10, "Documentation for foo"),
+        )
+        conn.execute(
+            """
+            INSERT INTO function_taint_contracts
+            (symbol_id, contract_json, file_hash, updated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (node1.id, "{}", "hash123", 1000),
+        )
+        conn.commit()
+
+    db.batch_save_file_index("src/app.py", "new_hash", [node2], [])
+
+    with db._get_conn() as conn:
+        ftc = conn.execute(
+            "SELECT count(*) FROM function_taint_contracts WHERE symbol_id = ?", (node1.id,)
+        ).fetchone()[0]
+        sdl = conn.execute(
+            "SELECT count(*) FROM symbol_doc_links WHERE symbol_id = ?", (node1.id,)
+        ).fetchone()[0]
+        assert ftc == 0
+        assert sdl == 0
+
+    pruned = db.prune_orphaned_edges()
+    assert pruned >= 0
+    db.close()

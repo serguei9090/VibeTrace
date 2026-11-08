@@ -58,6 +58,9 @@ class ReindexService:
             project_root=active_root,
             use_lsp=use_lsp,
         )
+        pruned_edges = db.prune_orphaned_edges()
+        if not is_json and verbose and pruned_edges > 0:
+            print(f"Cleaned {pruned_edges} orphaned graph edges.")
 
         embedded_count = 0
         embeddings_error = None

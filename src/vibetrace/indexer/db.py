@@ -280,7 +280,7 @@ class IndexerDB(DBQueriesMixin):
                 "DELETE FROM edge_targets "
                 "WHERE target_id NOT IN (SELECT DISTINCT to_node_id FROM edges)"
             )
-            # Prune inbound edges only for symbols that were actually removed from this file
+            # Clean up associated symbol docs and taint contracts for deleted symbols
             if deleted_node_ids:
                 deleted_list = list(deleted_node_ids)
                 chunk_size = 500
@@ -291,6 +291,16 @@ class IndexerDB(DBQueriesMixin):
                         f"DELETE FROM edges WHERE to_node_id IN ({placeholders})",
                         chunk,
                     )
+                    conn.execute(
+                        f"DELETE FROM symbol_doc_links WHERE symbol_id IN ({placeholders})",
+                        chunk,
+                    )
+
+            escaped_prefix = file_path.replace("\\", "\\\\") + "%"
+            conn.execute(
+                "DELETE FROM function_taint_contracts WHERE symbol_id LIKE ? ESCAPE '\\'",
+                (escaped_prefix,),
+            )
 
             conn.execute(
                 "DELETE FROM nodes_fts WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
@@ -299,6 +309,11 @@ class IndexerDB(DBQueriesMixin):
             conn.execute(
                 "DELETE FROM node_embeddings WHERE node_id IN "
                 "(SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
+            conn.execute(
+                "DELETE FROM symbol_doc_links "
+                "WHERE symbol_id IN (SELECT id FROM nodes WHERE file_path = ?)",
                 (file_path,),
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
@@ -408,6 +423,16 @@ class IndexerDB(DBQueriesMixin):
                 "DELETE FROM node_embeddings WHERE node_id IN "
                 "(SELECT id FROM nodes WHERE file_path = ?)",
                 (file_path,),
+            )
+            conn.execute(
+                "DELETE FROM symbol_doc_links "
+                "WHERE symbol_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                (file_path,),
+            )
+            escaped_prefix = file_path.replace("\\", "\\\\") + "%"
+            conn.execute(
+                "DELETE FROM function_taint_contracts WHERE symbol_id LIKE ? ESCAPE '\\'",
+                (escaped_prefix,),
             )
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
@@ -560,3 +585,24 @@ class IndexerDB(DBQueriesMixin):
                 for row in cursor.fetchall():
                     result[row["id"]] = dict(row)
         return result
+
+    @with_write_retry()
+    def prune_orphaned_edges(self) -> int:
+        """Prunes exact edges whose target node no longer exists in the nodes table."""
+        with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            cursor = conn.execute(
+                """
+                DELETE FROM edges
+                WHERE confidence = 'exact'
+                  AND to_node_id NOT IN (SELECT id FROM nodes)
+                """
+            )
+            deleted = cursor.rowcount
+            if deleted > 0:
+                conn.execute(
+                    "DELETE FROM edge_targets "
+                    "WHERE target_id NOT IN (SELECT DISTINCT to_node_id FROM edges)"
+                )
+                conn.commit()
+            return max(0, deleted)
