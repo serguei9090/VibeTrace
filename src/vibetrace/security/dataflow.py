@@ -247,7 +247,12 @@ def _propagate_function_def_use(
                 matched_mut = next((tainted[t] for t in mut_idents if t in tainted), None)
                 if matched_mut or any(src in mut_arg for src in _DIRECT_SOURCES):
                     origin = matched_mut or ["untrusted_input"]
-                    tainted[mut_target] = [*origin, mut_target]
+                    existing_taint = tainted.get(mut_target, origin)
+                    tainted[mut_target] = (
+                        [*existing_taint, mut_target]
+                        if mut_target not in existing_taint
+                        else existing_taint
+                    )
                     untainted_locals.discard(mut_target)
             continue
         lhs, op, rhs = m.group(1), m.group(2), m.group(3).strip()
@@ -540,7 +545,11 @@ def verify_interprocedural_taint_flow(
             )
             for p_idx, chain in site_tainted_params.items():
                 if p_idx not in aggregated_tainted_params:
-                    aggregated_tainted_params[p_idx] = chain
+                    aggregated_tainted_params[p_idx] = list(chain)
+                else:
+                    for var in chain:
+                        if var not in aggregated_tainted_params[p_idx]:
+                            aggregated_tainted_params[p_idx].append(var)
 
         if not aggregated_tainted_params:
             return False, [], "untainted_call_arg"
