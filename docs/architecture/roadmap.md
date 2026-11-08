@@ -131,3 +131,31 @@ The following 5 strategic capabilities have been fully implemented, integrated a
    - **Java (`.java`)**: `pmd` / `checkstyle` or SonarLint headless LSP sidecar (`sonarlint-ls.jar`).
    - **C / C++ (`.c`, `.cpp`)**: `clang-tidy` compilation database integration or Sonar sidecar.
    - **Reference Guide**: See `docs/guides/sonarlint_engine_guide.md` for JSON-RPC LSP protocol details.
+
+---
+
+## 6. Performance & Native Acceleration Roadmap (Hybrid Rust Strategy)
+
+### Core Architectural Consensus: The Hybrid Engine Wins
+Because VibeTrace is an AI-first developer tool targeted at software engineers (where **>90% already have Python/uv installed**), rewriting 100% of the project into a standalone Rust binary is an unnecessary maintenance overhead. Instead, VibeTrace adopts a **Hybrid Architecture** (similar to `pydantic-core`, `polars`, and `cryptography`):
+- **Heavy Bottlenecks in Rust (`crates/vibetrace-core`)**: Multithreaded file traversal (`ignore`), Tree-sitter parsing without GIL (`rayon`), and batched SQLite insertions compiled via **PyO3 + Maturin**.
+- **Orchestration, CLI & MCP in Python**: High-level workflow commands, agent tools, rule management, and formatters remain flexible and rapid to modify in Python.
+
+### Phased Delivery Plan:
+1. **Phase 1: Telemetry & UX Feedback (Python)**
+   - Display real-time indexing speed (`x files/sec`), elapsed time, and ETA.
+   - Surface non-blocking recommendations when an LSP server is missing for detected languages.
+2. **Phase 2: Strictly Incremental LSP Resolution (Python)**
+   - Filter LSP definition lookups exclusively to modified/dirty files from Git status or save events.
+   - Drops LSP overhead on incremental re-indexing from ~8 seconds to `<200ms`.
+3. **Phase 3: Interactive LSP Auto-Provisioner (Python)**
+   - Offer single-click / interactive prompt in CLI to auto-install missing language servers via `uv tool` or `bun` in ~3 seconds.
+4. **Phase 4: Persistent LSP Daemon in `--watch` and MCP Mode (Python)**
+   - Keep warm LSP sub-processes in memory during long-running sessions, avoiding repeated cold-start handshakes.
+5. **Phase 5: Hybrid Rust Acceleration Engine (`crates/vibetrace-core`)**
+   - Implement native file walker + Tree-sitter in Rust; exposed to Python via PyO3.
+   - Achieves `>3,000 files/sec` indexing throughput with automatic Python fallback.
+6. **Phase 6 (Optional / Post-v2.0): Full Standalone Native Binary (`vibetrace.exe`)**
+   - *Status*: Strictly optional future milestone.
+   - Only to be considered if enterprise zero-dependency deployment (systems with no Python runtime) becomes a verified commercial requirement.
+
