@@ -161,7 +161,12 @@ def get_downstream_reachable_symbols(
 
     clean_from = from_symbol.strip().removesuffix("()")
     start_ids = [r["id"] for r in start_rows]
+    start_names = {r.get("name") for r in start_rows if r.get("name")}
+    start_names.add(clean_from)
+    start_names.add(from_symbol)
+
     placeholders = ",".join("?" for _ in start_ids)
+    name_placeholders = ",".join("?" for _ in start_names)
 
     query = f"""
     WITH RECURSIVE reachable(node_id, depth) AS (
@@ -179,11 +184,13 @@ def get_downstream_reachable_symbols(
     SELECT DISTINCT n.name
     FROM reachable r
     JOIN nodes n ON r.node_id = n.id
-    WHERE n.name != ? AND n.name IS NOT NULL
+    WHERE r.node_id NOT IN ({placeholders})
+      AND n.name NOT IN ({name_placeholders})
+      AND n.name IS NOT NULL
     ORDER BY n.name ASC
     """
 
-    params = [*start_ids, max_depth, clean_from]
+    params = [*start_ids, max_depth, *start_ids, *start_names]
     with db._get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
         return [r["name"] for r in rows if r["name"]]
@@ -219,7 +226,7 @@ def trace_execution_path(
             else:
                 return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
 
-    rel_allowed = ("calls", "routes", "references", "inherits", "implements", "defines")
+    rel_allowed = ("calls", "routes", "references", "inherits", "implements")
     if engine == "cte":
         path_nodes: list[dict[str, Any]] | None = None
         for s_row in start_rows:

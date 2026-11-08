@@ -161,7 +161,7 @@ class PostgresStorageBackend:
     ) -> list[FederatedNode]:
         """Search symbol definitions in PostgreSQL."""
         conn = self._get_connection()
-        escaped_q = query.replace("%", "\\%").replace("_", "\\_")
+        escaped_q = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         prefix = f"{escaped_q}%"
         like_term = f"%{escaped_q}%"
 
@@ -170,7 +170,7 @@ class PostgresStorageBackend:
             "start_line, end_line, signature "
             "FROM vibetrace_nodes "
             "WHERE project_id = %s "
-            "  AND (name = %s OR qualified_name = %s OR name ILIKE %s ESCAPE '\\\\') "
+            "  AND (name = %s OR qualified_name = %s OR name ILIKE %s ESCAPE '\\') "
         )
         params: list[Any] = [self.project_id, query, query, like_term]
 
@@ -181,7 +181,7 @@ class PostgresStorageBackend:
         sql += (
             "ORDER BY CASE "
             "  WHEN name = %s OR qualified_name = %s THEN 0 "
-            "  WHEN name ILIKE %s ESCAPE '\\\\' THEN 1 "
+            "  WHEN name ILIKE %s ESCAPE '\\' THEN 1 "
             "  ELSE 2 "
             "END, repo_id ASC, file_path ASC, start_line ASC LIMIT %s"
         )
