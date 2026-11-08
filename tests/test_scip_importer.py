@@ -84,3 +84,43 @@ def test_import_scip_json_dict(tmp_path: Path):
         assert len(rows) == 1
         assert rows[0]["to_node_id"] == nodes[0]["id"]
         assert rows[0]["call_line"] == 25
+
+
+def test_scip_importer_selects_innermost_enclosing_method(tmp_path: Path):
+    """Ensure SCIP reference edges attach to the innermost method rather than outer class."""
+    db = IndexerDB(tmp_path / "innermost.db")
+    sample = {
+        "documents": [
+            {
+                "relative_path": "pkg/worker.py",
+                "symbols": [],
+                "occurrences": [
+                    {
+                        "range": [0, 0, 50, 0],
+                        "symbol": "scip-python python app 1.0 pkg/worker/Worker#",
+                        "symbol_roles": 1,
+                    },
+                    {
+                        "range": [10, 4, 25, 0],
+                        "symbol": "scip-python python app 1.0 pkg/worker/Worker#run().",
+                        "symbol_roles": 1,
+                    },
+                    {
+                        "range": [30, 0, 35, 0],
+                        "symbol": "scip-python python app 1.0 pkg/worker/helper().",
+                        "symbol_roles": 1,
+                    },
+                    {
+                        "range": [15, 8, 15, 16],
+                        "symbol": "scip-python python app 1.0 pkg/worker/helper().",
+                        "symbol_roles": 0,
+                    },
+                ],
+            }
+        ]
+    }
+    ScipImporter.import_scip_json_dict(sample, db)
+    with db._get_conn() as conn:
+        edge = conn.execute("SELECT from_node_id, to_node_id FROM edges").fetchone()
+        assert edge is not None
+        assert edge["from_node_id"].endswith(":run")

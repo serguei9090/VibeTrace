@@ -76,10 +76,12 @@ class RepoMapService:
         current_text = (
             f"# Repository Map (Scope: `{scope_path}` | Budget: {budget_tokens} tokens)\n\n"
         )
+        current_chars = len(current_text)
 
         # Reserve headroom for footer disclaimer if pruning occurs
         footer_reserve = 20
         effective_budget = max(budget_tokens - footer_reserve, 32)
+        max_chars = int(effective_budget * CHARS_PER_TOKEN)
 
         for row in all_rows:
             fpath = row["file_path"]
@@ -98,23 +100,20 @@ class RepoMapService:
             line_str = f"{prefix}{kind} {sig} (L{sline})\n"
 
             # Check if this file is already in the map
-            file_header_cost = 0
-            if fpath not in selected_by_file:
-                file_header_cost = estimate_tokens(f"{fpath}:\n")
+            header_str = f"{fpath}:\n" if fpath not in selected_by_file else ""
+            added_chars = len(header_str) + len(line_str)
 
-            symbol_cost = estimate_tokens(line_str)
-            total_added_tokens = file_header_cost + symbol_cost
-
-            if estimate_tokens(current_text) + total_added_tokens > effective_budget:
+            if current_chars + added_chars > max_chars:
                 # Stop if adding this symbol exceeds the effective budget envelope
                 break
 
             if fpath not in selected_by_file:
                 selected_by_file[fpath] = []
-                current_text += f"{fpath}:\n"
+                current_text += header_str
 
             selected_by_file[fpath].append(row)
             current_text += line_str
+            current_chars += added_chars
             included_count += 1
 
         pruned_count = total_symbols - included_count

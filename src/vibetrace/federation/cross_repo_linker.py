@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "ANY"}
 
 
 def _normalize_route(route_str: str) -> str:
@@ -99,6 +99,7 @@ class CrossRepoLinker:
                 logger.warning("Client edge query failed for %s (%s): %s", repo_name, alias, exc)
 
             try:
+                methods_like = " OR ".join(f"ep.name LIKE '{m} %'" for m in _HTTP_METHODS)
                 sql_server = (
                     f"SELECT ep.name AS endpoint_name, n.name AS handler_name, "
                     f"n.file_path, n.start_line "
@@ -106,9 +107,7 @@ class CrossRepoLinker:
                     f"JOIN {alias}.nodes ep ON e.from_node_id = ep.id "
                     f"JOIN {alias}.nodes n ON e.to_node_id = n.id "
                     f"WHERE (e.relation_type = 'routes' OR ep.kind = 'endpoint') "
-                    f"  AND (ep.name LIKE 'GET %' OR ep.name LIKE 'POST %' "
-                    f"       OR ep.name LIKE 'PUT %' OR ep.name LIKE 'DELETE %' "
-                    f"       OR ep.name LIKE 'PATCH %')"
+                    f"  AND ({methods_like})"
                 )
                 cur_server = self.conn.execute(sql_server)
                 for row in cur_server.fetchall():
@@ -125,13 +124,32 @@ class CrossRepoLinker:
                 logger.warning("Server edge query failed for %s (%s): %s", repo_name, alias, exc)
 
         links: list[CrossRepoLink] = []
+        seen_links: set[tuple[str, str, str, str, str]] = set()
 
         # Correlate client calls with server handlers across different repositories
         for contract_key, callers in client_calls.items():
-            handlers = server_handlers.get(contract_key, [])
+            method, _, path_part = contract_key.partition(" ")
+            matched_handlers = list(server_handlers.get(contract_key, []))
+            if method != "ANY" and path_part:
+                matched_handlers.extend(server_handlers.get(f"ANY {path_part}", []))
+            elif method == "ANY" and path_part:
+                for srv_key, srv_list in server_handlers.items():
+                    if srv_key != contract_key and srv_key.endswith(f" {path_part}"):
+                        matched_handlers.extend(srv_list)
+
             for c in callers:
-                for h in handlers:
+                for h in matched_handlers:
                     if c["repo"] != h["repo"]:
+                        dedup_key = (
+                            c["repo"],
+                            c["symbol"],
+                            h["repo"],
+                            h["symbol"],
+                            contract_key,
+                        )
+                        if dedup_key in seen_links:
+                            continue
+                        seen_links.add(dedup_key)
                         links.append(
                             CrossRepoLink(
                                 source_repo=c["repo"],

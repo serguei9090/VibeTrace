@@ -158,20 +158,26 @@ class VibeBundleService:
         # 3. Documentation Context (~25% of budget)
         doc_items: list[DocChunkItem] = []
         try:
-            doc_items = DocSearchService.search(
+            raw_docs = DocSearchService.search(
                 query=clean_intent,
                 project_root=root,
                 limit=2,
                 scope="local",
             )
             # If local docs had no results, search global
-            if not doc_items:
-                doc_items = DocSearchService.search(
+            if not raw_docs:
+                raw_docs = DocSearchService.search(
                     query=clean_intent,
                     project_root=root,
                     limit=2,
                     scope="global",
                 )
+            seen_doc_keys: set[tuple[str, str]] = set()
+            for d in raw_docs:
+                d_key = (d.file_path, d.content.strip()[:120])
+                if d_key not in seen_doc_keys:
+                    seen_doc_keys.add(d_key)
+                    doc_items.append(d)
         except Exception:
             doc_items = []
 

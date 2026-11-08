@@ -80,41 +80,57 @@ class DiagnoseService:
         blast_l1: list[str] = []
         blast_l2: list[str] = []
         with db._get_conn() as conn:
-            # Query incoming callers up to 2 hops
-            l1_rows = conn.execute(
-                "SELECT DISTINCT n.name, n.file_path, e.call_line FROM edges e "
-                "JOIN nodes n ON e.from_node_id = n.id "
-                "JOIN nodes tgt ON e.to_node_id = tgt.id "
-                "WHERE (tgt.name = ? OR tgt.qualified_name = ?) AND e.relation_type = 'calls'",
-                (clean_name, clean_name),
-            ).fetchall()
+            # Query incoming callers up to 2 hops using exact node IDs when available
+            target_id = slice_res.node_id
+            if target_id:
+                l1_rows = conn.execute(
+                    "SELECT DISTINCT n.id, n.name FROM edges e "
+                    "JOIN nodes n ON e.from_node_id = n.id "
+                    "WHERE e.to_node_id = ? AND e.relation_type = 'calls'",
+                    (target_id,),
+                ).fetchall()
+            else:
+                l1_rows = conn.execute(
+                    "SELECT DISTINCT n.id, n.name FROM edges e "
+                    "JOIN nodes n ON e.from_node_id = n.id "
+                    "JOIN nodes tgt ON e.to_node_id = tgt.id "
+                    "WHERE (tgt.name = ? OR tgt.qualified_name = ?) AND e.relation_type = 'calls'",
+                    (clean_name, clean_name),
+                ).fetchall()
 
-            l1_names = {r[0] for r in l1_rows if r[0]}
+            l1_ids = {r[0] for r in l1_rows if r[0]}
+            l1_names = {r[1] for r in l1_rows if r[1]}
             blast_l1 = sorted(l1_names)
 
-            if max_depth >= 2 and l1_names:
-                placeholders = ",".join(["?"] * len(l1_names))
+            if max_depth >= 2 and l1_ids:
+                placeholders = ",".join(["?"] * len(l1_ids))
                 l2_rows = conn.execute(
                     "SELECT DISTINCT n.name FROM edges e "
                     "JOIN nodes n ON e.from_node_id = n.id "
-                    "JOIN nodes mid ON e.to_node_id = mid.id "
-                    f"WHERE (mid.name IN ({placeholders}) "
-                    f"OR mid.qualified_name IN ({placeholders})) "
+                    f"WHERE e.to_node_id IN ({placeholders}) "
                     "AND e.relation_type = 'calls'",
-                    (*l1_names, *l1_names),
+                    tuple(l1_ids),
                 ).fetchall()
                 blast_l2 = sorted(
                     {r[0] for r in l2_rows if r[0] and r[0] not in l1_names and r[0] != clean_name}
                 )
 
             # 4. Sibling test fixture reachability
-            all_callers = conn.execute(
-                "SELECT DISTINCT n.name, n.file_path FROM edges e "
-                "JOIN nodes n ON e.from_node_id = n.id "
-                "JOIN nodes tgt ON e.to_node_id = tgt.id "
-                "WHERE (tgt.name = ? OR tgt.qualified_name = ?)",
-                (clean_name, clean_name),
-            ).fetchall()
+            if target_id:
+                all_callers = conn.execute(
+                    "SELECT DISTINCT n.name, n.file_path FROM edges e "
+                    "JOIN nodes n ON e.from_node_id = n.id "
+                    "WHERE e.to_node_id = ?",
+                    (target_id,),
+                ).fetchall()
+            else:
+                all_callers = conn.execute(
+                    "SELECT DISTINCT n.name, n.file_path FROM edges e "
+                    "JOIN nodes n ON e.from_node_id = n.id "
+                    "JOIN nodes tgt ON e.to_node_id = tgt.id "
+                    "WHERE (tgt.name = ? OR tgt.qualified_name = ?)",
+                    (clean_name, clean_name),
+                ).fetchall()
 
         exercising_tests: list[str] = []
         for c_name, c_path in all_callers:

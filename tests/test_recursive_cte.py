@@ -161,3 +161,26 @@ def test_recursive_cte_allowed_relations(tmp_path: Path) -> None:
     assert len(path) == 2
 
     assert db.find_path_recursive_cte("n_0", "non_existent_target") is None
+
+
+def test_recursive_cte_node_ids_with_commas(tmp_path: Path) -> None:
+    """Verify node IDs containing commas (e.g. generic signatures) do not break path splitting."""
+    db_path = tmp_path / "test_commas.db"
+    db = IndexerDB(str(db_path))
+
+    n_a = _make_node("pkg::Map<String, Int>::get", "get")
+    n_b = _make_node("pkg::Pair<Foo, Bar>::build", "build")
+    db.upsert_node(n_a)
+    db.upsert_node(n_b)
+    db.upsert_edge(
+        Edge(
+            from_node_id=n_a.id,
+            to_node_id=n_b.id,
+            relation_type="calls",
+            call_line=10,
+        )
+    )
+
+    path = db.find_path_recursive_cte(n_a.id, n_b.id)
+    assert path is not None
+    assert [n["id"] for n in path] == [n_a.id, n_b.id]

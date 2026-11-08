@@ -222,3 +222,29 @@ async def test_mcp_splits_tools():
     )
     approve_res = await vibetrace_approve_split(approve_inp)
     assert "status" in approve_res
+
+
+def test_split_audit_ignores_references_and_duplicate_calls_to_same_target(temp_project: Path):
+    """Ensure type references and repeated calls to the same function do not trigger splits."""
+    db = IndexerDB(str(temp_project / ".vibetrace_noref.db"))
+    with db._get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO nodes (id, name, qualified_name, kind, file_path, start_line, end_line)
+            VALUES
+            ('fn_main', 'process', 'process', 'function', 'src/service.py', 1, 4),
+            ('fn_log', 'log_info', 'log_info', 'function', 'src/logger.py', 1, 5),
+            ('cls_dto', 'OrderDTO', 'OrderDTO', 'class', 'src/models.py', 1, 10);
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO edges (from_node_id, to_node_id, relation_type, call_line)
+            VALUES
+            ('fn_main', 'fn_log', 'calls', 2),
+            ('fn_main', 'fn_log', 'calls', 3),
+            ('fn_main', 'cls_dto', 'references', 1);
+            """
+        )
+    rep = audit_splits(db, temp_project)
+    assert rep.total_splits == 0

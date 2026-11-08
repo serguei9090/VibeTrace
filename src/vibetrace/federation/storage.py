@@ -145,8 +145,9 @@ class FederatedSQLiteEngine:
         if not targets:
             return []
 
-        results: list[FederatedNode] = []
+        scored_results: list[tuple[int, FederatedNode]] = []
         like_term = f"%{query}%"
+        q_lower = query.lower()
 
         for repo_name, alias in targets:
             try:
@@ -160,28 +161,35 @@ class FederatedSQLiteEngine:
                     (query, query, like_term, query, f"{query}%", limit),
                 )
                 for row in cursor.fetchall():
-                    results.append(
-                        FederatedNode(
-                            repo=repo_name,
-                            id=row["id"],
-                            name=row["name"],
-                            qualified_name=row["qualified_name"],
-                            kind=row["kind"],
-                            file_path=row["file_path"],
-                            start_line=row["start_line"],
-                            end_line=row["end_line"],
-                            signature=row["signature"],
+                    r_name = str(row["name"] or "")
+                    r_qname = str(row["qualified_name"] or "")
+                    if r_name.lower() == q_lower or r_qname.lower() == q_lower:
+                        tier = 0
+                    elif r_name.lower().startswith(q_lower):
+                        tier = 1
+                    else:
+                        tier = 2
+                    scored_results.append(
+                        (
+                            tier,
+                            FederatedNode(
+                                repo=repo_name,
+                                id=row["id"],
+                                name=row["name"],
+                                qualified_name=row["qualified_name"],
+                                kind=row["kind"],
+                                file_path=row["file_path"],
+                                start_line=row["start_line"],
+                                end_line=row["end_line"],
+                                signature=row["signature"],
+                            ),
                         )
                     )
-                    if len(results) >= limit:
-                        break
             except Exception:
                 continue
 
-            if len(results) >= limit:
-                break
-
-        return results[:limit]
+        scored_results.sort(key=lambda item: (item[0], item[1].name, item[1].repo))
+        return [item[1] for item in scored_results[:limit]]
 
     def get_cross_repo_guard(
         self,

@@ -105,20 +105,26 @@ class ScipImporter:
             nodes_created += 1
 
         # 2. Resolve caller nodes and insert edges
+        nodes_cache: dict[str, list[dict[str, Any]]] = {}
         for caller_file, target_sym, call_line in refs:
             target_node = defs_by_symbol.get(target_sym)
             if not target_node:
                 continue
 
-            # Find enclosing node for the caller file at this call line
-            caller_nodes = db.get_nodes_in_file(caller_file)
+            # Find innermost enclosing node for the caller file at this call line
+            if caller_file not in nodes_cache:
+                nodes_cache[caller_file] = db.get_nodes_in_file(caller_file)
+            caller_nodes = nodes_cache[caller_file]
             enclosing_id = None
+            best_span = float("inf")
             for c in caller_nodes:
                 s_line = c.get("start_line") or 0
                 e_line = c.get("end_line") or 999999
                 if s_line <= call_line <= e_line:
-                    enclosing_id = c.get("id")
-                    break
+                    span = e_line - s_line
+                    if span < best_span:
+                        best_span = span
+                        enclosing_id = c.get("id")
 
             from_id = enclosing_id or f"{caller_file}::caller"
             edge = Edge(

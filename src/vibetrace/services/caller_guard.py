@@ -107,16 +107,17 @@ class CallerGuardService:
         # Query incoming callers
         neighbors = db.get_neighbors(nid, "up")
         caller_sites: list[CallerSite] = []
-        seen_sites: set[tuple[str, int | None]] = set()
+        seen_sites: set[tuple[str, str, int | None]] = set()
 
         for row in neighbors:
             rel = row.get("relation_type", "calls")
             if rel not in ("calls", "routes"):
                 continue
 
+            c_id = str(row.get("neighbor_id") or "")
             c_file = row.get("file_path", "")
             c_line = row.get("call_line")
-            site_key = (c_file, c_line)
+            site_key = (c_id, c_file, c_line)
             if site_key in seen_sites:
                 continue
             seen_sites.add(site_key)

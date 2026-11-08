@@ -336,6 +336,12 @@ def resolve_unresolved_edges(
         if 1 <= call_line <= len(lines):
             line_str = lines[call_line - 1]
             char_offset = len(line_str) - len(line_str.lstrip())
+            raw_target = str(row.get("to_node_id") or "")
+            short_sym = raw_target.split("::")[-1].split(".")[-1].strip()
+            if short_sym:
+                idx = line_str.find(short_sym)
+                if idx >= 0:
+                    char_offset = idx
 
         def_target = lsp_client.get_definition(caller_file, call_line, character=char_offset)
         if not def_target:

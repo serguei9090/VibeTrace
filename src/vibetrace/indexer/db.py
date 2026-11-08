@@ -270,11 +270,15 @@ class IndexerDB(DBQueriesMixin):
             new_node_ids = {n[0] for n in node_tuples}
             deleted_node_ids = old_node_ids - new_node_ids
 
-            # 1. Clear previous outbound edges defined by this file
+            # 1. Clear previous outbound edges and unreferenced edge_targets defined by this file
             conn.execute(
                 "DELETE FROM edges "
                 "WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
                 (file_path,),
+            )
+            conn.execute(
+                "DELETE FROM edge_targets "
+                "WHERE target_id NOT IN (SELECT DISTINCT to_node_id FROM edges)"
             )
             # Prune inbound edges only for symbols that were actually removed from this file
             if deleted_node_ids:
@@ -408,6 +412,10 @@ class IndexerDB(DBQueriesMixin):
             conn.execute("DELETE FROM nodes WHERE file_path = ?", (file_path,))
 
             conn.execute("DELETE FROM file_imports WHERE file_path = ?", (file_path,))
+            conn.execute(
+                "DELETE FROM edge_targets "
+                "WHERE target_id NOT IN (SELECT DISTINCT to_node_id FROM edges)"
+            )
             conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (file_path,))
             conn.commit()
 

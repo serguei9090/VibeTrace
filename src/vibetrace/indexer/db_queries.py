@@ -245,12 +245,15 @@ class DBQueriesMixin:
             SELECT ? AS current_id, 0 AS depth, ? AS path_str
             UNION ALL
             SELECT e.to_node_id, p.depth + 1,
-                   p.path_str || ',' || e.to_node_id
+                   p.path_str || char(31) || e.to_node_id
             FROM edges e
             JOIN path_cte p ON e.from_node_id = p.current_id
             JOIN nodes n ON e.to_node_id = n.id
             WHERE p.depth < ?
-              AND instr(',' || p.path_str || ',', ',' || e.to_node_id || ',') = 0{rel_filter}
+              AND instr(
+                  char(31) || p.path_str || char(31),
+                  char(31) || e.to_node_id || char(31)
+              ) = 0{rel_filter}
         )
         SELECT path_str FROM path_cte
         WHERE current_id = ?
@@ -267,7 +270,7 @@ class DBQueriesMixin:
             row = cursor.fetchone()
             if not row:
                 return None
-            path_ids = str(row[0]).split(",")
+            path_ids = str(row[0]).split("\x1f")
             nodes_by_id = self.get_nodes_by_ids(path_ids)
             if len(nodes_by_id) != len(path_ids):
                 return None

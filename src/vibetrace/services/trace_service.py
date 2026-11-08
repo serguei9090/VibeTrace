@@ -128,8 +128,8 @@ def _detect_split_points(db: IndexerDB, path_node_ids: list[str]) -> list[SplitP
                 SELECT n.name, e.relation_type
                 FROM edges e
                 JOIN nodes n ON e.to_node_id = n.id
-                WHERE e.from_node_id = ? AND e.relation_type != 'defines'
-                LIMIT 10
+                WHERE e.from_node_id = ? AND e.relation_type IN ('calls', 'routes')
+                GROUP BY e.to_node_id
                 """,
                 (nid,),
             ).fetchall()

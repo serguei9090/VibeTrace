@@ -159,7 +159,7 @@ def save_split_baseline(project_root: Path, splits: list[dict[str, Any]]) -> Pat
 def scan_architectural_splits(db: IndexerDB, project_root: Path) -> list[ArchitecturalSplit]:
     """Scans for functions that branch across multiple modules/packages."""
     with db._get_conn() as conn:
-        # Find functions/methods with >= 2 outgoing calls/routes
+        # Find functions/methods with >= 2 outgoing distinct calls/routes
         query = """
         SELECT
             n.id as node_id,
@@ -169,13 +169,13 @@ def scan_architectural_splits(db: IndexerDB, project_root: Path) -> list[Archite
             n.start_line,
             n.end_line,
             n.kind,
-            COUNT(e.id) as edge_count
+            COUNT(DISTINCT e.to_node_id) as edge_count
         FROM nodes n
         JOIN edges e ON n.id = e.from_node_id
         WHERE n.kind IN ('function', 'method', 'endpoint')
-          AND e.relation_type != 'defines'
+          AND e.relation_type IN ('calls', 'routes')
         GROUP BY n.id
-        HAVING COUNT(e.id) >= 2
+        HAVING COUNT(DISTINCT e.to_node_id) >= 2
         ORDER BY edge_count DESC
         """
         rows = conn.execute(query).fetchall()
@@ -199,10 +199,11 @@ def scan_architectural_splits(db: IndexerDB, project_root: Path) -> list[Archite
                 target.name as target_name,
                 target.file_path as target_file,
                 e.relation_type,
-                e.call_line
+                MIN(e.call_line) as call_line
             FROM edges e
             JOIN nodes target ON e.to_node_id = target.id
-            WHERE e.from_node_id = ? AND e.relation_type != 'defines'
+            WHERE e.from_node_id = ? AND e.relation_type IN ('calls', 'routes')
+            GROUP BY e.to_node_id, e.relation_type
             """
             edge_rows = conn.execute(edge_query, (nid,)).fetchall()
 
@@ -331,10 +332,12 @@ def record_split_approval(
     if symbol != qualified_name:
         baseline[symbol] = new_record
 
-    # Unique list of records by (file_path, qualified_name)
+    # Unique list of records by (file_path, qualified_name or symbol)
     unique_records: dict[str, dict[str, Any]] = {}
     for k, v in baseline.items():
-        if ":" in k and isinstance(v, dict) and v.get("qualified_name"):
-            v_fp = str(v.get("file_path") or "").replace("\\", "/")
-            unique_records[f"{v_fp}:{v['qualified_name']}"] = v
+        if ":" in k and isinstance(v, dict):
+            q_or_sym = str(v.get("qualified_name") or v.get("symbol") or "").strip()
+            if q_or_sym:
+                v_fp = str(v.get("file_path") or "").replace("\\", "/")
+                unique_records[f"{v_fp}:{q_or_sym}"] = v
     return save_split_baseline(project_root, list(unique_records.values()))
