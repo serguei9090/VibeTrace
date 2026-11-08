@@ -373,9 +373,11 @@ class TaintContractManager:
 
         lines = source_code.splitlines()
         func_sig_re = re.compile(
-            r"(?:(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)|"
-            r"(?:(?:public|private|protected|static|async|override)\s+)*[A-Za-z0-9_<>,\[\]?]+\s+([A-Za-z0-9_$]+)|"
-            r"(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)"
+            r"(?:"
+            r"\b(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)|"
+            r"(?:(?:public|private|protected)\s+)?(?:static\s+)?(?:async\s+)?(?:override\s+)?[A-Za-z0-9_<>,\[\]?]+\s+([A-Za-z0-9_$]+)|"
+            r"(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?"
+            r")\s*\(([^)]*)\)"
         )
 
         for idx, line in enumerate(lines):

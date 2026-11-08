@@ -21,9 +21,11 @@ _SAFE_DICT_KEYS = frozenset(
     {"page", "per_page", "limit", "offset", "count", "format", "version", "verbose"}
 )
 _FUNC_PARAMS_RE = re.compile(
-    r"(?:(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?[A-Za-z0-9_$]+|"
-    r"(?:(?:public|private|protected|static|async|override)\s+)*[A-Za-z0-9_<>,\[\]?]+\s+[A-Za-z0-9_$]+|"
-    r"(?:const|let|var)\s+[A-Za-z0-9_$]+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)"
+    r"(?:"
+    r"\b(?:def|function|func|fn)\s+(?:\([^)]*\)\s*)?[A-Za-z0-9_$]+|"
+    r"(?:(?:public|private|protected)\s+)?(?:static\s+)?(?:async\s+)?(?:override\s+)?[A-Za-z0-9_<>,\[\]?]+\s+[A-Za-z0-9_$]+|"
+    r"(?:const|let|var)\s+[A-Za-z0-9_$]+\s*=\s*(?:async\s*)?"
+    r")\s*\(([^)]*)\)"
 )
 _DIRECT_SOURCES = (
     "request.",
