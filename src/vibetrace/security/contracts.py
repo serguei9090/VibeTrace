@@ -241,11 +241,18 @@ class TaintContractManager:
         file_path: str,
     ) -> FunctionTaintContract:
         """Analyzes a FunctionDef AST node and returns its FunctionTaintContract."""
+        all_arg_objs = (
+            getattr(func_def.args, "posonlyargs", [])
+            + func_def.args.args
+            + getattr(func_def.args, "kwonlyargs", [])
+        )
         param_names: list[str] = [
-            arg.arg
-            for arg in func_def.args.args
-            if arg.arg not in ("self", "cls", "ctx", "context")
+            arg.arg for arg in all_arg_objs if arg.arg not in ("self", "cls", "ctx", "context")
         ]
+        if func_def.args.vararg and func_def.args.vararg.arg not in ("self", "cls", "ctx"):
+            param_names.append(func_def.args.vararg.arg)
+        if func_def.args.kwarg and func_def.args.kwarg.arg not in ("self", "cls", "ctx"):
+            param_names.append(func_def.args.kwarg.arg)
 
         visitor = _ContractVisitor(param_names)
         visitor.visit(func_def)

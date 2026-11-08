@@ -10,7 +10,7 @@ from vibetrace.security.contracts import FunctionTaintContract, TaintContractMan
 
 _IDENT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _ASSIGN_RE = re.compile(
-    r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?=\s*(.+)$"
+    r"^\s*(?:(?:const|let|var)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]+)?(\+?=|\|=)\s*(.+)$"
 )
 _DICT_ACCESS_RE = re.compile(
     r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\s*["\']([^"\']+)["\']\s*\]|\.get\s*\(\s*["\']([^"\']+)["\']\s*(?:,\s*[^)]+)?\))'
@@ -173,8 +173,21 @@ def _propagate_function_def_use(
             continue
         m = _ASSIGN_RE.match(line)
         if not m:
+            # Check in-place mutation like query.append(user_val) or list.extend(items)
+            mut_m = re.match(
+                r"^([A-Za-z_][A-Za-z0-9_]*)\.(?:append|extend|update)\s*\((.+)\)$",
+                line,
+            )
+            if mut_m:
+                mut_target, mut_arg = mut_m.group(1), mut_m.group(2)
+                mut_idents = [tok for tok in _IDENT_RE.findall(mut_arg) if tok not in _KEYWORDS]
+                matched_mut = next((tainted[t] for t in mut_idents if t in tainted), None)
+                if matched_mut or any(src in mut_arg for src in _DIRECT_SOURCES):
+                    origin = matched_mut or ["untrusted_input"]
+                    tainted[mut_target] = [*origin, mut_target]
+                    untainted_locals.discard(mut_target)
             continue
-        lhs, rhs = m.group(1), m.group(2).strip()
+        lhs, op, rhs = m.group(1), m.group(2), m.group(3).strip()
         rhs_idents = [tok for tok in _IDENT_RE.findall(rhs) if tok not in _KEYWORDS]
 
         if any(f"{san}(" in rhs or f".{san}(" in rhs for san in sanitizers):
@@ -231,7 +244,7 @@ def _propagate_function_def_use(
         if matched_taint is not None:
             tainted[lhs] = [*matched_taint, lhs] if lhs not in matched_taint else matched_taint
             untainted_locals.discard(lhs)
-        else:
+        elif op == "=":
             tainted.pop(lhs, None)
             untainted_locals.add(lhs)
 
@@ -415,35 +428,21 @@ def verify_interprocedural_taint_flow(
         e_idx = min(len(c_lines), int(caller["end_line"]))
         call_re = re.compile(rf"\b{re.escape(callee_name)}\s*\((.*)$")
 
-        call_line_idx: int | None = None
-        call_arg_tail = ""
+        # Find all call sites of callee_name within caller body
+        call_sites: list[tuple[int, str]] = []
         for idx in range(s_idx, e_idx):
             code_part = c_lines[idx].split("#", 1)[0]
             m = call_re.search(code_part)
             if m and not code_part.lstrip().startswith(("def ", "function ", "func ", "fn ")):
-                call_line_idx = idx
-                call_arg_tail = m.group(1)
-                break
+                call_sites.append((idx, m.group(1)))
 
-        if call_line_idx is None:
+        if not call_sites:
             tainted_params = None
             continue
 
         caller_contracts = TaintContractManager.analyze_source_code(
             "\n".join(c_lines), str(caller["file_path"])
         )
-        _, caller_tainted, _ = _propagate_function_def_use(
-            c_lines,
-            s_idx,
-            call_line_idx,
-            sanitizers,
-            tainted_params,
-            contracts_map=caller_contracts,
-        )
-        args = _extract_call_args_multiline(c_lines, call_line_idx, call_arg_tail)
-        if not args:
-            tainted_params = None
-            continue
 
         if _is_callee_sanitizer(callee, project_root, callee_name):
             return False, [], "sanitized_callee"
@@ -459,12 +458,30 @@ def verify_interprocedural_taint_flow(
             except Exception:
                 callee_params = None
 
-        next_tainted_params = _resolve_next_tainted_params(
-            args, sanitizers, caller_tainted, callee_params
-        )
-        if not next_tainted_params:
+        aggregated_tainted_params: dict[int, list[str]] = {}
+        for call_line_idx, call_arg_tail in call_sites:
+            _, caller_tainted, _ = _propagate_function_def_use(
+                c_lines,
+                s_idx,
+                call_line_idx,
+                sanitizers,
+                tainted_params,
+                contracts_map=caller_contracts,
+            )
+            args = _extract_call_args_multiline(c_lines, call_line_idx, call_arg_tail)
+            if not args:
+                continue
+
+            site_tainted_params = _resolve_next_tainted_params(
+                args, sanitizers, caller_tainted, callee_params
+            )
+            for p_idx, chain in site_tainted_params.items():
+                if p_idx not in aggregated_tainted_params:
+                    aggregated_tainted_params[p_idx] = chain
+
+        if not aggregated_tainted_params:
             return False, [], "untainted_call_arg"
-        tainted_params = next_tainted_params
+        tainted_params = aggregated_tainted_params
 
     sink_hop = hops[-1]
     is_tainted, chain = verify_sink_taint_flow(

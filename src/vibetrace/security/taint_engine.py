@@ -93,36 +93,54 @@ class TaintEngine:
         sink_id = cls._enclosing_node_id(nodes, finding)
         if sink_id is None:
             return
-        path = cls._path_from_source(nodes, callers, sink_id, sanitizers)
-        if path is None:
+        candidate_paths = cls._paths_from_sources(nodes, callers, sink_id, sanitizers, max_paths=6)
+        if not candidate_paths:
             return
-        sink_node = nodes[sink_id]
-        if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
-            path_nodes = [dict(nodes[nid]) for nid in path if nid in nodes]
-            is_tainted, var_chain, reason = verify_interprocedural_taint_flow(
-                project_root=project_root,
-                path_nodes=path_nodes,
-                sink_file_path=finding.file_path,
-                sink_line=finding.start_line,
-                sanitizers=sanitizers,
-            )
-            if not is_tainted:
-                finding.metadata["dataflow"] = reason
-                return
-            if var_chain:
-                finding.metadata["taint_vars"] = var_chain
+
+        chosen_path: list[str] | None = None
+        chosen_var_chain: list[str] = []
+        last_reason = "untainted_local"
+
+        for path in candidate_paths:
+            sink_node = nodes[sink_id]
+            if project_root is not None and sink_node["start_line"] and sink_node["end_line"]:
+                path_nodes = [dict(nodes[nid]) for nid in path if nid in nodes]
+                is_tainted, var_chain, reason = verify_interprocedural_taint_flow(
+                    project_root=project_root,
+                    path_nodes=path_nodes,
+                    sink_file_path=finding.file_path,
+                    sink_line=finding.start_line,
+                    sanitizers=sanitizers,
+                )
+                if not is_tainted:
+                    last_reason = reason
+                    continue
+                chosen_path = path
+                chosen_var_chain = var_chain
+                break
+            else:
+                chosen_path = path
+                break
+
+        if chosen_path is None:
+            finding.metadata["dataflow"] = last_reason
+            return
+
         finding.category = FindingCategory.TAINT_REACHABILITY
         finding.severity = _bump(finding.severity)
         finding.symbol_name = nodes[sink_id]["name"]
-        finding.metadata["taint_path"] = [nodes[n]["name"] for n in path]
-        finding.metadata["taint_path_node_ids"] = path
+        finding.metadata["taint_path"] = [nodes[n]["name"] for n in chosen_path]
+        finding.metadata["taint_path_node_ids"] = chosen_path
+        if chosen_var_chain:
+            finding.metadata["taint_vars"] = chosen_var_chain
         if project_root is not None:
             slices = cls.slice_taint_path(finding, project_root, nodes)
             if slices:
                 finding.metadata["taint_slices"] = slices
         finding.message = (
             f"{finding.message} Reachable from untrusted entry point "
-            f"`{nodes[path[0]]['name']}` via {' -> '.join(nodes[n]['name'] for n in path)}."
+            f"`{nodes[chosen_path[0]]['name']}` via "
+            f"{' -> '.join(nodes[n]['name'] for n in chosen_path)}."
         )
 
     @classmethod
@@ -147,7 +165,8 @@ class TaintEngine:
             }
             callers: dict[str, list[str]] = {}
             for r in conn.execute(
-                "SELECT from_node_id, to_node_id FROM edges WHERE relation_type != 'defines'"
+                "SELECT from_node_id, to_node_id FROM edges "
+                "WHERE relation_type IN ('calls', 'routes')"
             ).fetchall():
                 callers.setdefault(r["to_node_id"], []).append(r["from_node_id"])
 
@@ -216,27 +235,41 @@ class TaintEngine:
         return best[1] if best else None
 
     @staticmethod
-    def _path_from_source(
-        nodes: dict, callers: dict[str, list[str]], sink_id: str, sanitizers: frozenset[str]
-    ):
-        """Reverse BFS from sink; returns node ids ordered source -> sink, or None."""
-        queue: deque[tuple[str, int]] = deque([(sink_id, 0)])
-        parent: dict[str, str | None] = {sink_id: None}
-        while queue:
-            current, depth = queue.popleft()
-            n = nodes[current]
+    def _paths_from_sources(
+        nodes: dict,
+        callers: dict[str, list[str]],
+        sink_id: str,
+        sanitizers: frozenset[str],
+        max_paths: int = 6,
+    ) -> list[list[str]]:
+        """Reverse BFS from sink; returns candidate paths ordered source -> sink."""
+        results: list[list[str]] = []
+        queue: deque[list[str]] = deque([[sink_id]])
+
+        while queue and len(results) < max_paths:
+            current_path = queue.popleft()
+            tip = current_path[-1]
+            n = nodes[tip]
             if _is_source(n["kind"], n["decorators"]):
-                path = [current]
-                while parent[path[-1]] is not None:
-                    path.append(parent[path[-1]])  # type: ignore[arg-type]
-                return path
-            if depth >= MAX_DEPTH:
+                results.append(list(reversed(current_path)))
                 continue
-            for caller_id in callers.get(current, []):
-                if caller_id in parent or caller_id not in nodes:
+
+            if len(current_path) - 1 >= MAX_DEPTH:
+                continue
+
+            for caller_id in callers.get(tip, []):
+                if caller_id in current_path or caller_id not in nodes:
                     continue
                 if nodes[caller_id]["name"] in sanitizers:
-                    continue  # sanitizer on the path blocks propagation
-                parent[caller_id] = current
-                queue.append((caller_id, depth + 1))
-        return None
+                    continue
+                queue.append([*current_path, caller_id])
+
+        return results
+
+    @staticmethod
+    def _path_from_source(
+        nodes: dict, callers: dict[str, list[str]], sink_id: str, sanitizers: frozenset[str]
+    ) -> list[str] | None:
+        """Reverse BFS from sink; returns node ids ordered source -> sink, or None."""
+        paths = TaintEngine._paths_from_sources(nodes, callers, sink_id, sanitizers, max_paths=1)
+        return paths[0] if paths else None
