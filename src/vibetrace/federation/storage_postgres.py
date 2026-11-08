@@ -161,13 +161,16 @@ class PostgresStorageBackend:
     ) -> list[FederatedNode]:
         """Search symbol definitions in PostgreSQL."""
         conn = self._get_connection()
-        like_term = f"%{query}%"
+        escaped_q = query.replace("%", "\\%").replace("_", "\\_")
+        prefix = f"{escaped_q}%"
+        like_term = f"%{escaped_q}%"
 
         sql = (
             "SELECT repo_id, id, name, qualified_name, kind, file_path, "
             "start_line, end_line, signature "
             "FROM vibetrace_nodes "
-            "WHERE project_id = %s AND (name = %s OR qualified_name = %s OR name ILIKE %s) "
+            "WHERE project_id = %s "
+            "  AND (name = %s OR qualified_name = %s OR name ILIKE %s ESCAPE '\\\\') "
         )
         params: list[Any] = [self.project_id, query, query, like_term]
 
@@ -175,8 +178,14 @@ class PostgresStorageBackend:
             sql += "AND repo_id = %s "
             params.append(repo)
 
-        sql += "ORDER BY CASE WHEN name = %s THEN 0 ELSE 1 END LIMIT %s"
-        params.extend([query, limit])
+        sql += (
+            "ORDER BY CASE "
+            "  WHEN name = %s OR qualified_name = %s THEN 0 "
+            "  WHEN name ILIKE %s ESCAPE '\\\\' THEN 1 "
+            "  ELSE 2 "
+            "END, repo_id ASC, file_path ASC, start_line ASC LIMIT %s"
+        )
+        params.extend([query, query, prefix, limit])
 
         results: list[FederatedNode] = []
         try:
@@ -196,7 +205,12 @@ class PostgresStorageBackend:
                             signature=row[8],
                         )
                     )
-        except Exception:
+        except Exception as e:
+            logger.warning("Error searching in Postgres: %s", e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             return []
 
         return results

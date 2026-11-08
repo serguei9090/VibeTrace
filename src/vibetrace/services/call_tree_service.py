@@ -62,7 +62,7 @@ def build_call_tree(
     db: IndexerDB,
     root_symbol: str,
     max_depth: int = 3,
-    relations: tuple[str, ...] = ("calls", "routes", "references"),
+    relations: tuple[str, ...] = ("calls", "routes"),
     file_path: str | None = None,
     max_nodes: int = 500,
 ) -> CallTreeResult:

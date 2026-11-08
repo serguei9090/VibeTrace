@@ -430,9 +430,15 @@ class DBQueriesMixin:
                 JOIN edges e ON n_to.id = e.to_node_id
                 JOIN nodes n_from ON e.from_node_id = n_from.id
                 WHERE n_to.file_path = ? AND e.relation_type = 'imports' AND n_from.file_path != ?
-                ORDER BY n_from.file_path ASC, n_to.name ASC
+                UNION
+                SELECT DISTINCT fi.file_path as dependent_file,
+                                fi.local_alias as dependent_name,
+                                fi.target_symbol as imported_symbol
+                FROM file_imports fi
+                WHERE fi.target_file = ? AND fi.file_path != ?
+                ORDER BY dependent_file ASC, dependent_name ASC
             """
-            cursor = conn.execute(query, (norm_path, norm_path))
+            cursor = conn.execute(query, (norm_path, norm_path, norm_path, norm_path))
             return [dict(r) for r in cursor.fetchall()]
 
     @with_write_retry()

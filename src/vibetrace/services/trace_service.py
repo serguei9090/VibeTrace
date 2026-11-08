@@ -159,6 +159,7 @@ def get_downstream_reachable_symbols(
     if not start_rows:
         return []
 
+    clean_from = from_symbol.strip().removesuffix("()")
     start_ids = [r["id"] for r in start_rows]
     placeholders = ",".join("?" for _ in start_ids)
 
@@ -167,11 +168,13 @@ def get_downstream_reachable_symbols(
         SELECT to_node_id, 1
         FROM edges
         WHERE from_node_id IN ({placeholders})
+          AND relation_type IN ('calls', 'routes')
         UNION
         SELECT e.to_node_id, r.depth + 1
         FROM edges e
         JOIN reachable r ON e.from_node_id = r.node_id
         WHERE r.depth < ?
+          AND e.relation_type IN ('calls', 'routes')
     )
     SELECT DISTINCT n.name
     FROM reachable r
@@ -180,7 +183,7 @@ def get_downstream_reachable_symbols(
     ORDER BY n.name ASC
     """
 
-    params = [*start_ids, max_depth, from_symbol]
+    params = [*start_ids, max_depth, clean_from]
     with db._get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
         return [r["name"] for r in rows if r["name"]]
@@ -216,12 +219,13 @@ def trace_execution_path(
             else:
                 return TracePathResult(from_symbol=from_symbol, to_symbol=to_symbol, found=False)
 
+    rel_allowed = ("calls", "routes", "references", "inherits", "implements", "defines")
     if engine == "cte":
         path_nodes: list[dict[str, Any]] | None = None
         for s_row in start_rows:
             for t_row in target_rows:
                 path_nodes = db.find_path_recursive_cte(
-                    s_row["id"], t_row["id"], max_depth=max_depth
+                    s_row["id"], t_row["id"], max_depth=max_depth, allowed_relations=rel_allowed
                 )
                 if path_nodes:
                     break
@@ -324,10 +328,14 @@ def trace_execution_path(
                 d_u = fwd_depth[u]
                 if d_u >= max_depth:
                     continue
-                neighbors = sorted(
-                    db.get_neighbors(u, "down"),
-                    key=lambda x: rel_priority.get(x["relation_type"], 9),
-                )
+                neighbors = [
+                    e
+                    for e in sorted(
+                        db.get_neighbors(u, "down"),
+                        key=lambda x: rel_priority.get(x["relation_type"], 9),
+                    )
+                    if e.get("relation_type") != "imports"
+                ]
                 for edge in neighbors:
                     v = edge["neighbor_id"]
                     node_map.setdefault(v, _row_to_trace_node(edge, v))
@@ -344,10 +352,14 @@ def trace_execution_path(
                 d_v = bwd_depth[v]
                 if d_v >= max_depth:
                     continue
-                neighbors = sorted(
-                    db.get_neighbors(v, "up"),
-                    key=lambda x: rel_priority.get(x["relation_type"], 9),
-                )
+                neighbors = [
+                    e
+                    for e in sorted(
+                        db.get_neighbors(v, "up"),
+                        key=lambda x: rel_priority.get(x["relation_type"], 9),
+                    )
+                    if e.get("relation_type") != "imports"
+                ]
                 for edge in neighbors:
                     u = edge["neighbor_id"]
                     node_map.setdefault(u, _row_to_trace_node(edge, u))
