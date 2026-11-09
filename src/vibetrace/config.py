@@ -171,6 +171,27 @@ class QualityConfig(BaseModel):
     )
 
 
+class SecurityConfig(BaseModel):
+    """Configuration contract for security auditing and external SAST/Container adapters."""
+
+    enable_taint: bool = Field(
+        default=True,
+        description="Enable AST reachability and taint analysis from untrusted entry points",
+    )
+    check_dependencies: bool = Field(
+        default=True,
+        description="Check dependency lockfiles for known CVEs via Google OSV",
+    )
+    enable_semgrep: bool = Field(
+        default=True,
+        description="Auto-run Semgrep deep SAST scan when available in PATH",
+    )
+    enable_trivy: bool = Field(
+        default=True,
+        description="Auto-run Trivy container/IaC scanner when Dockerfiles or K8s manifests exist",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
@@ -179,6 +200,7 @@ class VibeTraceConfig(BaseModel):
     vectors: VectorConfig = Field(default_factory=VectorConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
 
 
 def get_config_path(project_root: Path) -> Path | None:
@@ -200,6 +222,9 @@ def generate_default_config_toml(
     include_tests: bool = False,
     codebase_embeddings: bool = False,
     compute_device: str = "auto",
+    enable_sonar: bool = False,
+    enable_semgrep: bool = True,
+    enable_trivy: bool = True,
 ) -> str:
     """Generate documented default TOML configuration."""
     # Sanitize project name against invalid characters / multiline injections
@@ -210,6 +235,9 @@ def generate_default_config_toml(
     safe_name = sanitized_name.replace('"', '\\"')
     inc_str = "true" if include_tests else "false"
     emb_str = "true" if codebase_embeddings else "false"
+    sonar_str = "true" if enable_sonar else "false"
+    semgrep_str = "true" if enable_semgrep else "false"
+    trivy_str = "true" if enable_trivy else "false"
     dev_str = compute_device if compute_device in ("auto", "gpu", "cpu") else "auto"
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
@@ -256,6 +284,8 @@ exclude_patterns = [
 [quality]
 # Include test files (*test*, tests/**, *.spec.*) in Quality & Security audits
 include_tests = {inc_str}
+# Enable optional Tier-2 SonarLint headless Java engine during audits
+enable_sonar = {sonar_str}
 # Glob patterns excluded from Quality & Security gates
 exclude_patterns = [
     "tests/**",
@@ -275,6 +305,16 @@ exclude_patterns = [
 # Remote JSON manifest feed URL (defaults to official VibeTrace GitHub repo)
 # rules_feed_url = "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/src/vibetrace/resources/quality_rules_catalog.json"
 ttl_days = 7
+
+[security]
+# Deep AST reachability and taint analysis from entry points
+enable_taint = true
+# Dependency lockfile CVE vulnerability checks via Google OSV
+check_dependencies = true
+# Automatically run Semgrep SAST rules when available in PATH
+enable_semgrep = {semgrep_str}
+# Automatically run Trivy container & IaC audits when Dockerfiles/K8s manifests exist
+enable_trivy = {trivy_str}
 """
 
 
@@ -321,6 +361,9 @@ def save_default_config(
     include_tests: bool = False,
     codebase_embeddings: bool = False,
     compute_device: str = "auto",
+    enable_sonar: bool = False,
+    enable_semgrep: bool = True,
+    enable_trivy: bool = True,
 ) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
@@ -334,6 +377,9 @@ def save_default_config(
             include_tests=include_tests,
             codebase_embeddings=codebase_embeddings,
             compute_device=compute_device,
+            enable_sonar=enable_sonar,
+            enable_semgrep=enable_semgrep,
+            enable_trivy=enable_trivy,
         )
         target.write_text(content, encoding="utf-8")
     return target

@@ -112,12 +112,12 @@ def test_cli_skill_install_command(tmp_path: Path, capsys) -> None:
 
 
 def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
-    """Verify interactive answers for test exclusion and embeddings in init."""
+    """Verify interactive answers for test exclusion, embeddings, and sonar in init."""
     import tomllib
     from unittest.mock import patch
 
-    # Answers: exclude_tests: 'n' -> True; enable_embeddings: 'y' -> True; device: 'gpu'
-    inputs = iter(["n", "y", "gpu"])
+    # Answers: exclude_tests: 'n'; enable_embeddings: 'y'; device: 'gpu'; enable_sonar: 'y'
+    inputs = iter(["n", "y", "gpu", "y"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     # Mock isatty to simulate terminal
@@ -133,3 +133,6 @@ def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
     assert data["quality"]["include_tests"] is True
     assert data["vectors"]["codebase"] is True
     assert data["vectors"]["device"] == "gpu"
+    assert data["quality"]["enable_sonar"] is True
+    assert data["security"]["enable_semgrep"] is True
+    assert data["security"]["enable_trivy"] is True

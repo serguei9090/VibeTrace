@@ -466,6 +466,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     include_tests = False
     codebase_embeddings = False
     compute_device = "auto"
+    enable_sonar = False
+    enable_semgrep = True
+    enable_trivy = True
     if not is_json and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists():
         try:
             ans = (
@@ -500,6 +503,17 @@ def cmd_init(args: argparse.Namespace) -> int:
                     compute_device = "cpu"
                 else:
                     compute_device = "auto"
+
+            ans_sonar = (
+                input(
+                    "Enable optional SonarLint/SonarQube Tier-2 Java rules? "
+                    "(Requires local Java JVM) [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if ans_sonar in ("y", "yes"):
+                enable_sonar = True
         except (EOFError, KeyboardInterrupt):
             print()
 
@@ -511,6 +525,9 @@ def cmd_init(args: argparse.Namespace) -> int:
         include_tests=include_tests,
         codebase_embeddings=codebase_embeddings,
         compute_device=compute_device,
+        enable_sonar=enable_sonar,
+        enable_semgrep=enable_semgrep,
+        enable_trivy=enable_trivy,
     )
 
     if getattr(args, "project", False):

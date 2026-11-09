@@ -187,6 +187,9 @@ def initialize_workspace(
     include_tests: bool = False,
     codebase_embeddings: bool = False,
     compute_device: str = "auto",
+    enable_sonar: bool = False,
+    enable_semgrep: bool = True,
+    enable_trivy: bool = True,
 ) -> dict[str, Any]:
     """Execute complete 1-click workspace initialization for VibeTrace."""
     root = Path(project_root).resolve()
@@ -207,6 +210,9 @@ def initialize_workspace(
         include_tests=include_tests,
         codebase_embeddings=codebase_embeddings,
         compute_device=compute_device,
+        enable_sonar=enable_sonar,
+        enable_semgrep=enable_semgrep,
+        enable_trivy=enable_trivy,
     )
 
     # 4. Create .vibetrace local directory if needed
