@@ -461,7 +461,11 @@ class IndexerDB(DBQueriesMixin):
         """Retrieve a mapping of all indexed file paths to their stored SHA-256 content hashes."""
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT file_path, content_hash FROM indexed_files")
-            return {row[0]: row[1] for row in cursor.fetchall() if row[0] and row[1]}
+            return {
+                row[0]: row[1]
+                for row in cursor.fetchall()
+                if row[0] is not None and row[1] is not None
+            }
 
     @with_write_retry()
     def batch_save_workspace_index(

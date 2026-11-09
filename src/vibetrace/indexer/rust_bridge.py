@@ -53,20 +53,28 @@ def scan_workspace_native(
     """Invoke the parallel Rust directory walker (`ignore` + `rayon` + `sha2`) releasing the GIL."""
     if not is_native_available():
         return None
-    return _rust_core.py_scan_and_hash_workspace(
-        str(target_path.resolve()),
-        str(project_root.resolve()),
-        known_hashes,
-        extra_excludes or [],
-        force,
-    )
+    try:
+        return _rust_core.py_scan_and_hash_workspace(
+            str(target_path.resolve()),
+            str(project_root.resolve()),
+            known_hashes,
+            extra_excludes or [],
+            force,
+        )
+    except Exception as e:
+        logger.warning("Native workspace scan failed, falling back: %s", e)
+        return None
 
 
 def extract_batch_native(deltas: list[Any]) -> list[Any]:
     """Invoke parallel Rust Tree-sitter AST extraction across dirty files."""
     if not is_native_available() or not deltas:
         return []
-    return list(_rust_core.py_extract_batch_parallel(deltas))
+    try:
+        return list(_rust_core.py_extract_batch_parallel(deltas))
+    except Exception as e:
+        logger.warning("Native batch extraction failed: %s", e)
+        return []
 
 
 def reindex_workspace_hybrid(

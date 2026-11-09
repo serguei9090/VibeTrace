@@ -39,12 +39,14 @@ fn get_ts_language(ext: &str) -> Option<Language> {
     }
 }
 
-fn node_text<'a>(node: Node<'a>, source: &'a [u8]) -> &'a str {
-    node.utf8_text(source).unwrap_or("")
+fn node_text<'a>(node: Node<'a>, source: &'a [u8]) -> Option<&'a str> {
+    let range = node.byte_range();
+    let slice = source.get(range)?;
+    std::str::from_utf8(slice).ok()
 }
 
 fn extract_signature(node: Node, source: &[u8]) -> Option<String> {
-    let raw = node_text(node, source);
+    let raw = node_text(node, source)?;
     let first_line = raw.lines().next()?.trim();
     let cleaned = first_line
         .trim_end_matches('{')
@@ -64,11 +66,11 @@ fn extract_python_docstring(node: Node, source: &[u8]) -> Option<String> {
         if child.kind() == "expression_statement" {
             if let Some(first) = child.child(0) {
                 if first.kind() == "string" {
-                    let raw = node_text(first, source)
-                        .trim_matches(|c| c == '"' || c == '\'')
-                        .trim();
-                    if !raw.is_empty() {
-                        return Some(raw.to_string());
+                    if let Some(text) = node_text(first, source) {
+                        let raw = text.trim_matches(|c| c == '"' || c == '\'').trim();
+                        if !raw.is_empty() {
+                            return Some(raw.to_string());
+                        }
                     }
                 }
             }
@@ -126,7 +128,10 @@ impl<'a> ExtractionContext<'a> {
 
         if is_func || is_class {
             if let Some(name_node) = node.child_by_field_name("name") {
-                let sym_name = node_text(name_node, self.source).trim().to_string();
+                let sym_name = node_text(name_node, self.source)
+                    .map(str::trim)
+                    .unwrap_or("")
+                    .to_string();
                 if !sym_name.is_empty() {
                     let qname = self.scoped_name(&sym_name);
                     let node_kind = if is_class {
@@ -201,7 +206,7 @@ impl<'a> ExtractionContext<'a> {
                 .child_by_field_name("function")
                 .or_else(|| node.child(0));
             if let Some(fnode) = func_field {
-                let raw_callee = node_text(fnode, self.source).trim();
+                let raw_callee = node_text(fnode, self.source).map(str::trim).unwrap_or("");
                 let bare_name = raw_callee
                     .rsplit_once('.')
                     .map(|(_, r)| r)
