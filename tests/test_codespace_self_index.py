@@ -79,7 +79,7 @@ def test_codespace_fastapi_endpoints_extracted(indexed_codespace_db):
 def test_codespace_call_tree_and_traversal(indexed_codespace_db):
     """Verify top-down call tree construction on real IndexerDB or service methods."""
     db, _ = indexed_codespace_db
-    tree_res = build_call_tree(db, "trace_execution_path", max_depth=3)
+    tree_res = build_call_tree(db, "compute_impact_analysis", max_depth=3)
     assert tree_res.found is True
     assert tree_res.tree is not None
     assert tree_res.total_nodes >= 2
@@ -87,7 +87,7 @@ def test_codespace_call_tree_and_traversal(indexed_codespace_db):
     # Formatting must not crash and output clean markdown
     md = format_call_tree_md(tree_res)
     assert "Top-Down Call Tree:" in md
-    assert "trace_execution_path" in md
+    assert "compute_impact_analysis" in md
     assert "```text" in md
 
 

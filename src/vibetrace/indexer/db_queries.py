@@ -140,7 +140,6 @@ class DBQueriesMixin:
     def get_edge_resolution_metrics(self) -> dict[str, Any]:
         """Compute resolution metrics across internal edges in the database."""
         with self._get_conn() as conn:
-            # 1. Total call and reference edges
             rows = conn.execute(
                 """
                 SELECT e.id, e.from_node_id, e.to_node_id, e.confidence, e.relation_type,
@@ -154,18 +153,12 @@ class DBQueriesMixin:
                 """
             ).fetchall()
 
-            total_internal = 0
-            resolved_ast_exact = 0
-            resolved_ast_inferred = 0
-            resolved_lsp = 0
+            total_internal = resolved_ast_exact = resolved_ast_inferred = resolved_lsp = 0
             unresolved_items: list[dict[str, Any]] = []
 
             for r in rows:
-                target_file = r["target_file"] or ""
-                # Skip pure external third-party/stdlib packages with target_file == 'external'
-                if target_file == "external":
+                if (r["target_file"] or "") == "external":
                     continue
-
                 total_internal += 1
                 if r["resolved_target_id"] is not None:
                     conf = r["confidence"] or "exact"
@@ -187,7 +180,6 @@ class DBQueriesMixin:
 
             resolved_total = resolved_ast_exact + resolved_ast_inferred + resolved_lsp
             pct = round(resolved_total * 100.0 / total_internal, 2) if total_internal else 100.0
-
             return {
                 "total_internal_call_edges": total_internal,
                 "resolved_total": resolved_total,

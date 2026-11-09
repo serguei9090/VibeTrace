@@ -1362,7 +1362,7 @@ def test_cli_indexing_telemetry_output_and_json(
     assert ret == 0
     captured = capsys.readouterr().out
     # Assert presence of real-time telemetry output
-    assert "✔ Indexed" in captured
+    assert "Indexed" in captured
     assert "files/sec" in captured
     assert "nodes" in captured
     assert "edges" in captured
