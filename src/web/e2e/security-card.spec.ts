@@ -69,7 +69,7 @@ test.describe("Security audit card", () => {
     await row.click();
 
     await expect(page.getByText("Reachable from untrusted input: handler → sink")).toBeVisible();
-    await expect(page.getByText(/Tainted vars:/)).toBeVisible();
+    await expect(page.getByText(/Tainted Def-Use variables:/)).toBeVisible();
     await expect(page.getByText(/handler\(cmd, user_input\)/)).toBeVisible();
 
     await page.getByRole("button", { name: "Show path" }).click();
@@ -131,7 +131,7 @@ test.describe("Security audit card", () => {
     await expect(gateTab).toBeVisible({ timeout: 15000 });
     await gateTab.click();
 
-    await expect(page.getByText("Unified AI Quality Gate")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Unified AI Quality Gate" })).toBeVisible();
     await expect(page.getByText("92.5%")).toBeVisible();
     await expect(page.getByText("AST Call-Graph Reachability")).toBeVisible();
   });
