@@ -172,9 +172,7 @@ def test_production_typescript_ast_vs_lsp_100pct(tmp_path: Path) -> None:
     db = IndexerDB(db_path)
 
     # Run AST + LSP on TypeScript
-    res = reindex_all(
-        db, str(proj), project_root=proj, force=True, use_lsp=True, verbose=False
-    )
+    res = reindex_all(db, str(proj), project_root=proj, force=True, use_lsp=True, verbose=False)
     metrics = res["edge_resolution"]
 
     assert metrics["total_internal_call_edges"] > 0
