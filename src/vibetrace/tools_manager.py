@@ -611,6 +611,8 @@ class ToolsManager:
             f"{target_plat}/latest/file/SonarSource.sonarlint-vscode-{target_plat}.vsix"
         )
         vsix_tmp = target_root / "sonarlint_bundle.vsix"
+        ext_dir = target_root / "extension"
+        resolved_target = target_root.resolve()
         try:
             urllib.request.urlretrieve(vsix_url, str(vsix_tmp))
             if not vsix_tmp.is_file() or vsix_tmp.stat().st_size < 1_000_000:
@@ -619,13 +621,16 @@ class ToolsManager:
 
             with zipfile.ZipFile(vsix_tmp, "r") as zf:
                 for member in zf.namelist():
-                    if any(
+                    if not any(
                         member.startswith(p)
                         for p in ("extension/server/", "extension/analyzers/", "extension/jre/")
                     ):
-                        zf.extract(member, target_root)
+                        continue
+                    member_dest = (target_root / member).resolve()
+                    if not member_dest.is_relative_to(resolved_target):
+                        continue
+                    zf.extract(member, target_root)
 
-            ext_dir = target_root / "extension"
             if ext_dir.is_dir():
                 for sub in ("server", "analyzers", "jre"):
                     src_s = ext_dir / sub
@@ -649,4 +654,6 @@ class ToolsManager:
             return False, "Extracted SonarLint bundle but runtime verification failed."
         except Exception as exc:
             vsix_tmp.unlink(missing_ok=True)
+            if ext_dir.exists():
+                shutil.rmtree(ext_dir, ignore_errors=True)
             return False, f"Failed to download SonarLint bundle: {exc}"

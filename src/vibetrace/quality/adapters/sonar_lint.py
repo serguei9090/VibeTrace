@@ -237,7 +237,7 @@ def _path_to_file_uri(path: Path) -> str:
 
 
 def _file_uri_to_rel_path(uri: str, project_root: Path) -> str:
-    """Converts a `file://` URI back to a project-relative POSIX path."""
+    """Converts a `file://` URI back to a safe project-relative POSIX path."""
     from urllib.parse import unquote, urlparse
 
     parsed = urlparse(uri)
@@ -246,9 +246,12 @@ def _file_uri_to_rel_path(uri: str, project_root: Path) -> str:
         raw_path = raw_path[1:]
     try:
         abs_p = Path(raw_path).resolve()
-        return abs_p.relative_to(project_root.resolve()).as_posix()
-    except Exception:
-        return raw_path.replace("\\", "/")
+        proj_res = project_root.resolve()
+        return abs_p.relative_to(proj_res).as_posix()
+    except ValueError:
+        return Path(raw_path).name
+    except OSError:
+        return Path(raw_path).name
 
 
 def _language_id_for_file(file_path: Path) -> str:
@@ -486,11 +489,18 @@ class _SonarJsonRpcSession:
         try:
             self._send_message({"jsonrpc": "2.0", "id": 999, _RPC_METHOD_KEY: "shutdown"})
             self._send_message({"jsonrpc": "2.0", _RPC_METHOD_KEY: "exit"})
+            for pipe in (self._proc.stdin, self._proc.stdout):
+                if pipe is not None:
+                    try:
+                        pipe.close()
+                    except OSError:
+                        pass
             self._proc.terminate()
             self._proc.wait(timeout=2.0)
         except Exception:
             try:
                 self._proc.kill()
+                self._proc.wait(timeout=1.0)
             except Exception:
                 pass
 
@@ -518,6 +528,7 @@ class _SonarJsonRpcSession:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
+                bufsize=0,
             )
         except OSError as exc:
             logger.warning("Failed to spawn SonarLint Language Server: %s", exc)

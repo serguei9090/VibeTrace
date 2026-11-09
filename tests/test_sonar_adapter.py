@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from vibetrace.quality.adapters.sonar_lint import (
     SonarLintAdapter,
+    _file_uri_to_rel_path,
     extract_rspec_short,
     resolve_sonar_runtime,
 )
@@ -20,6 +21,20 @@ def test_extract_rspec_short() -> None:
     assert extract_rspec_short("php:S1144") == "S1144"
     assert extract_rspec_short("RSPEC-8786") == "S8786"
     assert extract_rspec_short("S107") == "S107"
+
+
+def test_file_uri_to_rel_path_rejects_traversal(tmp_path: Path) -> None:
+    proj = tmp_path / "workspace"
+    proj.mkdir(parents=True)
+    inside = proj / "src" / "main.py"
+    inside.parent.mkdir(parents=True)
+    inside.write_text("x = 1\n", encoding="utf-8")
+
+    outside = tmp_path / "secret.py"
+    outside.write_text("secret = 1\n", encoding="utf-8")
+
+    assert _file_uri_to_rel_path(inside.as_uri(), proj) == "src/main.py"
+    assert _file_uri_to_rel_path(outside.as_uri(), proj) == "secret.py"
 
 
 def test_resolve_sonar_runtime_priority(tmp_path: Path) -> None:
