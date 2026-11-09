@@ -117,25 +117,48 @@ def _parse_single_param(trimmed: str) -> str | None:
     """Extracts the parameter identifier from a single declaration item."""
     if not trimmed:
         return None
-    if ":" in trimmed:
-        part = trimmed.split(":", 1)[0].strip().lstrip("*&$")
+
+    # Strip annotations (e.g. @Valid, @NotNull) and modifiers (final, const, let, var, etc.)
+    # Repeatedly remove leading annotations @Word[(...)] or modifier words
+    curr = trimmed.strip()
+    while True:
+        if curr.startswith("@"):
+            # Strip annotation e.g. @RequestParam(...) or @Valid
+            m = re.match(r"^@\w+(?:\([^)]*\))?\s*", curr)
+            if m:
+                curr = curr[m.end() :].strip()
+                continue
+        m_mod = re.match(
+            r"^(?:final|const|let|var|public|protected|private|static|readonly)\b\s*", curr
+        )
+        if m_mod:
+            curr = curr[m_mod.end() :].strip()
+            continue
+        break
+
+    if not curr:
+        return None
+
+    if ":" in curr:
+        part = curr.split(":", 1)[0].strip().lstrip("*&$")
         tokens = _IDENT_RE.findall(part)
         return tokens[-1] if tokens else None
 
-    words = trimmed.split()
-    if len(words) >= 2 and not trimmed.startswith(("final ", "const ", "let ", "var ")):
+    words = curr.split()
+    if len(words) >= 2:
         first_w = words[0].rstrip("*&[]?").lower()
         is_java_type = first_w in _TYPE_FIRST_KEYWORDS or words[0].startswith(
             ("ResponseEntity", "Map<", "List<", "Set<")
         )
         if is_java_type:
-            ident = words[-1].split("=", 1)[0].strip().lstrip("*&$")
-            return ident if _IDENT_RE.fullmatch(ident) else None
+            part = "".join(words[1:]).split("=", 1)[0].strip().lstrip("*&$")
+            tokens = _IDENT_RE.findall(part)
+            return tokens[-1] if tokens else None
         first_ident = words[0].lstrip("*&")
         if _IDENT_RE.fullmatch(first_ident):
             return first_ident
 
-    part = trimmed.split("=", 1)[0].strip().lstrip("*&$")
+    part = curr.split("=", 1)[0].strip().lstrip("*&$")
     tokens = _IDENT_RE.findall(part)
     return tokens[-1] if tokens else None
 

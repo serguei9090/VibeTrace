@@ -224,6 +224,8 @@ def test_cli_code_ingest_per_language_gates(tmp_path: Path) -> None:
         # Create dedicated isolated directory with local .vibetrace context
         dest_folder = tmp_path / lang
         shutil.copytree(src_folder, dest_folder)
+        (dest_folder / '.vibetrace').mkdir(parents=True, exist_ok=True)
+        (dest_folder / '.vibetrace').mkdir(parents=True, exist_ok=True)
         (dest_folder / ".vibetrace").mkdir(parents=True, exist_ok=True)
 
         # Gate 1: CLI Indexing

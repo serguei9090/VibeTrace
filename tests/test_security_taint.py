@@ -631,3 +631,15 @@ def test_multi_hop_positional_and_keyword_taint_propagation(tmp_path) -> None:
     assert "req_body" in taint_vars
     assert "cmd_input" in taint_vars
     assert "final_cmd" in taint_vars
+
+
+def test_parse_single_param_with_annotations_and_modifiers() -> None:
+    """Verifies _parse_single_param handles Java/TypeScript annotations and modifiers."""
+    from vibetrace.security.dataflow import _parse_single_param
+
+    assert _parse_single_param("final String name") == "name"
+    assert _parse_single_param("@Valid final String name") == "name"
+    assert _parse_single_param('@RequestParam(value = "id") String userId') == "userId"
+    assert _parse_single_param("readonly username: string") == "username"
+    assert _parse_single_param("int count = 10") == "count"
+    assert _parse_single_param("Map<String, Object> payload") == "payload"
