@@ -1,11 +1,11 @@
 ---
 name: vibetrace-navigator
-description: Surgical codebase discovery, execution tracepath analysis, blast-radius verification, token-efficient source slicing, and documentation RAG via VibeTrace CLI and MCP tools. Use this skill whenever exploring a repository, consulting project or master documentation, tracing how an entry point reaches a target function, checking callers before refactoring, or reading specific symbol definitions without loading entire files.
+description: Surgical codebase discovery, execution tracepath analysis, blast-radius verification, token-efficient source slicing, polyglot security & taint auditing (audit security), Sonar-grade code quality & cognitive complexity checks (audit quality), unified PR quality gates (review), LSP server management (tools install-lsp), and documentation RAG via VibeTrace CLI and MCP tools. Use this skill whenever exploring a repository, running security or code quality audits, consulting project or master documentation, tracing how an entry point reaches a target function, checking callers before refactoring, or reading specific symbol definitions without loading entire files.
 ---
 
 # VibeTrace Navigator Skill
 
-VibeTrace indexes the repository's Tree-sitter AST, call/inheritance graph (with exact 1-indexed `call_line` numbers), SQLite FTS5 BM25 lexical index, documentation RAG catalogs (.md, .txt, .pdf), and optional local `EmbeddingGemma 2` (256d Matryoshka) vectors in SQLite databases.
+VibeTrace indexes the repository's Tree-sitter AST via its native hybrid Rust engine (`vibetrace._rust_core`, parallel `ignore` walker + `rayon` AST extraction + single-transaction SQLite WAL batching), call/inheritance graph (with exact 1-indexed `call_line` numbers), incremental & persistent LSP type resolution, SQLite FTS5 BM25 lexical index, documentation RAG catalogs (.md, .txt, .pdf), and optional local `EmbeddingGemma 2` (256d Matryoshka) vectors in SQLite databases.
 
 ---
 
@@ -45,7 +45,7 @@ Detect cross-module execution bifurcations (functions branching into 2+ external
 - **CLI:** `uv run vibetrace audit splits` / `uv run vibetrace audit splits --approve` / `uv run vibetrace audit splits --ci --strict`
 
 ### 5. Polyglot Security, IaC, Git Secret, Inter-Procedural Taint & CVE Audit (`audit security`)
-Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency IaC scanning (`Dockerfile`, `docker-compose.yml`, K8s, GitHub Actions), Gitleaks-style git secret & Shannon entropy scanning (working tree + last 10 commits + tracked `.env`), inter-procedural positional argument-to-parameter taint reachability, language-aware auto-syncing CWE Top 25 / Semgrep YAML rules (`.vibetrace/rules/*.yaml`), and hydrated OSV.dev lockfile CVE scanning (`uv.lock`, `bun.lock`, `poetry.lock`, `requirements.txt`):
+Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency IaC scanning (`Dockerfile`, `docker-compose.yml`, K8s, GitHub Actions), Gitleaks-style git secret & Shannon entropy scanning (working tree + last 10 commits + tracked `.env`), regex ReDoS & complexity analysis (`S6353`, `S5843`, `S8786`/`CWE-1333`), inter-procedural positional argument-to-parameter taint reachability, language-aware auto-syncing CWE Top 25 / Semgrep YAML rules (`.vibetrace/rules/*.yaml`), and hydrated OSV.dev lockfile CVE scanning (`uv.lock`, `bun.lock`, `poetry.lock`, `requirements.txt`):
 - **MCP Tool (Audit):** `vibetrace_audit_security(scope_path="", check_dependencies=True, analyze_taint=True)`
 - **MCP Tool (Remediate):** `vibetrace_remediate_vulnerability(finding_id="", scope_path="")`
 - **MCP Tool (Approve Exception with Disposition Tag):** `vibetrace_approve_security_exception(finding_id="SEC-...", rationale="No alternative API", tag="no-alternative")`
@@ -53,6 +53,7 @@ Run Tree-sitter AST SAST (`py`, `js`, `ts`, `tsx`, `go`, `rs`), zero-dependency 
 - **CLI:**
   ```bash
   uv run vibetrace audit security --summary              # <1 KB high-density findings matrix
+  uv run vibetrace audit security --file <path>          # Single-file Markdown audit report
   uv run vibetrace audit security --file <path> --json   # Surgical single-file JSON for remediation
   uv run vibetrace audit security --staged               # Pre-commit staged secret blocker
   uv run vibetrace audit security --image myapp:latest   # Deep container OS CVE audit via Trivy
@@ -103,7 +104,7 @@ Before completing any coding task or committing, run the single unified Quality 
 - **CLI:** `uv run vibetrace review` / `uv run vibetrace review --ci --strict --min-coverage 80`
 
 ### 11. Sonar-Grade Code Quality & Cognitive Complexity Audit (`audit quality`)
-Audit code for Cognitive Complexity (RSPEC-3776), deeply nested control flow (RSPEC-134), mergeable conditionals (RSPEC-1066), identical function bodies (RSPEC-4144), string literal duplication (RSPEC-1192), POSIX file permissions (RSPEC-2612), and dead code (RSPEC-1144) using native AST visitors combined with polyglot linters (Ruff, Biome, Clippy, PHPStan, RuboCop, ShellCheck, SQLFluff):
+Audit code for Cognitive Complexity (RSPEC-3776), deeply nested control flow (RSPEC-134), mergeable conditionals (RSPEC-1066), identical function bodies (RSPEC-4144), string literal duplication (RSPEC-1192), regex complexity & backtracking (RSPEC-6353, RSPEC-5843, RSPEC-8786), POSIX file permissions (RSPEC-2612), and dead code (RSPEC-1144) using native AST visitors combined with polyglot linters (Ruff, Biome, Clippy, PHPStan, RuboCop, ShellCheck, SQLFluff):
 
 #### 🤖 AI Agent Token-Efficient 2-Step Remediation Workflow:
 To avoid context/terminal truncation on large repositories, follow this 2-step workflow:
@@ -112,11 +113,12 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    uv run vibetrace audit quality --summary
    ```
    *Returns a 20-line matrix table (<1 KB) summarizing unapproved and approved counts by rule across all languages, without dumping full text.*
-2. **Phase 2: Surgical Target Extraction (`--file <path> --json`)**:
+2. **Phase 2: Surgical Target Extraction (`--file <path>` / `--file <path> --json`)**:
    ```bash
+   uv run vibetrace audit quality --file <target_file>
    uv run vibetrace audit quality --file <target_file> --json
    ```
-   *Returns compact, parseable JSON containing exact `start_line`, `end_line`, `non_compliant_snippet`, `compliant_snippet`, and `remediation_guidance` for that file.*
+   *Returns focused single-file findings or compact, parseable JSON containing exact `start_line`, `end_line`, `non_compliant_snippet`, `compliant_snippet`, and `remediation_guidance` for that file.*
 3. **Automated Safe Fixes (`--fix`)**:
    ```bash
    uv run vibetrace audit quality --fix
@@ -127,6 +129,16 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    uv run vibetrace audit quality --approve --tag legacy --rationale "Technical debt baseline verified"
    ```
    *Records unapproved findings into `.vibetrace/quality.toml`.*
+
+### 12. Automated Polyglot LSP Binary Installer (`tools install-lsp`)
+Auto-detects project languages and installs missing Language Server Protocol binaries (`pyright`, `typescript-language-server`, `gopls`, `rust-analyzer`, `intelephense`, `solargraph`, `jdtls`, `clangd`, `csharp-ls`) via fast package managers (`bun`, `uv`, `go`, `rustup`, `dotnet`):
+- **CLI:**
+  ```bash
+  uv run vibetrace tools install-lsp --check          # Check installed vs missing LSP servers
+  uv run vibetrace tools install-lsp --check --json   # Machine-readable JSON status
+  uv run vibetrace tools install-lsp                  # Auto-install missing LSP servers for detected languages
+  uv run vibetrace tools install-lsp --lang python    # Install specific language server
+  ```
 
 ---
 
@@ -212,19 +224,23 @@ Once you know the target symbol, read **only** its exact source lines (`start_li
 ### Via CLI
 ```bash
 uv run vibetrace slice IndexerDB.upsert_node
-uv run vibetrace slice extract --file src/vibetrace/indexer/parsers/python_parser.py
+uv run vibetrace slice extract --file src/vibetrace/indexer/parsers/python.py
 ```
 
 ---
 
 ## Keeping the Index Fresh
 
-VibeTrace uses SHA-256 content-hash tracking (`indexed_files`) so incremental re-indexing skips unchanged files in milliseconds:
+VibeTrace uses its native Rust parallel workspace scanner (`_rust_core.scan_and_parse_workspace`) with SHA-256 content-hash tracking (`indexed_files`), incremental LSP resolution, and real-time throughput telemetry (`files/s`, elapsed time, nodes/edges summary):
 
 ```bash
 uv run vibetrace index .
+# Structured JSON telemetry output for CI / automation
+uv run vibetrace index . --json
 # Optional: encode local EmbeddingGemma 2 (256d MRL) vectors
 uv run vibetrace index . --embed
+# Watch mode with persistent warm LSP daemons
+uv run vibetrace watch .
 ```
 
 ---
@@ -265,4 +281,3 @@ Search across all repositories simultaneously or limit search to a single member
 - **MCP Tool:** `vibetrace_project_search(query="checkout", repo="backend")`
 - **CLI (All Repos):** `uv run vibetrace project search "checkout"`
 - **CLI (Scoped):** `uv run vibetrace project search "checkout" --repo backend`
-
