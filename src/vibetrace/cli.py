@@ -518,6 +518,12 @@ examples:
         default=False,
         help="Initialize as a federated multi-repository / monorepo workspace",
     )
+    p_init.add_argument(
+        "--skills-dir",
+        dest="skills_dir",
+        default=None,
+        help="Custom directory path to install agent skills (defaults to .agents/skills/)",
+    )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
 

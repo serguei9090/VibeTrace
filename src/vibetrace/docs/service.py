@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import tomllib
 from pathlib import Path
 from typing import Any, Literal
+
+import tomllib
 
 from vibetrace.docs.chunker import HeadingChunk, chunk_markdown, chunk_pdf, chunk_text
 from vibetrace.docs.db import DocDB, get_global_doc_db, get_local_doc_db

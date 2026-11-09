@@ -396,8 +396,8 @@ class DocLinkAuditReport(BaseModel):
 
 
 def estimate_tokens(text: str) -> int:
-    """Rough token count estimation (~4 characters per token)."""
-    return max(1, len(text) // 4)
+    """Conservative token count estimation with headroom (~3.5 characters per token)."""
+    return max(1, int(len(text) / 3.5))
 
 
 class SymbolDocLinker:

@@ -8,7 +8,7 @@ from typing import Any
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.db_queries import _clean_path
 
-CHARS_PER_TOKEN = 3.8  # Standard empirical ratio for code tokens
+CHARS_PER_TOKEN = 3.5  # Conservative empirical ratio with safety headroom for code tokens
 
 
 def estimate_tokens(text: str) -> int:

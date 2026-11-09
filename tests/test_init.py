@@ -113,8 +113,9 @@ def test_cli_skill_install_command(tmp_path: Path, capsys) -> None:
 
 def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
     """Verify interactive answers for test exclusion, embeddings, and sonar in init."""
-    import tomllib
     from unittest.mock import patch
+
+    import tomllib
 
     # Answers: exclude_tests: 'n'; enable_embeddings: 'y'; device: 'gpu'; enable_sonar: 'y'
     inputs = iter(["n", "y", "gpu", "y"])

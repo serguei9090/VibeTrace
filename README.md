@@ -3,9 +3,11 @@
 [![CI](https://github.com/serguei9090/VibeTrace/actions/workflows/ci.yml/badge.svg)](https://github.com/serguei9090/VibeTrace/actions)
 [![PyPI](https://img.shields.io/pypi/v/vibetrace.svg)](https://pypi.org/project/vibetrace/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](pyproject.toml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](pyproject.toml)
 
-> **Philosophy**: Structural Truth > Statistical Guessing
+> **Philosophy**: Structural AST Analysis > Statistical Hallucination
+> 
+> *Note on Scope:* VibeTrace deterministically resolves static syntactic AST call-graphs, definitions, and call sites. For dynamic constructs (e.g., dynamic `getattr`, runtime dependency injection, eval), it provides module-level grouping fallbacks.
 
 > [!NOTE]
 > ### 🤖 AI Agent Setup Reference (Human-in-the-Loop)
@@ -46,16 +48,16 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 ## ⚡ Key Capabilities
 
-- **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill, sets up an isolated project database, and performs initial indexing.
+- **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill (configurable via `--skills-dir`), sets up an isolated project database, and performs initial indexing (<3.5s for typical ~200 file repositories; background incremental indexing for large monorepos).
 - **⚡ 1-Shot Context Packing (`vibetrace bundle`)**: Combines relevant architecture docs, target code slices, callee contracts, caller blast radius, and sibling test patterns within a bounded token budget ($\le 1,500$ tokens) for zero-shot LLM completion.
 - **🔬 360° Symbol Diagnosis Meta-Endpoint (`vibetrace diagnose`)**: Deep single-round-trip investigation consolidating source slice, callee contracts, all incoming callers with exact `:L<line>` call sites, 2-hop transitive blast radius, linked architectural documentation, and sibling test reachability.
 - **🛡️ Pre-Flight Caller Guard (`vibetrace guard`)**: AST incoming caller inspection with exact call lines and blast-radius advisories to prevent breaking sibling callers before modifying function signatures.
 - **🚦 Git Pre-Commit Gate (`vibetrace guard --staged`)**: Validates modified symbol signatures in staged git changes against active callers to prevent breaking commits (`--strict`).
 - **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
 - **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with hybrid BM25 + vector RRF, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
-- **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Zero dead-end execution traces via recursive SQLite CTE reachability checks (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
-- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`). Cross-queries code + docs via `--with-docs`.
-- **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving 85–95% of LLM context window tokens.
+- **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Exhaustive reachability analysis via recursive SQLite CTE checks with boundary dead-end tracking (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
+- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`, enabled via `vibetrace[embeddings]`). Cross-queries code + docs via `--with-docs`.
+- **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving up to 85–95% of LLM context window tokens compared to full-file dumps.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
 - **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif`, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
@@ -76,10 +78,10 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 | Benefit | What you get |
 | :--- | :--- |
-| **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by 85–95% versus dumping files or terminal output. |
-| **Deterministic truth** | Exact call graph, taint paths and `:L<line>` call sites from Tree-sitter AST, not embedding guesses. |
+| **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by up to 85–95% versus dumping full files or terminal output. |
+| **AST structural truth** | Exact call graph, taint paths and `:L<line>` call sites from Tree-sitter AST; static analysis with module-level grouping for dynamic reflection. |
 | **Zero-config baseline + optional pro adapters** | Built-in Tree-sitter AST security, secrets, RSPEC-inspired complexity metrics, and OSV CVEs work out of the box; optional adapters automatically bridge Semgrep CLI, Trivy, Ruff, Pyright, Biome, Clippy, and GolangCI-Lint when installed. |
-| **Safe by default** | Pre-commit gates (`guard --staged`, `audit security --staged`) block breaking changes and leaked keys before they reach git. |
+| **Safe by default** | Pre-commit gates (`guard --staged`, `audit security --staged`) block breaking changes and leaked keys before they reach git (regex false positives mitigated via `pattern-not` filters). |
 | **One call per phase** | `bundle` (prepare), `diagnose` (investigate), `review` (verify) replace many round-trips. |
 
 ---

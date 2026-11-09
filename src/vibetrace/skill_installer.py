@@ -93,6 +93,7 @@ def configure_gitignore(project_root: Path | str) -> list[str]:
 def install_skill(
     project_root: Path | str,
     global_install: bool = False,
+    custom_skills_dir: Path | str | None = None,
 ) -> list[Path]:
     """Install the vibetrace-navigator skill into project or global agent directories."""
     content = get_bundled_skill_content()
@@ -113,6 +114,18 @@ def install_skill(
         return installed_paths
 
     root = Path(project_root).resolve()
+
+    if custom_skills_dir:
+        custom_dir = Path(custom_skills_dir)
+        if not custom_dir.is_absolute():
+            custom_dir = root / custom_dir
+        target_skill_dir = custom_dir / "vibetrace-navigator"
+        target_skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_file = target_skill_dir / "SKILL.md"
+        skill_file.write_text(content, encoding="utf-8")
+        installed_paths.append(skill_file)
+        return installed_paths
+
     # Install into workspace .agents/skills/ (Standard Antigravity / Agent spec)
     agent_skill_dir = root / ".agents" / "skills" / "vibetrace-navigator"
     agent_skill_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +203,7 @@ def initialize_workspace(
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
+    custom_skills_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Execute complete 1-click workspace initialization for VibeTrace."""
     root = Path(project_root).resolve()
@@ -199,7 +213,9 @@ def initialize_workspace(
     added_ignores = configure_gitignore(root)
 
     # 2. Install navigator skill
-    installed_skills = install_skill(root, global_install=global_skill)
+    installed_skills = install_skill(
+        root, global_install=global_skill, custom_skills_dir=custom_skills_dir
+    )
 
     # 3. Create root .vibetrace.toml configuration file
     from vibetrace.config import save_default_config

@@ -116,6 +116,11 @@ def cmd_search(args: argparse.Namespace) -> int:
         return 0
 
     engine = EmbeddingEngine(project_root=root)
+    if not args.json and not engine.is_available():
+        print(
+            "💡 Note: Running lexical BM25 + graph ranking. "
+            "For 256d vector hybrid search, install: vibetrace[embeddings]\n"
+        )
     results = hybrid_search(
         db,
         args.query,
@@ -528,6 +533,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         enable_sonar=enable_sonar,
         enable_semgrep=enable_semgrep,
         enable_trivy=enable_trivy,
+        custom_skills_dir=getattr(args, "skills_dir", None),
     )
 
     if getattr(args, "project", False):

@@ -51,11 +51,11 @@ def _get_lang_for_file(file_path: str | None) -> str:
 
 
 def estimate_tokens(text: str) -> int:
-    """Rough token estimation (approx 3.8 - 4.0 chars per token for code/prose)."""
+    """Conservative token estimation with safety margin (~3.5 chars per token for code/prose)."""
     if not text:
         return 0
-    # Average across alphanumeric and punctuation tokens
-    return max(1, len(text) // 4)
+    # Conservative divisor (3.5 chars/token) to prevent LLM context overflows
+    return max(1, int(len(text) / 3.5))
 
 
 def truncate_to_tokens(text: str, max_tokens: int) -> str:
