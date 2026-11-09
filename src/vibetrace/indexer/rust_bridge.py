@@ -128,7 +128,8 @@ def reindex_workspace_hybrid(
     ] = []
     processed_paths: list[str] = []
 
-    for delta in dirty_deltas:
+    total_dirty = len(dirty_deltas)
+    for idx, delta in enumerate(dirty_deltas, 1):
         rel_path: str = delta.rel_path
         content_hash: str = delta.content_hash
         source_code: bytes = bytes(delta.source_bytes)
@@ -137,8 +138,9 @@ def reindex_workspace_hybrid(
             parser = ParserFactory.get_parser(rel_path, resolver=resolver)
             if not parser:
                 continue
+            pct = (idx / total_dirty) * 100.0
             if verbose:
-                print(f"Indexing {rel_path}...")
+                print(f"[{idx}/{total_dirty} {pct:5.1f}%] Indexing {rel_path}...")
             parser.last_imported_symbols = {}
             parser.last_target_symbols = {}
             nodes, edges = parser.extract(rel_path, source_code)
