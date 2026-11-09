@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.indexer.main import reindex_all
+from vibetrace.indexer.main import index_file, reindex_all
+from vibetrace.indexer.resolver import ModuleResolver
 from vibetrace.indexer.rust_bridge import (
     extract_batch_native,
     get_native_version,
@@ -82,19 +82,23 @@ def test_rust_hybrid_vs_python_fallback_parity(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    # 1. Index using Hybrid Rust engine
+    # 1. Index using Hybrid Rust batch workspace engine
     db_rust = IndexerDB(str(tmp_path / "rust.db"))
     tel_rust = reindex_all(db_rust, str(proj), verbose=False, force=True, project_root=proj)
     assert tel_rust["engine"] == "rust-native"
     assert tel_rust["files_processed"] == 2
 
-    # 2. Index using Pure Python fallback
+    # 2. Index individual files directly via single-file index_file + linker
     db_py = IndexerDB(str(tmp_path / "py.db"))
-    with patch("vibetrace.indexer.main.reindex_workspace_hybrid", return_value=None):
-        with patch("vibetrace.indexer.main.is_native_available", return_value=False):
-            tel_py = reindex_all(db_py, str(proj), verbose=False, force=True, project_root=proj)
-            assert tel_py["engine"] == "python-fallback"
-            assert tel_py["files_processed"] == 2
+    resolver = ModuleResolver(proj)
+    index_file(
+        db_py, str(proj / "module_a.py"), project_root=proj, resolver=resolver, verbose=False
+    )
+    index_file(
+        db_py, str(proj / "module_b.py"), project_root=proj, resolver=resolver, verbose=False
+    )
+    db_py.link_cross_file_edges()
+    db_py.update_centrality_scores()
 
     node_sql = (
         "SELECT id, name, qualified_name, kind, file_path, start_line, end_line "

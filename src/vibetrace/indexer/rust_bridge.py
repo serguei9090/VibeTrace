@@ -1,4 +1,4 @@
-"""Hybrid Rust FFI bridge (`vibetrace._rust_core`) with transparent Python fallback."""
+"""Native Rust FFI bridge (`vibetrace._rust_core`) for GIL-free parallel workspace scanning."""
 
 from __future__ import annotations
 
@@ -78,13 +78,13 @@ def reindex_workspace_hybrid(
     force: bool = False,
     verbose: bool = True,
     failed: list[str] | None = None,
-) -> list[str] | None:
+) -> list[str]:
     """Execute full workspace scan, incremental SHA-256 diff, and single-tx SQLite commit.
 
     Uses the native Rust `ignore` + `sha2` parallel scanner to eliminate GIL-bound disk I/O and
     hashing, then extracts rich semantic AST nodes/edges (routes, taint contracts, imports)
     for dirty files and commits the entire workspace delta in a SINGLE SQLite WAL transaction.
-    Returns list of processed relative file paths, or None if the Rust extension is not available.
+    Returns list of processed relative file paths.
     """
     scan_res = scan_workspace_native(
         target_path=target_path,
@@ -94,7 +94,10 @@ def reindex_workspace_hybrid(
         force=force,
     )
     if scan_res is None:
-        return None
+        raise RuntimeError(
+            "Native Rust core (`vibetrace._rust_core`) is required. "
+            "Build it with: cargo build --release -p vibetrace-core --features extension-module"
+        )
 
     dirty_deltas = list(scan_res.dirty_files)
     deleted_files = list(scan_res.deleted_files)
