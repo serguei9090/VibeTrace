@@ -52,6 +52,45 @@ def test_cmd_config_quality_set_mode(tmp_path: Path) -> None:
     assert code == 0
     assert resolve_linter_mode(tmp_path, "rust") == "project"
 
+
+def test_cmd_init_1click_and_inline_flags(tmp_path: Path) -> None:
+    """Verifies vibetrace init supports non-interactive 1-click execution and inline flags."""
+    from vibetrace.cli import main as cli_main
+    from vibetrace.config import load_config
+
+    project_dir = tmp_path / "project_a"
+    project_dir.mkdir()
+
+    # 1. Non-interactive 1-click execution with default arguments
+    ret = cli_main(["init", str(project_dir), "-y", "--no-index"])
+    assert ret == 0
+    cfg = load_config(project_dir)
+    assert cfg.vectors.codebase is False
+    assert cfg.quality.enable_sonar is False
+
+    # 2. Non-interactive with inline custom flags
+    project_dir_b = tmp_path / "project_b"
+    project_dir_b.mkdir()
+    ret_b = cli_main(
+        [
+            "init",
+            str(project_dir_b),
+            "--yes",
+            "--no-index",
+            "--embed",
+            "--device",
+            "cpu",
+            "--sonar",
+            "--include-tests",
+        ]
+    )
+    assert ret_b == 0
+    cfg_b = load_config(project_dir_b)
+    assert cfg_b.vectors.codebase is True
+    assert cfg_b.vectors.device == "cpu"
+    assert cfg_b.quality.enable_sonar is True
+    assert cfg_b.quality.include_tests is True
+
     args = argparse.Namespace(path=str(tmp_path), set_opt="php=strict")
     code = cmd_config_quality(args)
     assert code == 0

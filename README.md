@@ -157,14 +157,20 @@ Navigate to any codebase and run:
 ```bash
 cd /path/to/my-project
 
-# 1-click onboarding: updates .gitignore, installs agent skill, indexes codebase
+# 1-click zero-prompt onboarding (uses safe defaults, unattended/CI friendly):
 vibetrace init
+
+# Or customize flags directly inline:
+vibetrace init --embed --device gpu --include-tests --yes
+
+# Or run the interactive configuration questionnaire:
+vibetrace init --interactive
 ```
 
-The interactive wizard will guide you through:
-- **Test exclusion:** Exclude tests from Quality/Security gates by default.
-- **Codebase embeddings:** Optionally pre-compute vectors for code symbols (with automatic GPU/CUDA vs CPU device detection).
-- **Quality & Security tier selection:** Configure native linters vs Tier-2 SonarLint rules and container/SAST integrations.
+`vibetrace init` configures:
+- **Test exclusion:** Exclude tests from Quality/Security gates by default (override with `--include-tests`).
+- **Codebase embeddings:** Optional pre-computed vectors for code symbols (`--embed` with `--device auto|gpu|cpu`).
+- **Quality & Security tier selection:** Fast, 0-dependency native Tree-sitter quality rules with optional Tier-2 SonarLint (`--sonar`) and SAST/container integrations.
 
 That's it! `vibetrace.db` is created locally inside that project and never shared across projects.
 

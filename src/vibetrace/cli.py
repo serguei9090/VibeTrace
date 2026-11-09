@@ -524,6 +524,58 @@ examples:
         default=None,
         help="Custom directory path to install agent skills (defaults to .agents/skills/)",
     )
+    p_init.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        default=False,
+        help="Run non-interactively using defaults (1-click automation mode)",
+    )
+    p_init.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Prompt interactive configuration interview even in non-TTY environments",
+    )
+    p_init.add_argument(
+        "--embed",
+        dest="codebase_embeddings",
+        action="store_true",
+        default=None,
+        help="Enable codebase vector embeddings in generated config",
+    )
+    p_init.add_argument(
+        "--no-embed",
+        dest="codebase_embeddings",
+        action="store_false",
+        help="Explicitly disable codebase vector embeddings",
+    )
+    p_init.add_argument(
+        "--device",
+        choices=["auto", "gpu", "cpu"],
+        default=None,
+        help="Compute device for vector embeddings (auto, gpu, cpu)",
+    )
+    p_init.add_argument(
+        "--include-tests",
+        action="store_true",
+        default=None,
+        help="Include test files in default Quality and Security analysis",
+    )
+    p_init.add_argument(
+        "--sonar",
+        dest="enable_sonar",
+        action="store_true",
+        default=None,
+        help="Enable optional SonarQube / SonarLint Tier-2 rules",
+    )
+    p_init.add_argument(
+        "--no-sonar",
+        dest="enable_sonar",
+        action="store_false",
+        help="Disable optional SonarQube / SonarLint Tier-2 rules",
+    )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
 

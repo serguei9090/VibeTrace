@@ -466,59 +466,86 @@ def cmd_init(args: argparse.Namespace) -> int:
     no_index = getattr(args, "no_index", False)
     global_skill = getattr(args, "global_skill", False)
     configure_hooks = getattr(args, "hooks", False)
-    is_json = getattr(args, "json", False)
 
-    include_tests = False
-    codebase_embeddings = False
-    compute_device = "auto"
-    enable_sonar = False
+    include_tests = getattr(args, "include_tests", None) or False
+    codebase_embeddings = getattr(args, "codebase_embeddings", None)
+    compute_device = getattr(args, "device", None) or "auto"
+    enable_sonar = getattr(args, "enable_sonar", None)
     enable_semgrep = True
     enable_trivy = True
-    if not is_json and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists():
-        try:
-            ans = (
-                input(
-                    "Exclude test files (*test*, tests/**, *.spec.*) from Quality & Security "
-                    "gates by default? [Y/n]: "
-                )
-                .strip()
-                .lower()
-            )
-            if ans in ("n", "no"):
-                include_tests = True
 
-            ans_emb = (
-                input(
-                    "Enable codebase vector embeddings by default? "
-                    "(Requires ~1.5GB model download) [y/N]: "
-                )
-                .strip()
-                .lower()
-            )
-            if ans_emb in ("y", "yes"):
-                codebase_embeddings = True
-                ans_dev = (
-                    input("Target compute device for embeddings? (auto/gpu/cpu) [auto]: ")
+    # Check if embeddings extra is installed
+    has_embeddings_pkg = False
+    try:
+        import sentence_transformers  # noqa: F401
+
+        has_embeddings_pkg = True
+    except ImportError:
+        has_embeddings_pkg = False
+
+    non_interactive = getattr(args, "yes", False) or getattr(args, "json", False)
+    run_prompts = getattr(args, "interactive", False) or (
+        not non_interactive and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists()
+    )
+
+    # If non-interactive and embedding not explicitly set, default to False
+    if codebase_embeddings is None:
+        codebase_embeddings = False
+    if enable_sonar is None:
+        enable_sonar = False
+
+    if run_prompts and not (root / ".vibetrace.toml").exists():
+        try:
+            if getattr(args, "include_tests", None) is None:
+                ans = (
+                    input(
+                        "Exclude test files (*test*, tests/**, *.spec.*) from Quality & Security "
+                        "gates by default? [Y/n]: "
+                    )
                     .strip()
                     .lower()
                 )
-                if ans_dev in ("gpu", "cuda"):
-                    compute_device = "gpu"
-                elif ans_dev == "cpu":
-                    compute_device = "cpu"
-                else:
-                    compute_device = "auto"
+                if ans in ("n", "no"):
+                    include_tests = True
 
-            ans_sonar = (
-                input(
-                    "Enable optional SonarLint/SonarQube Tier-2 Java rules? "
-                    "(Requires local Java JVM) [y/N]: "
+            if getattr(args, "codebase_embeddings", None) is None:
+                if has_embeddings_pkg:
+                    ans_emb = (
+                        input(
+                            "Enable codebase vector embeddings by default? "
+                            "(Requires ~1.5GB model download) [y/N]: "
+                        )
+                        .strip()
+                        .lower()
+                    )
+                    if ans_emb in ("y", "yes"):
+                        codebase_embeddings = True
+                        if getattr(args, "device", None) is None:
+                            prompt_msg = (
+                                "Target compute device for embeddings? (auto/gpu/cpu) [auto]: "
+                            )
+                            ans_dev = input(prompt_msg).strip().lower()
+                            if ans_dev in ("gpu", "cuda"):
+                                compute_device = "gpu"
+                            elif ans_dev == "cpu":
+                                compute_device = "cpu"
+                            else:
+                                compute_device = "auto"
+                else:
+                    # Inform user that embeddings require optional dependencies
+                    codebase_embeddings = False
+
+            if getattr(args, "enable_sonar", None) is None:
+                ans_sonar = (
+                    input(
+                        "Enable optional SonarLint/SonarQube Tier-2 Java rules? "
+                        "(Requires local Java JVM) [y/N]: "
+                    )
+                    .strip()
+                    .lower()
                 )
-                .strip()
-                .lower()
-            )
-            if ans_sonar in ("y", "yes"):
-                enable_sonar = True
+                if ans_sonar in ("y", "yes"):
+                    enable_sonar = True
         except (EOFError, KeyboardInterrupt):
             print()
 

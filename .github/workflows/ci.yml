@@ -14,6 +14,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     permissions:
       contents: read
     steps:
@@ -25,8 +28,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
-      - name: Set up Python
-        run: uv python install 3.12
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -35,6 +38,9 @@ jobs:
         run: |
           cargo build --release -p vibetrace-core --features extension-module
           cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
+
+      - name: Run native Rust unit tests
+        run: cargo test --workspace
 
       - name: Install dependencies
         run: uv sync --all-groups --all-extras
