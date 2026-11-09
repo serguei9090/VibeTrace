@@ -142,3 +142,29 @@ vibetrace review --sonar
 
 - **H2 Database Lock Isolation**: `SonarLintAdapter` passes `-Duser.home=~/.vibetrace/tools/sonar/work` to the Java subprocess so its H2 database (`sq-ide.mv.db`) never collides with an active VS Code or Antigravity IDE instance.
 - **Canonical RSPEC Deduplication**: Findings reported by both VibeTrace's native AST engine and `sonarlint-ls.jar` on the same `(file_path, start_line, rspec_id)` are automatically deduplicated.
+
+---
+
+## 6. Offline Quality Catalog & Bundling Architecture
+
+VibeTrace ships with a comprehensive offline quality rules dictionary (`quality_rules_catalog.json` and `.gz`) containing metadata, clean-code tags, and CWE/OWASP mappings for over 4,000 RSPEC rules across 24 languages.
+
+### Offline-First Philosophy
+- **Zero Runtime Downloads**: End-user installations never fetch remote catalogs from GitHub or Sonar servers during auditing. The catalog is pre-bundled in the wheel and loaded directly from disk via `BUNDLED_CATALOG_PATH`.
+- **Air-Gapped & CI Ready**: Eliminates network latency, corporate proxy issues, GitHub rate limits, and supply-chain hash drift in secure CI environments.
+
+### Maintenance & On-Demand Catalog Compilation
+Weekly CI sync jobs have been retired in favor of static, deterministic bundle releases. The rule extraction script remains available at `scripts/export_rules_manifest.py` to recompile the catalog whenever SonarSource releases a new major rule taxonomy:
+
+```bash
+# 1. Spin up ephemeral SonarQube container
+docker run -d --rm -p 9000:9000 --name sonarqube-export sonarqube:community
+
+# 2. Compile full rule manifest and gzip asset
+uv run python scripts/export_rules_manifest.py --url http://localhost:9000 --gzip
+
+# 3. Stop container
+docker stop sonarqube-export
+```
+The resulting catalog files (`src/vibetrace/resources/quality_rules_catalog.json*`) are committed directly to version control and included in subsequent package builds.
+
