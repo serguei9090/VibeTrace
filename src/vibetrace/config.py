@@ -8,10 +8,10 @@ databases, vector backends, and indexing behavior.
 from __future__ import annotations
 
 import os
-import tomllib
 from pathlib import Path
 from typing import Any
 
+import tomllib
 from pydantic import BaseModel, Field
 
 
@@ -238,7 +238,11 @@ def generate_default_config_toml(
     sonar_str = "true" if enable_sonar else "false"
     semgrep_str = "true" if enable_semgrep else "false"
     trivy_str = "true" if enable_trivy else "false"
-    dev_str = compute_device if compute_device in ("auto", "gpu", "cpu") else "auto"
+    if compute_device not in ("auto", "gpu", "cpu"):
+        raise ValueError(
+            f"Invalid compute_device '{compute_device}'. Allowed values: 'auto', 'gpu', 'cpu'"
+        )
+    dev_str = compute_device
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
 

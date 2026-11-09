@@ -186,9 +186,7 @@ class DBQueriesMixin:
                     )
 
             resolved_total = resolved_ast_exact + resolved_ast_inferred + resolved_lsp
-            pct = (
-                round((resolved_total / total_internal * 100.0), 2) if total_internal > 0 else 100.0
-            )
+            pct = round(resolved_total * 100.0 / total_internal, 2) if total_internal else 100.0
 
             return {
                 "total_internal_call_edges": total_internal,

@@ -131,15 +131,17 @@ def format_semantic_search_md(
             lines.append(f"   - {first_line[:120]}")
 
     # Append actionable next step guidance for AI agents
-    top_sym = results[0].qualified_name
+    top_hit = results[0]
+    top_sym = top_hit.qualified_name
+    top_file = top_hit.file_path
     lines.append("")
     lines.append("💡 **Recommended Next Actions for AI Agent:**")
     lines.append(
         f"- Run `vibetrace slice {top_sym}` to inspect exact source implementation and line spans."
     )
     lines.append(
-        f"- Run `vibetrace trace {top_sym} <target>` or `vibetrace impact {top_sym}` "
-        "to inspect caller/callee blast-radius."
+        f"- Run `vibetrace trace {top_sym} <target>` to inspect caller/callee execution paths, "
+        f"or `vibetrace impact {top_file}` to evaluate blast radius."
     )
     return "\n".join(lines)
 

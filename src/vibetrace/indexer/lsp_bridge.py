@@ -733,10 +733,8 @@ class MultiLanguageLSPManager:
 class LSPDaemonManager:
     """Backwards-compatible wrapper delegating to MultiLanguageLSPManager."""
 
-    @classmethod
-    @property
-    def _instances(cls) -> dict[tuple[str, str], LSPClient]:
-        return MultiLanguageLSPManager._instances
+    # Direct delegation to MultiLanguageLSPManager._instances without classmethod+property
+    _instances: ClassVar[dict[tuple[str, str], LSPClient]] = MultiLanguageLSPManager._instances
 
     @classmethod
     def get_client(cls, project_root: Path, language: str = "python") -> LSPClient | None:

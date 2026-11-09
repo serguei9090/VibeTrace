@@ -317,13 +317,10 @@ def reindex_all(
         counts = db.get_statistics()
         node_c = counts.get("nodes", 0)
         edge_c = counts.get("edges", 0)
-        try:
-            print(
-                f"[OK] Indexed {file_count} files in {elapsed:.2f}s "
-                f"({throughput:.1f} files/sec) [rust-native] * {node_c} nodes, {edge_c} edges."
-            )
-        except UnicodeEncodeError:
-            pass
+        print(
+            f"[OK] Indexed {file_count} files in {elapsed:.2f}s "
+            f"({throughput:.1f} files/sec) [rust-native] * {node_c} nodes, {edge_c} edges."
+        )
 
     return {
         "files_processed": file_count,
