@@ -1343,3 +1343,40 @@ def test_db_cascade_cleanup_contracts_and_orphaned_edges(tmp_path: Path):
     pruned = db.prune_orphaned_edges()
     assert pruned >= 0
     db.close()
+
+
+def test_cli_indexing_telemetry_output_and_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify Phase 1 indexing telemetry: throughput, timing, nodes/edges summary and JSON."""
+    sub_dir = tmp_path / "project_telemetry"
+    sub_dir.mkdir()
+    (sub_dir / ".vibetrace").mkdir()
+
+    # Create dummy Python files
+    (sub_dir / "file1.py").write_text("def a(): pass\n", encoding="utf-8")
+    (sub_dir / "file2.py").write_text("def b(): a()\n", encoding="utf-8")
+
+    # 1. Human-readable CLI execution
+    ret = cli_main(["index", str(sub_dir), "--root", str(sub_dir), "--force"])
+    assert ret == 0
+    captured = capsys.readouterr().out
+    # Assert presence of real-time telemetry output
+    assert "✔ Indexed" in captured
+    assert "files/sec" in captured
+    assert "nodes" in captured
+    assert "edges" in captured
+
+    # 2. JSON output CLI execution
+    ret_json = cli_main(["index", str(sub_dir), "--root", str(sub_dir), "--force", "--json"])
+    assert ret_json == 0
+    captured_json = capsys.readouterr().out
+    data = json.loads(captured_json)
+    assert data["status"] == "ok"
+    assert "telemetry" in data
+    telemetry = data["telemetry"]
+    assert telemetry["files_processed"] == 2
+    assert "elapsed_seconds" in telemetry
+    assert "throughput_fps" in telemetry
+    assert telemetry["throughput_fps"] >= 0
+    assert "file1.py" in telemetry["modified_files"] or "file2.py" in telemetry["modified_files"]

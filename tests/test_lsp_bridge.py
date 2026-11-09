@@ -197,3 +197,93 @@ def test_lsp_stop_shutdown_order(tmp_path: Path) -> None:
     assert "request:shutdown" in calls
     assert "notification:exit" in calls
     assert calls.index("request:shutdown") < calls.index("notification:exit")
+
+
+def test_resolve_unresolved_edges_incremental_filter(tmp_path: Path) -> None:
+    """Verify modified_files strictly filters LSP queries to modified callers only."""
+    db_path = str(tmp_path / "test_lsp_incr.db")
+    db = IndexerDB(db_path)
+
+    # 1. Setup Caller A (caller_a.py) and Caller B (caller_b.py)
+    node_a = Node(
+        id="func_a",
+        name="func_a",
+        qualified_name="func_a",
+        kind="function",
+        file_path="caller_a.py",
+        start_line=1,
+        end_line=5,
+    )
+    node_b = Node(
+        id="func_b",
+        name="func_b",
+        qualified_name="func_b",
+        kind="function",
+        file_path="caller_b.py",
+        start_line=1,
+        end_line=5,
+    )
+    # Target definition in target.py
+    node_target = Node(
+        id="real_target",
+        name="real_target",
+        qualified_name="real_target",
+        kind="function",
+        file_path="target.py",
+        start_line=10,
+        end_line=15,
+    )
+    db.upsert_node(node_a)
+    db.upsert_node(node_b)
+    db.upsert_node(node_target)
+
+    # 2 Unresolved edges: one from caller_a.py, one from caller_b.py
+    edge_a = Edge(
+        from_node_id="func_a",
+        to_node_id="unknown_target_a",
+        relation_type="calls",
+        call_line=2,
+    )
+    edge_b = Edge(
+        from_node_id="func_b",
+        to_node_id="unknown_target_b",
+        relation_type="calls",
+        call_line=3,
+    )
+    db.upsert_edge(edge_a)
+    db.upsert_edge(edge_b)
+
+    # Create dummy files
+    (tmp_path / "caller_a.py").write_text("def func_a():\n    real_target()\n", encoding="utf-8")
+    (tmp_path / "caller_b.py").write_text("def func_b():\n    real_target()\n", encoding="utf-8")
+    (tmp_path / "target.py").write_text(
+        "# target file\n" * 9 + "def real_target():\n    pass\n", encoding="utf-8"
+    )
+
+    client = LSPClient(["mock_lsp"], tmp_path)
+    client.get_definition = MagicMock(return_value=("target.py", 11))  # type: ignore
+
+    # Test A: Restrict to only caller_a.py
+    rewired = resolve_unresolved_edges(
+        db,
+        tmp_path,
+        client,
+        verbose=False,
+        modified_files=["caller_a.py"],
+    )
+    assert rewired == 1
+    # Only caller_a.py was queried
+    assert client.get_definition.call_count == 1
+    call_args = client.get_definition.call_args[0]
+    assert call_args[0] == tmp_path / "caller_a.py"
+
+    # Edge from func_a is now rewired to real_target
+    with db._get_conn() as conn:
+        row_a = conn.execute(
+            "SELECT to_node_id FROM edges WHERE from_node_id = 'func_a'"
+        ).fetchone()
+        row_b = conn.execute(
+            "SELECT to_node_id FROM edges WHERE from_node_id = 'func_b'"
+        ).fetchone()
+        assert row_a["to_node_id"] == "real_target"
+        assert row_b["to_node_id"] == "unknown_target_b"  # untouched!

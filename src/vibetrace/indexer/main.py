@@ -1,7 +1,9 @@
 import hashlib
 import os
 import sys
+import time
 from pathlib import Path
+from typing import Any
 
 import pathspec
 
@@ -147,8 +149,13 @@ def reindex_all(
     force: bool = False,
     project_root: Path | None = None,
     use_lsp: bool = False,
-) -> None:
-    """Reindex a file or directory recursively."""
+) -> dict[str, Any]:
+    """Reindex a file or directory recursively.
+
+    Returns telemetry dict containing:
+    files_processed, elapsed_seconds, throughput_fps, and modified_files.
+    """
+    t_start = time.perf_counter()
     from vibetrace.config import load_config
 
     target_path = Path(target_path_str).resolve()
@@ -160,6 +167,7 @@ def reindex_all(
         eff_root = target_path.parent
 
     failed: list[str] = []
+    processed_files: list[str] = []
     cfg = load_config(eff_root)
     spec = load_ignore_spec(eff_root, cfg.indexer.exclude_patterns)
     resolver = ModuleResolver(eff_root) if eff_root.is_dir() else None
@@ -167,7 +175,12 @@ def reindex_all(
     if not target_path.exists():
         if verbose:
             print(f"Path not found: {target_path}")
-        return
+        return {
+            "files_processed": 0,
+            "elapsed_seconds": 0.0,
+            "throughput_fps": 0.0,
+            "modified_files": [],
+        }
 
     if target_path.is_file():
         success = index_file(
@@ -180,11 +193,12 @@ def reindex_all(
             failed=failed,
         )
         if success:
+            try:
+                rel_p = str(target_path.relative_to(eff_root)).replace("\\", "/")
+            except ValueError:
+                rel_p = str(target_path).replace("\\", "/")
+            processed_files.append(rel_p)
             if resolver:
-                try:
-                    rel_p = str(target_path.relative_to(eff_root)).replace("\\", "/")
-                except ValueError:
-                    rel_p = str(target_path).replace("\\", "/")
                 resolver.add_file(rel_p)
             db.link_cross_file_edges()
             db.update_centrality_scores()
@@ -236,6 +250,7 @@ def reindex_all(
                     failed=failed,
                 ):
                     indexed_any = True
+                    processed_files.append(c)
                     if resolver:
                         resolver.add_file(c)
             if indexed_any or len(deleted) > 0:
@@ -269,7 +284,7 @@ def reindex_all(
                         continue
 
                     seen_rel_paths.add(rel_path)
-                    index_file(
+                    if index_file(
                         db,
                         str(full_path),
                         project_root=eff_root,
@@ -277,7 +292,8 @@ def reindex_all(
                         verbose=verbose,
                         force=force,
                         failed=failed,
-                    )
+                    ):
+                        processed_files.append(rel_path)
 
             # Reconcile stale files: purge any file recorded in indexed_files
             # that no longer exists on disk
@@ -314,7 +330,13 @@ def reindex_all(
             client = LSPClient(cmd, eff_root)
             if client.start():
                 try:
-                    rewired = resolve_unresolved_edges(db, eff_root, client, verbose=verbose)
+                    rewired = resolve_unresolved_edges(
+                        db,
+                        eff_root,
+                        client,
+                        verbose=verbose,
+                        modified_files=processed_files if processed_files else None,
+                    )
                     if rewired > 0:
                         db.update_centrality_scores()
                 finally:
@@ -323,6 +345,38 @@ def reindex_all(
                 print(f"Notice: Failed to initialize LSP session with {cmd[0]}.")
         elif verbose:
             print("Notice: No supported LSP server found in PATH.")
+    elif not use_lsp and verbose and eff_root.is_dir():
+        # Telemetry suggestion if polyglot source code exists but LSP wasn't enabled
+        from vibetrace.indexer.lsp_bridge import get_default_lsp_command
+
+        if not get_default_lsp_command(eff_root):
+            # Check if repo has source code extensions that would benefit from LSP
+            has_lsp_candidates = any(
+                p.endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs"))
+                for p in processed_files
+            )
+            if has_lsp_candidates:
+                print("💡 Tip: Run 'vibetrace tools install-lsp' for deep type resolution.")
+
+    elapsed = max(time.perf_counter() - t_start, 0.0001)
+    file_count = len(processed_files)
+    throughput = file_count / elapsed
+
+    if verbose and file_count > 0:
+        counts = db.get_statistics()
+        node_c = counts.get("nodes", 0)
+        edge_c = counts.get("edges", 0)
+        print(
+            f"✔ Indexed {file_count} files in {elapsed:.2f}s "
+            f"({throughput:.1f} files/sec) • {node_c} nodes, {edge_c} edges."
+        )
+
+    return {
+        "files_processed": file_count,
+        "elapsed_seconds": round(elapsed, 4),
+        "throughput_fps": round(throughput, 1),
+        "modified_files": processed_files,
+    }
 
 
 def main() -> None:

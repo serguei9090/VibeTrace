@@ -294,9 +294,24 @@ def resolve_unresolved_edges(
     project_root: Path,
     lsp_client: LSPClient,
     verbose: bool = True,
+    modified_files: set[str] | list[str] | None = None,
 ) -> int:
-    """Query LSP for unresolved call targets and rewire them to indexed definitions."""
-    sql_unresolved = """
+    """Query LSP for unresolved call targets and rewire them to indexed definitions.
+
+    If modified_files is provided, restricts resolution strictly to unresolved
+    edges originating from those files for ultra-fast incremental reindexing.
+    """
+    clean_modified: list[str] = []
+    if modified_files is not None:
+        clean_modified = [
+            f.replace("\\", "/").strip("/")
+            for f in modified_files
+            if f and f.replace("\\", "/").strip("/")
+        ]
+        if not clean_modified:
+            return 0
+
+    base_query = """
         SELECT e.id, e.from_node_id, e.to_node_id, e.call_line, n.file_path as caller_file
         FROM edges e
         JOIN nodes n ON e.from_node_id = n.id
@@ -305,8 +320,16 @@ def resolve_unresolved_edges(
           AND e.call_line IS NOT NULL
           AND e.relation_type IN ('calls', 'references')
     """
+    if clean_modified:
+        placeholders = ", ".join("?" for _ in clean_modified)
+        sql_unresolved = f"{base_query}\n          AND n.file_path IN ({placeholders})"
+        params: tuple[Any, ...] = tuple(clean_modified)
+    else:
+        sql_unresolved = base_query
+        params = ()
+
     with db._get_conn() as conn:
-        cursor = conn.execute(sql_unresolved)
+        cursor = conn.execute(sql_unresolved, params)
         rows = [dict(r) for r in cursor.fetchall()]
 
     if not rows:

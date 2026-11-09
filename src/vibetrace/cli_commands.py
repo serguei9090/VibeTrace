@@ -89,6 +89,7 @@ def cmd_index(args: argparse.Namespace) -> int:
             "path": target,
             "embedded_count": res.get("embedded_count", 0),
             "docs": res.get("doc_stats", {}),
+            "telemetry": res.get("telemetry", {}),
         }
         if "embeddings_error" in res:
             payload["embeddings_error"] = res["embeddings_error"]

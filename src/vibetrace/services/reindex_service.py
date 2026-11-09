@@ -50,7 +50,7 @@ class ReindexService:
             }
 
         # Mode B: Full workspace reindex
-        reindex_all(
+        telemetry = reindex_all(
             db,
             str(active_root),
             verbose=verbose,
@@ -112,6 +112,7 @@ class ReindexService:
             "embedded_count": embedded_count,
             "docs": doc_stats,
             "doc_stats": doc_stats,
+            "telemetry": telemetry,
         }
         if embeddings_error:
             result["embeddings_error"] = embeddings_error

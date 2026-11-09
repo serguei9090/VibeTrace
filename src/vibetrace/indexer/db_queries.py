@@ -526,3 +526,15 @@ class DBQueriesMixin:
         with self._get_conn() as conn:
             cursor = conn.execute(sql)
             return [dict(r) for r in cursor.fetchall()]
+
+    def get_statistics(self) -> dict[str, int]:
+        """Returns total counts for nodes, edges, and indexed files in the graph."""
+        with self._get_conn() as conn:
+            node_c = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+            edge_c = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+            file_c = conn.execute("SELECT COUNT(*) FROM indexed_files").fetchone()[0]
+            return {
+                "nodes": int(node_c or 0),
+                "edges": int(edge_c or 0),
+                "files": int(file_c or 0),
+            }
