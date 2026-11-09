@@ -1,0 +1,31 @@
+[package]
+name = "vibetrace-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "_rust_core"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["abi3-py310"] }
+ignore = "0.4"
+rayon = "1.10"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"
+globset = "0.4"
+tree-sitter = "0.24"
+tree-sitter-python = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-rust = "0.23"
+
+[dev-dependencies]
+tempfile = "3.14"

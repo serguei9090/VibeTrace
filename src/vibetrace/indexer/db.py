@@ -457,6 +457,275 @@ class IndexerDB(DBQueriesMixin):
             cursor = conn.execute("SELECT file_path FROM indexed_files")
             return {row[0] for row in cursor.fetchall()}
 
+    def get_all_file_hashes(self) -> dict[str, str]:
+        """Retrieve a mapping of all indexed file paths to their stored SHA-256 content hashes."""
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT file_path, content_hash FROM indexed_files")
+            return {row[0]: row[1] for row in cursor.fetchall() if row[0] and row[1]}
+
+    @with_write_retry()
+    def batch_save_workspace_index(
+        self,
+        file_records: list[
+            tuple[
+                str,
+                str,
+                list[Node],
+                list[Edge],
+                dict[str, tuple[str, str]] | None,
+                dict[str, tuple[str, str]] | None,
+            ]
+        ],
+        deleted_files: list[str] | None = None,
+        indexed_time: int | None = None,
+    ) -> int:
+        """Atomically persist multiple extracted files and purge deleted files."""
+        if not file_records and not deleted_files:
+            return 0
+
+        self._resolve_vector_store()
+        idx_time = indexed_time if indexed_time is not None else int(time.time())
+        touched_paths: list[str] = []
+
+        with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+
+            # 1. Purge explicitly deleted files
+            for del_path in deleted_files or []:
+                clean_del = _clean_path(del_path)
+                touched_paths.append(clean_del)
+                conn.execute(
+                    """
+                    DELETE FROM edges
+                    WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                       OR to_node_id IN (SELECT id FROM nodes WHERE file_path = ?)
+                    """,
+                    (clean_del, clean_del),
+                )
+                conn.execute(
+                    "DELETE FROM nodes_fts "
+                    "WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (clean_del,),
+                )
+                conn.execute(
+                    "DELETE FROM node_embeddings "
+                    "WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (clean_del,),
+                )
+                conn.execute(
+                    "DELETE FROM symbol_doc_links "
+                    "WHERE symbol_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (clean_del,),
+                )
+                esc = clean_del.replace("\\", "\\\\") + "%"
+                conn.execute(
+                    "DELETE FROM function_taint_contracts WHERE symbol_id LIKE ? ESCAPE '\\'",
+                    (esc,),
+                )
+                conn.execute("DELETE FROM nodes WHERE file_path = ?", (clean_del,))
+                conn.execute("DELETE FROM file_imports WHERE file_path = ?", (clean_del,))
+                conn.execute("DELETE FROM indexed_files WHERE file_path = ?", (clean_del,))
+
+            # 2. Batch process all modified/added file records
+            all_node_tuples: list[tuple[Any, ...]] = []
+            all_fts_tuples: list[tuple[Any, ...]] = []
+            all_edge_tuples: list[tuple[Any, ...]] = []
+            all_import_tuples: list[tuple[str, str, str, str]] = []
+            all_target_tuples: list[tuple[str, str, str]] = []
+            all_hash_tuples: list[tuple[str, str, int]] = []
+            all_deleted_symbol_ids: list[str] = []
+
+            for (
+                raw_fp,
+                content_hash,
+                nodes,
+                edges,
+                imported_symbols,
+                target_symbols,
+            ) in file_records:
+                fp = _clean_path(raw_fp)
+                touched_paths.append(fp)
+
+                old_ids = {
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT id FROM nodes WHERE file_path = ?", (fp,)
+                    ).fetchall()
+                }
+                new_ids = {n.id for n in nodes}
+                all_deleted_symbol_ids.extend(old_ids - new_ids)
+
+                conn.execute(
+                    "DELETE FROM edges "
+                    "WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (fp,),
+                )
+                esc_fp = fp.replace("\\", "\\\\") + "%"
+                conn.execute(
+                    "DELETE FROM function_taint_contracts WHERE symbol_id LIKE ? ESCAPE '\\'",
+                    (esc_fp,),
+                )
+                conn.execute(
+                    "DELETE FROM nodes_fts "
+                    "WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (fp,),
+                )
+                conn.execute(
+                    "DELETE FROM node_embeddings "
+                    "WHERE node_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (fp,),
+                )
+                conn.execute(
+                    "DELETE FROM symbol_doc_links "
+                    "WHERE symbol_id IN (SELECT id FROM nodes WHERE file_path = ?)",
+                    (fp,),
+                )
+                conn.execute("DELETE FROM nodes WHERE file_path = ?", (fp,))
+                conn.execute("DELETE FROM file_imports WHERE file_path = ?", (fp,))
+
+                for n in nodes:
+                    clean_n_fp = _clean_path(n.file_path)
+                    all_node_tuples.append(
+                        (
+                            n.id,
+                            n.name,
+                            n.qualified_name or n.name,
+                            n.parent_id,
+                            n.kind,
+                            clean_n_fp,
+                            n.start_line,
+                            n.end_line,
+                            n.signature,
+                            n.docstring,
+                            json.dumps(n.decorators) if n.decorators else None,
+                            n.visibility,
+                            n.centrality,
+                        )
+                    )
+                    all_fts_tuples.append(
+                        (
+                            n.id,
+                            n.name,
+                            n.qualified_name or n.name,
+                            n.signature or "",
+                            n.docstring or "",
+                            clean_n_fp,
+                        )
+                    )
+
+                for e in edges:
+                    all_edge_tuples.append(
+                        (
+                            e.from_node_id,
+                            e.to_node_id,
+                            e.relation_type,
+                            e.call_line,
+                            getattr(e, "confidence", "exact"),
+                        )
+                    )
+
+                if imported_symbols:
+                    for alias, (tgt_f, tgt_sym) in imported_symbols.items():
+                        if tgt_f and tgt_f != "external":
+                            all_import_tuples.append((fp, alias, _clean_path(tgt_f), tgt_sym))
+
+                if target_symbols:
+                    for tid, (t_file, t_sym) in target_symbols.items():
+                        if t_file and t_sym:
+                            all_target_tuples.append((tid, _clean_path(t_file), t_sym))
+
+                all_hash_tuples.append((fp, content_hash, idx_time))
+
+            if all_deleted_symbol_ids:
+                chunk_size = 500
+                for i in range(0, len(all_deleted_symbol_ids), chunk_size):
+                    chunk = all_deleted_symbol_ids[i : i + chunk_size]
+                    placeholders = ",".join("?" for _ in chunk)
+                    conn.execute(
+                        f"DELETE FROM edges WHERE to_node_id IN ({placeholders})",
+                        chunk,
+                    )
+                    conn.execute(
+                        f"DELETE FROM symbol_doc_links WHERE symbol_id IN ({placeholders})",
+                        chunk,
+                    )
+
+            if all_node_tuples:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO nodes (
+                        id, name, qualified_name, parent_id, kind, file_path,
+                        start_line, end_line, signature, docstring,
+                        decorators, visibility, centrality
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    all_node_tuples,
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO nodes_fts (
+                        node_id, name, qualified_name, signature, docstring, file_path
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    all_fts_tuples,
+                )
+
+            if all_edge_tuples:
+                unique_edges = list(dict.fromkeys(all_edge_tuples))
+                conn.executemany(
+                    """
+                    INSERT INTO edges (
+                        from_node_id, to_node_id, relation_type, call_line, confidence
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    unique_edges,
+                )
+
+            if all_import_tuples:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO file_imports (
+                        file_path, local_alias, target_file, target_symbol
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    all_import_tuples,
+                )
+
+            if all_target_tuples:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO edge_targets (
+                        target_id, target_file, target_symbol
+                    ) VALUES (?, ?, ?)
+                    """,
+                    all_target_tuples,
+                )
+
+            conn.execute(
+                "DELETE FROM edge_targets "
+                "WHERE target_id NOT IN (SELECT DISTINCT to_node_id FROM edges)"
+            )
+
+            if all_hash_tuples:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO indexed_files (file_path, content_hash, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    all_hash_tuples,
+                )
+
+            conn.commit()
+
+        if self.vector_store and self.vector_store.is_available():
+            for fp in touched_paths:
+                try:
+                    self.vector_store.delete_file_embeddings(fp)
+                except Exception as e:
+                    logger.warning("Failed to delete old file embeddings for %s: %s", fp, e)
+
+        return len(file_records)
+
     def get_file_hash(self, file_path: str) -> str | None:
         """Retrieve stored content hash for a file."""
         file_path = _clean_path(file_path)

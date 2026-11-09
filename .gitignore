@@ -61,9 +61,11 @@ test-results/
 .biome/
 .cache/
 
-# Windows Binaries & Symbols
+# Windows Binaries, Rust Build & Native Extensions
+target/
 *.exe
 *.dll
+*.pyd
 *.pdb
 *.obj
 *.vsix

@@ -38,7 +38,7 @@ from vibetrace.indexer.lsp_bridge import LSPClient, resolve_unresolved_edges
 from vibetrace.indexer.main import main as indexer_main
 from vibetrace.indexer.main import reindex_all
 from vibetrace.indexer.models import Edge, Node
-from vibetrace.indexer.parser import ParserFactory
+from vibetrace.indexer.parsers import ParserFactory
 from vibetrace.indexer.parsers.generic_parser import GenericParser
 from vibetrace.indexer.parsers.go_parser import GoParser
 from vibetrace.indexer.parsers.js_parser import JavaScriptParser

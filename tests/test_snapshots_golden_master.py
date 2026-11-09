@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from vibetrace.indexer.parser import ParserFactory
+from vibetrace.indexer.parsers import ParserFactory
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "goldens"
 

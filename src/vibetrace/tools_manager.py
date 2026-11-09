@@ -240,6 +240,20 @@ class ToolsManager:
             ),
         )
 
+        # 11. Hybrid Rust Native Core (`vibetrace._rust_core`)
+        from vibetrace.indexer.rust_bridge import get_native_version, is_native_available
+
+        native_ok = is_native_available()
+        native_ver = get_native_version()
+        status["rust_core"] = ToolStatus(
+            language="rust_core",
+            engine="PyO3 Hybrid Rust Engine (_rust_core)",
+            is_available=native_ok,
+            version_or_path=f"v{native_ver} (active)" if native_ver else None,
+            install_hint="cargo build --release -p vibetrace-core --features extension-module",
+            auto_installable=which_cargo is not None,
+        )
+
         return status
 
     @classmethod

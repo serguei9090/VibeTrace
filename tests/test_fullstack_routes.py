@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vibetrace.indexer.parsers.js_ts_parser import TypeScriptParser
+from vibetrace.indexer.parsers import TypeScriptParser
 
 
 def test_clientside_fetch_and_axios_route_extraction() -> None:

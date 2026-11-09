@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibetrace.indexer.parsers.systems_parser import GoParser, RustParser
+from vibetrace.indexer.parsers import GoParser, RustParser
 from vibetrace.indexer.resolver import ModuleResolver
 
 

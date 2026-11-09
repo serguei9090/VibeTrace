@@ -9,8 +9,9 @@ import pathspec
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.git_utils import get_git_delta, get_git_sha
-from vibetrace.indexer.parser import ParserFactory
+from vibetrace.indexer.parsers import ParserFactory
 from vibetrace.indexer.resolver import ModuleResolver
+from vibetrace.indexer.rust_bridge import is_native_available, reindex_workspace_hybrid
 
 SKIP_DIRS = frozenset(
     {
@@ -260,54 +261,64 @@ def reindex_all(
             if current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", current_sha)
         else:
-            # Full walk fallback (initial index, --force, or non-git repo)
-            seen_rel_paths: set[str] = set()
-            for root, dirs, files in os.walk(target_path):
-                current_root = Path(root)
+            # Hybrid Rust full walk (primary) with Python fallback
+            hybrid_processed = reindex_workspace_hybrid(
+                db=db,
+                target_path=target_path,
+                project_root=eff_root,
+                resolver=resolver,
+                extra_excludes=cfg.indexer.exclude_patterns,
+                force=force,
+                verbose=verbose,
+                failed=failed,
+            )
+            if hybrid_processed is not None:
+                processed_files.extend(hybrid_processed)
+            else:
+                # Fallback: pure Python walk when native Rust extension is not compiled
+                seen_rel_paths: set[str] = set()
+                for root, dirs, files in os.walk(target_path):
+                    current_root = Path(root)
 
-                def _rel(p: Path) -> str:
-                    try:
-                        return str(p.relative_to(eff_root)).replace("\\", "/")
-                    except ValueError:
-                        return str(p).replace("\\", "/")
+                    def _rel(p: Path) -> str:
+                        try:
+                            return str(p.relative_to(eff_root)).replace("\\", "/")
+                        except ValueError:
+                            return str(p).replace("\\", "/")
 
-                # 1. Prune standard noisy and gitignored directories (optimization)
-                dirs[:] = [
-                    d for d in dirs if not is_ignored_path(_rel(current_root / d), spec, True)
-                ]
+                    dirs[:] = [
+                        d for d in dirs if not is_ignored_path(_rel(current_root / d), spec, True)
+                    ]
 
-                # 2. Filter files using the shared ignore rule
-                for file in files:
-                    full_path = current_root / file
-                    rel_path = _rel(full_path)
-                    if is_ignored_path(rel_path, spec):
-                        continue
+                    for file in files:
+                        full_path = current_root / file
+                        rel_path = _rel(full_path)
+                        if is_ignored_path(rel_path, spec):
+                            continue
 
-                    seen_rel_paths.add(rel_path)
-                    if index_file(
-                        db,
-                        str(full_path),
-                        project_root=eff_root,
-                        resolver=resolver,
-                        verbose=verbose,
-                        force=force,
-                        failed=failed,
+                        seen_rel_paths.add(rel_path)
+                        if index_file(
+                            db,
+                            str(full_path),
+                            project_root=eff_root,
+                            resolver=resolver,
+                            verbose=verbose,
+                            force=force,
+                            failed=failed,
+                        ):
+                            processed_files.append(rel_path)
+
+                for indexed_file in db.get_all_indexed_file_paths():
+                    if target_rel not in ("", ".") and not (
+                        indexed_file == target_rel or indexed_file.startswith(f"{target_rel}/")
                     ):
-                        processed_files.append(rel_path)
-
-            # Reconcile stale files: purge any file recorded in indexed_files
-            # that no longer exists on disk
-            for indexed_file in db.get_all_indexed_file_paths():
-                if target_rel not in ("", ".") and not (
-                    indexed_file == target_rel or indexed_file.startswith(f"{target_rel}/")
-                ):
-                    continue
-                if indexed_file not in seen_rel_paths:
-                    if verbose:
-                        print(f"Purging deleted/stale file from index: {indexed_file}")
-                    db.clear_file(indexed_file)
-                    if resolver:
-                        resolver.remove_file(indexed_file)
+                        continue
+                    if indexed_file not in seen_rel_paths:
+                        if verbose:
+                            print(f"Purging deleted/stale file from index: {indexed_file}")
+                        db.clear_file(indexed_file)
+                        if resolver:
+                            resolver.remove_file(indexed_file)
 
             db.link_cross_file_edges()
             db.update_centrality_scores()
@@ -362,13 +373,14 @@ def reindex_all(
     file_count = len(processed_files)
     throughput = file_count / elapsed
 
+    engine_tag = "rust-native" if is_native_available() else "python-fallback"
     if verbose and file_count > 0:
         counts = db.get_statistics()
         node_c = counts.get("nodes", 0)
         edge_c = counts.get("edges", 0)
         print(
             f"✔ Indexed {file_count} files in {elapsed:.2f}s "
-            f"({throughput:.1f} files/sec) • {node_c} nodes, {edge_c} edges."
+            f"({throughput:.1f} files/sec) [{engine_tag}] • {node_c} nodes, {edge_c} edges."
         )
 
     return {
@@ -376,6 +388,7 @@ def reindex_all(
         "elapsed_seconds": round(elapsed, 4),
         "throughput_fps": round(throughput, 1),
         "modified_files": processed_files,
+        "engine": engine_tag,
     }
 
 

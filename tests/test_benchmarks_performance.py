@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from vibetrace.indexer.db import Edge, IndexerDB, Node
-from vibetrace.indexer.parser import ParserFactory
+from vibetrace.indexer.parsers import ParserFactory
 from vibetrace.services.caller_guard import CallerGuardService
 from vibetrace.services.hybrid_search import hybrid_search
 from vibetrace.services.trace_service import trace_execution_path

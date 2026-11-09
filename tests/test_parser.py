@@ -2,7 +2,7 @@ from pathlib import Path
 
 from vibetrace.indexer.db import Edge, IndexerDB, Node
 from vibetrace.indexer.main import index_file
-from vibetrace.indexer.parser import PythonParser
+from vibetrace.indexer.parsers import PythonParser
 from vibetrace.indexer.resolver import ModuleResolver
 
 
@@ -606,7 +606,7 @@ def main():
 
 def test_js_ambient_globals_suppression() -> None:
     """Verify JS/TS parser suppresses phantom call edges for ambient globals."""
-    from vibetrace.indexer.parsers.js_ts_parser import JavaScriptParser
+    from vibetrace.indexer.parsers import JavaScriptParser
 
     parser = JavaScriptParser()
     code = b"""
@@ -628,7 +628,7 @@ function processData() {
 
 def test_js_dynamic_import_and_require_destructuring() -> None:
     """Verify dynamic import() and CommonJS require() with destructuring."""
-    from vibetrace.indexer.parsers.js_ts_parser import JavaScriptParser
+    from vibetrace.indexer.parsers import JavaScriptParser
     from vibetrace.indexer.resolver import ModuleResolver
 
     resolver = ModuleResolver(Path("."))

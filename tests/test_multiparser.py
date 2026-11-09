@@ -1,4 +1,4 @@
-from vibetrace.indexer.parser import (
+from vibetrace.indexer.parsers import (
     GenericParser,
     GoParser,
     JavaScriptParser,
