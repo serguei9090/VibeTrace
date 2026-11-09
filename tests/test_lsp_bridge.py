@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from vibetrace.indexer.db import Edge, IndexerDB, Node
 from vibetrace.indexer.lsp_bridge import (
@@ -287,3 +287,23 @@ def test_resolve_unresolved_edges_incremental_filter(tmp_path: Path) -> None:
         ).fetchone()
         assert row_a["to_node_id"] == "real_target"
         assert row_b["to_node_id"] == "unknown_target_b"  # untouched!
+
+
+def test_lsp_daemon_manager_lifecycle(tmp_path: Path) -> None:
+    """Verify LSPDaemonManager caches warm client and cleans up properly."""
+    from vibetrace.indexer.lsp_bridge import LSPDaemonManager
+
+    # Stop any leftover daemons
+    LSPDaemonManager.stop_all()
+
+    with patch("vibetrace.indexer.lsp_bridge.get_default_lsp_command", return_value=["mock-lsp"]):
+        with patch.object(LSPClient, "start", return_value=True):
+            client1 = LSPDaemonManager.get_client(tmp_path)
+            assert client1 is not None
+            # Retrieve again: must return the identical cached instance
+            client2 = LSPDaemonManager.get_client(tmp_path)
+            assert client1 is client2
+
+            # Clean up single client
+            LSPDaemonManager.stop_client(tmp_path)
+            assert len(LSPDaemonManager._instances) == 0

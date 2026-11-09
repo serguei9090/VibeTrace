@@ -49,8 +49,11 @@ def cmd_tools(args: argparse.Namespace) -> int:
         print("Run 'vibetrace tools install <language>' to provision missing engines.\n")
         return 0
 
-    if action == "install":
-        lang = getattr(args, "language", "") or ""
+    if action in ("install", "install-lsp"):
+        if action == "install-lsp":
+            lang = "lsp"
+        else:
+            lang = getattr(args, "language", "") or ""
         if not lang:
             print("❌ Please specify a language to install (e.g. 'vibetrace tools install php')")
             return 1

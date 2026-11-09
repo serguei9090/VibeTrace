@@ -1380,3 +1380,16 @@ def test_cli_indexing_telemetry_output_and_json(
     assert "throughput_fps" in telemetry
     assert telemetry["throughput_fps"] >= 0
     assert "file1.py" in telemetry["modified_files"] or "file2.py" in telemetry["modified_files"]
+
+
+def test_cli_tools_install_lsp(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify Phase 3 vibetrace tools install-lsp dispatches correctly."""
+    (tmp_path / "main.py").write_text("print('hello')", encoding="utf-8")
+
+    with patch(
+        "vibetrace.tools_manager.ToolsManager.install", return_value=(True, "Installed Pyright")
+    ):
+        ret = cli_main(["tools", "install-lsp", "--path", str(tmp_path)])
+        assert ret == 0
+        captured = capsys.readouterr().out
+        assert "Installed Pyright" in captured

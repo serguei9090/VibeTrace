@@ -464,5 +464,55 @@ class ToolsManager:
                     return True, "Installed Aqua Trivy via Homebrew."
             return False, "Package manager (winget/brew) not found to install Trivy."
 
-        langs = "python, typescript, go, rust, php, ruby, shell, sql, semgrep, trivy"
+        if lang in ("lsp", "install-lsp", "lsp-server"):
+            # Auto-detect project languages and install best matching LSP
+            has_py = (
+                any(root.glob("*.py"))
+                or any(root.glob("*/*.py"))
+                or (root / "pyproject.toml").exists()
+            )
+            has_ts = (
+                any(root.glob("*.ts"))
+                or any(root.glob("*.tsx"))
+                or any(root.glob("*/*.ts"))
+                or (root / "package.json").exists()
+            )
+            has_go = any(root.glob("*.go")) or (root / "go.mod").exists()
+            has_rs = any(root.glob("*.rs")) or (root / "Cargo.toml").exists()
+
+            results: list[str] = []
+            which_uv = shutil.which("uv")
+            which_npm = shutil.which("npm")
+            which_bun = shutil.which("bun")
+
+            # Python LSP (basedpyright or pyright)
+            if has_py or (not has_ts and not has_go and not has_rs):
+                if which_uv:
+                    res = subprocess.run([which_uv, "tool", "install", "basedpyright"], check=False)
+                    if res.returncode == 0:
+                        results.append("basedpyright (Python)")
+                    else:
+                        res2 = subprocess.run([which_uv, "tool", "install", "pyright"], check=False)
+                        if res2.returncode == 0:
+                            results.append("pyright (Python)")
+
+            # TypeScript LSP (typescript-language-server)
+            if has_ts:
+                pm = which_bun or which_npm
+                if pm:
+                    cmd_install = (
+                        [pm, "add", "-g", "typescript-language-server", "typescript"]
+                        if which_bun
+                        else [pm, "install", "-g", "typescript-language-server", "typescript"]
+                    )
+                    res = subprocess.run(cmd_install, check=False)
+                    if res.returncode == 0:
+                        results.append("typescript-language-server (TypeScript/JS)")
+
+            if results:
+                return True, f"Successfully installed LSP servers: {', '.join(results)}."
+            hint = "Run 'uv tool install pyright' or 'npm i -g typescript-language-server'."
+            return False, f"Could not automatically install LSP. {hint}"
+
+        langs = "python, typescript, go, rust, php, ruby, shell, sql, semgrep, trivy, lsp"
         return False, f"Unknown language/tool '{language}'. Supported: {langs}."

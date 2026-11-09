@@ -11,7 +11,7 @@ import subprocess
 import threading
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import unquote, urlparse
 
 from vibetrace.indexer.db import IndexerDB
@@ -425,3 +425,53 @@ def get_default_lsp_command(project_root: Path) -> list[str] | None:
         if shutil.which(binary):
             return cmd
     return None
+
+
+class LSPDaemonManager:
+    """Manages long-lived warm LSPClient daemon sessions for watcher and MCP server."""
+
+    _instances: ClassVar[dict[str, LSPClient]] = {}
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_client(cls, project_root: Path) -> LSPClient | None:
+        """Retrieve or warm-start a persistent LSPClient instance for a project root."""
+        root_key = str(project_root.resolve()).replace("\\", "/")
+        with cls._lock:
+            existing = cls._instances.get(root_key)
+            if existing and existing._running:
+                return existing
+
+            cmd = get_default_lsp_command(project_root)
+            if not cmd:
+                return None
+
+            client = LSPClient(cmd, project_root)
+            if client.start():
+                client._running = True
+                cls._instances[root_key] = client
+                return client
+            return None
+
+    @classmethod
+    def stop_all(cls) -> None:
+        """Cleanly shutdown all cached LSP server daemons."""
+        with cls._lock:
+            for client in cls._instances.values():
+                try:
+                    client.stop()
+                except Exception:
+                    pass
+            cls._instances.clear()
+
+    @classmethod
+    def stop_client(cls, project_root: Path) -> None:
+        """Stop and remove a specific cached client."""
+        root_key = str(project_root.resolve()).replace("\\", "/")
+        with cls._lock:
+            client = cls._instances.pop(root_key, None)
+            if client:
+                try:
+                    client.stop()
+                except Exception:
+                    pass

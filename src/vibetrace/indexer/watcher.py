@@ -72,6 +72,23 @@ class CodeChangeHandler(FileSystemEventHandler):
 
             def _run():
                 try:
+                    from vibetrace.indexer.lsp_bridge import (
+                        LSPDaemonManager,
+                        resolve_unresolved_edges,
+                    )
+
+                    lsp_client = LSPDaemonManager.get_client(self.root_path)
+                    if lsp_client:
+                        resolve_unresolved_edges(
+                            self.db,
+                            self.root_path,
+                            lsp_client,
+                            verbose=False,
+                        )
+                except Exception as e:
+                    logger.debug("LSP background incremental resolution skipped: %s", e)
+
+                try:
                     self.db.update_centrality_scores()
                 except Exception as e:
                     print(f"Error updating centrality scores: {e}")
@@ -82,11 +99,17 @@ class CodeChangeHandler(FileSystemEventHandler):
             self._debounce_timer.start()
 
     def stop(self) -> None:
-        """Cancel any pending debounce timer on shutdown."""
+        """Cancel any pending debounce timer on shutdown and release warm LSP daemon."""
         with self._lock:
             if self._debounce_timer is not None:
                 self._debounce_timer.cancel()
                 self._debounce_timer = None
+        try:
+            from vibetrace.indexer.lsp_bridge import LSPDaemonManager
+
+            LSPDaemonManager.stop_client(self.root_path)
+        except Exception:
+            pass
 
     def _handle_doc_change(self, src_path: str, is_deleted: bool = False) -> bool:
         """Handle real-time sync for documentation files in local catalogs."""

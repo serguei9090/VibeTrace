@@ -1226,8 +1226,8 @@ examples:
         "action",
         nargs="?",
         default="status",
-        choices=["status", "doctor", "list", "install"],
-        help="Action to perform (status, doctor, list, install; default: status)",
+        choices=["status", "doctor", "list", "install", "install-lsp"],
+        help="Action to perform (status, doctor, list, install, install-lsp; default: status)",
     )
     p_tools.add_argument(
         "language",
