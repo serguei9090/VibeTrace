@@ -11,6 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.9] - 2026-11-09
+
+### Added
+- **High-Throughput Sliding Window LSP Pipelining**: Added `get_definitions_batch(batch_size=32)` with non-blocking warming and pipelined definition resolution across multi-daemon language servers, achieving 100.0% call edge resolution without deadlocks.
+- **Optional Codebase Embeddings & Hardware Auto-Detection**: Added optional codebase indexing vectors via `[vector] codebase = true`, supporting real-time batch indexing progress feedback and hardware device auto-detection (`auto`, `gpu`, `cpu`).
+- **Orphaned Vector Embeddings Purge**: Added automatic deletion of orphaned embeddings (`purge_orphaned_embeddings`) when files are removed or modified.
+- **Enhanced `vibetrace init` Guided Setup**: Upgraded interactive onboarding wizard to configure test file inclusion, optional codebase embeddings, hardware accelerator selection, and Tier-2 code quality (SonarQube) and security (Semgrep/Trivy) engine options.
+- **SecurityConfig Engine Contracts**: Added formal `SecurityConfig` configuration schema supporting automatic detection and orchestration of SAST (Semgrep) and container/IaC (Trivy) scanning.
+- **Actionable Hybrid Search Agent Suggestions**: Enhanced MCP formatted search responses with immediate context-aware agent steering (`slice`, `trace`, `impact`).
+
+### Changed
+- Updated GitHub Actions workflows:
+  - Enabled automatic PyPI publish on git tag push (`v*`) via OpenID Connect (OIDC) Trusted Publishing.
+  - Modernized `setup-uv` action across all workflows to `@v5`.
+- Bumped workspace dependencies and core Rust package to `v0.1.9`.
+- Refined documentation and token estimation metrics across `README.md` and `docs/audit_features.md`.
+
+### Fixed
+- Fixed potential `IndexError` on empty search results in MCP search formatter.
+- Fixed `vibetrace impact` recommendation syntax to pass target file path instead of qualified symbol.
+- Fixed `compute_device` validation in configuration generator to strictly reject invalid device strings.
+- Removed unorthodox `@classmethod` + `@property` combination in `LSPDaemonManager._instances`.
+- Cleaned up output stream encoding error handling in indexer CLI.
+
+---
+
 ## [0.1.8] - 2026-11-05
 
 ### Added
