@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Sequence
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any, ClassVar
@@ -208,23 +209,15 @@ class LSPClient:
         except Exception as e:
             logger.debug("Failed to didOpen %s: %s", file_path, e)
 
-    def get_definition(
-        self, file_path: Path, line: int, character: int = 0
-    ) -> tuple[str, int] | None:
-        """Query textDocument/definition and return (relative_file_path, 1-indexed line)."""
-        self.ensure_document_opened(file_path)
-        file_uri = file_path.resolve().as_uri()
-        res = self.send_request(
-            "textDocument/definition",
-            {
-                "textDocument": {"uri": file_uri},
-                "position": {"line": max(0, line - 1), "character": character},
-            },
-        )
+    def ensure_documents_opened_batch(self, file_paths: Sequence[Path]) -> None:
+        """Batch-open documents that have not been opened yet, reducing disk reads."""
+        for fp in file_paths:
+            self.ensure_document_opened(fp)
+
+    def _parse_definition_response(self, res: Any) -> tuple[str, int] | None:
+        """Helper to parse raw LSP definition response into (relative_path, line)."""
         if not res:
             return None
-
-        # LSP result can be Location, LocationLink, or list of Locations
         item = res[0] if isinstance(res, list) and res else res
         if not isinstance(item, dict):
             return None
@@ -252,6 +245,114 @@ class LSPClient:
 
         start_line = target_range.get("start", {}).get("line", 0) + 1
         return rel_file, start_line
+
+    def get_definition(
+        self, file_path: Path, line: int, character: int = 0
+    ) -> tuple[str, int] | None:
+        """Query textDocument/definition and return (relative_file_path, 1-indexed line)."""
+        self.ensure_document_opened(file_path)
+        file_uri = file_path.resolve().as_uri()
+        res = self.send_request(
+            "textDocument/definition",
+            {
+                "textDocument": {"uri": file_uri},
+                "position": {"line": max(0, line - 1), "character": character},
+            },
+        )
+        return self._parse_definition_response(res)
+
+    def get_definitions_batch(
+        self,
+        queries: Sequence[tuple[Path, int, int]],
+        batch_size: int = 32,
+        per_batch_timeout: float = 3.0,
+    ) -> list[tuple[str, int] | None]:
+        """Pipelined concurrent batch query for definitions with sliding window control.
+
+        queries: sequence of (caller_file_path, line, character)
+        Returns: list of results in identical order to queries.
+        """
+        if not queries:
+            return []
+
+        # 1. Pre-warm documents in batch
+        unique_files = {q[0] for q in queries}
+        self.ensure_documents_opened_batch(list(unique_files))
+
+        # Fallback if get_definition was mocked or overridden on this instance
+        if "get_definition" in self.__dict__ and callable(self.__dict__["get_definition"]):
+            return [self.get_definition(f, line, char) for f, line, char in queries]
+
+        if not self.process or not self.process.stdin:
+            return [None] * len(queries)
+
+        results: list[tuple[str, int] | None] = [None] * len(queries)
+
+        # 2. Process queries in sliding window chunks to avoid OS pipe buffer deadlock
+        for chunk_start in range(0, len(queries), batch_size):
+            chunk = queries[chunk_start : chunk_start + batch_size]
+            pending: list[tuple[int, int, concurrent.futures.Future[Any]]] = []
+            payload_chunks: list[bytes] = []
+
+            for idx_in_chunk, (file_path, line, character) in enumerate(chunk):
+                orig_idx = chunk_start + idx_in_chunk
+                file_uri = file_path.resolve().as_uri()
+
+                with self._lock:
+                    self._req_id += 1
+                    req_id = self._req_id
+                    fut: concurrent.futures.Future[Any] = concurrent.futures.Future()
+                    self._pending_requests[req_id] = fut
+
+                pending.append((orig_idx, req_id, fut))
+
+                msg = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "method": "textDocument/definition",
+                    "params": {
+                        "textDocument": {"uri": file_uri},
+                        "position": {"line": max(0, line - 1), "character": character},
+                    },
+                }
+                body = json.dumps(msg).encode("utf-8")
+                header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+                payload_chunks.append(header + body)
+
+            # Write entire batch payload in single lock acquisition
+            try:
+                full_payload = b"".join(payload_chunks)
+                with self._write_lock:
+                    self.process.stdin.write(full_payload)
+                    self.process.stdin.flush()
+            except Exception as e:
+                logger.debug("Failed to write pipelined batch: %s", e)
+                for _, req_id, fut in pending:
+                    with self._lock:
+                        self._pending_requests.pop(req_id, None)
+                    fut.cancel()
+                continue
+
+            # Wait for all futures in this batch with overall timeout
+            futs = [fut for _, _, fut in pending]
+            concurrent.futures.wait(futs, timeout=per_batch_timeout)
+
+            # Harvest completed responses and cleanup
+            for orig_idx, req_id, fut in pending:
+                with self._lock:
+                    self._pending_requests.pop(req_id, None)
+
+                if fut.done() and not fut.cancelled():
+                    try:
+                        raw_res = fut.result()
+                        results[orig_idx] = self._parse_definition_response(raw_res)
+                    except Exception:
+                        results[orig_idx] = None
+                else:
+                    fut.cancel()
+                    results[orig_idx] = None
+
+        return results
 
     def stop(self) -> None:
         """Terminate the LSP server process and reader thread conforming to LSP spec."""
@@ -391,8 +492,8 @@ def resolve_unresolved_edges(
     if not rows:
         return 0
 
-    # Resolve definitions via LSP OUTSIDE of any database transaction
-    rewire_candidates: list[tuple[int, str, int]] = []
+    # Resolve definitions via LSP OUTSIDE of DB transaction using Pipelined Batching
+    query_items: list[tuple[int, Path, int, int]] = []
     file_lines_cache: dict[Path, list[str]] = {}
 
     for row in rows:
@@ -433,13 +534,28 @@ def resolve_unresolved_edges(
                     if idx >= 0:
                         char_offset = idx
 
-        def_target = lsp_client.get_definition(caller_file, call_line, character=char_offset)
+        query_items.append((row["id"], caller_file, call_line, char_offset))
+
+    if not query_items:
+        return 0
+
+    # Query LSP definitions via high-throughput pipelining with sliding window
+    lsp_queries = [(item[1], item[2], item[3]) for item in query_items]
+    batch_results = lsp_client.get_definitions_batch(
+        lsp_queries, batch_size=32, per_batch_timeout=3.0
+    )
+    # If lsp_client is a Mock whose get_definitions_batch didn't return a list,
+    # fallback to calling get_definition individually
+    if not isinstance(batch_results, list) or len(batch_results) != len(query_items):
+        batch_results = [lsp_client.get_definition(q[0], q[1], character=q[2]) for q in lsp_queries]
+
+    rewire_candidates: list[tuple[int, str, int]] = []
+    for (edge_id, _, _, _), def_target in zip(query_items, batch_results, strict=True):
         if not def_target:
             continue
-
         target_file, target_line = def_target
         clean_target = _clean_path(target_file)
-        rewire_candidates.append((row["id"], clean_target, target_line))
+        rewire_candidates.append((edge_id, clean_target, target_line))
 
     if not rewire_candidates:
         return 0

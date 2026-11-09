@@ -307,3 +307,69 @@ def test_lsp_daemon_manager_lifecycle(tmp_path: Path) -> None:
             # Clean up single client
             LSPDaemonManager.stop_client(tmp_path)
             assert len(LSPDaemonManager._instances) == 0
+
+
+def test_lsp_client_definitions_batch_pipelined(tmp_path: Path) -> None:
+    """Verify get_definitions_batch pipelines queries, handles responses, timeouts and chunking."""
+    client = LSPClient(["mock-lsp"], tmp_path)
+    mock_proc = MagicMock()
+    mock_stdin = MagicMock()
+    mock_proc.stdin = mock_stdin
+    client.process = mock_proc
+
+    with patch.object(client, "ensure_documents_opened_batch") as mock_open:
+        queries = [(tmp_path / f"file_{i}.py", i + 1, 0) for i in range(5)]
+        written_batches: list[bytes] = []
+
+        def handle_write(data: bytes) -> int:
+            written_batches.append(data)
+            with client._lock:
+                pending_ids = sorted(client._pending_requests.keys())
+
+            for req_id in pending_ids:
+                fut = client._pending_requests.get(req_id)
+                if not fut or fut.done():
+                    continue
+                if req_id == 1:
+                    target_file = tmp_path / "target_1.py"
+                    loc = [
+                        {
+                            "uri": target_file.as_uri(),
+                            "range": {"start": {"line": 10, "character": 0}},
+                        }
+                    ]
+                    fut.set_result(loc)
+                elif req_id == 2:
+                    target_file = tmp_path / "target_2.py"
+                    loc = [
+                        {
+                            "uri": target_file.as_uri(),
+                            "range": {"start": {"line": 20, "character": 0}},
+                        }
+                    ]
+                    fut.set_result(loc)
+                elif req_id == 3:
+                    fut.set_result([])  # Empty list: definition not found
+                elif req_id == 4:
+                    fut.set_result({"invalid": "object"})  # Malformed response
+                elif req_id == 5:
+                    pass  # Leave unresolved to trigger per_batch_timeout
+            return len(data)
+
+        mock_stdin.write.side_effect = handle_write
+
+        # batch_size=2 will partition 5 queries into 3 chunks: [2, 2, 1]
+        results = client.get_definitions_batch(queries, batch_size=2, per_batch_timeout=0.1)
+
+        mock_open.assert_called_once()
+        assert len(written_batches) == 3
+        assert len(results) == 5
+        assert results[0] == ("target_1.py", 11)
+        assert results[1] == ("target_2.py", 21)
+        assert results[2] is None
+        assert results[3] is None
+        assert results[4] is None
+
+        # Verify no orphan futures leak
+        with client._lock:
+            assert len(client._pending_requests) == 0
