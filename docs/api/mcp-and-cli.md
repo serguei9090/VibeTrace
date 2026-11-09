@@ -23,7 +23,7 @@ vibetrace --help
 
 | Command | Subcommands / Flags | Description | Example |
 | :--- | :--- | :--- | :--- |
-| `vibetrace index` | `[path] [--embed] [--lsp] [--force]` | Incremental AST + FTS5 BM25 indexing (optional EmbeddingGemma 2 vectors and LSP type inference). | `vibetrace index . --embed` |
+| `vibetrace index` | `[path] [--embed \| --no-embed] [--lsp] [--force]` | Incremental AST + FTS5 BM25 indexing (with sliding window LSP pipelining, auto GPU/CPU vector embeddings, and orphan purging). | `vibetrace index . --embed --lsp` |
 | `vibetrace search` | `<query> [--limit N] [--with-docs]` | 4-stream Hybrid RRF search across AST, BM25, PageRank, and vectors. Cross-queries docs with `--with-docs`. | `vibetrace search "upsert_node" --limit 10` |
 | `vibetrace trace` | `<from> <to> [--save-as NAME] [--saved NAME] [--list-saved]` | Reachable BFS execution tracepath with hop-by-hop `:L<line>` call sites and multi-route bifurcation detection. | `vibetrace trace handleLogin verifyPassword` |
 | `vibetrace guard` | `<symbol> [--staged] [--strict]` | Pre-flight caller inspection and blast-radius advisory. Git pre-commit mode via `--staged`. | `vibetrace guard upsert_node` |

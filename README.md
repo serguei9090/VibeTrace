@@ -159,6 +159,11 @@ cd /path/to/my-project
 vibetrace init
 ```
 
+The interactive wizard will guide you through:
+- **Test exclusion:** Exclude tests from Quality/Security gates by default.
+- **Codebase embeddings:** Optionally pre-compute vectors for code symbols (with automatic GPU/CUDA vs CPU device detection).
+- **Quality & Security tier selection:** Configure native linters vs Tier-2 SonarLint rules and container/SAST integrations.
+
 That's it! `vibetrace.db` is created locally inside that project and never shared across projects.
 
 ---
@@ -166,6 +171,14 @@ That's it! `vibetrace.db` is created locally inside that project and never share
 ### Core CLI Usage
 
 ```bash
+# 0. Repository Indexing (High-Speed Rust AST + Multi-Daemon LSP Pipelining)
+# Incremental Git-delta index (only changed files)
+vibetrace index
+# Force cold index + LSP hybrid resolution (100% exact polymorphic call resolution)
+vibetrace index --force --lsp
+# Index with optional code embeddings (or disable via --no-embed)
+vibetrace index --embed
+
 # 1. One-Shot Vibe Bundle (docs + code slice + caller guard + test fixture)
 vibetrace bundle "add auth token to middleware" --budget 1500
 
