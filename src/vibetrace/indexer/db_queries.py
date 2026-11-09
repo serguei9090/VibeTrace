@@ -137,6 +137,70 @@ class DBQueriesMixin:
                 conn.commit()
             return len(updates)
 
+    def get_edge_resolution_metrics(self) -> dict[str, Any]:
+        """Compute resolution metrics across internal edges in the database."""
+        with self._get_conn() as conn:
+            # 1. Total call and reference edges
+            rows = conn.execute(
+                """
+                SELECT e.id, e.from_node_id, e.to_node_id, e.confidence, e.relation_type,
+                       n.file_path AS caller_file, et.target_file, et.target_symbol,
+                       tgt.id AS resolved_target_id, tgt.name AS resolved_target_name
+                FROM edges e
+                JOIN nodes n ON e.from_node_id = n.id
+                LEFT JOIN nodes tgt ON e.to_node_id = tgt.id
+                LEFT JOIN edge_targets et ON e.to_node_id = et.target_id
+                WHERE e.relation_type IN ('calls', 'references')
+                """
+            ).fetchall()
+
+            total_internal = 0
+            resolved_ast_exact = 0
+            resolved_ast_inferred = 0
+            resolved_lsp = 0
+            unresolved_items: list[dict[str, Any]] = []
+
+            for r in rows:
+                target_file = r["target_file"] or ""
+                # Skip pure external third-party/stdlib packages with target_file == 'external'
+                if target_file == "external":
+                    continue
+
+                total_internal += 1
+                if r["resolved_target_id"] is not None:
+                    conf = r["confidence"] or "exact"
+                    if conf == "lsp":
+                        resolved_lsp += 1
+                    elif conf == "inferred":
+                        resolved_ast_inferred += 1
+                    else:
+                        resolved_ast_exact += 1
+                else:
+                    unresolved_items.append(
+                        {
+                            "edge_id": r["id"],
+                            "from_node_id": r["from_node_id"],
+                            "caller_file": r["caller_file"],
+                            "target_symbol": r["target_symbol"] or r["to_node_id"],
+                        }
+                    )
+
+            resolved_total = resolved_ast_exact + resolved_ast_inferred + resolved_lsp
+            pct = (
+                round((resolved_total / total_internal * 100.0), 2) if total_internal > 0 else 100.0
+            )
+
+            return {
+                "total_internal_call_edges": total_internal,
+                "resolved_total": resolved_total,
+                "resolved_ast_exact": resolved_ast_exact,
+                "resolved_ast_inferred": resolved_ast_inferred,
+                "resolved_lsp": resolved_lsp,
+                "unresolved_internal_count": len(unresolved_items),
+                "unresolved_internal_edges": unresolved_items,
+                "resolution_percentage": pct,
+            }
+
     def search_lexical(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Search nodes using SQLite FTS5 BM25 ranking."""
         tokens = re.findall(r"\w+", query)

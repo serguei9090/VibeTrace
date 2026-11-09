@@ -281,33 +281,21 @@ def reindex_all(
 
     if use_lsp and eff_root.is_dir():
         from vibetrace.indexer.lsp_bridge import (
-            LSPClient,
-            get_default_lsp_command,
-            resolve_unresolved_edges,
+            MultiLanguageLSPManager,
+            resolve_unresolved_edges_polyglot,
         )
 
-        cmd = get_default_lsp_command(eff_root)
-        if cmd:
-            if verbose:
-                print(f"Connecting to LSP hybrid bridge ({cmd[0]})...")
-            client = LSPClient(cmd, eff_root)
-            if client.start():
-                try:
-                    rewired = resolve_unresolved_edges(
-                        db,
-                        eff_root,
-                        client,
-                        verbose=verbose,
-                        modified_files=processed_files if processed_files else None,
-                    )
-                    if rewired > 0:
-                        db.update_centrality_scores()
-                finally:
-                    client.stop()
-            elif verbose:
-                print(f"Notice: Failed to initialize LSP session with {cmd[0]}.")
-        elif verbose:
-            print("Notice: No supported LSP server found in PATH.")
+        try:
+            rewired = resolve_unresolved_edges_polyglot(
+                db=db,
+                project_root=eff_root,
+                verbose=verbose,
+                modified_files=processed_files if processed_files else None,
+            )
+            if rewired > 0:
+                db.update_centrality_scores()
+        finally:
+            MultiLanguageLSPManager.stop_for_project(eff_root)
     elif not use_lsp and verbose and eff_root.is_dir():
         # Telemetry suggestion if polyglot source code exists but LSP wasn't enabled
         from vibetrace.indexer.lsp_bridge import get_default_lsp_command
@@ -329,10 +317,13 @@ def reindex_all(
         counts = db.get_statistics()
         node_c = counts.get("nodes", 0)
         edge_c = counts.get("edges", 0)
-        print(
-            f"✔ Indexed {file_count} files in {elapsed:.2f}s "
-            f"({throughput:.1f} files/sec) [rust-native] • {node_c} nodes, {edge_c} edges."
-        )
+        try:
+            print(
+                f"[OK] Indexed {file_count} files in {elapsed:.2f}s "
+                f"({throughput:.1f} files/sec) [rust-native] * {node_c} nodes, {edge_c} edges."
+            )
+        except UnicodeEncodeError:
+            pass
 
     return {
         "files_processed": file_count,
@@ -340,6 +331,7 @@ def reindex_all(
         "throughput_fps": round(throughput, 1),
         "modified_files": processed_files,
         "engine": "rust-native",
+        "edge_resolution": db.get_edge_resolution_metrics(),
     }
 
 

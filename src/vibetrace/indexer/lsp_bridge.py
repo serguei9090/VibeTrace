@@ -289,6 +289,60 @@ class LSPClient:
             self._reader_thread = None
 
 
+LSP_SERVER_CANDIDATES: dict[str, list[tuple[str, list[str]]]] = {
+    "python": [
+        ("basedpyright-langserver", ["basedpyright-langserver", "--stdio"]),
+        ("pyright-langserver", ["pyright-langserver", "--stdio"]),
+        ("pylsp", ["pylsp"]),
+    ],
+    "typescript": [
+        ("typescript-language-server", ["typescript-language-server", "--stdio"]),
+        ("vtsls", ["vtsls", "--stdio"]),
+    ],
+    "rust": [
+        ("rust-analyzer", ["rust-analyzer"]),
+    ],
+    "go": [
+        ("gopls", ["gopls"]),
+    ],
+    "php": [
+        ("intelephense", ["intelephense", "--stdio"]),
+        ("phpactor", ["phpactor", "language-server"]),
+    ],
+}
+
+EXT_TO_LANGUAGE: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "typescript",
+    ".jsx": "typescript",
+    ".rs": "rust",
+    ".go": "go",
+    ".php": "php",
+    ".phtml": "php",
+}
+
+
+def get_lsp_command_for_language(language: str) -> list[str] | None:
+    """Finds an available LSP binary for a specific language."""
+    candidates = LSP_SERVER_CANDIDATES.get(language, [])
+    for binary, cmd in candidates:
+        if shutil.which(binary):
+            return cmd
+    return None
+
+
+def get_default_lsp_command(project_root: Path) -> list[str] | None:
+    """Detect available LSP language servers installed on the host machine."""
+    # Look for Python first, then TypeScript, Rust, Go, PHP
+    for lang in ("python", "typescript", "rust", "go", "php"):
+        cmd = get_lsp_command_for_language(lang)
+        if cmd:
+            return cmd
+    return None
+
+
 def resolve_unresolved_edges(
     db: IndexerDB,
     project_root: Path,
@@ -312,10 +366,12 @@ def resolve_unresolved_edges(
             return 0
 
     base_query = """
-        SELECT e.id, e.from_node_id, e.to_node_id, e.call_line, n.file_path as caller_file
+        SELECT e.id, e.from_node_id, e.to_node_id, e.call_line, n.file_path as caller_file,
+               et.target_symbol
         FROM edges e
         JOIN nodes n ON e.from_node_id = n.id
         LEFT JOIN nodes target ON e.to_node_id = target.id
+        LEFT JOIN edge_targets et ON e.to_node_id = et.target_id
         WHERE target.id IS NULL
           AND e.call_line IS NOT NULL
           AND e.relation_type IN ('calls', 'references')
@@ -359,12 +415,23 @@ def resolve_unresolved_edges(
         if 1 <= call_line <= len(lines):
             line_str = lines[call_line - 1]
             char_offset = len(line_str) - len(line_str.lstrip())
-            raw_target = str(row.get("to_node_id") or "")
-            short_sym = raw_target.split("::")[-1].split(".")[-1].strip()
-            if short_sym:
-                idx = line_str.find(short_sym)
+
+            # Priority 1: Use edge_targets.target_symbol (e.g. 'worker.execute' -> 'execute')
+            target_sym = row.get("target_symbol") or ""
+            target_method = target_sym.split(".")[-1].strip() if target_sym else ""
+
+            if target_method and target_method in line_str:
+                idx = line_str.rfind(target_method)
                 if idx >= 0:
                     char_offset = idx
+            else:
+                # Priority 2: Fallback to short symbol from raw to_node_id
+                raw_target = str(row.get("to_node_id") or "")
+                short_sym = raw_target.split("::")[-1].split(".")[-1].strip()
+                if short_sym and short_sym in line_str:
+                    idx = line_str.rfind(short_sym)
+                    if idx >= 0:
+                        char_offset = idx
 
         def_target = lsp_client.get_definition(caller_file, call_line, character=char_offset)
         if not def_target:
@@ -379,9 +446,16 @@ def resolve_unresolved_edges(
 
     # Match and batch-update rewired targets under a fast retryable write transaction
     find_node_sql = """
-        SELECT id FROM nodes
+        SELECT id, kind FROM nodes
         WHERE LOWER(file_path) = LOWER(?) AND start_line <= ? AND end_line >= ?
         ORDER BY (end_line - start_line) ASC
+        LIMIT 1
+    """
+
+    find_constructor_sql = """
+        SELECT id FROM nodes
+        WHERE LOWER(file_path) = LOWER(?) AND parent_id = ?
+          AND name IN ('__init__', 'constructor', 'new', 'New')
         LIMIT 1
     """
 
@@ -395,8 +469,16 @@ def resolve_unresolved_edges(
                 ).fetchone()
                 if matched:
                     new_target_id = matched["id"]
+                    # If target node is a class, check if it has a constructor method
+                    if matched["kind"] == "class":
+                        ctor = conn.execute(
+                            find_constructor_sql, (target_file, new_target_id)
+                        ).fetchone()
+                        if ctor:
+                            new_target_id = ctor["id"]
+
                     conn.execute(
-                        "UPDATE edges SET to_node_id = ? WHERE id = ?",
+                        "UPDATE edges SET to_node_id = ?, confidence = 'lsp' WHERE id = ?",
                         (new_target_id, edge_id),
                     )
                     count += 1
@@ -411,51 +493,104 @@ def resolve_unresolved_edges(
     return resolved_count
 
 
-def get_default_lsp_command(project_root: Path) -> list[str] | None:
-    """Detect available LSP language servers installed on the host machine."""
-    candidates = [
-        ("basedpyright-langserver", ["basedpyright-langserver", "--stdio"]),
-        ("pyright-langserver", ["pyright-langserver", "--stdio"]),
-        ("pylsp", ["pylsp"]),
-        ("typescript-language-server", ["typescript-language-server", "--stdio"]),
-        ("rust-analyzer", ["rust-analyzer"]),
-        ("gopls", ["gopls"]),
-    ]
-    for binary, cmd in candidates:
-        if shutil.which(binary):
-            return cmd
-    return None
+def resolve_unresolved_edges_polyglot(
+    db: IndexerDB,
+    project_root: Path,
+    verbose: bool = True,
+    modified_files: set[str] | list[str] | None = None,
+) -> int:
+    """Group unresolved edges by language and resolve via concurrent LSP workers."""
+    with db._get_conn() as conn:
+        cursor = conn.execute(
+            """
+            SELECT DISTINCT n.file_path as caller_file
+            FROM edges e
+            JOIN nodes n ON e.from_node_id = n.id
+            LEFT JOIN nodes target ON e.to_node_id = target.id
+            WHERE target.id IS NULL
+              AND e.call_line IS NOT NULL
+              AND e.relation_type IN ('calls', 'references')
+            """
+        )
+        caller_files = [r[0] for r in cursor.fetchall() if r[0]]
+
+    if not caller_files:
+        return 0
+
+    if modified_files is not None:
+        clean_mod = {
+            f.replace("\\", "/").strip("/")
+            for f in modified_files
+            if f and f.replace("\\", "/").strip("/")
+        }
+        caller_files = [f for f in caller_files if f.replace("\\", "/").strip("/") in clean_mod]
+        if not caller_files:
+            return 0
+
+    # Group files by detected language
+    files_by_lang: dict[str, list[str]] = {}
+    for f in caller_files:
+        ext = Path(f).suffix.lower()
+        lang = EXT_TO_LANGUAGE.get(ext)
+        if lang:
+            files_by_lang.setdefault(lang, []).append(f)
+
+    if not files_by_lang:
+        return 0
+
+    total_rewired = 0
+    # Resolve for each language using MultiLanguageLSPManager
+    for lang, lang_files in files_by_lang.items():
+        client = MultiLanguageLSPManager.get_client(project_root, lang)
+        if not client:
+            if verbose:
+                logger.debug("No LSP server available for %s", lang)
+            continue
+        try:
+            rewired = resolve_unresolved_edges(
+                db=db,
+                project_root=project_root,
+                lsp_client=client,
+                verbose=verbose,
+                modified_files=lang_files,
+            )
+            total_rewired += rewired
+        except Exception as e:
+            logger.warning("LSP resolution error for %s: %s", lang, e)
+
+    return total_rewired
 
 
-class LSPDaemonManager:
-    """Manages long-lived warm LSPClient daemon sessions for watcher and MCP server."""
+class MultiLanguageLSPManager:
+    """Manages pooled language server clients across multiple programming languages."""
 
-    _instances: ClassVar[dict[str, LSPClient]] = {}
+    _instances: ClassVar[dict[tuple[str, str], LSPClient]] = {}
     _lock = threading.Lock()
 
     @classmethod
-    def get_client(cls, project_root: Path) -> LSPClient | None:
-        """Retrieve or warm-start a persistent LSPClient instance for a project root."""
+    def get_client(cls, project_root: Path, language: str) -> LSPClient | None:
+        """Retrieve or warm-start an LSPClient for a specific project and language."""
         root_key = str(project_root.resolve()).replace("\\", "/")
+        cache_key = (root_key, language.lower())
         with cls._lock:
-            existing = cls._instances.get(root_key)
+            existing = cls._instances.get(cache_key)
             if existing and existing._running:
                 return existing
 
-            cmd = get_default_lsp_command(project_root)
+            cmd = get_lsp_command_for_language(language)
             if not cmd:
                 return None
 
             client = LSPClient(cmd, project_root)
             if client.start():
                 client._running = True
-                cls._instances[root_key] = client
+                cls._instances[cache_key] = client
                 return client
             return None
 
     @classmethod
     def stop_all(cls) -> None:
-        """Cleanly shutdown all cached LSP server daemons."""
+        """Cleanly shutdown all cached LSP server daemons across all languages."""
         with cls._lock:
             for client in cls._instances.values():
                 try:
@@ -465,13 +600,46 @@ class LSPDaemonManager:
             cls._instances.clear()
 
     @classmethod
-    def stop_client(cls, project_root: Path) -> None:
-        """Stop and remove a specific cached client."""
+    def stop_for_project(cls, project_root: Path) -> None:
+        """Stop all clients associated with a specific project root."""
         root_key = str(project_root.resolve()).replace("\\", "/")
         with cls._lock:
-            client = cls._instances.pop(root_key, None)
-            if client:
-                try:
-                    client.stop()
-                except Exception:
-                    pass
+            keys_to_remove = [k for k in cls._instances if k[0] == root_key]
+            for k in keys_to_remove:
+                c = cls._instances.pop(k, None)
+                if c:
+                    try:
+                        c.stop()
+                    except Exception:
+                        pass
+
+
+class LSPDaemonManager:
+    """Backwards-compatible wrapper delegating to MultiLanguageLSPManager."""
+
+    @classmethod
+    @property
+    def _instances(cls) -> dict[tuple[str, str], LSPClient]:
+        return MultiLanguageLSPManager._instances
+
+    @classmethod
+    def get_client(cls, project_root: Path, language: str = "python") -> LSPClient | None:
+        """Retrieve client for project root (defaults to python or first available)."""
+        cmd = get_default_lsp_command(project_root)
+        if not cmd:
+            return None
+        # Infer language from command
+        detected_lang = "python"
+        for lang_name, candidates in LSP_SERVER_CANDIDATES.items():
+            if any(cmd[0] == c[0] for c in candidates):
+                detected_lang = lang_name
+                break
+        return MultiLanguageLSPManager.get_client(project_root, detected_lang)
+
+    @classmethod
+    def stop_all(cls) -> None:
+        MultiLanguageLSPManager.stop_all()
+
+    @classmethod
+    def stop_client(cls, project_root: Path) -> None:
+        MultiLanguageLSPManager.stop_for_project(project_root)
