@@ -94,8 +94,20 @@ examples:
         default=".",
         help="Directory or file path to index (default: current directory)",
     )
-    p_idx.add_argument(
-        "--embed", action="store_true", help="Compute EmbeddingGemma 2 256d Matryoshka vectors"
+    embed_group = p_idx.add_mutually_exclusive_group()
+    embed_group.add_argument(
+        "--embed",
+        dest="embed",
+        action="store_true",
+        default=None,
+        help="Force compute EmbeddingGemma 2 256d Matryoshka vectors",
+    )
+    embed_group.add_argument(
+        "--no-embed",
+        dest="embed",
+        action="store_false",
+        default=None,
+        help="Disable vector embedding calculation regardless of configuration",
     )
     p_idx.add_argument(
         "--force",

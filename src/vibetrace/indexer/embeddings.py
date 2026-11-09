@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 class EmbeddingConfig(BaseModel):
     """Configuration contract for the local EmbeddingGemma 2 pipeline."""
 
+    codebase: bool = Field(
+        default=False,
+        description="Whether to automatically compute embeddings for codebase symbols.",
+    )
+    device: str = Field(
+        default="auto",
+        description="Target compute device: 'auto' (CUDA with CPU fallback), 'gpu', or 'cpu'.",
+    )
     model_id: str = Field(
         default="google/embeddinggemma-2",
         description="Primary HuggingFace/SentenceTransformers model identifier.",
@@ -107,7 +115,22 @@ class EmbeddingEngine:
         vector_store: VectorStore | None = None,
         project_root: Path | None = None,
     ):
-        self.config = config or EmbeddingConfig()
+        if config is None and project_root is not None:
+            try:
+                from vibetrace.config import load_config
+
+                cfg = load_config(project_root)
+                self.config = EmbeddingConfig(
+                    codebase=cfg.vectors.codebase,
+                    device=cfg.vectors.device,
+                    model_id=cfg.vectors.model_id,
+                    dimensions=cfg.vectors.dimensions,
+                    batch_size=cfg.vectors.batch_size,
+                )
+            except Exception:
+                self.config = EmbeddingConfig()
+        else:
+            self.config = config or EmbeddingConfig()
         self._encoder = encoder
         self.vector_store = vector_store
         self.project_root = project_root
@@ -159,14 +182,32 @@ class EmbeddingEngine:
         except ImportError:
             return False
 
+    def _resolve_device(self) -> str:
+        """Resolve target device string based on configuration and hardware availability."""
+        dev = (self.config.device or "auto").strip().lower()
+        if dev in ("cuda", "gpu"):
+            return "cuda"
+        if dev == "cpu":
+            return "cpu"
+
+        # Auto detection: check torch CUDA availability without hard-crashing if torch missing
+        try:
+            torch_mod = importlib.import_module("torch")
+            if getattr(torch_mod, "cuda", None) and torch_mod.cuda.is_available():
+                return "cuda"
+        except Exception:
+            pass
+        return "cpu"
+
     def _load_model(self) -> Any:
         if self._st_model is not None:
             return self._st_model
 
         st_mod = importlib.import_module("sentence_transformers")
         sentence_transformer_cls = st_mod.SentenceTransformer
+        device = self._resolve_device()
         try:
-            self._st_model = sentence_transformer_cls(self.config.model_id)
+            self._st_model = sentence_transformer_cls(self.config.model_id, device=device)
         except Exception as err:
             hf_url = f"https://huggingface.co/{self.config.model_id}"
             raise RuntimeError(
@@ -196,7 +237,12 @@ class EmbeddingEngine:
             truncate_and_normalize(vec, dimensions=self.config.dimensions) for vec in raw_vectors
         ]
 
-    def index_missing_embeddings(self, db: IndexerDB) -> int:
+    def index_missing_embeddings(
+        self,
+        db: IndexerDB,
+        verbose: bool = False,
+        progress_callback: Callable[[int, int, int], None] | None = None,
+    ) -> int:
         """Compute and store embeddings for any nodes lacking vectors for model and dim."""
         if not self.is_available():
             return 0
@@ -208,9 +254,13 @@ class EmbeddingEngine:
         if not missing_nodes:
             return 0
 
-        total_indexed = 0
+        total_nodes = len(missing_nodes)
         batch_size = self.config.batch_size
-        for idx in range(0, len(missing_nodes), batch_size):
+        total_batches = (total_nodes + batch_size - 1) // batch_size
+        dev = self._resolve_device()
+
+        total_indexed = 0
+        for batch_idx, idx in enumerate(range(0, total_nodes, batch_size), start=1):
             batch = missing_nodes[idx : idx + batch_size]
             docs = [build_symbol_document(n) for n in batch]
             vectors = self.embed_texts(docs)
@@ -244,6 +294,16 @@ class EmbeddingEngine:
             ]
             db.upsert_embeddings(rows)
             total_indexed += len(rows)
+
+            if verbose:
+                pct = (total_indexed / total_nodes) * 100.0
+                print(
+                    f"[{batch_idx}/{total_batches} {pct:5.1f}%] "
+                    f"Vectorized {total_indexed}/{total_nodes} symbols on {dev.upper()}..."
+                )
+
+            if progress_callback:
+                progress_callback(batch_idx, total_batches, total_indexed)
 
         return total_indexed
 

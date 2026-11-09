@@ -253,3 +253,119 @@ def test_vector_store_project_and_model_isolation(tmp_path: Path) -> None:
     cfg_sqlite_vec = VectorConfig(engine="sqlite-vec")
     with pytest.raises(NotImplementedError, match="sqlite-vec"):
         get_vector_store(tmp_path, cfg_sqlite_vec)
+
+
+def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
+    """Verify VectorConfig codebase toggle, device resolution, and orphaned vector purging."""
+    from unittest.mock import patch
+
+    from vibetrace.config import VectorConfig, VibeTraceConfig
+    from vibetrace.indexer.db import IndexerDB, Node
+    from vibetrace.indexer.embeddings import EmbeddingConfig, EmbeddingEngine
+    from vibetrace.mcp.formatters import format_semantic_search_md
+    from vibetrace.services.hybrid_search import SearchResult
+    from vibetrace.services.reindex_service import ReindexService
+
+    # 1. Config contract
+    vcfg = VectorConfig(codebase=True, device="gpu")
+    assert vcfg.codebase is True
+    assert vcfg.device == "gpu"
+
+    # 2. EmbeddingEngine device resolution
+    eng_gpu = EmbeddingEngine(config=EmbeddingConfig(device="gpu"))
+    assert eng_gpu._resolve_device() == "cuda"
+
+    eng_cpu = EmbeddingEngine(config=EmbeddingConfig(device="cpu"))
+    assert eng_cpu._resolve_device() == "cpu"
+
+    eng_auto = EmbeddingEngine(config=EmbeddingConfig(device="auto"))
+    with patch("importlib.import_module") as mock_import:
+        mock_torch = mock_import.return_value
+        mock_torch.cuda.is_available.return_value = False
+        assert eng_auto._resolve_device() == "cpu"
+
+    # 3. Purge orphaned embeddings in SQLite DB
+    db = IndexerDB(str(tmp_path / "test_purge.db"))
+    node_alive = Node(
+        id="alive_func",
+        name="alive_func",
+        qualified_name="alive_func",
+        kind="function",
+        file_path="a.py",
+        start_line=1,
+        end_line=10,
+    )
+    db.upsert_node(node_alive)
+
+    # Insert embeddings for both alive_func and a deleted_func
+    from vibetrace.indexer.embeddings import pack_vector
+
+    dummy_vec = pack_vector([0.1] * 256)
+    db.upsert_embeddings(
+        [
+            ("alive_func", dummy_vec, 256, "model_test"),
+            ("deleted_func", dummy_vec, 256, "model_test"),
+        ]
+    )
+
+    # Before purge: both exist
+    with db._get_conn() as conn:
+        assert conn.execute("SELECT count(*) FROM node_embeddings").fetchone()[0] == 2
+
+    # Run purge
+    purged = db.purge_orphaned_embeddings()
+    assert purged == 1
+
+    # After purge: only alive_func exists
+    with db._get_conn() as conn:
+        rows = conn.execute("SELECT node_id FROM node_embeddings").fetchall()
+        assert len(rows) == 1
+        assert rows[0][0] == "alive_func"
+
+    # 4. Agent next step recommendations in format_semantic_search_md
+    hit = SearchResult(
+        node_id="alive_func",
+        name="alive_func",
+        qualified_name="pkg.module.alive_func",
+        file_path="a.py",
+        kind="function",
+        start_line=1,
+        end_line=10,
+        signature="def alive_func():",
+        docstring="Docstring",
+        match_sources=["vector"],
+        rrf_score=0.85,
+    )
+    out_md = format_semantic_search_md("find func", [hit])
+    assert "Recommended Next Actions for AI Agent" in out_md
+    assert "vibetrace slice pkg.module.alive_func" in out_md
+    assert "vibetrace trace pkg.module.alive_func" in out_md
+
+    # 5. ReindexService should_embed resolution
+    with patch("vibetrace.services.reindex_service.reindex_all") as mock_reindex:
+        mock_reindex.return_value = {}
+        with patch.object(db, "prune_orphaned_edges", return_value=0):
+            with patch.object(db, "purge_orphaned_embeddings", return_value=0):
+                # When embed=False explicitly passed, does not embed
+                with patch.object(EmbeddingEngine, "index_missing_embeddings") as mock_index_emb:
+                    ReindexService.execute_reindex(
+                        db, tmp_path, embed=False, docs=False, verbose=False
+                    )
+                    mock_index_emb.assert_not_called()
+
+                # When embed=None and config has codebase=True, it embeds
+                with patch("vibetrace.config.load_config") as mock_load_cfg:
+                    mock_load_cfg.return_value = VibeTraceConfig(
+                        vectors=VectorConfig(codebase=True),
+                    )
+                    with (
+                        patch.object(EmbeddingEngine, "is_available", return_value=True),
+                        patch.object(
+                            EmbeddingEngine, "index_missing_embeddings", return_value=5
+                        ) as mock_index_emb,
+                    ):
+                        res = ReindexService.execute_reindex(
+                            db, tmp_path, embed=None, docs=False, verbose=False
+                        )
+                        mock_index_emb.assert_called_once()
+                        assert res.get("embedded_count") == 5

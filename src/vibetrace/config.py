@@ -46,6 +46,14 @@ class DatabaseConfig(BaseModel):
 class VectorConfig(BaseModel):
     """Vector database and embedding model configuration."""
 
+    codebase: bool = Field(
+        default=False,
+        description="Whether to automatically compute embeddings for codebase symbols",
+    )
+    device: str = Field(
+        default="auto",
+        description="Target compute device: 'auto' (CUDA with CPU fallback), 'gpu', or 'cpu'",
+    )
     engine: str = Field(
         default="lancedb",
         description="Vector engine: 'lancedb' (embedded/cloud), 'sqlite-vec', or 'none'",

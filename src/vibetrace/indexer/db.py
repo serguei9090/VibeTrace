@@ -879,3 +879,18 @@ class IndexerDB(DBQueriesMixin):
                 )
                 conn.commit()
             return max(0, deleted)
+
+    @with_write_retry()
+    def purge_orphaned_embeddings(self) -> int:
+        """Purge vector embeddings whose referenced node_id no longer exists in nodes table."""
+        with self._get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            cursor = conn.execute(
+                """
+                DELETE FROM node_embeddings
+                WHERE node_id NOT IN (SELECT id FROM nodes)
+                """
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+            return max(0, deleted)

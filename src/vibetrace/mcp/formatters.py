@@ -129,6 +129,18 @@ def format_semantic_search_md(
         )
         if first_line:
             lines.append(f"   - {first_line[:120]}")
+
+    # Append actionable next step guidance for AI agents
+    top_sym = results[0].qualified_name
+    lines.append("")
+    lines.append("💡 **Recommended Next Actions for AI Agent:**")
+    lines.append(
+        f"- Run `vibetrace slice {top_sym}` to inspect exact source implementation and line spans."
+    )
+    lines.append(
+        f"- Run `vibetrace trace {top_sym} <target>` or `vibetrace impact {top_sym}` "
+        "to inspect caller/callee blast-radius."
+    )
     return "\n".join(lines)
 
 

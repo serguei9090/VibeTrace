@@ -21,7 +21,7 @@ class ReindexService:
         project_root: Path,
         file_path: str | None = None,
         force: bool = False,
-        embed: bool = False,
+        embed: bool | None = None,
         docs: bool = True,
         use_lsp: bool = False,
         verbose: bool = False,
@@ -62,9 +62,30 @@ class ReindexService:
         if not is_json and verbose and pruned_edges > 0:
             print(f"Cleaned {pruned_edges} orphaned graph edges.")
 
+        purged_embeddings = db.purge_orphaned_embeddings()
+        if not is_json and verbose and purged_embeddings > 0:
+            print(f"Purged {purged_embeddings} orphaned vector embeddings.")
+
+        # Determine whether embeddings should run:
+        # 1. Explicit CLI argument (--embed: True, --no-embed: False)
+        # 2. If None, fall back to project configuration (vectors.codebase)
+        should_embed = False
+        if embed is True:
+            should_embed = True
+        elif embed is False:
+            should_embed = False
+        else:
+            try:
+                from vibetrace.config import load_config
+
+                cfg = load_config(active_root)
+                should_embed = bool(cfg.vectors.codebase)
+            except Exception:
+                should_embed = False
+
         embedded_count = 0
         embeddings_error = None
-        if embed:
+        if should_embed:
             engine = EmbeddingEngine(project_root=active_root)
             if not engine.is_available():
                 embeddings_error = (
@@ -74,8 +95,10 @@ class ReindexService:
                 if not is_json:
                     print(f"Warning: {embeddings_error}", file=sys.stderr)
             else:
-                embedded_count = engine.index_missing_embeddings(db)
-                if not is_json and verbose:
+                embedded_count = engine.index_missing_embeddings(
+                    db, verbose=verbose and not is_json
+                )
+                if not is_json and verbose and embedded_count > 0:
                     print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
 
         doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
