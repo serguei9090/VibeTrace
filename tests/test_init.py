@@ -109,3 +109,27 @@ def test_cli_skill_install_command(tmp_path: Path, capsys) -> None:
     payload = json.loads(captured.out)
     assert payload["status"] == "ok"
     assert len(payload["installed_paths"]) >= 1
+
+
+def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
+    """Verify interactive answers for test exclusion and embeddings in init."""
+    import tomllib
+    from unittest.mock import patch
+
+    # Answers: exclude_tests: 'n' -> True; enable_embeddings: 'y' -> True; device: 'gpu'
+    inputs = iter(["n", "y", "gpu"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    # Mock isatty to simulate terminal
+    with patch("sys.stdin.isatty", return_value=True):
+        exit_code = main(["init", str(tmp_path), "--no-index"])
+        assert exit_code == 0
+
+    cfg_file = tmp_path / ".vibetrace.toml"
+    assert cfg_file.is_file()
+    with cfg_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["quality"]["include_tests"] is True
+    assert data["vectors"]["codebase"] is True
+    assert data["vectors"]["device"] == "gpu"

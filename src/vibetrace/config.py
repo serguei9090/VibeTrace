@@ -198,6 +198,8 @@ def get_config_path(project_root: Path) -> Path | None:
 def generate_default_config_toml(
     project_name: str = "project",
     include_tests: bool = False,
+    codebase_embeddings: bool = False,
+    compute_device: str = "auto",
 ) -> str:
     """Generate documented default TOML configuration."""
     # Sanitize project name against invalid characters / multiline injections
@@ -207,6 +209,8 @@ def generate_default_config_toml(
     )
     safe_name = sanitized_name.replace('"', '\\"')
     inc_str = "true" if include_tests else "false"
+    emb_str = "true" if codebase_embeddings else "false"
+    dev_str = compute_device if compute_device in ("auto", "gpu", "cpu") else "auto"
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
 
@@ -223,6 +227,10 @@ path = ".vibetrace/vibetrace.db"
 busy_timeout_seconds = 30.0
 
 [vectors]
+# Automatically compute embeddings for codebase symbols (default: false)
+codebase = {emb_str}
+# Target compute device: "auto" (CUDA with CPU fallback), "gpu", or "cpu"
+device = "{dev_str}"
 # Vector engine: "lancedb" (recommended), "sqlite-vec", or "none"
 engine = "lancedb"
 # Local directory or remote cloud URI (e.g. "s3://company-vectors/{safe_name}")
@@ -311,6 +319,8 @@ def save_default_config(
     project_root: Path | str,
     project_name: str | None = None,
     include_tests: bool = False,
+    codebase_embeddings: bool = False,
+    compute_device: str = "auto",
 ) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
@@ -319,7 +329,12 @@ def save_default_config(
     target = root / ".vibetrace.toml"
     if not target.exists():
         name = project_name or root.name
-        content = generate_default_config_toml(name, include_tests=include_tests)
+        content = generate_default_config_toml(
+            name,
+            include_tests=include_tests,
+            codebase_embeddings=codebase_embeddings,
+            compute_device=compute_device,
+        )
         target.write_text(content, encoding="utf-8")
     return target
 

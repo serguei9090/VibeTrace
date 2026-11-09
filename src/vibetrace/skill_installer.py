@@ -185,6 +185,8 @@ def initialize_workspace(
     global_skill: bool = False,
     configure_hooks: bool = False,
     include_tests: bool = False,
+    codebase_embeddings: bool = False,
+    compute_device: str = "auto",
 ) -> dict[str, Any]:
     """Execute complete 1-click workspace initialization for VibeTrace."""
     root = Path(project_root).resolve()
@@ -199,7 +201,13 @@ def initialize_workspace(
     # 3. Create root .vibetrace.toml configuration file
     from vibetrace.config import save_default_config
 
-    config_path = save_default_config(root, project_name=root.name, include_tests=include_tests)
+    config_path = save_default_config(
+        root,
+        project_name=root.name,
+        include_tests=include_tests,
+        codebase_embeddings=codebase_embeddings,
+        compute_device=compute_device,
+    )
 
     # 4. Create .vibetrace local directory if needed
     vibetrace_dir = root / ".vibetrace"

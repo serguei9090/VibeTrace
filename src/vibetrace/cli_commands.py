@@ -464,6 +464,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     is_json = getattr(args, "json", False)
 
     include_tests = False
+    codebase_embeddings = False
+    compute_device = "auto"
     if not is_json and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists():
         try:
             ans = (
@@ -476,6 +478,28 @@ def cmd_init(args: argparse.Namespace) -> int:
             )
             if ans in ("n", "no"):
                 include_tests = True
+
+            ans_emb = (
+                input(
+                    "Enable codebase vector embeddings by default? "
+                    "(Requires ~1.5GB model download) [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if ans_emb in ("y", "yes"):
+                codebase_embeddings = True
+                ans_dev = (
+                    input("Target compute device for embeddings? (auto/gpu/cpu) [auto]: ")
+                    .strip()
+                    .lower()
+                )
+                if ans_dev in ("gpu", "cuda"):
+                    compute_device = "gpu"
+                elif ans_dev == "cpu":
+                    compute_device = "cpu"
+                else:
+                    compute_device = "auto"
         except (EOFError, KeyboardInterrupt):
             print()
 
@@ -485,6 +509,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         global_skill=global_skill,
         configure_hooks=configure_hooks,
         include_tests=include_tests,
+        codebase_embeddings=codebase_embeddings,
+        compute_device=compute_device,
     )
 
     if getattr(args, "project", False):
