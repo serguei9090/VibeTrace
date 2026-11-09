@@ -140,6 +140,10 @@ class QualityConfig(BaseModel):
         default=None,
         description="SonarQube authentication token (e.g. 'squ_...')",
     )
+    enable_sonar: bool = Field(
+        default=False,
+        description="Enable optional Tier-2 SonarLint headless Java engine during audits",
+    )
     rules_feed_url: str = Field(
         default=(
             "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/"

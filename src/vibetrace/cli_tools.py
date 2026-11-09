@@ -70,6 +70,7 @@ def cmd_tools(args: argparse.Namespace) -> int:
                 "sql",
                 "semgrep",
                 "trivy",
+                "sonar",
             ]
             if lang.lower() == "all"
             else [lang]

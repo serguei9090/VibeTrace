@@ -108,18 +108,37 @@ To deliver Sonar-grade accuracy without requiring Java or Sonar jars, VibeTrace 
 
 ---
 
-## 5. Sub-Engine Provisioning CLI (`vibetrace tools`)
+## 5. Sub-Engine Provisioning CLI (`vibetrace tools`) & Optional `--sonar` Mode
 
 Developers can verify and provision quality sub-engines on demand:
 
 ```bash
-# Check status of all ecosystem engines (Ruff, Biome, Clippy, PHPStan)
+# Check status of all ecosystem engines (Ruff, Biome, Clippy, PHPStan, SonarLint)
 vibetrace tools status
 vibetrace tools doctor
 vibetrace tools status --json
 
 # Provision language runner on demand
-vibetrace tools install php       # Downloads phpstan.phar into ~/.vibetrace/bin
-vibetrace tools install python    # Guides/executes uv tool install ruff pyright
+vibetrace tools install php        # Downloads phpstan.phar into ~/.vibetrace/bin
+vibetrace tools install python     # Guides/executes uv tool install ruff pyright
 vibetrace tools install typescript # Guides/executes bun add -d @biomejs/biome
+vibetrace tools install sonar      # Provisions sonarlint-ls.jar + JRE + analyzers into ~/.vibetrace/tools/sonar/
 ```
+
+### Running the Optional Tier-2 SonarLint Engine (`--sonar`)
+While Family 1 (Native AST + fast ecosystem linters) runs by default in `<100ms`, you can invoke the headless `SonarLintAdapter` (`src/vibetrace/quality/adapters/sonar_lint.py`) on demand:
+
+```bash
+# Run quality audit combining Native AST + SonarLint Headless Java Engine
+vibetrace audit quality --sonar
+vibetrace audit quality --file tests/fixtures/sample_quality.php --include-tests --sonar
+
+# Run security audit including SonarLint vulnerability & ReDoS analyzers
+vibetrace audit security --sonar
+
+# Run unified 1-call review with SonarLint enabled
+vibetrace review --sonar
+```
+
+- **H2 Database Lock Isolation**: `SonarLintAdapter` passes `-Duser.home=~/.vibetrace/tools/sonar/work` to the Java subprocess so its H2 database (`sq-ide.mv.db`) never collides with an active VS Code or Antigravity IDE instance.
+- **Canonical RSPEC Deduplication**: Findings reported by both VibeTrace's native AST engine and `sonarlint-ls.jar` on the same `(file_path, start_line, rspec_id)` are automatically deduplicated.

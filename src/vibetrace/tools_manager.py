@@ -254,6 +254,25 @@ class ToolsManager:
             auto_installable=which_cargo is not None,
         )
 
+        # 12. SonarLint Headless Java Engine (Tier-2 Optional Sidecar)
+        from vibetrace.quality.adapters.sonar_lint import resolve_sonar_runtime
+
+        sonar_rt = resolve_sonar_runtime()
+        sonar_ok = sonar_rt is not None
+        sonar_desc = (
+            f"{sonar_rt.ls_jar} ({len(sonar_rt.analyzer_jars)} analyzers, {sonar_rt.source_kind})"
+            if sonar_rt
+            else None
+        )
+        status["sonar"] = ToolStatus(
+            language="sonar",
+            engine="SonarLint Headless LSP (Java 21 + LGPL v3 Analyzers)",
+            is_available=sonar_ok,
+            version_or_path=sonar_desc,
+            install_hint="vibetrace tools install sonar  # provisions sonarlint-ls.jar + JRE",
+            auto_installable=True,
+        )
+
         return status
 
     @classmethod
@@ -528,5 +547,106 @@ class ToolsManager:
             hint = "Run 'uv tool install pyright' or 'npm i -g typescript-language-server'."
             return False, f"Could not automatically install LSP. {hint}"
 
-        langs = "python, typescript, go, rust, php, ruby, shell, sql, semgrep, trivy, lsp"
+        if lang in ("sonar", "sonarlint", "sonarqube"):
+            return cls._install_sonar_engine()
+
+        langs = "python, typescript, go, rust, php, ruby, shell, sql, semgrep, trivy, sonar, lsp"
         return False, f"Unknown language/tool '{language}'. Supported: {langs}."
+
+    @classmethod
+    def _install_sonar_engine(cls) -> tuple[bool, str]:
+        """Provisions the SonarLint Headless Java Engine into `~/.vibetrace/tools/sonar/`."""
+        import platform
+
+        from vibetrace.quality.adapters.sonar_lint import resolve_sonar_runtime
+
+        target_root = Path.home() / ".vibetrace" / "tools" / "sonar"
+        target_root.mkdir(parents=True, exist_ok=True)
+        work_dir = target_root / "work"
+        work_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. If already installed inside ~/.vibetrace/tools/sonar or local IDE, sync/verify
+        existing = resolve_sonar_runtime()
+        if existing is not None and existing.source_kind == "vibetrace":
+            return (
+                True,
+                f"SonarLint engine already provisioned at {existing.root_dir} "
+                f"({len(existing.analyzer_jars)} analyzers).",
+            )
+
+        if existing is not None and existing.source_kind != "vibetrace":
+            try:
+                for sub in ("server", "analyzers", "jre"):
+                    src_sub = existing.root_dir / sub
+                    dst_sub = target_root / sub
+                    if src_sub.is_dir():
+                        if dst_sub.exists():
+                            shutil.rmtree(dst_sub, ignore_errors=True)
+                        shutil.copytree(src_sub, dst_sub)
+                verified = resolve_sonar_runtime()
+                if verified is not None:
+                    return (
+                        True,
+                        f"Provisioned standalone SonarLint engine into {target_root} "
+                        f"(from local {existing.source_kind} extension, "
+                        f"{len(verified.analyzer_jars)} analyzers).",
+                    )
+            except OSError:
+                return (
+                    True,
+                    f"Using local {existing.source_kind} SonarLint engine at {existing.root_dir} "
+                    f"with isolated workdir {work_dir}.",
+                )
+
+        # 2. Download official OpenVSX / GitHub VSIX bundle for current platform
+        sys_plat = (
+            "win32"
+            if os.name == "nt"
+            else ("darwin" if platform.system().lower() == "darwin" else "linux")
+        )
+        arch = "arm64" if "arm" in platform.machine().lower() else "x64"
+        target_plat = f"{sys_plat}-{arch}"
+        vsix_url = (
+            "https://open-vsx.org/api/SonarSource/sonarlint-vscode/"
+            f"{target_plat}/latest/file/SonarSource.sonarlint-vscode-{target_plat}.vsix"
+        )
+        vsix_tmp = target_root / "sonarlint_bundle.vsix"
+        try:
+            urllib.request.urlretrieve(vsix_url, str(vsix_tmp))
+            if not vsix_tmp.is_file() or vsix_tmp.stat().st_size < 1_000_000:
+                vsix_tmp.unlink(missing_ok=True)
+                return False, "Downloaded SonarLint VSIX bundle failed size integrity check."
+
+            with zipfile.ZipFile(vsix_tmp, "r") as zf:
+                for member in zf.namelist():
+                    if any(
+                        member.startswith(p)
+                        for p in ("extension/server/", "extension/analyzers/", "extension/jre/")
+                    ):
+                        zf.extract(member, target_root)
+
+            ext_dir = target_root / "extension"
+            if ext_dir.is_dir():
+                for sub in ("server", "analyzers", "jre"):
+                    src_s = ext_dir / sub
+                    dst_s = target_root / sub
+                    if src_s.is_dir():
+                        if dst_s.exists():
+                            shutil.rmtree(dst_s, ignore_errors=True)
+                        shutil.move(str(src_s), str(dst_s))
+                shutil.rmtree(ext_dir, ignore_errors=True)
+
+            vsix_tmp.unlink(missing_ok=True)
+            verified = resolve_sonar_runtime()
+            if verified is not None:
+                if os.name != "nt" and verified.java_bin.is_file():
+                    verified.java_bin.chmod(0o755)
+                return (
+                    True,
+                    f"Downloaded and provisioned SonarLint engine at {target_root} "
+                    f"({len(verified.analyzer_jars)} analyzers).",
+                )
+            return False, "Extracted SonarLint bundle but runtime verification failed."
+        except Exception as exc:
+            vsix_tmp.unlink(missing_ok=True)
+            return False, f"Failed to download SonarLint bundle: {exc}"

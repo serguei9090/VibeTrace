@@ -117,6 +117,7 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    ```bash
    uv run vibetrace audit quality --file <target_file>
    uv run vibetrace audit quality --file <target_file> --json
+   uv run vibetrace audit quality --file <target_file> --sonar   # Optional Tier-2 SonarLint Java Engine
    ```
    *Returns focused single-file findings or compact, parseable JSON containing exact `start_line`, `end_line`, `non_compliant_snippet`, `compliant_snippet`, and `remediation_guidance` for that file.*
 3. **Automated Safe Fixes (`--fix`)**:
@@ -130,14 +131,15 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    ```
    *Records unapproved findings into `.vibetrace/quality.toml`.*
 
-### 12. Automated Polyglot LSP Binary Installer (`tools install-lsp`)
-Auto-detects project languages and installs missing Language Server Protocol binaries (`pyright`, `typescript-language-server`, `gopls`, `rust-analyzer`, `intelephense`, `solargraph`, `jdtls`, `clangd`, `csharp-ls`) via fast package managers (`bun`, `uv`, `go`, `rustup`, `dotnet`):
+### 12. Automated Polyglot Tool & LSP Binary Installer (`tools`)
+Auto-detects project languages and installs missing quality sub-engines (`ruff`, `biome`, `phpstan`, `sonarlint-ls.jar`) and Language Server Protocol binaries (`pyright`, `typescript-language-server`) via `vibetrace tools`:
 - **CLI:**
   ```bash
-  uv run vibetrace tools install-lsp --check          # Check installed vs missing LSP servers
-  uv run vibetrace tools install-lsp --check --json   # Machine-readable JSON status
+  uv run vibetrace tools status                       # Check status of all ecosystem engines & SonarLint
+  uv run vibetrace tools status --json                # Machine-readable JSON status
+  uv run vibetrace tools install sonar                # Provision standalone SonarLint Java engine + analyzers
+  uv run vibetrace tools install php                  # Provision standalone phpstan.phar
   uv run vibetrace tools install-lsp                  # Auto-install missing LSP servers for detected languages
-  uv run vibetrace tools install-lsp --lang python    # Install specific language server
   ```
 
 ---

@@ -20,6 +20,7 @@ def test_tools_manager_get_status(tmp_path: Path):
     assert "ruby" in statuses
     assert "shell" in statuses
     assert "sql" in statuses
+    assert "sonar" in statuses
 
     for lang, status in statuses.items():
         assert status.language == lang
@@ -76,3 +77,22 @@ def test_tools_manager_install_php_mocked(mock_retrieve: MagicMock, tmp_path: Pa
     assert ok
     assert "phpstan.phar" in msg
     mock_retrieve.assert_called_once()
+
+
+def test_tools_manager_install_sonar_from_ide_extension(tmp_path: Path, monkeypatch):
+    """Verifies ToolsManager.install('sonar') provisions from a local IDE extension when present."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    ide_ext = tmp_path / ".vscode" / "extensions" / "sonarsource.sonarlint-vscode-6.2.0-win32-x64"
+    (ide_ext / "server").mkdir(parents=True)
+    (ide_ext / "server" / "sonarlint-ls.jar").write_bytes(b"PK\x03\x04fakejar")
+    (ide_ext / "analyzers").mkdir(parents=True)
+    (ide_ext / "analyzers" / "sonarpython.jar").write_bytes(b"PK\x03\x04fakeanalyzer")
+    jre_bin = ide_ext / "jre" / "jdk21" / "bin"
+    jre_bin.mkdir(parents=True)
+    java_name = "java.exe" if __import__("os").name == "nt" else "java"
+    (jre_bin / java_name).write_bytes(b"fakejava")
+
+    ok, msg = ToolsManager.install("sonar", tmp_path)
+    assert ok
+    assert "SonarLint engine" in msg
+    assert (tmp_path / ".vibetrace" / "tools" / "sonar" / "server" / "sonarlint-ls.jar").is_file()

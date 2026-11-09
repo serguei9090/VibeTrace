@@ -92,6 +92,7 @@ def run_unified_review(
     enforce_coverage: bool = False,
     sarif_file: str | Path | None = None,
     typecheck: bool = False,
+    enable_sonar: bool = False,
 ) -> UnifiedReviewReport:
     """Runs Security + IaC + Git Secret + Split Audit + Caller Guard + Coverage Gate."""
     norm_scope = "full" if scope.lower() == "full" else "changed"
@@ -107,6 +108,7 @@ def run_unified_review(
         analyze_taint=True,
         git_commit_depth=25 if norm_scope == "full" else 5,
         sarif_file=sarif_file,
+        enable_sonar=enable_sonar,
     )
     active_sec: list[SecurityFinding] = []
     for f in sec_report.findings:
@@ -134,6 +136,7 @@ def run_unified_review(
         complexity_threshold=15,
         include_tests=False,
         typecheck=typecheck,
+        enable_sonar=enable_sonar,
     )
     active_qual: list[QualityFinding] = []
     for f in qual_report.findings:

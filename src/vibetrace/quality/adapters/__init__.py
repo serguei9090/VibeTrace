@@ -11,6 +11,7 @@ from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rubocop import RuboCopAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.shellcheck import ShellCheckAdapter
+from vibetrace.quality.adapters.sonar_lint import SonarLintAdapter
 from vibetrace.quality.adapters.sql_fluff import SqlFluffAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 
@@ -24,6 +25,7 @@ __all__ = [
     "RuboCopAdapter",
     "RuffAdapter",
     "ShellCheckAdapter",
+    "SonarLintAdapter",
     "SqlFluffAdapter",
     "TypeScriptAdapter",
 ]

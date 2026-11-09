@@ -16,6 +16,7 @@ from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rubocop import RuboCopAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.shellcheck import ShellCheckAdapter
+from vibetrace.quality.adapters.sonar_lint import SonarLintAdapter, extract_rspec_short
 from vibetrace.quality.adapters.sql_fluff import SqlFluffAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
@@ -209,6 +210,7 @@ class QualityService:
         complexity_threshold: int = 15,
         include_tests: bool = False,
         typecheck: bool = False,
+        enable_sonar: bool = False,
     ) -> QualityAuditReport:
         """Audits project source files for cognitive complexity and clean code smells."""
         raw_findings: list[QualityFinding] = []
@@ -316,6 +318,15 @@ class QualityService:
             if sql_engine.is_available(project_root):
                 raw_findings.extend(sql_engine.audit_project(project_root, sql_files))
 
+        # Optional Tier-2 SonarLint Headless Java Engine (--sonar or config.quality.enable_sonar)
+        from vibetrace.config import load_config
+
+        cfg_sonar = load_config(project_root).quality.enable_sonar
+        if enable_sonar or cfg_sonar:
+            sonar_engine = SonarLintAdapter()
+            if sonar_engine.is_available(project_root):
+                raw_findings.extend(sonar_engine.audit_project(project_root, target_files))
+
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
             dead_nodes = db.get_uncalled_private_functions(include_tests=include_tests)
@@ -360,11 +371,12 @@ class QualityService:
                     )
                 )
 
-        # Deduplicate findings by (file_path, start_line, rule_id)
+        # Deduplicate findings by (file_path, start_line, canonical_rspec_short)
         seen_keys: set[tuple[str, int, str]] = set()
         deduped_findings: list[QualityFinding] = []
         for f in raw_findings:
-            key = (f.file_path, f.start_line, f.rule_id)
+            canonical_rule = extract_rspec_short(f.rspec_id or f.rule_id)
+            key = (f.file_path, f.start_line, canonical_rule)
             if key not in seen_keys:
                 seen_keys.add(key)
                 deduped_findings.append(f)

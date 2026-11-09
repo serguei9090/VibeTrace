@@ -967,6 +967,11 @@ examples:
         action="store_true",
         help="Skip external Semgrep CLI SAST scanning even if Semgrep is installed",
     )
+    p_security.add_argument(
+        "--sonar",
+        action="store_true",
+        help="Enable optional Tier-2 SonarLint Headless Java Engine for security & ReDoS rules",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     p_quality = p_audit_sub.add_parser(
@@ -1040,6 +1045,11 @@ examples:
         "--typecheck",
         action="store_true",
         help="Run incremental TypeScript compiler (tsc) type-check pass across TS/TSX files",
+    )
+    p_quality.add_argument(
+        "--sonar",
+        action="store_true",
+        help="Enable optional Tier-2 SonarLint Headless Java Engine (sonarlint-ls.jar)",
     )
     p_quality.add_argument(
         "--approve",
@@ -1192,6 +1202,11 @@ examples:
         action="store_true",
         help="Run incremental TypeScript compiler (tsc) type-check pass during review",
     )
+    p_review.add_argument(
+        "--sonar",
+        action="store_true",
+        help="Enable optional Tier-2 SonarLint Headless Java Engine during review",
+    )
     p_review.set_defaults(func=cmd_review)
 
     # diagnose
@@ -1235,7 +1250,7 @@ examples:
         default="",
         help=(
             "Target language/tool for install "
-            "(e.g. php, python, typescript, go, rust, semgrep, trivy, or all)"
+            "(e.g. php, python, typescript, go, rust, semgrep, trivy, sonar, or all)"
         ),
     )
     p_tools.add_argument(

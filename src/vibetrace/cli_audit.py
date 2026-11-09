@@ -345,6 +345,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         include_tests=getattr(args, "include_tests", False),
         enable_trivy=not skip_trivy,
         enable_semgrep=not skip_semgrep,
+        enable_sonar=getattr(args, "sonar", False),
         image_tag=image_tag,
     )
 
@@ -502,6 +503,7 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
         complexity_threshold=threshold,
         include_tests=include_tests,
         typecheck=getattr(args, "typecheck", False),
+        enable_sonar=getattr(args, "sonar", False),
     )
 
     if getattr(args, "approve", False):
@@ -578,6 +580,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         enforce_coverage=enforce_cov,
         sarif_file=getattr(args, "sarif", None),
         typecheck=getattr(args, "typecheck", False),
+        enable_sonar=getattr(args, "sonar", False),
     )
     if getattr(args, "json", False):
         print(report.model_dump_json(indent=2))

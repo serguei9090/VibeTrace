@@ -76,6 +76,7 @@ class SecurityService:
         sarif_file: str | Path | None = None,
         enable_trivy: bool = True,
         enable_semgrep: bool = True,
+        enable_sonar: bool = False,
         image_tag: str | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
@@ -216,6 +217,28 @@ class SecurityService:
                         target_files=target_files if (file_filter or file_list) else None,
                     )
                 )
+
+        # 5. Optional Tier-2 SonarLint Headless Java Engine (--sonar or config.quality.enable_sonar)
+        if enable_sonar or cfg.quality.enable_sonar:
+            from vibetrace.quality.adapters.sonar_lint import (
+                SonarLintAdapter,
+                extract_rspec_short,
+            )
+
+            sonar_engine = SonarLintAdapter()
+            if sonar_engine.is_available(project_root):
+                sonar_sec = sonar_engine.scan_security_findings(
+                    project_root=project_root,
+                    target_files=target_files,
+                )
+                seen_sec_keys = {
+                    (f.file_path, f.start_line, extract_rspec_short(f.rule_id)) for f in findings
+                }
+                for sf in sonar_sec:
+                    key = (sf.file_path, sf.start_line, extract_rspec_short(sf.rule_id))
+                    if key not in seen_sec_keys:
+                        seen_sec_keys.add(key)
+                        findings.append(sf)
 
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)
