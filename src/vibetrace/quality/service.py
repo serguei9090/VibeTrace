@@ -143,13 +143,13 @@ def _audit_single_file(
         )
         findings.extend(literal_findings)
 
-        # Ingest regex maintainability smells (RSPEC-6353, RSPEC-5843)
+        # Ingest regex maintainability & runtime smells (RSPEC-6353, RSPEC-5843, RSPEC-8786)
         regex_findings = analyze_regex_quality(
             file_path=rel_path,
             source_code=source_code,
         )
         for rf in regex_findings:
-            if rf.rule_id in ("python:S6353", "python:S5843"):
+            if rf.rule_id in ("python:S6353", "python:S5843", "python:S8786"):
                 findings.append(
                     QualityFinding(
                         id=f"QUAL-{rf.rule_id.split(':')[-1]}-{rf.code_hash[:12]}",
@@ -159,7 +159,11 @@ def _audit_single_file(
                         severity=(
                             QualitySeverity.LOW
                             if rf.rule_id == "python:S6353"
-                            else QualitySeverity.MEDIUM
+                            else (
+                                QualitySeverity.HIGH
+                                if rf.rule_id == "python:S8786"
+                                else QualitySeverity.MEDIUM
+                            )
                         ),
                         title=rf.title,
                         message=rf.message,

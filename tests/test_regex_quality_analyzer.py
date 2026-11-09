@@ -37,16 +37,28 @@ def test_regex_complexity_s5843(tmp_path: Path) -> None:
     assert any(item.rule_id == "python:S5843" for item in findings)
 
 
+def test_regex_redos_s8786_patterns(tmp_path: Path) -> None:
+    dict_pat = (
+        r'([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:\[\s*["\']([^"\']+)["\']\s*\]'
+        r'|\.get\s*\(\s*["\']([^"\']+)["\']\s*(?:,\s*[^)]+)?\))'
+    )
+    code = (
+        "import re\n"
+        f"dict_re = re.compile(r'''{dict_pat}''')\n"
+        r'arrow_re = re.compile(r"\(([^)]*)\)\s*(?::\s*[^=>]+)?\s*=>")' + "\n"
+        r'kw_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$")' + "\n"
+    )
+    f = tmp_path / "test_redos.py"
+    f.write_text(code, encoding="utf-8")
+
+    findings = analyze_regex_quality(str(f), code)
+    redos_lines = {item.start_line for item in findings if item.rule_id == "python:S8786"}
+    assert {2, 3, 4}.issubset(redos_lines)
+
+
 def test_regex_dataflow_file_integration() -> None:
     dataflow_path = Path("src/vibetrace/security/dataflow.py")
     assert dataflow_path.is_file()
 
     findings = analyze_regex_quality(str(dataflow_path), dataflow_path.read_text(encoding="utf-8"))
-    rule_ids = {item.rule_id for item in findings}
-
-    assert "python:S6353" in rule_ids
-    assert "python:S5843" in rule_ids
-
-    # Lines 11, 13, 16, 21, 130 must be flagged for S6353
-    s6353_lines = {item.start_line for item in findings if item.rule_id == "python:S6353"}
-    assert {11, 13, 16, 21, 130}.issubset(s6353_lines)
+    assert findings == []

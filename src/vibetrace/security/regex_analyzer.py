@@ -24,6 +24,12 @@ _SPACE_CLASS_RE = re.compile(r"\[[ \t\r\n\v\f]+\]")
 _NESTED_QUANT_RE = re.compile(r"\([^)]*[\*\+\?][^)]*\)[\*\+]")
 # 2. Overlapping adjacent unbounded quantifiers: \s* followed by optional group followed by \s*
 _OVERLAPPING_QUANT_RE = re.compile(r"\\s[\*\+]\s*(?:\([^)]*\)\?|\([^\)]*\)\*)\s*\\s[\*\+]")
+# 3. Whitespace quantifier followed by negated non-whitespace class: \s*[^)]+
+_WHITESPACE_NEGATED_OVERLAP_RE = re.compile(r"\\s[\*\+]\[\^[^\]]+\][\*\+]")
+# 4. Unbounded wildcard before trailing delimiter: \s*=\s*(.+)$ or \s*\((.*)\)
+_UNBOUNDED_DELIMITER_OVERLAP_RE = re.compile(
+    r"\\s[\*\+]=\s*\\s[\*\+]\(\.\+\)\$|\\s[\*\+]\\\((?:\(\.\*\)|\(\.\+\))\\\)"
+)
 
 
 class RegexQualityAnalyzer(ast.NodeVisitor):
@@ -105,7 +111,12 @@ class RegexQualityAnalyzer(ast.NodeVisitor):
             )
 
         # 2. S8786 / CWE-1333: ReDoS catastrophic backtracking
-        if _NESTED_QUANT_RE.search(pattern) or _OVERLAPPING_QUANT_RE.search(pattern):
+        if (
+            _NESTED_QUANT_RE.search(pattern)
+            or _OVERLAPPING_QUANT_RE.search(pattern)
+            or _WHITESPACE_NEGATED_OVERLAP_RE.search(pattern)
+            or _UNBOUNDED_DELIMITER_OVERLAP_RE.search(pattern)
+        ):
             hash_id = hashlib.sha256(f"{self.file_path}:{line_no}:redos".encode()).hexdigest()[:12]
             self.findings.append(
                 SecurityFinding(

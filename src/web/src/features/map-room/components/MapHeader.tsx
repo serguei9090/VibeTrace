@@ -180,7 +180,17 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             }}
           >
             <span>VIBEGRAPH</span>
-            <span style={{ opacity: 0.5, fontWeight: 400, fontSize: "12px", borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: "8px" }}>ARCHITECTURE MAP</span>
+            <span
+              style={{
+                opacity: 0.5,
+                fontWeight: 400,
+                fontSize: "12px",
+                borderLeft: "1px solid rgba(255,255,255,0.2)",
+                paddingLeft: "8px",
+              }}
+            >
+              ARCHITECTURE MAP
+            </span>
           </h2>
 
           {projectStatus && (

@@ -15,7 +15,10 @@ test.describe("VibeGraph Map Room 2.0 E2E", () => {
     await expect(flowContainer).toBeVisible({ timeout: 10000 });
 
     // Verify stats panel loads symbol/edge counts
-    const statsPanel = page.locator(".vibe-stat-chip").filter({ hasText: "/" }).or(page.locator(".vibe-stat-chip").nth(2));
+    const statsPanel = page
+      .locator(".vibe-stat-chip")
+      .filter({ hasText: "/" })
+      .or(page.locator(".vibe-stat-chip").nth(2));
     await expect(statsPanel).toBeVisible({ timeout: 15000 });
 
     // Verify symbol nodes are visible on canvas
@@ -49,7 +52,12 @@ test.describe("VibeGraph Map Room 2.0 E2E", () => {
     await page.goto("/");
 
     // Wait for initial load
-    await expect(page.locator(".vibe-stat-chip").filter({ hasText: "/" }).or(page.locator(".vibe-stat-chip").nth(2))).toBeVisible({ timeout: 15000 });
+    await expect(
+      page
+        .locator(".vibe-stat-chip")
+        .filter({ hasText: "/" })
+        .or(page.locator(".vibe-stat-chip").nth(2))
+    ).toBeVisible({ timeout: 15000 });
 
     const fromInput = page.getByPlaceholder("From symbol...");
     const toInput = page.getByPlaceholder("To symbol...");
