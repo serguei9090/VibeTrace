@@ -129,6 +129,14 @@ class IndexerDB(DBQueriesMixin):
             except Exception as e:
                 logger.warning("Error running migration on edges table: %s", e)
 
+            try:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_nodes_centrality_kind "
+                    "ON nodes(centrality DESC, kind)"
+                )
+            except Exception as e:
+                logger.warning("Error creating centrality index on nodes table: %s", e)
+
             with open(schema_path, encoding="utf-8") as f:
                 conn.executescript(f.read())
 

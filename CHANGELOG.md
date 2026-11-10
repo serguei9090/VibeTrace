@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.9] - 2026-11-09
 
 ### Added
-- **High-Throughput Sliding Window LSP Pipelining**: Added `get_definitions_batch(batch_size=32)` with non-blocking warming and pipelined definition resolution across multi-daemon language servers, achieving 100.0% call edge resolution without deadlocks.
+- **High-Throughput Sliding Window LSP Pipelining**: Added `get_definitions_batch(batch_size=32)` with non-blocking warming and pipelined definition resolution across multi-daemon language servers, achieving deterministic non-blocking cross-file call edge resolution.
 - **Optional Codebase Embeddings & Hardware Auto-Detection**: Added optional codebase indexing vectors via `[vector] codebase = true`, supporting real-time batch indexing progress feedback and hardware device auto-detection (`auto`, `gpu`, `cpu`).
 - **Orphaned Vector Embeddings Purge**: Added automatic deletion of orphaned embeddings (`purge_orphaned_embeddings`) when files are removed or modified.
 - **Enhanced `vibetrace init` Guided Setup**: Upgraded interactive onboarding wizard to configure test file inclusion, optional codebase embeddings, hardware accelerator selection, and Tier-2 code quality (SonarQube) and security (Semgrep/Trivy) engine options.

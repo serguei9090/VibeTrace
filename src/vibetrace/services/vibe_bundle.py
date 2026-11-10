@@ -59,21 +59,27 @@ def estimate_tokens(text: str) -> int:
 
 
 def truncate_to_tokens(text: str, max_tokens: int) -> str:
-    """Truncate text so estimated tokens do not exceed max_tokens with headroom.
+    """Truncate text so estimated tokens do not exceed max_tokens.
 
-    Uses a 4.0 chars/token envelope (giving ~14% spare headroom over the
-    3.5 chars/token estimate) to preserve closing syntax and return types
-    in larger functions without premature truncation.
+    Calculates a strict character limit matching the 3.5 chars/token estimate
+    accounting for truncation notice suffix, ensuring estimate_tokens(truncated) <= max_tokens.
     """
     if estimate_tokens(text) <= max_tokens:
         return text
-    char_limit = max_tokens * 4
+    notice = "\n... [truncated to fit token budget]"
+    notice_tokens = estimate_tokens(notice)
+    content_budget = max(1, max_tokens - notice_tokens)
+    char_limit = int(content_budget * 3.5)
     truncated = text[:char_limit]
     # Try to break cleanly at last newline
     last_nl = truncated.rfind("\n")
     if last_nl > char_limit // 2:
         truncated = truncated[:last_nl]
-    return truncated + "\n... [truncated to fit token budget]"
+    res = truncated + notice
+    while estimate_tokens(res) > max_tokens and len(truncated) > 10:
+        truncated = truncated[: int(len(truncated) * 0.9)]
+        res = truncated + notice
+    return res
 
 
 class SiblingTestContext(BaseModel):

@@ -125,7 +125,16 @@ class GenericParser(LanguageParser):
             m_id = self._get_id(target, sym, kind="module")
             if not any(x.id == m_id for x in ctx.nodes):
                 ctx.nodes.append(self._create_node(m_id, sym, "module", target, n))
-            ctx.edges.append(self._create_edge(file_module_id, m_id, "imports", node=n))
+            edge_conf = "exact" if target != "external" else "inferred"
+            if not any(
+                e.from_node_id == file_module_id
+                and e.to_node_id == m_id
+                and e.relation_type == "imports"
+                for e in ctx.edges
+            ):
+                ctx.edges.append(
+                    self._create_edge(file_module_id, m_id, "imports", node=n, confidence=edge_conf)
+                )
 
         def traverse(node: Node, parent_id: str | None = None) -> None:
             node_id = None

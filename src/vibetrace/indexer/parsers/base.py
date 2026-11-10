@@ -105,6 +105,7 @@ class LanguageParser(ABC):
         self.resolver = resolver
         self.last_imported_symbols: dict[str, tuple[str, str]] = {}
         self.last_target_symbols: dict[str, tuple[str, str]] = {}
+        self._go_pkg_symbol_cache: dict[str, dict[str, str]] = {}
         self.builtins: set[str] = set()
         if language_name == "python":
             self.builtins = PYTHON_BUILTINS
@@ -322,26 +323,36 @@ class LanguageParser(ABC):
         return self._get_id(target_f, called_name)
 
     def _find_go_symbol_file(self, target_file: str, sym: str) -> str:
-        """Find the specific .go file in the package folder where sym is declared."""
+        """Find the specific .go file in the package folder where sym is declared (cached)."""
         if not self.resolver or not self.resolver.known_files:
             return target_file
         pkg_dir = str(Path(target_file).parent).replace("\\", "/")
         raw_sym = sym.split(".")[-1]
-        patterns = (
-            f"func {raw_sym}(".encode(),
-            f"type {raw_sym} ".encode(),
-            f"var {raw_sym} ".encode(),
-            f"const {raw_sym} ".encode(),
-        )
+
+        # Check package cache first
+        if pkg_dir in self._go_pkg_symbol_cache:
+            return self._go_pkg_symbol_cache[pkg_dir].get(raw_sym, target_file)
+
+        # Build symbol index for all .go files in this package directory
+        pkg_cache: dict[str, str] = {}
         for kf in self.resolver.known_files:
             if kf.endswith(".go") and str(Path(kf).parent).replace("\\", "/") == pkg_dir:
                 try:
-                    content = (self.resolver.project_root / kf).read_bytes()
-                    if any(p in content for p in patterns):
-                        return kf
+                    content = (self.resolver.project_root / kf).read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+                    for line in content.splitlines():
+                        stripped = line.strip()
+                        if stripped.startswith(("func ", "type ", "var ", "const ")):
+                            parts = stripped.split()
+                            if len(parts) >= 2:
+                                s_name = parts[1].split("(")[0].strip()
+                                if s_name and s_name not in pkg_cache:
+                                    pkg_cache[s_name] = kf
                 except Exception:
                     pass
-        return target_file
+        self._go_pkg_symbol_cache[pkg_dir] = pkg_cache
+        return pkg_cache.get(raw_sym, target_file)
 
     def _create_node(
         self,
@@ -443,7 +454,18 @@ class LanguageParser(ABC):
         m_id = self._get_id(m_path, c_mod, kind="module")
         if not any(n.id == m_id for n in ctx.nodes):
             ctx.nodes.append(self._create_node(m_id, c_mod, "module", m_path, node))
-        ctx.edges.append(self._create_edge(ctx.file_module_id, m_id, "imports", node=node))
+        edge_conf = "exact" if res else "inferred"
+        if not any(
+            e.from_node_id == ctx.file_module_id
+            and e.to_node_id == m_id
+            and e.relation_type == "imports"
+            for e in ctx.edges
+        ):
+            ctx.edges.append(
+                self._create_edge(
+                    ctx.file_module_id, m_id, "imports", node=node, confidence=edge_conf
+                )
+            )
         return res
 
     @abstractmethod

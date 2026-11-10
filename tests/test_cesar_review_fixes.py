@@ -229,3 +229,38 @@ def test_proposal1_semgrep_tools_manager_install(tmp_path: Path) -> None:
         assert ok is True
         assert "Semgrep CLI" in msg
         assert run_mock.called
+
+
+def test_vibe_bundle_truncate_to_tokens_strict_budget() -> None:
+    """Verify truncate_to_tokens strictly adheres to requested token ceiling."""
+    from vibetrace.services.vibe_bundle import estimate_tokens, truncate_to_tokens
+
+    large_text = "def compute_large():\n" + ("    value = math.sqrt(42.0) * 3.14\n" * 400)
+    for budget in (64, 128, 512, 1024, 1500):
+        truncated = truncate_to_tokens(large_text, budget)
+        estimated = estimate_tokens(truncated)
+        assert estimated <= budget, (
+            f"Truncated text exceeded budget {budget}: got {estimated} tokens"
+        )
+
+
+def test_go_pkg_symbol_discovery_cached(tmp_path: Path) -> None:
+    """Verify _find_go_symbol_file populates cache and resolves symbol without re-reading."""
+    from vibetrace.indexer.parsers import ParserFactory
+    from vibetrace.indexer.resolver import ModuleResolver
+
+    go_pkg = tmp_path / "pkg"
+    go_pkg.mkdir()
+    (go_pkg / "alpha.go").write_text("package pkg\n\nfunc AlphaFn() {}\n", encoding="utf-8")
+    (go_pkg / "beta.go").write_text("package pkg\n\nfunc BetaFn() {}\n", encoding="utf-8")
+
+    resolver = ModuleResolver(tmp_path)
+    parser = ParserFactory.get_parser("pkg/alpha.go", resolver=resolver)
+    assert parser is not None
+
+    resolved_alpha = parser._find_go_symbol_file("pkg/alpha.go", "AlphaFn")
+    assert resolved_alpha.endswith("alpha.go")
+    assert "pkg" in parser._go_pkg_symbol_cache
+
+    resolved_beta = parser._find_go_symbol_file("pkg/alpha.go", "BetaFn")
+    assert resolved_beta.endswith("beta.go")

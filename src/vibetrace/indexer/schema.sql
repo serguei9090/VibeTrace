@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS function_taint_contracts (
     updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ftc_symbol_id ON function_taint_contracts(symbol_id);
+CREATE INDEX IF NOT EXISTS idx_nodes_centrality_kind ON nodes(centrality DESC, kind);
 
 
 
