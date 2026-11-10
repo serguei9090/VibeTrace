@@ -104,6 +104,7 @@ def scan_workspace_python(
 
     return PythonWorkspaceScan(dirty_files=dirty_files, deleted_files=deleted_files)
 
+
 _rust_core: Any = None
 try:
     from vibetrace import _rust_core as _rc  # type: ignore[attr-defined]
