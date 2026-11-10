@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +14,95 @@ from vibetrace.indexer.parsers import ParserFactory
 from vibetrace.indexer.resolver import ModuleResolver
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PythonFileDelta:
+    rel_path: str
+    content_hash: str
+    source_bytes: bytes
+
+
+@dataclass
+class PythonWorkspaceScan:
+    dirty_files: list[PythonFileDelta]
+    deleted_files: list[str]
+
+
+def scan_workspace_python(
+    target_path: Path,
+    project_root: Path,
+    known_hashes: dict[str, str],
+    extra_excludes: list[str] | None = None,
+    force: bool = False,
+) -> PythonWorkspaceScan:
+    """Pure-Python fallback workspace scanner when native Rust core is not compiled."""
+    from vibetrace.indexer.main import is_ignored_path, load_ignore_spec
+
+    spec = load_ignore_spec(project_root, extra_excludes)
+    active_root = project_root.resolve()
+    target_abs = target_path.resolve()
+
+    found_rel_paths: set[str] = set()
+    dirty_files: list[PythonFileDelta] = []
+    valid_exts = ParserFactory.get_supported_extensions()
+
+    for root, dirs, files in os.walk(str(target_abs)):
+        dirs[:] = [
+            d
+            for d in dirs
+            if not is_ignored_path(
+                str((Path(root) / d).relative_to(active_root)).replace("\\", "/"),
+                spec,
+                is_dir=True,
+            )
+        ]
+
+        for file_name in files:
+            full_p = Path(root) / file_name
+            try:
+                rel_p = str(full_p.relative_to(active_root)).replace("\\", "/")
+            except ValueError:
+                rel_p = str(full_p).replace("\\", "/")
+
+            if is_ignored_path(rel_p, spec, is_dir=False):
+                continue
+
+            found_rel_paths.add(rel_p)
+
+            if not any(rel_p.endswith(ext) for ext in valid_exts):
+                continue
+
+            try:
+                data = full_p.read_bytes()
+            except OSError:
+                continue
+
+            cur_hash = hashlib.sha256(data).hexdigest()
+            prev_hash = known_hashes.get(rel_p)
+
+            if force or prev_hash is None or prev_hash != cur_hash:
+                dirty_files.append(
+                    PythonFileDelta(
+                        rel_path=rel_p,
+                        content_hash=cur_hash,
+                        source_bytes=data,
+                    )
+                )
+
+    deleted_files: list[str] = []
+    try:
+        target_rel = str(target_abs.relative_to(active_root)).replace("\\", "/")
+    except ValueError:
+        target_rel = ""
+
+    for known_p in known_hashes:
+        if target_rel and target_rel not in ("", ".") and not known_p.startswith(f"{target_rel}/"):
+            continue
+        if known_p not in found_rel_paths:
+            deleted_files.append(known_p)
+
+    return PythonWorkspaceScan(dirty_files=dirty_files, deleted_files=deleted_files)
 
 _rust_core: Any = None
 try:
@@ -102,9 +194,14 @@ def reindex_workspace_hybrid(
         force=force,
     )
     if scan_res is None:
-        raise RuntimeError(
-            "Native Rust core (`vibetrace._rust_core`) is required. "
-            "Build it with: cargo build --release -p vibetrace-core --features extension-module"
+        if verbose:
+            logger.info("Native Rust core (_rust_core) not found; utilizing pure-Python scanner.")
+        scan_res = scan_workspace_python(
+            target_path=target_path,
+            project_root=project_root,
+            known_hashes=db.get_all_file_hashes(),
+            extra_excludes=extra_excludes,
+            force=force,
         )
 
     dirty_deltas = list(scan_res.dirty_files)

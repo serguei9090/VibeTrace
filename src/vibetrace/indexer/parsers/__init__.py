@@ -9,6 +9,30 @@ from vibetrace.indexer.resolver import ModuleResolver
 
 
 class ParserFactory:
+    SUPPORTED_EXTENSIONS: tuple[str, ...] = (
+        ".py",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".c",
+        ".h",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".hpp",
+        ".cs",
+        ".rb",
+        ".php",
+    )
+
+    @classmethod
+    def get_supported_extensions(cls) -> tuple[str, ...]:
+        return cls.SUPPORTED_EXTENSIONS
+
     @staticmethod
     def get_parser(file_path: str, resolver: ModuleResolver | None = None) -> LanguageParser | None:
         if file_path.endswith(".py"):
