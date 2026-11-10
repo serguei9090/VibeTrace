@@ -30,15 +30,20 @@ def interprocess_write_lock(
     lock_path = Path(f"{db_path}.write.lock")
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o666)
     except OSError:
         yield
         return
 
+    fd: int | None = None
+    locked = False
     try:
-        deadline = time.monotonic() + timeout
-        locked = False
         try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o666)
+        except OSError:
+            pass
+
+        if fd is not None:
+            deadline = time.monotonic() + timeout
             while True:
                 try:
                     if os.name == "nt":
@@ -56,26 +61,26 @@ def interprocess_write_lock(
                     if time.monotonic() >= deadline:
                         break
                     time.sleep(random.uniform(0.005, 0.025))
-            yield
-        finally:
-            if locked:
-                try:
-                    if os.name == "nt":
-                        import msvcrt
-
-                        os.lseek(fd, 0, os.SEEK_SET)
-                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-                    else:
-                        import fcntl
-
-                        fcntl.flock(fd, fcntl.LOCK_UN)
-                except OSError:
-                    pass
+        yield
     finally:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        if locked and fd is not None:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
 
 def _resolve_db_path(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str | Path | None:

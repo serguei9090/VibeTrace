@@ -12,16 +12,21 @@ from vibetrace.security.contracts import FunctionTaintContract, TaintContractMan
 _ENCODING_ERRORS = "replace"
 
 
-@functools.lru_cache(maxsize=256)
+@functools.lru_cache(maxsize=64)
 def _load_file_lines_and_contracts(
     abs_path_str: str, mtime_ns: int, rel_file_path: str
 ) -> tuple[tuple[str, ...], dict[str, FunctionTaintContract]]:
-    """Read source lines and analyze taint contracts once per file revision (LRU cached)."""
+    """Read source lines and analyze taint contracts once per file revision (bounded LRU cache)."""
     p = Path(abs_path_str)
     content = p.read_text(encoding="utf-8", errors=_ENCODING_ERRORS)
     lines = tuple(content.splitlines())
     contracts = TaintContractManager.analyze_source_code(content, rel_file_path)
     return lines, contracts
+
+
+def clear_taint_file_cache() -> None:
+    """Clear the bounded in-memory taint file line and contract cache."""
+    _load_file_lines_and_contracts.cache_clear()
 
 
 def _get_cached_file_context(

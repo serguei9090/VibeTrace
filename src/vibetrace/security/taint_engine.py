@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.security.dataflow import verify_interprocedural_taint_flow
+from vibetrace.security.dataflow import clear_taint_file_cache, verify_interprocedural_taint_flow
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
 MAX_DEPTH = 8
@@ -176,8 +176,11 @@ class TaintEngine:
             ).fetchall():
                 callers.setdefault(r["to_node_id"], []).append(r["from_node_id"])
 
-        for finding in candidates:
-            cls._process_candidate(finding, nodes, callers, sanitizers, project_root)
+        try:
+            for finding in candidates:
+                cls._process_candidate(finding, nodes, callers, sanitizers, project_root)
+        finally:
+            clear_taint_file_cache()
 
         return findings
 
