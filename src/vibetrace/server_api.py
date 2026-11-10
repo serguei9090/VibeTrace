@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from vibetrace.constants import DEFAULT_MAX_DEPTH, MAX_TRAVERSAL_DEPTH
 from vibetrace.indexer.watcher import start_observer, stop_observer
 from vibetrace.server_api_docs import docs_router
 from vibetrace.server_api_engineering import get_engineering_router
@@ -309,7 +310,7 @@ def get_node_neighbors(
 def get_trace(
     from_symbol: str = Query(..., min_length=1),
     to_symbol: str = Query(..., min_length=1),
-    max_depth: int = Query(default=6, ge=1, le=15),
+    max_depth: int = Query(default=DEFAULT_MAX_DEPTH, ge=1, le=MAX_TRAVERSAL_DEPTH),
     engine: str = Query(default="bfs", pattern="^(bfs|cte)$"),
     detect_splits: bool = Query(default=True),
 ):
@@ -323,7 +324,7 @@ def get_trace(
 @app.get("/api/reachable")
 def get_reachable_symbols(
     from_symbol: str = Query(..., min_length=1),
-    max_depth: int = Query(default=8, ge=1, le=15),
+    max_depth: int = Query(default=DEFAULT_MAX_DEPTH, ge=1, le=MAX_TRAVERSAL_DEPTH),
 ):
     """Get all downstream reachable symbols from a given start symbol."""
     symbols = get_downstream_reachable_symbols(db, from_symbol, max_depth=max_depth)

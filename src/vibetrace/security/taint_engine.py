@@ -12,11 +12,12 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from vibetrace.constants import DEFAULT_MAX_DEPTH
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.dataflow import clear_taint_file_cache, verify_interprocedural_taint_flow
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
 
-MAX_DEPTH = 8
+MAX_DEPTH = DEFAULT_MAX_DEPTH
 TAINT_CWES = {
     "CWE-78",
     "CWE-95",

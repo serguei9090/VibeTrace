@@ -2,15 +2,16 @@
 
 This document outlines the roadmap to elevate VibeGraph's MCP tools to a perfect 10/10 score by addressing current blind spots in relational analysis, depth limitations, and metadata richness.
 
-## 1. Core Engine: Intelligent Linker (The "Relational Fix")
-The most critical bottleneck is the "External Module Blind Spot." Currently, the indexer treats all package-style imports (e.g., `import vibegraph.indexer.main`) as "external" even if they are local files.
+## 1. Core Engine: Intelligent Linker (The "Relational Fix") - COMPLETED [v0.1.9+]
+Addressing the "External Module Blind Spot": package-style imports are resolved through the unified `ModuleResolver` registry, with unresolved external targets deduplicated and labeled with `confidence="inferred"`.
 
 ### Implementation Details:
-- **`ModuleResolver` Class**: Create a utility that:
-    1.  Recursively maps the project directory to build a "Module Registry" (e.g., `{"vibegraph.indexer.db": "src/vibegraph/indexer/db.py"}`).
-    2.  Handles common patterns like `src/` or `lib/` as root prefixes.
-    3.  Resolves `from . import x` by checking the current file's directory.
-- **Node ID Unification**: Ensure that `Parser._get_id("external", "vibegraph.db")` and `Parser._get_id("src/vibegraph/db.py", "db.py")` can be linked if they refer to the same logical entity.
+- **`ModuleResolver` Class**:
+    1.  Recursively maps the project directory to build a "Module Registry" (e.g., `{"vibetrace.indexer.db": "src/vibetrace/indexer/db.py"}`).
+    2.  Handles root prefixes (`src/`, `lib/`, `python/`).
+    3.  Resolves relative `.` and package alias imports (`@/*`, `~/`).
+    4.  Caches Go package declarations to eliminate repetitive full-disk reads.
+- **Node ID & Confidence Unification**: Unresolved imports are categorized under explicit inferred external nodes, preserving exact metrics for internal call graph resolution.
 
 ---
 

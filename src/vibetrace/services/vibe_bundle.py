@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vibetrace.constants import CHARS_PER_TOKEN, DEFAULT_VIBE_BUNDLE_BUDGET
 from vibetrace.docs.schemas import DocChunkItem
 from vibetrace.docs.service import DocSearchService
 from vibetrace.indexer.db import IndexerDB
@@ -54,14 +55,13 @@ def estimate_tokens(text: str) -> int:
     """Conservative token estimation with safety margin (~3.5 chars per token for code/prose)."""
     if not text:
         return 0
-    # Conservative divisor (3.5 chars/token) to prevent LLM context overflows
-    return max(1, int(len(text) / 3.5))
+    return max(1, int(len(text) / CHARS_PER_TOKEN))
 
 
-def truncate_to_tokens(text: str, max_tokens: int) -> str:
+def truncate_to_tokens(text: str, max_tokens: int = DEFAULT_VIBE_BUNDLE_BUDGET) -> str:
     """Truncate text so estimated tokens do not exceed max_tokens.
 
-    Calculates a strict character limit matching the 3.5 chars/token estimate
+    Calculates a strict character limit matching CHARS_PER_TOKEN (3.5)
     accounting for truncation notice suffix, ensuring estimate_tokens(truncated) <= max_tokens.
     """
     if estimate_tokens(text) <= max_tokens:
@@ -69,7 +69,7 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
     notice = "\n... [truncated to fit token budget]"
     notice_tokens = estimate_tokens(notice)
     content_budget = max(1, max_tokens - notice_tokens)
-    char_limit = int(content_budget * 3.5)
+    char_limit = int(content_budget * CHARS_PER_TOKEN)
     truncated = text[:char_limit]
     # Try to break cleanly at last newline
     last_nl = truncated.rfind("\n")
