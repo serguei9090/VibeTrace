@@ -151,7 +151,8 @@ Measures code health, cyclomatic/cognitive complexity, and anti-patterns.
 * [`literal_duplication.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/literal_duplication.py): Detects duplicate magic literals and hardcoded strings across files.
 * [`css_analyzer.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/css_analyzer.py): Lints CSS/Tailwind usage for unbounded arbitrary values and specificity issues.
 * [`docker_analyzer.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/docker_analyzer.py) & [`k8s_analyzer.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/k8s_analyzer.py): Analyzes Dockerfile and Kubernetes YAML manifests for production best practices.
-* [`rules_catalog.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/rules_catalog.py): Built-in declarative quality rules catalog.
+* [`rules_catalog.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/rules_catalog.py): Built-in native quality rules catalog covering structural AST/Call-Graph rules (Cognitive Complexity, Deep Nesting, Unused Private Methods, etc.).
+* [`rules.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/rules.py): In-memory resolution and vendor alias mapping for native quality rule specifications.
 * [`codemods.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/codemods.py): Automated code transformations and style cleanups.
 * [`baseline.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/quality/baseline.py): Quality baseline storage in `.vibetrace/quality.toml`.
 
