@@ -90,3 +90,31 @@ def test_benchmark_trace_path(benchmark, benchmark_db):
 
     trace_result = benchmark(run_trace)
     assert trace_result.found is True
+
+
+def test_benchmark_cold_index_fixture(benchmark):
+    """Reproducible benchmark measuring cold AST extraction and database indexing speed."""
+    from vibetrace.indexer.main import reindex_all
+
+    fixtures_dir = Path("tests/fixtures").resolve()
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+        temp_db_path = tf.name
+
+    try:
+
+        def run_cold_index():
+            db = IndexerDB(db_path=temp_db_path)
+            stats = reindex_all(
+                db=db,
+                target_path_str=str(fixtures_dir),
+                verbose=False,
+                force=True,
+                project_root=fixtures_dir,
+            )
+            db.close()
+            return stats
+
+        stats = benchmark(run_cold_index)
+        assert stats["files_processed"] > 0
+    finally:
+        Path(temp_db_path).unlink(missing_ok=True)

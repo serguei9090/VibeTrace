@@ -346,7 +346,7 @@ BUILTIN_DECLARATIVE_RULES: list[DeclarativeRule] = [
         pattern=r"\btorch\.load\s*\([^)]*\)",
         negative_pattern=r"weights_only\s*=\s*True",
         languages=("py",),
-        compliant_snippet="torch.load(model_path, weights_only=True)",
+        compliant_snippet="torch.load(model_path, weights_only=True)",  # nosec: rule example specification
     ),
     DeclarativeRule(
         id="py:CWE-352-csrf-exempt",

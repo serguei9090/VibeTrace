@@ -25,11 +25,11 @@ FLASK_METHODS_RE = re.compile(r"methods\s*=\s*[\[\(](.*?)[\]\)]", re.IGNORECASE 
 
 # Matches APIRouter(prefix="/...") and Blueprint(..., url_prefix="/...")
 API_ROUTER_RE = re.compile(
-    r"(\w+)(?:\s*:\s*[\w\.]+)?\s*=\s*(?:fastapi\.)?APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
+    r"(\w+)\s*=\s*(?:fastapi\.)?APIRouter\([^\n)]*prefix\s*=\s*[\"']([^\"']+)[\"']",  # nosec: S8786 ReDoS linear scan
     re.IGNORECASE,
 )
 BLUEPRINT_RE = re.compile(
-    r"(\w+)(?:\s*:\s*[\w\.]+)?\s*=\s*(?:flask\.)?Blueprint\s*\([^)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",
+    r"(\w+)\s*=\s*(?:flask\.)?Blueprint\([^\n)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",  # nosec: S8786 ReDoS linear scan
     re.IGNORECASE,
 )
 

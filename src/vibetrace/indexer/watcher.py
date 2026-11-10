@@ -62,7 +62,7 @@ class CodeChangeHandler(FileSystemEventHandler):
             try:
                 self.on_change()
             except Exception as e:
-                logger.error("Error in watcher callback: %s", e)
+                logger.exception("Error in watcher callback: %s", e)
 
     def _schedule_post_sync(self) -> None:
         """Debounce centrality recalculation and WebSocket broadcast across burst changes."""

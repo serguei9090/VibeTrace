@@ -133,8 +133,13 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = ({
 
     const handleResize = () => {
       if (!canvas) return;
-      canvas.width = canvas.parentElement?.clientWidth || window.innerWidth;
-      canvas.height = canvas.parentElement?.clientHeight || window.innerHeight;
+      const rect = canvas.parentElement?.getBoundingClientRect() || {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
     };
     handleResize();
     window.addEventListener("resize", handleResize);

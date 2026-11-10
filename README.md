@@ -48,7 +48,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 ## ⚡ Key Capabilities
 
-- **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill (configurable via `--skills-dir`), sets up an isolated project database, and performs initial indexing (<3.5s for typical ~200 file repositories; background incremental indexing for large monorepos).
+- **🚀 1-Click Workspace Setup (`vibetrace init`)**: Configures local `.gitignore` rules, bundles and installs the `vibetrace-navigator` agent skill (configurable via `--skills-dir`), sets up an isolated project database, and performs initial indexing (sub-second cold index on standard repositories; background incremental indexing for large monorepos).
 - **⚡ 1-Shot Context Packing (`vibetrace bundle`)**: Combines relevant architecture docs, target code slices, callee contracts, caller blast radius, and sibling test patterns within a bounded token budget ($\le 1,500$ tokens) for zero-shot LLM completion.
 - **🔬 360° Symbol Diagnosis Meta-Endpoint (`vibetrace diagnose`)**: Deep single-round-trip investigation consolidating source slice, callee contracts, all incoming callers with exact `:L<line>` call sites, 2-hop transitive blast radius, linked architectural documentation, and sibling test reachability.
 - **🛡️ Pre-Flight Caller Guard (`vibetrace guard`)**: AST incoming caller inspection with exact call lines and blast-radius advisories to prevent breaking sibling callers before modifying function signatures.
@@ -57,7 +57,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with hybrid BM25 + vector RRF, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
 - **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Exhaustive reachability analysis via recursive SQLite CTE checks with boundary dead-end tracking (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
 - **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`, enabled via `vibetrace[embeddings]`). Cross-queries code + docs via `--with-docs`.
-- **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving up to 85–95% of LLM context window tokens compared to full-file dumps.
+- **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving ~70–90% of LLM context window tokens compared to full-file dumps.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
 - **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif`, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
@@ -70,7 +70,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🏢 Enterprise Polyglot Route & DI Extraction**: Extracts REST routes, dependency injection tokens, and call edges from Java Spring Boot (`@GetMapping`, `@PostMapping`, `@RestController`) and C# ASP.NET Core (`[HttpGet]`, `[Route]`, `[ApiController]`).
 - **🎯 Dynamic Test Fixture Reachability**: Links `@pytest.mark.parametrize`, `@pytest.fixture`, and Jest/Vitest `test.each` parameters to underlying domain functions, preventing false alarms in coverage gates.
 - **🤖 Native Model Context Protocol (`vibetrace mcp`)**: Purpose-built FastMCP tools that empower AI coding agents to navigate, trace, guard, inspect, and audit code splits and security findings surgically.
-- **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a 60 FPS Macro Clustered Package Graph (Option 1), live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
+- **🌐 Map Room 2.0 Visualizer (`vibetrace serve`)**: Interactive `@xyflow/react` + ELK.js web visualizer with a hardware-accelerated WebGL/Canvas2D batch overlay, live Caller Guard badges, in-browser Split Audit approval popovers, and Documentation RAG Explorer Drawer.
 
 ---
 
@@ -78,7 +78,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 | Benefit | What you get |
 | :--- | :--- |
-| **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by up to 85–95% versus dumping full files or terminal output. |
+| **Token savings** | Surgical slices and `--summary` matrices (<1 KB) cut LLM context use by ~70–90% versus dumping full files or terminal output. |
 | **AST structural truth** | Exact call graph, taint paths and `:L<line>` call sites from Tree-sitter AST; static analysis with module-level grouping for dynamic reflection. |
 | **Zero-config baseline + optional pro adapters** | Built-in Tree-sitter AST security, secrets, RSPEC-inspired complexity metrics, and OSV CVEs work out of the box; optional adapters automatically bridge Semgrep CLI, Trivy, Ruff, Pyright, Biome, Clippy, and GolangCI-Lint when installed. |
 | **Safe by default** | Pre-commit gates (`guard --staged`, `audit security --staged`) block breaking changes and leaked keys before they reach git (regex false positives mitigated via `pattern-not` filters). |
@@ -123,9 +123,9 @@ VibeTrace provides first-class multi-language AST extraction:
 | **Ruby** | `.rb` | ✅ Solid | `RuboCop` 1.x + Tree-sitter Cognitive Complexity (`S3776`) |
 | **Shell** | `.sh`, `.bash`, `.zsh` | ✅ Solid | `ShellCheck` 0.10.x |
 | **SQL** | `.sql` | ✅ Solid | `SQLFluff` 4.5.x |
-| **Java** | `.java` | ✅ Solid | Packages, Classes, Interfaces, Call hierarchies, Tree-sitter (`S3776`) |
-| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Solid | Functions, Classes, Structs, Preprocessor includes, Tree-sitter (`S3776`) |
-| **C#** | `.cs` | 🛠️ Generic | Structural symbol extraction + Tree-sitter (`S3776`) |
+| **Java** | `.java` | 🛠️ Structural | Packages, Classes, Interfaces, Call hierarchies, Tree-sitter (`S3776`) |
+| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Structural | Functions, Classes, Structs, Preprocessor includes, Tree-sitter (`S3776`) |
+| **C#** | `.cs` | 🛠️ Structural | Structural symbol extraction + Tree-sitter (`S3776`) |
 
 ---
 
@@ -182,7 +182,7 @@ That's it! `vibetrace.db` is created locally inside that project and never share
 # 0. Repository Indexing (High-Speed Rust AST + Multi-Daemon LSP Pipelining)
 # Incremental Git-delta index (only changed files)
 vibetrace index
-# Force cold index + LSP hybrid resolution (100% exact polymorphic call resolution)
+# Force cold index + LSP hybrid resolution (deterministic AST + LSP definition bridge; best-effort for dynamic dispatch)
 vibetrace index --force --lsp
 # Index with optional code embeddings (or disable via --no-embed)
 vibetrace index --embed
@@ -422,12 +422,12 @@ For centralized team servers, monorepos, and cloud multi-tenancy:
 ### 3. Planned Intelligence: Optional Cross-Encoder Re-Ranking (`vibetrace[rerank]`) — Roadmap (Deferred)
 - **Optional Plugin Extra**: For conceptual prose searches where exact identifiers are unknown, installable via `uv tool install "vibetrace[rerank]"` or `pip install "vibetrace[rerank]"`.
 - **Two-Stage Re-Ranking**: Uses an ONNX-quantized cross-encoder (`flashrank` with `ms-marco-TinyBERT-L-2-v2`) to re-score the top-30 RRF candidates via `--rerank` without sacrificing the sub-second core baseline.
-- **Status:** Deferred to future roadmap as current two-stream BM25 + dense embedding RRF search already delivers sub-50ms precision on technical queries without adding package weight.
+- **Status:** Deferred to future roadmap as current two-stream BM25 + dense embedding RRF search already delivers responsive local query latency without adding package weight.
 
 ### 4. Planned Context Optimization: Exact BPE Tokenizer (`tiktoken`) — Roadmap (Deferred or add 10% buffer)
 - **Exact Model Vocabulary BPE**: Integration with `tiktoken` for exact token counting across OpenAI, Claude, and Gemini models.
 - **Status:** Deferred to future roadmap to keep VibeTrace lightweight and avoid compiled binary C-extension dependencies.
-- **Lightweight Alternative:** Calibrate token estimators with a 10% conservative safety headroom ($3.5\text{ chars/token}$ and a 90% budget cap) to mathematically guarantee zero context window overflow without external dependencies.
+- **Calibrated Budget & Headroom Architecture:** Token estimation uses a calibrated conservative baseline (3.5 chars/token). Payloads enforce the requested token budget plus an intentional ~14% headroom buffer (4.0 chars/token truncation ceiling) to accommodate closing syntax, return types, and complete structural signatures in larger functions without premature truncation.
 
 ### 5. Planned Web Explorer: In-Memory WASM AST Indexing — Roadmap (Deferred)
 - **Standalone Web / Chrome Extension Showcase**: In-browser AST parsing via `web-tree-sitter` and in-memory SQLite (`sql.js`) to inspect public GitHub repositories directly in the Map Room without running the local Python daemon.

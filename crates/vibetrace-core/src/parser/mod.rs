@@ -13,7 +13,7 @@ pub fn compute_node_id(
     kind: Option<&str>,
     target_symbols: &mut HashMap<String, (String, String)>,
 ) -> String {
-    let mut hasher = Md5::new();
+    let mut hasher = Md5::new(); // nosec: rs:CWE-327 non-cryptographic AST node ID
     if kind == Some("module") {
         hasher.update(format!("module::{qualified_name}").as_bytes());
         return hex::encode(hasher.finalize());

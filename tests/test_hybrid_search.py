@@ -187,3 +187,29 @@ def test_search_semantic_empty_db_fast_path(tmp_path: Path):
     results = engine.search_semantic(db, "authenticate", limit=10)
     assert results == []
     assert called is False, "Encoder was invoked even though node_embeddings was empty!"
+
+
+def test_hybrid_search_graceful_degradation_without_vectors(tmp_path: Path):
+    """When vector engine raises an error, hybrid search falls back to FTS5 + AST."""
+    db = _populate_sample_db(tmp_path)
+
+    # Search with no vector engine explicitly instantiated or populated
+    results_no_vec = hybrid_search(db, "RS256 bearer token", limit=5)
+    assert len(results_no_vec) > 0
+    assert results_no_vec[0].name == "authenticate_jwt"
+    assert "fts5" in results_no_vec[0].match_sources
+
+    # Search with a broken/failing vector engine (simulates network failure or missing torch)
+    class BrokenEmbeddingEngine:
+        def search_semantic(self, _db, _query, limit=10):
+            raise RuntimeError("Torch or model weights unavailable offline")
+
+    engine = BrokenEmbeddingEngine()
+    results_fallback = hybrid_search(
+        db,
+        "RS256 bearer token",
+        limit=5,
+        embedding_engine=engine,  # type: ignore[arg-type]
+    )
+    assert len(results_fallback) > 0
+    assert results_fallback[0].name == "authenticate_jwt"

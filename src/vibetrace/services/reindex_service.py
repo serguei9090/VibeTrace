@@ -50,13 +50,30 @@ class ReindexService:
             }
 
         # Mode B: Full workspace reindex
+        # Resolve effective LSP mode: CLI flag overrides, else check config indexer.lsp_mode
+        eff_lsp = use_lsp
+        if not eff_lsp:
+            try:
+                from vibetrace.config import load_config
+                from vibetrace.indexer.lsp_bridge import get_default_lsp_command
+
+                cfg = load_config(active_root)
+                mode = getattr(cfg.indexer, "lsp_mode", "auto").lower()
+                if mode == "always":
+                    eff_lsp = True
+                elif mode == "auto":
+                    # In auto mode, use LSP if an LSP command is available
+                    eff_lsp = get_default_lsp_command(active_root) is not None
+            except Exception:
+                eff_lsp = False
+
         telemetry = reindex_all(
             db,
             str(active_root),
             verbose=verbose,
             force=force,
             project_root=active_root,
-            use_lsp=use_lsp,
+            use_lsp=eff_lsp,
         )
         pruned_edges = db.prune_orphaned_edges()
         if not is_json and verbose and pruned_edges > 0:

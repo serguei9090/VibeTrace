@@ -425,7 +425,9 @@ EXT_TO_LANGUAGE: dict[str, str] = {
 }
 
 
-def get_lsp_command_for_language(language: str) -> list[str] | None:
+def get_lsp_command_for_language(
+    language: str, project_root: Path | None = None
+) -> list[str] | None:
     """Finds an available LSP binary for a specific language."""
     candidates = LSP_SERVER_CANDIDATES.get(language, [])
     for binary, cmd in candidates:
@@ -434,11 +436,11 @@ def get_lsp_command_for_language(language: str) -> list[str] | None:
     return None
 
 
-def get_default_lsp_command(project_root: Path) -> list[str] | None:
+def get_default_lsp_command(project_root: Path | None = None) -> list[str] | None:
     """Detect available LSP language servers installed on the host machine."""
     # Look for Python first, then TypeScript, Rust, Go, PHP
     for lang in ("python", "typescript", "rust", "go", "php"):
-        cmd = get_lsp_command_for_language(lang)
+        cmd = get_lsp_command_for_language(lang, project_root=project_root)
         if cmd:
             return cmd
     return None
@@ -693,7 +695,7 @@ class MultiLanguageLSPManager:
             if existing and existing._running:
                 return existing
 
-            cmd = get_lsp_command_for_language(language)
+            cmd = get_lsp_command_for_language(language, project_root=project_root)
             if not cmd:
                 return None
 

@@ -106,9 +106,13 @@ def save_project_manifest(project_root: Path, manifest: ProjectManifest) -> None
     lines.append("")
 
     for member in manifest.members:
-        lines.append("[[project.members]]")
-        lines.append(f"name = {json.dumps(member.name)}")
-        lines.append(f"path = {json.dumps(member.path)}")
+        lines.extend(
+            [
+                "[[project.members]]",
+                f"name = {json.dumps(member.name)}",
+                f"path = {json.dumps(member.path)}",
+            ]
+        )
         if member.description:
             lines.append(f"description = {json.dumps(member.description)}")
         if member.storage_path != ".vibetrace/vibetrace.db":

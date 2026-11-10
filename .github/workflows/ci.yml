@@ -34,6 +34,11 @@ jobs:
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust toolchain and dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "crates/vibetrace-core -> target"
+
       - name: Build native Rust core
         run: |
           cargo build --release -p vibetrace-core --features extension-module

@@ -301,9 +301,13 @@ def format_caller_guard_md(report: CallerGuardReport) -> str:
     lines = [f"## Caller Guard Report: `{report.symbol}`", ""]
     loc_str = f"`{report.file_path}:L{report.target_line}`" if report.file_path else ""
     sig_str = f" `{report.target_signature}`" if report.target_signature else ""
-    lines.append(f"**Target Definition:** {loc_str}{sig_str}")
-    lines.append(f"**Status:** {report.safety_advisory}")
-    lines.append("")
+    lines.extend(
+        [
+            f"**Target Definition:** {loc_str}{sig_str}",
+            f"**Status:** {report.safety_advisory}",
+            "",
+        ]
+    )
 
     if not report.callers:
         lines.append("No active callers recorded in AST call graph.")

@@ -48,7 +48,7 @@ class SarifIngestEngine:
             data = json.loads(content)
             return cls.parse_sarif_dict(data, project_root, db=db)
         except (OSError, json.JSONDecodeError) as err:
-            logger.error("Failed to parse SARIF file %s: %s", sarif_path, err)
+            logger.exception("Failed to parse SARIF file %s: %s", sarif_path, err)
             return []
 
     @classmethod

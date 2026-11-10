@@ -336,3 +336,39 @@ def test_tracepath_primary_node_sequence(tmp_path: Path) -> None:
     primary_seq = [res.hops[0].from_node.id, *(h.to_node.id for h in res.hops)]
     # First nodes in node_ids must strictly match the primary sequence [A, B, D] or [A, C, D]
     assert res.node_ids[: len(primary_seq)] == primary_seq
+
+
+def test_token_savings_empirical_slice(tmp_path: Path) -> None:
+    """Empirically measure token window reduction of surgical slicing vs full file dump."""
+    db = IndexerDB(str(tmp_path / "slice_eval.db"))
+    # Create a 150-line file with multiple functions
+    large_code_lines = [f"# Line {i} comment padding for realistic file sizing" for i in range(120)]
+    target_func = [
+        "def process_payout(account_id: str, amount_cents: int) -> bool:",
+        '    """Execute secure payout settlement."""',
+        "    if amount_cents <= 0:",
+        "        return False",
+        "    return True",
+    ]
+    full_content = "\n".join(large_code_lines + target_func) + "\n"
+    (tmp_path / "payout.py").write_text(full_content, encoding="utf-8")
+    reindex_all(db, str(tmp_path), verbose=False)
+
+    nodes = db.find_nodes_by_name("process_payout")
+    assert len(nodes) > 0
+
+    slice_result = get_code_slice(db, tmp_path, "process_payout")
+    assert slice_result.found is True
+    assert slice_result.start_line is not None
+    assert slice_result.start_line > 0
+    assert slice_result.end_line is not None
+    assert slice_result.end_line >= slice_result.start_line
+
+    # Character count comparison (proxy for tokens: ~3.5 chars/token)
+    full_chars = len(full_content)
+    slice_chars = len(slice_result.source_code)
+    savings_ratio = (full_chars - slice_chars) / full_chars
+
+    # In a 125-line file where a 5-line function is sliced, savings exceed 70%
+    assert savings_ratio >= 0.70
+    assert savings_ratio < 1.0

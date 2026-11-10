@@ -44,8 +44,9 @@ class ShellCheckAdapter(LinterSubEngine):
         self.timeout_sec = timeout_sec
         self._cached_runner: list[str] | None = None
 
-    def _find_runner(self, project_root: Path) -> list[str] | None:
+    def _find_runner(self, project_root: Path | None = None) -> list[str] | None:
         """Finds shellcheck executable in PATH."""
+        _ = project_root
         if self._cached_runner is not None:
             return self._cached_runner
 
@@ -130,7 +131,10 @@ class ShellCheckAdapter(LinterSubEngine):
             logger.warning("Failed executing ShellCheck on %s: %s", project_root, e)
             return []
 
-    def parse_shellcheck_output(self, raw_json: str, project_root: Path) -> list[QualityFinding]:
+    def parse_shellcheck_output(
+        self, raw_json: str, project_root: Path | None = None
+    ) -> list[QualityFinding]:
+        _ = project_root
         try:
             items = json.loads(raw_json)
             if not isinstance(items, list):

@@ -93,6 +93,10 @@ class IndexerConfig(BaseModel):
         default=True,
         description="Automatically synchronize working tree changes during queries",
     )
+    lsp_mode: str = Field(
+        default="auto",
+        description="LSP resolution mode: 'auto' (detect/use LSP), 'always', or 'off'",
+    )
     exclude_patterns: list[str] = Field(
         default_factory=lambda: [
             "CodeIngestTest/**",
@@ -212,6 +216,7 @@ def generate_default_config_toml(
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
+    lsp_mode: str = "auto",
 ) -> str:
     """Generate documented default TOML configuration."""
     # Sanitize project name against invalid characters / multiline injections
@@ -264,6 +269,8 @@ batch_size = 32
 debounce_seconds = 2.0
 # Auto-sync working tree changes during queries
 auto_sync = true
+# LSP dynamic call resolution mode: "auto" (bridge missing dynamic types), "always", or "off"
+lsp_mode = "{lsp_mode}"
 # Folders and glob patterns excluded from indexing
 exclude_patterns = [
     "CodeIngestTest/**",
@@ -352,6 +359,7 @@ def save_default_config(
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
+    lsp_mode: str = "auto",
 ) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
@@ -368,6 +376,7 @@ def save_default_config(
             enable_sonar=enable_sonar,
             enable_semgrep=enable_semgrep,
             enable_trivy=enable_trivy,
+            lsp_mode=lsp_mode,
         )
         target.write_text(content, encoding="utf-8")
     return target

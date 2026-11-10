@@ -512,6 +512,7 @@ class ToolsManager:
             )
             has_go = any(root.glob("*.go")) or (root / "go.mod").exists()
             has_rs = any(root.glob("*.rs")) or (root / "Cargo.toml").exists()
+            has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
 
             results: list[str] = []
             which_uv = shutil.which("uv")
@@ -519,7 +520,7 @@ class ToolsManager:
             which_bun = shutil.which("bun")
 
             # Python LSP (basedpyright or pyright)
-            if has_py or (not has_ts and not has_go and not has_rs):
+            if has_py or (not has_ts and not has_go and not has_rs and not has_php):
                 if which_uv:
                     res = subprocess.run([which_uv, "tool", "install", "basedpyright"], check=False)
                     if res.returncode == 0:
@@ -541,6 +542,39 @@ class ToolsManager:
                     res = subprocess.run(cmd_install, check=False)
                     if res.returncode == 0:
                         results.append("typescript-language-server (TypeScript/JS)")
+
+            # Go LSP (gopls)
+            if has_go:
+                which_go = shutil.which("go")
+                if which_go:
+                    res = subprocess.run(
+                        [which_go, "install", "golang.org/x/tools/gopls@latest"], check=False
+                    )
+                    if res.returncode == 0:
+                        results.append("gopls (Go)")
+
+            # Rust LSP (rust-analyzer)
+            if has_rs:
+                which_rustup = shutil.which("rustup")
+                if which_rustup:
+                    res = subprocess.run(
+                        [which_rustup, "component", "add", "rust-analyzer"], check=False
+                    )
+                    if res.returncode == 0:
+                        results.append("rust-analyzer (Rust)")
+
+            # PHP LSP (intelephense)
+            if has_php:
+                pm = which_bun or which_npm
+                if pm:
+                    cmd_install = (
+                        [pm, "add", "-g", "intelephense"]
+                        if which_bun
+                        else [pm, "install", "-g", "intelephense"]
+                    )
+                    res = subprocess.run(cmd_install, check=False)
+                    if res.returncode == 0:
+                        results.append("intelephense (PHP)")
 
             if results:
                 return True, f"Successfully installed LSP servers: {', '.join(results)}."

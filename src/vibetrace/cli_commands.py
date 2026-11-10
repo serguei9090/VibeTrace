@@ -546,6 +546,22 @@ def cmd_init(args: argparse.Namespace) -> int:
                 )
                 if ans_sonar in ("y", "yes"):
                     enable_sonar = True
+
+            # Prompt to confirm or install LSP language servers for deep call resolution
+            from vibetrace.indexer.lsp_bridge import get_default_lsp_command
+            from vibetrace.tools_manager import ToolsManager
+
+            active_lsp = get_default_lsp_command(root)
+            if not active_lsp:
+                print("\n🔍 LSP (Language Server Protocol) Deep Call Resolution:")
+                print("   No active LSP server was detected for your project.")
+                msg_lsp = (
+                    "   Install matching LSP server now (pyright, typescript, gopls, rust)? [Y/n]: "
+                )
+                ans_lsp = input(msg_lsp).strip().lower()
+                if ans_lsp not in ("n", "no"):
+                    _ok, msg = ToolsManager.install("lsp", root)
+                    print(f"   {msg}")
         except (EOFError, KeyboardInterrupt):
             print()
 

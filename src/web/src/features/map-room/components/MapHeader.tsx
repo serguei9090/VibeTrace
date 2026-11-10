@@ -622,12 +622,12 @@ export const MapHeader: React.FC<MapHeaderProps> = ({
             lastAgentEvent={lastAgentEvent}
           />
 
-          {/* WebGPU Hardware Acceleration Toggle */}
+          {/* GPU Hardware Acceleration Toggle (WebGL2 batch pipeline / Canvas2D fallback) */}
           <button
             type="button"
             className={`vibe-btn ${webGpuTurbo ? "vibe-btn-primary" : "vibe-btn-ghost"}`}
             onClick={() => onToggleWebGpuTurbo?.(!webGpuTurbo)}
-            title="Toggle WebGPU / Hardware-Accelerated 60-120 FPS Canvas"
+            title="Toggle WebGL2 / Hardware-Accelerated Batch Canvas (WebGPU experimental)"
             style={{
               padding: "4px 10px",
               fontSize: "12px",

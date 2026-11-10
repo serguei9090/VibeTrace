@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = frozenset({".ts", ".tsx", ".mts", ".cts"})
 
-_DIAG_RE = re.compile(r"^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$")
+_DIAG_RE = re.compile(r"^([^(\r\n]+)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$")
 
 TSC_TO_SONAR: dict[str, tuple[str, str, QualityCategory, QualitySeverity]] = {
     # @deprecated symbol usages (S1874)

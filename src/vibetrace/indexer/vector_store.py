@@ -176,7 +176,7 @@ class LanceDBVectorStore:
                 try:
                     table.delete(delete_filter)
                 except Exception as err:
-                    logger.error(
+                    logger.exception(
                         "LanceDB purge failed for model '%s' in project '%s': %s",
                         mid,
                         self.project_name,
@@ -221,7 +221,7 @@ class LanceDBVectorStore:
         try:
             table.delete(f"project_name = '{safe_proj}' AND file_path = '{clean_path}'")
         except Exception as err:
-            logger.error("LanceDB file delete failed for '%s': %s", file_path, err)
+            logger.exception("LanceDB file delete failed for '%s': %s", file_path, err)
             raise
 
     def search_semantic(
@@ -262,7 +262,7 @@ class LanceDBVectorStore:
                     results.append((nid, score))
             return results
         except Exception as err:
-            logger.error("LanceDB search_semantic failed on '%s': %s", self.uri, err)
+            logger.exception("LanceDB search_semantic failed on '%s': %s", self.uri, err)
             raise
 
 

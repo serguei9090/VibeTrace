@@ -95,7 +95,7 @@ The following 5 strategic capabilities have been fully implemented, integrated a
    - CLI support: `vibegraph trace --save-as "<name>"`, `vibegraph trace --saved "<name>"`, `vibegraph trace --list-saved`.
    - REST API endpoints: `GET /api/saved-traces`, `POST /api/saved-traces`, `DELETE /api/saved-traces/{id}`, `GET /api/saved-traces/{name}/run`.
    - UI Bookmark selector, save prompt, and one-click deletion in Map Room `TracePathBar`.
-5. **LSP Hybrid Bridge for Dynamic Types & Re-Exports (100% Resolved Call Graph)**:
+5. **LSP Hybrid Bridge for Dynamic Types & Re-Exports (High-Precision Call Graph)**:
    - Preserves Tree-sitter's ultra-fast parsing while providing high-throughput `--lsp` resolution.
    - Sliding Window JSON-RPC Pipelining (`batch_size=32`) eliminating OS pipe buffer deadlocks.
    - Batch document pre-warming (`ensure_documents_opened_batch`) reducing disk reads.

@@ -10,13 +10,13 @@ In this paradigm, developer tooling serves a dual audience: human engineers and 
 
 | # | Feature / Capability | Industry Alternatives Considered | Internal Design Target / Dogfood Benchmark | Margin for Improvement? | New Feature Candidate? | Dogfooding Benchmark |
 | :---: | :--- | :--- | :---: | :---: | :---: | :---: |
-| **1** | **Agentic Deep Taint Engine** | GitHub CodeQL, Snyk Code, Checkmarx | **Target: Ultra-low Latency (<0.5s)** | **Yes** (Inter-file alias tracking) | **Yes** (Automated Git PR taint bot) | **0.339s** (50-path BFS); 100% trace extraction |
+| **1** | **Agentic Deep Taint Engine** | GitHub CodeQL, Snyk Code, Checkmarx | **Target: Ultra-low Latency (<0.5s)** | **Yes** (Inter-file alias tracking) | **Yes** (Automated Git PR taint bot) | **0.339s** (50-path BFS); deep trace extraction |
 | **2** | **Cognitive Complexity & Clean Code Auditor** | SonarQube, SonarCloud, Ruff | **Target: Local Agentic DX / Parity with Sonar** | **Yes** (Auto-remediation codemods) | **Yes** (AST auto-refactor autofix) | **54 $\to$ 0 unapproved**; avg complexity reduced to 12.80 |
-| **3** | **AST Call-Graph & Incremental Delta Indexer** | Sourcegraph (SCIP), Kythe, ctags | **Target: Sub-5s Footprint / Parity with SCIP** | **Yes** (Polyglot expansion) | **Yes** (WASM in-memory indexing) | **<3.5s** cold index for 196+ files; delta cache operational |
-| **4** | **Surgical Token Slicing & Context Bundler (`vibe_bundle`)** | Cursor, Aider, Repomix, Sourcegraph Cody | **Target: Call-Graph bounded slices** | **Yes** (Dynamic LLM budget fitting) | **Yes** (Adaptive sliding window) | Reduced LLM prompt size by **82%** vs dumping whole files |
-| **5** | **Security Vulnerability & OSV Supply Chain Auditor** | Snyk, Dependabot, Trivy, Semgrep | **Target: Unified AST + Lockfile Coverage** | **Yes** (Transitive graph trees) | **Yes** (Automated lockfile auto-patcher) | Detected **88 lockfile CVEs** + 0 false positive code injections |
-| **6** | **Hybrid Multi-Catalog Doc RAG (BM25 + Vectors)** | Docusaurus, Qdrant, LangChain, Cursor Docs | **Target: Zero-Cloud Embedded Hybrid Search** | **Roadmap** (Cross-encoder deferred) | **Yes** (Live codebase symbol cross-linking) | Sub-50ms hybrid retrieval across Markdown and PDF chunks |
-| **7** | **Visual Map Room & WebGPU Acceleration Canvas** | Dependency Cruiser, CodeSee, SonarLint | **Target: Interactive Call-Graph Layout** | **Yes** (WebGPU canvas layer) | **Yes** (Live taint path animated debugger) | Built cleanly via `bun run build`; sub-second ELK layouts (<300 nodes) |
+| **3** | **AST Call-Graph & Incremental Delta Indexer** | Sourcegraph (SCIP), Kythe, ctags | **Target: Sub-5s Footprint / Parity with SCIP** | **Yes** (Polyglot expansion) | **Yes** (WASM in-memory indexing) | Sub-second cold index on standard repos; delta cache operational |
+| **4** | **Surgical Token Slicing & Context Bundler (`vibe_bundle`)** | Cursor, Aider, Repomix, Sourcegraph Cody | **Target: Call-Graph bounded slices** | **Yes** (Dynamic LLM budget fitting) | **Yes** (Adaptive sliding window) | Reduced LLM prompt size by **~70–90%** vs dumping whole files |
+| **5** | **Security Vulnerability & OSV Supply Chain Auditor** | Snyk, Dependabot, Trivy, Semgrep | **Target: Unified AST + Lockfile Coverage** | **Yes** (Transitive graph trees) | **Yes** (Automated lockfile auto-patcher) | Detected **88 lockfile CVEs** + pattern-not negative assertion filtering |
+| **6** | **Hybrid Multi-Catalog Doc RAG (BM25 + Vectors)** | Docusaurus, Qdrant, LangChain, Cursor Docs | **Target: Zero-Cloud Embedded Hybrid Search** | **Roadmap** (Cross-encoder deferred) | **Yes** (Live codebase symbol cross-linking) | Low-latency local hybrid retrieval across Markdown and PDF chunks |
+| **7** | **Visual Map Room & WebGL/Canvas2D Acceleration Canvas** | Dependency Cruiser, CodeSee, SonarLint | **Target: Interactive Call-Graph Layout** | **Yes** (WebGL2 batch layer) | **Yes** (Live taint path animated debugger) | Built cleanly via `bun run build`; sub-second ELK layouts (<300 nodes) |
 | **8** | **AST Test Reachability & Quality Gate Engine** | Codecov, Coveralls, SonarQube Quality Gates | **#1 in Instant Zero-Run Test Impact** | **Yes** (Parameterized fixture reachability) | **Yes** (Predictive test selection) | Evaluates changed-file test coverage without executing tests |
 | **9** | **Federated Multi-Repo Code Graph** | Sourcegraph Enterprise, Uber SourceLink | **#1 in Local-first SQLite Federation** | **Yes** (Cross-network syncing) | **Yes** (Async RPC contract discovery) | Attached local repos queried in <10ms via prefixed names |
 | **10** | **Monolithic Split Auditor (`split_audit_service`)** | Custom Enterprise Architectural Linters | **Unique in Class (No direct competitor)** | **Yes** (Automated split generator) | **Yes** (Cyclomatic coupling cohesion score) | 159 historical file splits tracked & verified with code hashes |
@@ -56,7 +56,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 - **What It Solves Exactly:**  
   When an autonomous agent modifies a function, running an entire test suite takes 15–60 seconds, which stalls the agent's iterative self-correction loop. This feature uses the SQLite call graph to compute the upstream caller tree of modified functions and executes **only the tests that directly or indirectly invoke the modified code**.
 - **Benefits:**
-  - Drops verification cycle time from 20s to <400ms.
+  - Dramatically accelerates the verification cycle by running only caller-impacted test modules.
   - Guarantees test failures are directly correlated with the active diff, eliminating noisy, unrelated failures.
 - **Cons & Potential Risks:**
   - Dynamic runtime reflection (e.g. `getattr(mod, func)()`) or event bus dispatches can occasionally mask a call edge from the static AST.
@@ -146,19 +146,19 @@ Features and improvements are ranked from highest to lowest priority based on th
 
 ---
 
-### #7. WebGPU Large-Scale Graph Canvas (Map Room Acceleration) — Implemented ✅
+### #7. Hardware-Accelerated Graph Canvas (Map Room WebGL2 / Canvas2D Pipeline) — Implemented ✅
 - **Category:** Margin for Improvement (Visual Map Room)
 - **Score:** **7.8 / 10** (Performance & Scale)
-- **Status:** **Completed & Verified ✅**
+- **Status:** **Completed & Verified ✅ (WebGL2 batch pipeline active; WebGPU experimental)**
 - **What It Solves Exactly:**  
-  The current React Flow + SVG/HTML DOM canvas in `src/web` performs smoothly for graphs under ~1,000 nodes, but exhibits frame drops during panning, zooming, and physics layout on massive codebases (10k+ nodes). A WebGPU / WebGL hardware-accelerated canvas layer enables rendering 50,000+ symbol nodes and edges at continuous 60–120 FPS.
+  The current React Flow + SVG/HTML DOM canvas in `src/web` performs smoothly for graphs under ~1,000 nodes, but exhibits frame drops during panning, zooming, and physics layout on massive codebases. A hardware-accelerated WebGL2 batch canvas layer enables rendering large symbol node networks and edges at continuous high frame rates.
 - **Benefits:**
-  - Instant navigation across massive enterprise monorepos without DOM thrashing.
+  - Fast navigation across dense call graphs without DOM node creation overhead.
   - Smooth interactive animations for multi-hop taint trace flows and cluster expansions.
 - **Cons & Potential Risks:**
-  - Older client environments or headless browsers may lack WebGPU support; WebGPU requires custom shader pipelines rather than native HTML/CSS React components.
+  - Client environments or headless browsers may vary in WebGL2/WebGPU support; GPU layers require custom vertex batching rather than native HTML/CSS React components.
 - **How We Address This:**  
-  Implement a dual-layer architecture: Keep React Flow / DOM for node inspectors, details panels, and interactive controls, but render the background node network and edge traces via a WebGPU canvas with automatic WebGL/Canvas2D fallback when WebGPU is unavailable.
+  Implement a dual-layer architecture: Keep React Flow / DOM for node inspectors, details panels, and interactive controls, but render the background node network and edge traces via a hardware-accelerated WebGL2 batch pipeline with automatic Canvas2D fallback and an experimental WebGPU adapter probe.
 
 ---
 
@@ -242,7 +242,7 @@ Features and improvements are ranked from highest to lowest priority based on th
 - **Category:** Margin for Improvement (Docs RAG)
 - **Status:** **Deferred to Future Roadmap**
 - **One-Line Rationale:**  
-  > *Deferred to future roadmap: Current two-stream BM25 + dense embedding RRF search already delivers sub-50ms precision on technical queries, and adding a cross-encoder model would introduce unnecessary ~150ms inference latency and package bloat for agents.*
+  > *Deferred to future roadmap: Current two-stream BM25 + dense embedding RRF search already delivers responsive local query latency without adding package bloat for agents.*
 
 ---
 

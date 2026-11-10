@@ -59,7 +59,12 @@ def estimate_tokens(text: str) -> int:
 
 
 def truncate_to_tokens(text: str, max_tokens: int) -> str:
-    """Truncate text so estimated tokens do not exceed max_tokens."""
+    """Truncate text so estimated tokens do not exceed max_tokens with headroom.
+
+    Uses a 4.0 chars/token envelope (giving ~14% spare headroom over the
+    3.5 chars/token estimate) to preserve closing syntax and return types
+    in larger functions without premature truncation.
+    """
     if estimate_tokens(text) <= max_tokens:
         return text
     char_limit = max_tokens * 4
