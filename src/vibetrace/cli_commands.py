@@ -558,10 +558,49 @@ def cmd_init(args: argparse.Namespace) -> int:
                 msg_lsp = (
                     "   Install matching LSP server now (pyright, typescript, gopls, rust)? [Y/n]: "
                 )
-                ans_lsp = input(msg_lsp).strip().lower()
+                try:
+                    ans_lsp = input(msg_lsp).strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    ans_lsp = "n"
+                    print()
+
                 if ans_lsp not in ("n", "no"):
-                    _ok, msg = ToolsManager.install("lsp", root)
-                    print(f"   {msg}")
+                    try:
+                        _ok, msg = ToolsManager.install("lsp", root)
+                        print(f"   {msg}")
+                    except Exception as err:
+                        print(f"   Failed to install LSP: {err}")
+                else:
+                    # Provide language checklist if user wants a specific language LSP
+                    print("   Select language to install LSP:")
+                    print("   1) Python (pyright)")
+                    print("   2) TypeScript / JavaScript (typescript-language-server)")
+                    print("   3) Go (gopls)")
+                    print("   4) Rust (rust-analyzer)")
+                    print("   5) PHP (intelephense)")
+                    print("   6) Skip")
+                    prompt_choice = "   Enter choices (e.g. 1, 2) or press Enter to skip: "
+                    try:
+                        choice = input(prompt_choice).strip()
+                    except (EOFError, KeyboardInterrupt):
+                        choice = ""
+                        print()
+
+                    if choice and choice != "6":
+                        lang_map = {
+                            "1": "python",
+                            "2": "typescript",
+                            "3": "go",
+                            "4": "rust",
+                            "5": "php",
+                        }
+                        for c in choice.replace(" ", "").split(","):
+                            if c in lang_map:
+                                try:
+                                    _ok, msg = ToolsManager.install(lang_map[c], root)
+                                    print(f"   [{lang_map[c]}] {msg}")
+                                except Exception as err:
+                                    print(f"   [{lang_map[c]}] Failed to install LSP: {err}")
         except (EOFError, KeyboardInterrupt):
             print()
 
