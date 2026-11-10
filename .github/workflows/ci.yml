@@ -15,15 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f94e40e67c13f003c15d8004380aa89663d0fa33 # v5.3.0
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
@@ -32,17 +33,26 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4dd87271e95c1c0e3532c1c60f295b958e99fd9e # stable
+        with:
+          toolchain: stable
 
       - name: Cache Rust toolchain and dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@82a92a6e8fbeee08c636dad575c63740c4c47384 # v2.7.5
         with:
           workspaces: "crates/vibetrace-core -> target"
 
       - name: Build native Rust core
+        shell: bash
         run: |
           cargo build --release -p vibetrace-core --features extension-module
-          cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
+          if [ -f target/release/lib_rust_core.so ]; then
+            cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
+          elif [ -f target/release/lib_rust_core.dylib ]; then
+            cp target/release/lib_rust_core.dylib src/vibetrace/_rust_core.so
+          elif [ -f target/release/rust_core.dll ]; then
+            cp target/release/rust_core.dll src/vibetrace/_rust_core.pyd
+          fi
 
       - name: Run native Rust unit tests
         run: cargo test --workspace
