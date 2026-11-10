@@ -76,9 +76,14 @@ def truncate_to_tokens(text: str, max_tokens: int = DEFAULT_VIBE_BUNDLE_BUDGET) 
     if last_nl > char_limit // 2:
         truncated = truncated[:last_nl]
     res = truncated + notice
-    while estimate_tokens(res) > max_tokens and len(truncated) > 10:
+    iterations = 0
+    while estimate_tokens(res) > max_tokens and len(truncated) > 10 and iterations < 5:
         truncated = truncated[: int(len(truncated) * 0.9)]
         res = truncated + notice
+        iterations += 1
+    if estimate_tokens(res) > max_tokens:
+        char_cap = max(1, int(max_tokens * CHARS_PER_TOKEN))
+        res = text[:char_cap]
     return res
 
 

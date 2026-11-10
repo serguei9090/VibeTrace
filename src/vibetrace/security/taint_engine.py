@@ -12,7 +12,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from vibetrace.constants import DEFAULT_MAX_DEPTH
+from vibetrace.constants import DEFAULT_MAX_DEPTH, MAX_TRAVERSAL_DEPTH
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.dataflow import clear_taint_file_cache, verify_interprocedural_taint_flow
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity
@@ -32,7 +32,9 @@ TAINT_CWES = {
     "CWE-1321",
     "CWE-1336",
 }
-SANITIZERS = frozenset(
+
+# Language-scoped and shared sanitizers
+SHARED_SANITIZERS = frozenset(
     {
         "quote",
         "escape",
@@ -43,19 +45,46 @@ SANITIZERS = frozenset(
         "is_relative_to",
         "sanitize",
         "validator",
+        "validate",
         "clean",
-        "encodeURIComponent",
-        "encodeURI",
-        "DOMPurify",
-        "bleach",
-        "html.escape",
-        "shlex.quote",
-        "QueryEscape",
-        "HTMLEscapeString",
-        "Uri.EscapeDataString",
-        "HtmlEncoder.Default.Encode",
     }
 )
+
+PYTHON_SANITIZERS = SHARED_SANITIZERS | frozenset(
+    {"shlex.quote", "html.escape", "secure_filename", "urllib.parse.quote"}
+)
+
+JS_TS_SANITIZERS = SHARED_SANITIZERS | frozenset(
+    {"encodeURIComponent", "encodeURI", "DOMPurify", "bleach"}
+)
+
+GO_SANITIZERS = SHARED_SANITIZERS | frozenset({"QueryEscape", "HTMLEscapeString", "PathEscape"})
+
+CSHARP_SANITIZERS = SHARED_SANITIZERS | frozenset(
+    {"Uri.EscapeDataString", "HtmlEncoder.Default.Encode", "WebUtility.HtmlEncode"}
+)
+
+SANITIZERS = (
+    SHARED_SANITIZERS | PYTHON_SANITIZERS | JS_TS_SANITIZERS | GO_SANITIZERS | CSHARP_SANITIZERS
+)
+
+
+def get_scoped_sanitizers(file_path: str | None) -> frozenset[str]:
+    """Get language-appropriate sanitizer names based on target file extension."""
+    if not file_path:
+        return SANITIZERS
+    ext = Path(file_path).suffix.lower()
+    if ext == ".py":
+        return PYTHON_SANITIZERS
+    if ext in (".js", ".jsx", ".ts", ".tsx"):
+        return JS_TS_SANITIZERS
+    if ext == ".go":
+        return GO_SANITIZERS
+    if ext == ".cs":
+        return CSHARP_SANITIZERS
+    return SANITIZERS
+
+
 _SOURCE_DECORATOR_RE = re.compile(
     r"(\.(get|post|put|patch|delete|route|websocket)\b|click\.(command|group)|\.tool\b)"
 )
@@ -96,11 +125,15 @@ class TaintEngine:
         callers: dict[str, list[str]],
         sanitizers: frozenset[str],
         project_root: Path | None,
+        max_depth: int = DEFAULT_MAX_DEPTH,
     ) -> None:
         sink_id = cls._enclosing_node_id(nodes, finding)
         if sink_id is None:
             return
-        candidate_paths = cls._paths_from_sources(nodes, callers, sink_id, sanitizers, max_paths=24)
+        scoped_sanitizers = get_scoped_sanitizers(finding.file_path) | sanitizers
+        candidate_paths = cls._paths_from_sources(
+            nodes, callers, sink_id, scoped_sanitizers, max_paths=24, max_depth=max_depth
+        )
         if not candidate_paths:
             return
 
@@ -157,11 +190,13 @@ class TaintEngine:
         findings: list[SecurityFinding],
         extra_sanitizers: frozenset[str] = frozenset(),
         project_root: Path | None = None,
+        max_depth: int = DEFAULT_MAX_DEPTH,
     ) -> list[SecurityFinding]:
         candidates = [f for f in findings if f.cwe_id in TAINT_CWES]
         if not candidates:
             return findings
         sanitizers = SANITIZERS | extra_sanitizers
+        effective_depth = min(max_depth, MAX_TRAVERSAL_DEPTH)
 
         with db._get_conn() as conn:
             nodes = {
@@ -179,7 +214,9 @@ class TaintEngine:
 
         try:
             for finding in candidates:
-                cls._process_candidate(finding, nodes, callers, sanitizers, project_root)
+                cls._process_candidate(
+                    finding, nodes, callers, sanitizers, project_root, max_depth=effective_depth
+                )
         finally:
             clear_taint_file_cache()
 
@@ -252,6 +289,7 @@ class TaintEngine:
         sanitizers: frozenset[str],
         max_paths: int = 24,
         max_states: int = 2048,
+        max_depth: int = DEFAULT_MAX_DEPTH,
     ) -> list[list[str]]:
         """Reverse BFS from sink; returns candidate paths ordered source -> sink."""
         results: list[list[str]] = []
@@ -269,7 +307,7 @@ class TaintEngine:
                 continue
 
             next_depth = len(current_path)
-            if next_depth > MAX_DEPTH:
+            if next_depth > max_depth:
                 continue
 
             for caller_id in callers.get(tip, []):

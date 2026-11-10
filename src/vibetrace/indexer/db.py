@@ -126,6 +126,10 @@ class IndexerDB(DBQueriesMixin):
                     conn.execute("ALTER TABLE edges ADD COLUMN call_line INTEGER")
                 if edge_cols and "confidence" not in edge_cols:
                     conn.execute("ALTER TABLE edges ADD COLUMN confidence TEXT DEFAULT 'exact'")
+                    conn.execute(
+                        "UPDATE edges SET confidence = 'inferred' "
+                        "WHERE to_node_id IN (SELECT id FROM nodes WHERE file_path = 'external')"
+                    )
             except Exception as e:
                 logger.warning("Error running migration on edges table: %s", e)
 
