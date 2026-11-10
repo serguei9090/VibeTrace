@@ -34,7 +34,9 @@ def cmd_guard(args: argparse.Namespace) -> int:
         else:
             print(safe_str(format_staged_guard_md(reports)))
 
-        if getattr(args, "strict", False) and any(r.total_callers > 0 for r in reports):
+        if getattr(args, "strict", False) and any(
+            r.total_callers > 0 and getattr(r, "signature_changed", True) for r in reports
+        ):
             return 1
         return 0
 

@@ -37,6 +37,7 @@ class CallerGuardReport(BaseModel):
     target_signature: str | None = None
     total_callers: int = 0
     risk_level: str = "LOW"
+    signature_changed: bool = True
     callers: list[CallerSite] = Field(default_factory=list)
     alternative_candidates: list[str] = Field(default_factory=list)
     safety_advisory: str = ""
@@ -232,6 +233,18 @@ class CallerGuardService:
                         db, root, symbol_name=n["name"], file_path=norm_file
                     )
                     if report.found:
+                        # Check if function signature itself was modified (near start_line)
+                        # vs purely internal body modification
+                        sig_overlap = any(
+                            r_start <= s_line <= r_end or (s_line <= r_start <= s_line + 3)
+                            for r_start, r_end in ranges
+                        )
+                        report.signature_changed = sig_overlap
+                        if not sig_overlap and report.total_callers > 0:
+                            report.safety_advisory = (
+                                f"Notice: {report.total_callers} caller(s) detected, but only "
+                                "function body modified (signature intact). Non-breaking."
+                            )
                         reports.append(report)
 
         return reports
