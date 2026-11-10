@@ -308,8 +308,18 @@ class PRTaintBot:
             )
             # If sink line didn't hit, check if intermediate taint path node touches the diff
             if not is_hit and f.category == FindingCategory.TAINT_REACHABILITY:
-                # Include taint findings originating or passing through PR diff
-                is_hit = True
+                taint_slices = f.metadata.get("taint_slices") or []
+                for hop in taint_slices:
+                    hop_file = str(hop.get("file", "")).replace("\\", "/")
+                    hop_start = hop.get("start_line")
+                    hop_end = hop.get("end_line", hop_start)
+                    if hop_file == rel_path and hop_start is not None:
+                        if any(
+                            max(hop_start, r_start) <= min(hop_end, r_end)
+                            for r_start, r_end in file_ranges
+                        ):
+                            is_hit = True
+                            break
 
             if not is_hit:
                 continue

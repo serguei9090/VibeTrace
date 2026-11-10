@@ -36,10 +36,16 @@ class CoverageGateReport(BaseModel):
 
 
 def load_quality_gate_config(project_root: Path) -> tuple[float, bool]:
-    """Reads optional [quality_gate] min_coverage and enforce_coverage from config.toml."""
-    cfg_path = project_root / ".vibetrace" / "config.toml"
+    """Reads optional [quality_gate] min_coverage and enforce_coverage from configuration."""
+    from vibetrace.config import get_config_path
+
+    cfg_path = get_config_path(project_root) or (project_root / ".vibetrace.toml")
     if not cfg_path.is_file():
-        return 80.0, False
+        cfg_fallback = project_root / ".vibetrace" / "config.toml"
+        if cfg_fallback.is_file():
+            cfg_path = cfg_fallback
+        else:
+            return 80.0, False
     try:
         data = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
         qg = data.get("quality_gate", {})

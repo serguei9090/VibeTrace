@@ -56,14 +56,14 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
 - **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with hybrid BM25 + vector RRF, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
 - **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Exhaustive reachability analysis via recursive SQLite CTE checks with boundary dead-end tracking (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
-- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, PageRank centrality, and optional 256d Matryoshka vectors (`EmbeddingGemma 2`, enabled via `vibetrace[embeddings]`). Cross-queries code + docs via `--with-docs`.
+- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, in-degree graph centrality (with optional PageRank), and optional 256d Matryoshka vectors (`EmbeddingGemma 2`, enabled via `vibetrace[embeddings]`). Cross-queries code + docs via `--with-docs`.
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving ~70–90% of LLM context window tokens compared to full-file dumps.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
 - **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif`, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
-- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), Unused Private Methods (`S1144`), Identical Functions (`S4144`), Loose POSIX Permissions (`S2612`), and Async Without Await (`S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar`). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar`). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
-- **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
+- **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: Python AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
 - **🤖 Automated PR Taint Bot (`vibetrace audit pr-taint`)**: Scans pull request diffs, checks inter-procedural taint reachability, and synthesizes ready-to-merge inline code comments with parameterized remediations.
 - **🔗 Live Codebase Symbol $\leftrightarrow$ Documentation Linking (`vibetrace docs check`)**: Establishes bi-directional SQLite links between AST symbols and Markdown specifications, attaches relevant architectural contracts to source slices, and flags documentation drift when documented symbols are removed.
@@ -314,7 +314,7 @@ Add VibeTrace to your agent's MCP configuration:
 }
 ```
 
-The agent gains access to 29 surgical FastMCP code intelligence tools:
+The agent gains access to 33 surgical FastMCP code intelligence tools:
 - `vibetrace_review_changes` (Unified 1-call review: Security, Taint, Split Integrity, Caller Guard & 80% Test Gate)
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
 - `vibetrace_diagnose_symbol` (Consolidated 360° symbol diagnosis: slice, callers, blast radius, specs, tests)
@@ -410,14 +410,15 @@ VibeTrace uses a **Storage Adapter Interface** decoupling application logic, AST
 ```
 
 ### 1. Current Phase: Serverless In-Process (SQLite + LanceDB)
-- **Zero background services**: In-process SQLite for the AST call graph and FTS5 BM25 search.
+- **Zero background services**: In-process SQLite (`.vibetrace/vibetrace.db`) for the AST call graph, symbol references, and FTS5 BM25 search.
 - **Embedded LanceDB**: Disk-backed 256d Matryoshka vector ANN search with $<50$MB RAM overhead and sub-millisecond cosine retrieval.
+- **Federated Multi-Repo (`vibetrace project`)**: Provides optional PostgreSQL metadata persistence for cross-repository project workspaces (`vibetrace/federation/storage_postgres.py`).
 
-### 2. Enterprise Roadmap: PostgreSQL Storage Adapters
+### 2. Enterprise Roadmap: Pluggable Core PostgreSQL Storage (Design Proposed)
 For centralized team servers, monorepos, and cloud multi-tenancy:
-- **Hybrid PostgreSQL + LanceDB**: Swap SQLite with a PostgreSQL adapter (`backend = "postgres"` in `.vibetrace.toml`) while keeping LanceDB streaming from S3/GCS.
+- **Core Indexer PostgreSQL Adapter (Future)**: Proposed design to swap SQLite with a PostgreSQL adapter for the core symbol table and AST call edges.
 - **Unified PostgreSQL (`pgvector`)**: Store relational graph, AST entities, and vector embeddings in a single centralized PostgreSQL cluster with HNSW indices.
-- **Zero Code Modification**: Because AST extraction and MCP tools interface through abstract storage contracts, transitioning to PostgreSQL requires updating only the connection config in `.vibetrace.toml`.
+- **Current Status**: Core single-repo indexing is exclusively SQLite-backed. Pluggable core PostgreSQL storage is on the enterprise roadmap.
 
 ### 3. Planned Intelligence: Optional Cross-Encoder Re-Ranking (`vibetrace[rerank]`) — Roadmap (Deferred)
 - **Optional Plugin Extra**: For conceptual prose searches where exact identifiers are unknown, installable via `uv tool install "vibetrace[rerank]"` or `pip install "vibetrace[rerank]"`.
