@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import sqlite3
 import threading
 import time
@@ -820,27 +821,89 @@ class IndexerDB(DBQueriesMixin):
         return {"nodes": nodes, "edges": edges}
 
     @with_write_retry()
-    def update_centrality_scores(self) -> dict[str, float]:
-        """Compute and persist log-normalized in-degree graph centrality for dirty nodes."""
-        sql = """
-        WITH edge_counts AS (
-            SELECT to_node_id, ROUND(LN(1.0 + COUNT(*)), 4) AS score
-            FROM edges
-            WHERE relation_type IN ('calls', 'references', 'inherits', 'implements', 'imports')
-            GROUP BY to_node_id
-        )
-        UPDATE nodes
-        SET centrality = COALESCE(edge_counts.score, 0.0)
-        FROM nodes n
-        LEFT JOIN edge_counts ON n.id = edge_counts.to_node_id
-        WHERE nodes.id = n.id AND nodes.centrality != COALESCE(edge_counts.score, 0.0);
+    def update_centrality_scores(
+        self, use_pagerank: bool = False, damping: float = 0.85, max_iter: int = 20
+    ) -> dict[str, float]:
+        """Compute and persist graph centrality for nodes.
+
+        Defaults to log-normalized in-degree centrality (`ROUND(LN(1.0 + COUNT(*)), 4)`).
+        If `use_pagerank=True`, executes iterative power convergence PageRank with damping factor.
         """
+        if not use_pagerank:
+            sql = """
+            WITH edge_counts AS (
+                SELECT to_node_id, ROUND(LN(1.0 + COUNT(*)), 4) AS score
+                FROM edges
+                WHERE relation_type IN ('calls', 'references', 'inherits', 'implements', 'imports')
+                GROUP BY to_node_id
+            )
+            UPDATE nodes
+            SET centrality = COALESCE(edge_counts.score, 0.0)
+            FROM nodes n
+            LEFT JOIN edge_counts ON n.id = edge_counts.to_node_id
+            WHERE nodes.id = n.id AND nodes.centrality != COALESCE(edge_counts.score, 0.0);
+            """
+            with self._get_conn() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(sql)
+                conn.commit()
+                cursor = conn.execute("SELECT id, centrality FROM nodes WHERE centrality > 0")
+                return {str(row[0]): float(row[1]) for row in cursor.fetchall()}
+
+        return self._compute_and_save_pagerank(damping=damping, max_iter=max_iter)
+
+    def _compute_and_save_pagerank(
+        self, damping: float = 0.85, max_iter: int = 20
+    ) -> dict[str, float]:
+        """Iterative PageRank calculation over the directed symbol call graph."""
         with self._get_conn() as conn:
+            # 1. Fetch all node IDs
+            cur = conn.execute("SELECT id FROM nodes")
+            node_ids = [str(r[0]) for r in cur.fetchall()]
+            n = len(node_ids)
+            if n == 0:
+                return {}
+
+            # 2. Fetch outgoing edges and build adjacency + out-degree
+            rel_types = "('calls', 'references', 'inherits', 'implements', 'imports')"
+            cur = conn.execute(
+                f"SELECT from_node_id, to_node_id FROM edges WHERE relation_type IN {rel_types}"
+            )
+            out_degrees: dict[str, int] = {}
+            incoming: dict[str, list[str]] = {nid: [] for nid in node_ids}
+            for u, v in cur.fetchall():
+                out_degrees[u] = out_degrees.get(u, 0) + 1
+                if v in incoming:
+                    incoming[v].append(u)
+
+            # 3. Iterative power method
+            ranks = dict.fromkeys(node_ids, 1.0 / n)
+            base_score = (1.0 - damping) / n
+
+            for _ in range(max_iter):
+                new_ranks: dict[str, float] = {}
+                for nid in node_ids:
+                    in_sum = sum(
+                        ranks[u] / out_degrees[u]
+                        for u in incoming[nid]
+                        if out_degrees.get(u, 0) > 0
+                    )
+                    new_ranks[nid] = base_score + damping * in_sum
+                ranks = new_ranks
+
+            # Normalize to log scale for consistent downstream hybrid search weighting
+            normalized_scores = {
+                nid: round(float(math.log(1.0 + r * n * 10.0)), 4) for nid, r in ranks.items()
+            }
+
+            # 4. Batch update SQLite
             conn.execute("BEGIN IMMEDIATE")
-            conn.execute(sql)
+            conn.executemany(
+                "UPDATE nodes SET centrality = ? WHERE id = ?",
+                [(score, nid) for nid, score in normalized_scores.items()],
+            )
             conn.commit()
-            cursor = conn.execute("SELECT id, centrality FROM nodes WHERE centrality > 0")
-            return {str(row[0]): float(row[1]) for row in cursor.fetchall()}
+            return normalized_scores
 
     def get_nodes_by_ids(self, node_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Fetch full node dictionaries keyed by node ID with parameter chunking."""
