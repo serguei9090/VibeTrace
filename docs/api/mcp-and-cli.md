@@ -43,7 +43,9 @@ vibetrace --help
 | `vibetrace summary` | `<file> [--budget TOKENS]` | Structural outline of a file or PageRank centrality-ranked repository map. | `vibetrace summary . --budget 1024` |
 | `vibetrace references` | `<symbol> [--scope PATH]` | Locate all incoming call sites and symbol references across the project. | `vibetrace references upsert_node` |
 | `vibetrace dependencies` | `<file> [--reverse]` | Categorize imported modules (internal project, stdlib, third-party packages). | `vibetrace dependencies src/vibetrace/db.py` |
-| `vibetrace project` | `init \| status \| search \| guard \| links \| index` | Federated multi-repository workspace coordination, cross-repo call guards, and API contract matching. | `vibetrace project status` |
+| `vibetrace project` | `init | list | add | remove | index | search | guard | links` | Federated multi-repository workspace coordination, cross-repo call guards, and API contract matching. | `vibetrace project list` |
+| `vibetrace tools` | `status | doctor | list | install | install-lsp [lang]` | Manage and provision language servers and analyzers for deep multi-language AST extraction. | `vibetrace tools doctor` |
+| `vibetrace config` | `quality [--set KEY=VALUE]` | Manage code quality configuration, rule presets, and active engine toggles. | `vibetrace config quality --set ruff=strict` |
 | `vibetrace serve` | `[--host HOST] [--port PORT]` | Launch the Map Room 2.0 visualizer and FastAPI + WebSocket daemon. | `vibetrace serve --port 8000` |
 | `vibetrace init` | `[--force] [--project]` | 1-click workspace onboarding (`.gitignore`, `.vibetrace/`, agent skill installation). | `vibetrace init` |
 | `vibetrace hooks` | `install \| remove \| status` | Configure Lefthook or native git post-commit and pre-commit automation. | `vibetrace hooks install` |
@@ -145,7 +147,7 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 }
 ```
 
-### Complete MCP Tools Catalog (29 FastMCP Tools)
+### Complete MCP Tools Catalog (33 FastMCP Tools)
 
 | Tool Name | Key Parameters | Functionality |
 | :--- | :--- | :--- |
@@ -208,7 +210,16 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 | `/api/docs/check` | `GET` | _none_ | Audits documentation for broken or dead codebase symbol references. |
 | `/api/docs/sync-links` | `POST` | _none_ | Synchronizes bi-directional links between documentation and AST symbols. |
 | `/api/splits/audit` | `GET` | _none_ | Scans graph for cross-module execution splits against `.vibetrace/splits.toml`. |
-| `/api/splits/approve` | `POST` | `SplitApprovalRequest` body | Approves a split path with normalized SHA-256 caller code hash. |
+| `/api/splits/approve` | `POST` | `SplitApprovePayload` body | Approves a split path with normalized SHA-256 caller code hash. |
+| `/api/quality/audit` | `GET` | `scope_path?: string, file_path?: string` | Polyglot code quality audit with Sonar RSPEC rule checks. |
+| `/api/quality/approve` | `POST` | `QualityApprovePayload` body | Approves quality finding baseline exceptions in `.vibetrace/quality.toml`. |
+| `/api/security/approve` | `POST` | `SecurityApprovePayload` body | Approves security baseline exceptions in `.vibetrace/security.toml`. |
+| `/api/security/remediate` | `POST` | `SecurityRemediatePayload` body | Synthesizes compliant replacement templates for security findings. |
+| `/api/node/{node_id}/neighbors` | `GET` | `direction?: string, depth?: int` | Progressive neighbor drill-down for selected graph node in Map Room. |
+| `/api/hooks` | `GET, POST` | `action?: string` | Inspects and configures Git pre-commit and post-commit hooks. |
+| `/api/skill` | `GET, POST` | _none_ | Verifies and installs the VibeTrace AI Agent Skill. |
+| `/api/vibe/bundle` | `GET` | `query: string, budget?: int` | Returns 1-shot task bundle context via HTTP. |
+| `/api/vibe/guard` | `GET` | `symbol: string, staged?: bool` | Pre-flight caller guard analysis via HTTP. |
 | `/api/reindex` | `POST` | `ReindexPayload` body | Triggers incremental or full codebase reindex via `ReindexService`. |
 | `/call-tree` | `GET` | `symbol: string, depth?: int` | Returns top-down recursive call tree hierarchy JSON. |
 | `/source` | `GET` | `file_path: string, start_line: int, end_line: int` | Safely reads line slice within project root. |

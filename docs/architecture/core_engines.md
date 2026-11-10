@@ -68,7 +68,9 @@ The VibeTrace Taint Engine executes in three phases:
    q = payload["query"]              # Extracted key inherits taint
    db.execute(q)                     # Reaches sink -> ESCALATED
    ```
-4. **Dynamic Severity Escalation:**
+4. **Dynamic Severity Escalation & Search Bounds:**
+   - **BFS Search Ceiling:** Taint propagation search is bounded by `MAX_DEPTH = 8` hops to guarantee deterministic termination and sub-second analysis even in dense cyclic graphs.
+   - **Built-in Sanitizer Whitelist:** Propagation halts when tainted data passes through recognized sanitizer patterns, including: `quote`, `escape`, `shlex.quote`, `DOMPurify`, `bleach`, `validator.escape`, `html.escape`, and parameterized query boundaries.
    - If a sink is **unreachable** from any entry point: Marked `LOW` or `MEDIUM` (dormant / internal utility).
    - If a sink has a **valid, unbroken execution path** from an external entry point: Dynamically escalated to `HIGH` or `CRITICAL`, accompanied by the full hop-by-hop tracepath with exact line numbers (`entrypoint:L12 -> route:L45 -> sink:L88`).
 
@@ -237,3 +239,14 @@ sequenceDiagram
    Replaces 4 separate tool calls (`slice`, `call-stack`, `impact`, `docs check`) with a single 360° diagnostic dossier.
 3. **`vibetrace_review_changes` (Verification):**
    Replaces 4 separate quality gates with a single pre-commit pass enforcing security, taint, split integrity, caller safety, and 80% test coverage.
+
+---
+
+## 5. 🌐 Runtime Environment Variables
+
+The VibeGraph / VibeTrace runtime observes the following environment variables:
+
+| Variable | Scope | Description | Default / Fallback |
+| :--- | :--- | :--- | :--- |
+| `VIBETRACE_PROJECT_ROOT` | Server API & Engineering | Explicitly overrides repository root directory resolution for multi-tenant deployments, test sandboxes, or remote containers. | Current working directory (`Path.cwd()`) |
+| `GITHUB_TOKEN` | CLI PR Taint Review | GitHub API authentication token required when publishing inline PR review comments via `vibetrace audit pr-taint --post`. | None (prompted/required only for `--post`) |

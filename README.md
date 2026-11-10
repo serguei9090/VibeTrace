@@ -90,7 +90,7 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 | Document | What it covers |
 | :--- | :--- |
-| [`docs/api/mcp-and-cli.md`](docs/api/mcp-and-cli.md) | Full CLI reference, all 29 MCP tools, and HTTP/WebSocket endpoints, with parameters |
+| [`docs/api/mcp-and-cli.md`](docs/api/mcp-and-cli.md) | Full CLI reference, all 33 MCP tools, and HTTP/WebSocket endpoints, with parameters |
 | [`docs/architecture/core_engines.md`](docs/architecture/core_engines.md) | How the taint, security, quality, dependency and refactor engines work |
 | [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) | Planned work |
 | [`docs/guides/sonarlint_engine_guide.md`](docs/guides/sonarlint_engine_guide.md) | Native vs optional SonarLint quality engines |
