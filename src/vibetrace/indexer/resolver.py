@@ -138,11 +138,40 @@ class ModuleResolver:
         )
         if is_index and parts:
             folder_mod = ".".join(parts)
-            self.module_map[folder_mod] = path
+            self._set_module_mapping(folder_mod, path)
 
         module_name = ".".join(parts) if base_name == "__init__" else ".".join([*parts, base_name])
         if module_name:
-            self.module_map[module_name] = path
+            self._set_module_mapping(module_name, path)
+
+    def _set_module_mapping(self, module_name: str, path: str) -> None:
+        """Sets a module mapping with deterministic priority for conflicts."""
+        if module_name in self.module_map and self.module_map[module_name] != path:
+            existing = self.module_map[module_name]
+            # Priority order: prefer src/ over lib/, python/, or root
+            existing_score = (
+                2
+                if existing.startswith("src/")
+                else (1 if existing.startswith(("lib/", "python/")) else 0)
+            )
+            new_score = (
+                2 if path.startswith("src/") else (1 if path.startswith(("lib/", "python/")) else 0)
+            )
+            if new_score <= existing_score:
+                logger.debug(
+                    "Retaining existing mapping for '%s': '%s' over '%s'",
+                    module_name,
+                    existing,
+                    path,
+                )
+                return
+            logger.debug(
+                "Overriding module mapping for '%s': replacing '%s' with '%s'",
+                module_name,
+                existing,
+                path,
+            )
+        self.module_map[module_name] = path
 
     def add_file(self, rel_path: str) -> None:
         """Register a new or updated file in the module resolver."""
