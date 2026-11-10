@@ -954,6 +954,16 @@ class IndexerDB(DBQueriesMixin):
                 WHERE node_id NOT IN (SELECT id FROM nodes)
                 """
             )
-            deleted = cursor.rowcount
+            deleted = max(0, cursor.rowcount)
             conn.commit()
-            return max(0, deleted)
+            valid_ids = {str(r[0]) for r in conn.execute("SELECT id FROM nodes").fetchall()}
+
+        self._resolve_vector_store()
+        if self.vector_store and self.vector_store.is_available():
+            try:
+                if hasattr(self.vector_store, "purge_orphaned_embeddings"):
+                    deleted += int(self.vector_store.purge_orphaned_embeddings(valid_ids))
+            except Exception as e:
+                logger.warning("Failed to purge orphaned LanceDB embeddings: %s", e)
+
+        return deleted

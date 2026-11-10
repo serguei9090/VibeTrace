@@ -99,7 +99,7 @@ The following 5 strategic capabilities have been fully implemented, integrated a
    - Preserves Tree-sitter's ultra-fast parsing while providing high-throughput `--lsp` resolution.
    - Sliding Window JSON-RPC Pipelining (`batch_size=32`) eliminating OS pipe buffer deadlocks.
    - Batch document pre-warming (`ensure_documents_opened_batch`) reducing disk reads.
-   - Tested and verified 100.0% call edge resolution across real-world multi-module codebases.
+   - Best-effort static and LSP bridging for dynamic types, cross-file aliases, and re-exports across multi-module codebases.
 6. **Optional Codebase Vector Embeddings with Auto Hardware Detection**:
    - Declarative `[vectors] codebase = false` (default) and `device = "auto" | "gpu" | "cpu"`.
    - Real-time batch progress monitoring `[X/Total %]` preventing UI freezing.

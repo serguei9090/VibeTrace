@@ -322,6 +322,36 @@ def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
         assert len(rows) == 1
         assert rows[0][0] == "alive_func"
 
+    # Verify LanceDB orphan purge also removes stale vectors not in SQLite nodes
+    lance_store = LanceDBVectorStore(
+        uri=tmp_path / "purge_vectors.lance",
+        dimensions=256,
+        project_name="purge-test",
+    )
+    lance_store.upsert_embeddings(
+        [
+            {
+                "node_id": "alive_func",
+                "vector": [0.1] * 256,
+                "dimensions": 256,
+                "model_id": "model_test",
+                "file_path": "a.py",
+            },
+            {
+                "node_id": "ghost_orphan_func",
+                "vector": [0.2] * 256,
+                "dimensions": 256,
+                "model_id": "model_test",
+                "file_path": "ghost.py",
+            },
+        ]
+    )
+    assert lance_store.count("model_test") == 2
+    db.vector_store = lance_store
+    purged_lance = db.purge_orphaned_embeddings()
+    assert purged_lance == 1
+    assert lance_store.count("model_test") == 1
+
     # 4. Agent next step recommendations in format_semantic_search_md
     hit = SearchResult(
         node_id="alive_func",

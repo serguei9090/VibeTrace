@@ -643,3 +643,62 @@ def test_parse_single_param_with_annotations_and_modifiers() -> None:
     assert _parse_single_param("readonly username: string") == "username"
     assert _parse_single_param("int count = 10") == "count"
     assert _parse_single_param("Map<String, Object> payload") == "payload"
+
+
+def test_high_fanout_dead_end_callers_do_not_drop_taint_path(tmp_path: Path) -> None:
+    """Verifies that 10+ untainted dead-end callers do not starve genuine taint paths."""
+    lines = ["import os", "def sink_fn(cmd):", "    os.system(cmd)", ""]
+    # Create 10 dead-end untainted entry points that pass a constant string to sink_fn
+    for i in range(10):
+        lines.extend(
+            [
+                f"@app.get('/safe/{i}')",
+                f"def safe_ep_{i}(req):",
+                "    sink_fn('echo safe')",
+                "",
+            ]
+        )
+    # 11th entry point passes untrusted request parameter to sink_fn
+    lines.extend(
+        [
+            "@app.post('/unsafe')",
+            "def unsafe_ep(user_cmd):",
+            "    sink_fn(user_cmd)",
+        ]
+    )
+    (tmp_path / "fanout.py").write_text("\n".join(lines), encoding="utf-8")
+
+    db = IndexerDB(str(tmp_path / "fanout.db"))
+    db.upsert_node(_node("sink_fn", "sink_fn", 2, 3, file_path="fanout.py"))
+    for i in range(10):
+        s_line = 5 + i * 4
+        nid = f"safe_ep_{i}"
+        db.upsert_node(
+            _node(
+                nid,
+                nid,
+                s_line,
+                s_line + 2,
+                file_path="fanout.py",
+                decorators=[f"@app.get('/safe/{i}')"],
+            )
+        )
+        db.upsert_edge(Edge(from_node_id=nid, to_node_id="sink_fn", relation_type="calls"))
+
+    unsafe_start = 5 + 10 * 4
+    db.upsert_node(
+        _node(
+            "unsafe_ep",
+            "unsafe_ep",
+            unsafe_start,
+            unsafe_start + 2,
+            file_path="fanout.py",
+            decorators=["@app.post('/unsafe')"],
+        )
+    )
+    db.upsert_edge(Edge(from_node_id="unsafe_ep", to_node_id="sink_fn", relation_type="calls"))
+
+    report = SecurityService.audit_project(db, tmp_path, check_dependencies=False)
+    f = next(x for x in report.findings if x.cwe_id == "CWE-78" and x.file_path == "fanout.py")
+    assert f.category == FindingCategory.TAINT_REACHABILITY
+    assert f.metadata["taint_path"] == ["unsafe_ep", "sink_fn"]

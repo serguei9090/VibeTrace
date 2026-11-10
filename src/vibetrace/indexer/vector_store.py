@@ -41,6 +41,8 @@ class VectorStore(Protocol):
 
     def delete_file_embeddings(self, file_path: str) -> None: ...
 
+    def purge_orphaned_embeddings(self, valid_node_ids: set[str]) -> int: ...
+
     def search_semantic(
         self,
         query_vec: list[float],
@@ -223,6 +225,33 @@ class LanceDBVectorStore:
         except Exception as err:
             logger.exception("LanceDB file delete failed for '%s': %s", file_path, err)
             raise
+
+    def purge_orphaned_embeddings(self, valid_node_ids: set[str]) -> int:
+        """Purge LanceDB vectors whose node_id is no longer present in the SQLite nodes table."""
+        table = self._get_table()
+        if table is None:
+            return 0
+        safe_proj = self.project_name.replace("'", "''")
+        filter_expr = f"project_name = '{safe_proj}'"
+        try:
+            rows = table.search().where(filter_expr).select(["node_id"]).to_list()
+            orphan_ids = list(
+                {
+                    r["node_id"]
+                    for r in rows
+                    if r.get("node_id") and r["node_id"] not in valid_node_ids
+                }
+            )
+            if not orphan_ids:
+                return 0
+            for i in range(0, len(orphan_ids), 500):
+                chunk = orphan_ids[i : i + 500]
+                escaped = ", ".join("'" + n.replace("'", "''") + "'" for n in chunk)
+                table.delete(f"{filter_expr} AND node_id IN ({escaped})")
+            return len(orphan_ids)
+        except Exception as err:
+            logger.warning("LanceDB orphan purge skipped on '%s': %s", self.uri, err)
+            return 0
 
     def search_semantic(
         self,

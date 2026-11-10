@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,42 @@ from typing import Any
 from vibetrace.security.contracts import FunctionTaintContract, TaintContractManager
 
 _ENCODING_ERRORS = "replace"
+
+
+@functools.lru_cache(maxsize=256)
+def _load_file_lines_and_contracts(
+    abs_path_str: str, mtime_ns: int, rel_file_path: str
+) -> tuple[tuple[str, ...], dict[str, FunctionTaintContract]]:
+    """Read source lines and analyze taint contracts once per file revision (LRU cached)."""
+    p = Path(abs_path_str)
+    content = p.read_text(encoding="utf-8", errors=_ENCODING_ERRORS)
+    lines = tuple(content.splitlines())
+    contracts = TaintContractManager.analyze_source_code(content, rel_file_path)
+    return lines, contracts
+
+
+def _get_cached_file_context(
+    project_root: Path, rel_file_path: str
+) -> tuple[list[str], dict[str, FunctionTaintContract]] | None:
+    """Resolve file path, check stat mtime_ns, and return cached lines and contracts."""
+    if not rel_file_path:
+        return None
+    abs_path = (project_root / rel_file_path).resolve()
+    try:
+        st = abs_path.stat()
+    except OSError:
+        return None
+    if not abs_path.is_file():
+        return None
+    try:
+        lines_tuple, contracts = _load_file_lines_and_contracts(
+            str(abs_path), st.st_mtime_ns, rel_file_path
+        )
+        return list(lines_tuple), contracts
+    except OSError:
+        return None
+
+
 _KEY_FILE_PATH = "file_path"
 _KEY_START_LINE = "start_line"
 _KEY_END_LINE = "end_line"
@@ -415,13 +452,10 @@ def verify_sink_taint_flow(
     tainted_param_indices: dict[int, list[str]] | None = None,
 ) -> tuple[bool, list[str]]:
     """Checks whether tainted parameters or external sources flow into `sink_line`."""
-    abs_path = (project_root / file_path).resolve()
-    try:
-        content = abs_path.read_text(encoding="utf-8", errors=_ENCODING_ERRORS)
-        lines = content.splitlines()
-        contracts_map = TaintContractManager.analyze_source_code(content, file_path)
-    except OSError:
+    ctx = _get_cached_file_context(project_root, file_path)
+    if ctx is None:
         return True, []
+    lines, contracts_map = ctx
 
     s_idx = max(0, func_start_line - 1)
     e_idx = min(len(lines), func_end_line)
@@ -454,18 +488,12 @@ def verify_sink_taint_flow(
 
 def _is_callee_sanitizer(callee: dict[str, Any], project_root: Path, callee_name: str) -> bool:
     """Checks whether the callee function contract marks it as a sanitizer."""
-    callee_path = (project_root / str(callee.get(_KEY_FILE_PATH, ""))).resolve()
-    if not callee_path.is_file():
+    ctx = _get_cached_file_context(project_root, str(callee.get(_KEY_FILE_PATH, "")))
+    if ctx is None:
         return False
-    try:
-        callee_content = callee_path.read_text(encoding="utf-8", errors=_ENCODING_ERRORS)
-        callee_contracts = TaintContractManager.analyze_source_code(
-            callee_content, str(callee[_KEY_FILE_PATH])
-        )
-        callee_contract = callee_contracts.get(callee_name)
-        return bool(callee_contract and callee_contract.is_sanitizer)
-    except Exception:
-        return False
+    _, callee_contracts = ctx
+    callee_contract = callee_contracts.get(callee_name)
+    return bool(callee_contract and callee_contract.is_sanitizer)
 
 
 def _unpack_call_argument(
@@ -547,11 +575,11 @@ def _find_call_sites(
 
 def _load_callee_params(project_root: Path, callee: dict[str, Any]) -> list[str] | None:
     """Reads the callee source file and extracts its parameter list."""
-    callee_path = (project_root / str(callee.get(_KEY_FILE_PATH, ""))).resolve()
-    if not callee_path.is_file():
+    ctx = _get_cached_file_context(project_root, str(callee.get(_KEY_FILE_PATH, "")))
+    if ctx is None:
         return None
+    cal_lines, _ = ctx
     try:
-        cal_lines = callee_path.read_text(encoding="utf-8", errors=_ENCODING_ERRORS).splitlines()
         c_s_idx = max(0, int(callee[_KEY_START_LINE]) - 1)
         callee_header = " ".join(cal_lines[c_s_idx : min(len(cal_lines), c_s_idx + 4)])
         return _extract_params(callee_header)
@@ -580,11 +608,10 @@ def _evaluate_hop_taint(
 ) -> tuple[str, dict[int, list[str]] | None]:
     """Evaluates taint propagation from `caller` to `callee` across all call sites."""
     callee_name = str(callee["name"]).split(".")[-1]
-    c_path = (project_root / str(caller[_KEY_FILE_PATH])).resolve()
-    try:
-        c_lines = c_path.read_text(encoding="utf-8", errors=_ENCODING_ERRORS).splitlines()
-    except OSError:
+    ctx = _get_cached_file_context(project_root, str(caller.get(_KEY_FILE_PATH, "")))
+    if ctx is None:
         return "continue", None
+    c_lines, caller_contracts = ctx
 
     s_idx = max(0, int(caller[_KEY_START_LINE]) - 1)
     e_idx = min(len(c_lines), int(caller[_KEY_END_LINE]))
@@ -595,9 +622,6 @@ def _evaluate_hop_taint(
     if _is_callee_sanitizer(callee, project_root, callee_name):
         return "sanitized_callee", None
 
-    caller_contracts = TaintContractManager.analyze_source_code(
-        "\n".join(c_lines), str(caller[_KEY_FILE_PATH])
-    )
     callee_params = _load_callee_params(project_root, callee)
     aggregated: dict[int, list[str]] = {}
 

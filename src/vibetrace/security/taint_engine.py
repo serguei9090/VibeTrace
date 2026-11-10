@@ -99,7 +99,7 @@ class TaintEngine:
         sink_id = cls._enclosing_node_id(nodes, finding)
         if sink_id is None:
             return
-        candidate_paths = cls._paths_from_sources(nodes, callers, sink_id, sanitizers, max_paths=6)
+        candidate_paths = cls._paths_from_sources(nodes, callers, sink_id, sanitizers, max_paths=24)
         if not candidate_paths:
             return
 
@@ -246,21 +246,26 @@ class TaintEngine:
         callers: dict[str, list[str]],
         sink_id: str,
         sanitizers: frozenset[str],
-        max_paths: int = 6,
+        max_paths: int = 24,
+        max_states: int = 2048,
     ) -> list[list[str]]:
         """Reverse BFS from sink; returns candidate paths ordered source -> sink."""
         results: list[list[str]] = []
         queue: deque[list[str]] = deque([[sink_id]])
+        best_depth: dict[str, int] = {sink_id: 0}
+        states_explored = 0
 
-        while queue and len(results) < max_paths:
+        while queue and len(results) < max_paths and states_explored < max_states:
             current_path = queue.popleft()
+            states_explored += 1
             tip = current_path[-1]
             n = nodes[tip]
             if _is_source(n["kind"], n["decorators"]):
                 results.append(list(reversed(current_path)))
                 continue
 
-            if len(current_path) - 1 >= MAX_DEPTH:
+            next_depth = len(current_path)
+            if next_depth > MAX_DEPTH:
                 continue
 
             for caller_id in callers.get(tip, []):
@@ -268,6 +273,14 @@ class TaintEngine:
                     continue
                 if nodes[caller_id]["name"] in sanitizers:
                     continue
+                caller_node = nodes[caller_id]
+                is_src = _is_source(caller_node["kind"], caller_node["decorators"])
+                if not is_src:
+                    prev_best = best_depth.get(caller_id)
+                    if prev_best is not None and next_depth > prev_best + 1:
+                        continue
+                    if prev_best is None or next_depth < prev_best:
+                        best_depth[caller_id] = next_depth
                 queue.append([*current_path, caller_id])
 
         return results
