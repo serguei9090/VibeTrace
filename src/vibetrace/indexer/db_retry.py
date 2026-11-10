@@ -35,45 +35,59 @@ def interprocess_write_lock(
         yield
         return
 
-    deadline = time.monotonic() + timeout
-    locked = False
     try:
-        while True:
-            try:
-                if os.name == "nt":
-                    import msvcrt
+        deadline = time.monotonic() + timeout
+        locked = False
+        try:
+            while True:
+                try:
+                    if os.name == "nt":
+                        import msvcrt
 
-                    os.lseek(fd, 0, os.SEEK_SET)
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl
+                        os.lseek(fd, 0, os.SEEK_SET)
+                        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                    else:
+                        import fcntl
 
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                locked = True
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    locked = True
                     break
-                time.sleep(random.uniform(0.005, 0.025))
-        yield
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        break
+                    time.sleep(random.uniform(0.005, 0.025))
+            yield
+        finally:
+            if locked:
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        os.lseek(fd, 0, os.SEEK_SET)
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                except OSError:
+                    pass
     finally:
-        if locked:
-            try:
-                if os.name == "nt":
-                    import msvcrt
-
-                    os.lseek(fd, 0, os.SEEK_SET)
-                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-                else:
-                    import fcntl
-
-                    fcntl.flock(fd, fcntl.LOCK_UN)
-            except OSError:
-                pass
         try:
             os.close(fd)
         except OSError:
             pass
+
+
+def _resolve_db_path(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str | Path | None:
+    """Extract db_path from kwargs, db instance, or self argument."""
+    if "db_path" in kwargs and kwargs["db_path"] is not None:
+        return kwargs["db_path"]
+    if "db" in kwargs and hasattr(kwargs["db"], "db_path"):
+        return getattr(kwargs["db"], "db_path", None)
+    for arg in args:
+        if hasattr(arg, "db_path"):
+            return getattr(arg, "db_path", None)
+    return None
 
 
 def with_write_retry(max_attempts: int = 7, initial_delay: float = 0.05) -> Callable[..., Any]:
@@ -84,7 +98,7 @@ def with_write_retry(max_attempts: int = 7, initial_delay: float = 0.05) -> Call
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            db_path = getattr(args[0], "db_path", None) if args else None
+            db_path = _resolve_db_path(args, kwargs)
             last_err: Exception | None = None
             for attempt in range(max_attempts):
                 try:

@@ -62,3 +62,23 @@ def test_concurrent_swarm_writes(tmp_path: Path) -> None:
     graph = db.get_graph_data()
     assert len(graph["nodes"]) == 150
     assert len(graph["edges"]) == 150
+
+
+def test_db_retry_resolves_db_path_across_calling_conventions(tmp_path: Path) -> None:
+    """Verify _resolve_db_path handles kwargs, static functions, and zero args."""
+    from vibetrace.indexer.db_retry import _resolve_db_path, with_write_retry
+
+    db_file = tmp_path / "kw_test.db"
+    db = IndexerDB(str(db_file))
+
+    assert _resolve_db_path((), {"db_path": str(db_file)}) == str(db_file)
+    assert _resolve_db_path((), {"db": db}) == str(db_file)
+    assert _resolve_db_path(("prefix", db), {}) == str(db_file)
+    assert _resolve_db_path((), {}) is None
+
+    @with_write_retry()
+    def standalone_op(*, db_path: str | None = None) -> str:
+        return f"ok:{db_path}"
+
+    assert standalone_op(db_path=str(db_file)) == f"ok:{db_file}"
+    assert standalone_op() == "ok:None"
