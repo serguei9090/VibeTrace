@@ -180,16 +180,9 @@ def _run_initial_indexing(db_path: Path, root: Path) -> tuple[int, int, int]:
     except Exception:
         pass
 
-    quality_rules = 0
-    try:
-        from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+    from vibetrace.quality.rules import QUALITY_RULES_CATALOG
 
-        sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
-        quality_rules = sync_res.rules_loaded
-    except Exception:
-        pass
-
-    return indexed_nodes, indexed_edges, quality_rules
+    return indexed_nodes, indexed_edges, len(QUALITY_RULES_CATALOG)
 
 
 def initialize_workspace(
@@ -283,14 +276,9 @@ def initialize_workspace(
     if not no_index:
         indexed_nodes, indexed_edges, quality_rules_loaded = _run_initial_indexing(db_path, root)
     else:
-        try:
-            from vibetrace.quality.rule_sync import QualityRuleCatalogManager
+        from vibetrace.quality.rules import QUALITY_RULES_CATALOG
 
-            db = IndexerDB(str(db_path))
-            sync_res = QualityRuleCatalogManager.sync_catalog(db=db)
-            quality_rules_loaded = sync_res.rules_loaded
-        except Exception:
-            quality_rules_loaded = 0
+        quality_rules_loaded = len(QUALITY_RULES_CATALOG)
 
     return {
         "project_root": str(root),

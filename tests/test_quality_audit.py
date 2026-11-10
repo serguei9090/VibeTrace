@@ -504,32 +504,6 @@ def format_icon(cg):
     assert s3358_findings[0].start_line == 3
 
 
-def test_quality_rule_sync_and_catalog_caching() -> None:
-    from vibetrace.indexer.db import IndexerDB
-    from vibetrace.quality.rule_sync import QualityRuleCatalogManager
-    from vibetrace.quality.rules import get_rule_spec
-
-    db = IndexerDB(":memory:")
-
-    # 1. First sync loads from bundled JSON into SQLite
-    res1 = QualityRuleCatalogManager.sync_catalog(db=db)
-    assert res1.source == "bundled"
-    assert res1.rules_loaded >= 1300
-    assert "py" in res1.languages
-    assert "ts" in res1.languages
-
-    # 2. Second sync hits local SQLite cache
-    res2 = QualityRuleCatalogManager.sync_catalog(db=db)
-    assert res2.source == "cache"
-    assert res2.rules_loaded == res1.rules_loaded
-
-    # 3. Rule spec resolution works for synced rules
-    spec = get_rule_spec("typescript:S2589")
-    assert spec is not None
-    assert spec.rule_id == "typescript:S2589"
-    assert "gratuitous" in spec.title.lower() or "boolean" in spec.title.lower()
-
-
 def test_cwe_taxonomy_manager_and_enrichment() -> None:
     from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
     from vibetrace.taxonomy import CweTaxonomyManager, normalize_cwe_id
@@ -593,18 +567,12 @@ def test_declarative_quality_rules_semgrep() -> None:
 
 
 def test_ruff_alias_bridge_resolution() -> None:
-    from vibetrace.quality.rule_sync import QualityRuleCatalogManager
     from vibetrace.quality.rules import get_rule_spec, resolve_canonical_rule_id
 
-    QualityRuleCatalogManager.sync_catalog()
-
-    # Known mapped alias
+    # Known mapped alias for native rules
     assert resolve_canonical_rule_id("SIM102") == "S1066"
     assert resolve_canonical_rule_id("B006") == "S5714"
     assert resolve_canonical_rule_id("PLR0912") == "S134"
-
-    # Direct ruff-only rule lookup
-    spec = get_rule_spec("TRY400")
+    spec = get_rule_spec("S1066")
     assert spec is not None
-    assert spec.rspec_id == "RUFF-TRY400"
-    assert "logging.exception" in spec.title
+    assert spec.rspec_id == "RSPEC-1066"

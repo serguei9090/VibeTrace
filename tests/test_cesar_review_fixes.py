@@ -9,8 +9,6 @@ from unittest.mock import MagicMock, patch
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import reindex_all
-from vibetrace.quality.rule_sync import QualityRuleCatalogManager
-from vibetrace.quality.rules import QUALITY_RULES_CATALOG
 from vibetrace.security.adapters.semgrep import SemgrepAdapter
 from vibetrace.security.ast_scanner import AstSecurityScanner
 from vibetrace.security.rule_sync import RuleCatalogManager
@@ -134,31 +132,6 @@ def test_claim3_proposal3_inferred_confidence_for_dynamic_dispatch(tmp_path: Pat
         assert row["confidence"] == "inferred"
 
 
-def test_claim5_quality_catalog_language_prefix_isolation() -> None:
-    """Claim 5: Non-Python rule (php:S9999) must not overwrite bare key S9999."""
-    QUALITY_RULES_CATALOG.pop("S9999", None)
-    QUALITY_RULES_CATALOG.pop("python:S9999", None)
-    QUALITY_RULES_CATALOG.pop("php:S9999", None)
-
-    raw_rules = [
-        {
-            "key": "python:S9999",
-            "name": "Python synthetic rule S9999",
-            "severity": "MAJOR",
-            "type": "CODE_SMELL",
-        },
-        {
-            "key": "php:S9999",
-            "name": "PHP synthetic rule S9999",
-            "severity": "MINOR",
-            "type": "CODE_SMELL",
-        },
-    ]
-    QualityRuleCatalogManager._hydrate_catalog(raw_rules)
-    assert QUALITY_RULES_CATALOG["S9999"].title == "Python synthetic rule S9999"
-    assert QUALITY_RULES_CATALOG["php:S9999"].title == "PHP synthetic rule S9999"
-
-
 def test_claim7_proposal2_sha256_supply_chain_verification(tmp_path: Path) -> None:
     """Claim 7 & Proposal 2: Remote feed payload with mismatched SHA-256 is rejected."""
     payload = json.dumps({"rules": [{"id": "TEST-SHA-1", "pattern": "eval(...)"}]}).encode("utf-8")
@@ -192,20 +165,6 @@ def test_claim7_proposal2_sha256_supply_chain_verification(tmp_path: Path) -> No
                 "SELECT COUNT(*) FROM security_rules_cache WHERE rule_id = 'TEST-SHA-1'"
             ).fetchone()[0]
             assert cnt == 1
-
-        # Same check for QualityRuleCatalogManager._fetch_remote_manifest
-        assert (
-            QualityRuleCatalogManager._fetch_remote_manifest(
-                "https://example.com/q.json", expected_sha256="f" * 64
-            )
-            is None
-        )
-        assert (
-            QualityRuleCatalogManager._fetch_remote_manifest(
-                "https://example.com/q.json", expected_sha256=actual_sha
-            )
-            is not None
-        )
 
 
 def test_proposal1_semgrep_adapter_sarif_bridge(tmp_path: Path) -> None:

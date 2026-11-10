@@ -323,12 +323,6 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         return 0
 
     force_update = bool(getattr(args, "update", False))
-    try:
-        from vibetrace.quality.rule_sync import QualityRuleCatalogManager
-
-        QualityRuleCatalogManager.sync_catalog(db=db, force_update=force_update)
-    except (OSError, RuntimeError, ValueError):
-        pass
 
     file_filter = getattr(args, "file", None)
     skip_deps = getattr(args, "skip_deps", False)
@@ -462,14 +456,6 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
-
-    force_update = getattr(args, "update", False)
-    try:
-        from vibetrace.quality.rule_sync import QualityRuleCatalogManager
-
-        QualityRuleCatalogManager.sync_catalog(db=db, force_update=force_update)
-    except Exception:
-        pass
 
     file_filter = getattr(args, "file", None)
     threshold = getattr(args, "threshold", 15)

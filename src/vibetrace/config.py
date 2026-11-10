@@ -152,19 +152,6 @@ class QualityConfig(BaseModel):
         default=False,
         description="Enable optional Tier-2 SonarLint headless Java engine during audits",
     )
-    rules_feed_url: str = Field(
-        default=(
-            "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/"
-            "src/vibetrace/resources/quality_rules_catalog.json"
-        ),
-        description="Remote JSON rules feed URL for community/enterprise catalog updates",
-    )
-    ttl_days: int = Field(
-        default=7,
-        ge=1,
-        le=90,
-        description="Local SQLite cache time-to-live for quality rules catalog in days",
-    )
     linter_configs: LinterConfigs = Field(
         default_factory=LinterConfigs,
         description="Sub-engine configuration resolution preferences ('project' | 'strict')",
@@ -306,9 +293,6 @@ exclude_patterns = [
 # SonarQube Server URL & Auth token (optional, for custom company rule syncing)
 # sonar_url = "http://localhost:9000"
 # sonar_token = "squ_..."
-# Remote JSON manifest feed URL (defaults to official VibeTrace GitHub repo)
-# rules_feed_url = "https://raw.githubusercontent.com/serguei9090/VibeTrace/v0.1.8/src/vibetrace/resources/quality_rules_catalog.json"
-ttl_days = 7
 
 [security]
 # Deep AST reachability and taint analysis from entry points

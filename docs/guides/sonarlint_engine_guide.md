@@ -145,26 +145,15 @@ vibetrace review --sonar
 
 ---
 
-## 6. Offline Quality Catalog & Bundling Architecture
+## 6. Native Rules & Direct Linter Architecture
 
-VibeTrace ships with a comprehensive offline quality rules dictionary (`quality_rules_catalog.json` and `.gz`) containing metadata, clean-code tags, and CWE/OWASP mappings for over 4,000 RSPEC rules across 24 languages.
+VibeTrace focuses on a clean, zero-maintenance separation of responsibilities:
 
-### Offline-First Philosophy
-- **Zero Runtime Downloads**: End-user installations never fetch remote catalogs from GitHub or Sonar servers during auditing. The catalog is pre-bundled in the wheel and loaded directly from disk via `BUNDLED_CATALOG_PATH`.
-- **Air-Gapped & CI Ready**: Eliminates network latency, corporate proxy issues, GitHub rate limits, and supply-chain hash drift in secure CI environments.
+1. **Native AST Rules (`src/vibetrace/quality/rules_catalog.py`)**:
+   - Contains only the high-value structural rules not covered by standard fast linters (Cognitive Complexity `S3776`, Deep Nesting `S134`, Unused Private Methods `S1144`, Duplicated Literals `S1192`, Nested Ternaries `S3358`, Regex Complexity `S5843`, Identical Functions `S4144`, Loose Permissions `S2612`).
+2. **Specialized Ecosystem Linters (Ruff, Biome, Clippy, PHPStan, GolangCI-Lint)**:
+   - Run with curated Sonar-equivalent presets (`ruff_sonar.toml`, `biome_sonar.json`) and emit their concise, direct diagnostics and `--fix` capabilities ideal for AI agents.
+3. **Optional Live SonarLint Sidecar (`--sonar`)**:
+   - When deep semantic Java-based Sonar analysis is desired, `sonarlint-ls.jar` provides its full internal rule engine directly via LSP without requiring external catalog sync workflows.
 
-### Maintenance & On-Demand Catalog Compilation
-Weekly CI sync jobs have been retired in favor of static, deterministic bundle releases. The rule extraction script remains available at `scripts/export_rules_manifest.py` to recompile the catalog whenever SonarSource releases a new major rule taxonomy:
-
-```bash
-# 1. Spin up ephemeral SonarQube container
-docker run -d --rm -p 9000:9000 --name sonarqube-export sonarqube:community
-
-# 2. Compile full rule manifest and gzip asset
-uv run python scripts/export_rules_manifest.py --url http://localhost:9000 --gzip
-
-# 3. Stop container
-docker stop sonarqube-export
-```
-The resulting catalog files (`src/vibetrace/resources/quality_rules_catalog.json*`) are committed directly to version control and included in subsequent package builds.
 
