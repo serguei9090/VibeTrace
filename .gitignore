@@ -95,3 +95,8 @@ vibetrace_context/
 vibetrace.db
 vibetrace.db-wal
 vibetrace.db-shm
+
+
+#Skills
+.dsh/
+.agents/skills/egm*
