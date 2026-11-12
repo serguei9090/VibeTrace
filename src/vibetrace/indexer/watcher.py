@@ -9,6 +9,7 @@ from typing import Any
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from vibetrace.docs.patterns import is_pattern, pattern_matches
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import index_file, is_ignored_path, load_gitignore
 from vibetrace.indexer.resolver import ModuleResolver
@@ -125,20 +126,27 @@ class CodeChangeHandler(FileSystemEventHandler):
                 c for c in DocCatalogManager.list_catalogs(self.root_path) if c.scope == "local"
             ]
             for cat in local_cats:
+                hit = False
                 for cat_p_str in cat.paths:
-                    cat_p = self.root_path / cat_p_str
-                    if p.is_relative_to(cat_p):
-                        doc_db = DocDB(self.db.db_path)
-                        rel_file = str(p.relative_to(self.root_path)).replace("\\", "/")
-                        if is_deleted:
-                            doc_db.delete_file_chunks(cat.name, rel_file)
-                            print(f"Doc file deleted: {rel_file}")
-                        else:
-                            DocIndexService.index_catalog(
-                                cat.name, [str(p)], doc_db, self.root_path, force=True
-                            )
-                            print(f"Doc file synchronized: {rel_file}")
-                        return True
+                    if is_pattern(cat_p_str):
+                        if pattern_matches(cat_p_str, self.root_path, p):
+                            hit = True
+                            break
+                    elif p.is_relative_to(self.root_path / cat_p_str):
+                        hit = True
+                        break
+                if hit:
+                    doc_db = DocDB(self.db.db_path)
+                    rel_file = str(p.relative_to(self.root_path)).replace("\\", "/")
+                    if is_deleted:
+                        doc_db.delete_file_chunks(cat.name, rel_file)
+                        print(f"Doc file deleted: {rel_file}")
+                    else:
+                        DocIndexService.index_catalog(
+                            cat.name, [str(p)], doc_db, self.root_path, force=True
+                        )
+                        print(f"Doc file synchronized: {rel_file}")
+                    return True
         except Exception as e:
             logger.debug("Doc change handling skipped or failed: %s", e)
         return False

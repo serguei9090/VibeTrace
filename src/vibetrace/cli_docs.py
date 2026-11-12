@@ -177,6 +177,8 @@ def _cmd_docs_index(args: argparse.Namespace) -> int:
         base_dir = Path.home() if c.scope == "global" else root
         res = DocIndexService.index_catalog(c.name, c.paths, db, base_dir, force=force)
         results[c.name] = res
+        for w in res.get("warnings", []):
+            print(f"Warning: {w}", file=sys.stderr)
         total_files += res["files"]
         total_chunks += res["chunks"]
 

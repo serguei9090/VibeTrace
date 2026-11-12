@@ -5,13 +5,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
+import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-import tomllib
-
+from vibetrace.constants import IGNORED_DIRS_CASEFOLDED
 from vibetrace.docs.chunker import HeadingChunk, chunk_markdown, chunk_pdf, chunk_text
 from vibetrace.docs.db import DocDB, get_global_doc_db, get_local_doc_db
+from vibetrace.docs.patterns import expand_pattern, is_pattern, split_pattern
 from vibetrace.docs.schemas import DocCatalogInfo, DocChunkItem
 from vibetrace.indexer.embeddings import EmbeddingEngine
 
@@ -152,6 +154,14 @@ class DocCatalogManager:
         )
         current = _read_catalogs_from_toml(cfg_file)
         norm_p = path_str.replace("\\", "/")
+        if is_pattern(norm_p):
+            split = split_pattern(norm_p, project_root or Path.cwd())
+            if split is None or not split[1]:
+                print(
+                    f"Warning: '{norm_p}' looks like a glob pattern but is invalid "
+                    "(empty, '..' segment, or no glob part); saved as literal entry",
+                    file=sys.stderr,
+                )
         if catalog_name not in current:
             current[catalog_name] = [norm_p]
         elif norm_p not in current[catalog_name]:
@@ -189,7 +199,8 @@ class DocIndexService:
         if target_p.is_file():
             return [target_p] if target_p.suffix.lower() in cls.SUPPORTED_DOC_EXTS else []
         candidates: list[Path] = []
-        for root, _, files in os.walk(target_p, followlinks=False):
+        for root, dirs, files in os.walk(target_p, followlinks=False):
+            dirs[:] = [d for d in dirs if d.casefold() not in IGNORED_DIRS_CASEFOLDED]
             for f in files:
                 p_file = Path(root) / f
                 if p_file.suffix.lower() in cls.SUPPORTED_DOC_EXTS:
@@ -215,22 +226,33 @@ class DocIndexService:
         return st.st_size <= cls.MAX_DOC_FILE_SIZE
 
     @classmethod
-    def _collect_catalog_files(cls, paths: list[str], base_dir: Path) -> list[Path]:
+    def _collect_catalog_files(
+        cls, paths: list[str], base_dir: Path
+    ) -> tuple[list[Path], list[str]]:
         seen_resolved: set[str] = set()
         matched: list[Path] = []
+        warnings: list[str] = []
 
         for p_str in paths:
             target_p = Path(p_str)
             if not target_p.is_absolute():
                 target_p = base_dir / target_p
-            if not target_p.exists():
+
+            if is_pattern(p_str) and not target_p.exists():
+                files, entry_warnings = expand_pattern(p_str, base_dir)
+                warnings.extend(entry_warnings)
+            elif target_p.exists():
+                files = cls._gather_path_candidates(target_p)
+            else:
+                msg = f"catalog entry '{p_str}' does not exist under '{base_dir}'; skipped"
+                warnings.append(msg)
                 continue
 
-            for fpath in cls._gather_path_candidates(target_p):
+            for fpath in files:
                 if cls._is_valid_doc_file(fpath, seen_resolved):
                     matched.append(fpath)
 
-        return matched
+        return matched, warnings
 
     @classmethod
     def _index_file_entry(
@@ -283,14 +305,14 @@ class DocIndexService:
         db: DocDB,
         base_dir: Path,
         force: bool = False,
-    ) -> dict[str, int]:
+    ) -> dict[str, Any]:
         """Index all documentation files within the given paths for a catalog."""
         indexed_files = 0
         total_chunks = 0
         engine = EmbeddingEngine(project_root=base_dir)
         eff_engine = engine if engine.is_available() else None
 
-        files_to_index = cls._collect_catalog_files(paths, base_dir)
+        files_to_index, warnings = cls._collect_catalog_files(paths, base_dir)
         seen_rel_files: set[str] = set()
 
         for fpath in files_to_index:
@@ -314,19 +336,43 @@ class DocIndexService:
 
         # Clean up deleted files from this catalog only if whole directory/paths were scanned
         # Avoid deleting siblings when indexing a single specific file
-        is_targeted_file = len(paths) == 1 and Path(paths[0]).is_file()
+        is_targeted_file = False
+        if len(paths) == 1 and not is_pattern(paths[0]):
+            single = Path(paths[0])
+            if not single.is_absolute():
+                single = base_dir / single
+            is_targeted_file = single.is_file()
+
         if not is_targeted_file:
             with db._get_conn() as conn:
                 stored_rows = conn.execute(
                     "SELECT DISTINCT file_path FROM doc_chunks WHERE catalog = ?",
                     (catalog_name,),
                 ).fetchall()
-                for r in stored_rows:
-                    old_fp = r[0]
-                    if old_fp not in seen_rel_files:
-                        db.delete_file_chunks(catalog_name, old_fp)
+            stored_files = [r[0] for r in stored_rows]
+            all_patterns_zero = (
+                bool(paths)
+                and all(is_pattern(p) for p in paths)
+                and not files_to_index
+                and bool(stored_files)
+            )
+            if all_patterns_zero:
+                warnings.append(
+                    f"catalog '{catalog_name}': all entries are patterns and matched 0 files; "
+                    "existing chunks kept (possible typo or wrong base)"
+                )
+            else:
+                removed = [fp for fp in stored_files if fp not in seen_rel_files]
+                for old_fp in removed:
+                    db.delete_file_chunks(catalog_name, old_fp)
+                if removed:
+                    preview = ", ".join(removed[:5]) + (" ..." if len(removed) > 5 else "")
+                    warnings.append(
+                        f"catalog '{catalog_name}': removed {len(removed)} file(s) "
+                        f"no longer selected: {preview}"
+                    )
 
-        return {"files": indexed_files, "chunks": total_chunks}
+        return {"files": indexed_files, "chunks": total_chunks, "warnings": warnings}
 
     @classmethod
     def _extract_chunks(cls, fpath: Path) -> list[HeadingChunk] | None:

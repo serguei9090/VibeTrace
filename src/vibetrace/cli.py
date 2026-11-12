@@ -629,7 +629,14 @@ examples:
 
     p_cat_add = cat_sub.add_parser("add", help="Add path to a documentation catalog")
     p_cat_add.add_argument("name", help="Catalog name (e.g. 'default', 'specs', 'master_stack')")
-    p_cat_add.add_argument("path", help="Folder or file path to add")
+    p_cat_add.add_argument(
+        "path",
+        help=(
+            "Folder, file, or glob pattern to add. "
+            "Folder/file entries support .md, .markdown, .txt, .pdf; "
+            "glob patterns match Markdown files only (e.g. 'src/**/README.md'; case-insensitive)"
+        ),
+    )
     p_cat_add.add_argument(
         "--global",
         dest="global_scope",

@@ -3,7 +3,7 @@ name = "vibetrace"
 version = "0.1.9"
 description = "VibeTrace: Code Intelligence & Execution Trace MCP"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.2.0,<2",
     "tree-sitter>=0.24.0",
@@ -48,7 +48,7 @@ packages = ["src/vibetrace"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 force-exclude = true
 exclude = [
     ".agent/**",
@@ -82,7 +82,7 @@ dev = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

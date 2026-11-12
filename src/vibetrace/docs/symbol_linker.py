@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from vibetrace.constants import IGNORED_DIRS as _IGNORED_DIRS
 from vibetrace.docs.chunker import chunk_markdown
 from vibetrace.indexer.db import IndexerDB
 
@@ -327,27 +328,6 @@ _IGNORED_ROOT_MODULES = frozenset(
 )
 
 _BACKTICK_SYMBOL_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_.]*(?:\(\))?)`")
-_IGNORED_DIRS = {
-    ".git",
-    ".venv",
-    "node_modules",
-    "dist",
-    "build",
-    "scratch",
-    "archive",
-    "__pycache__",
-    ".ruff_cache",
-    ".pytest_cache",
-    ".gemini",
-    ".vscode",
-    ".idea",
-    "target",
-    "tmp",
-    "temp",
-    "site",
-    "htmlcov",
-    "extensions",
-}
 
 _IGNORED_ROOT_FILES = {
     "changelog.md",

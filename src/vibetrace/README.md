@@ -110,6 +110,8 @@ these modules call into.
 - Shared limits: `CHARS_PER_TOKEN`, `DEFAULT_VIBE_BUNDLE_BUDGET`,
   `DEFAULT_REPO_MAP_BUDGET`, `DEFAULT_MAX_DEPTH`, `MAX_TRAVERSAL_DEPTH`, and
   `DEFAULT_SAVED_TRACE_DEPTH` (`[src/vibetrace/constants.py:CHARS_PER_TOKEN]`).
+- Shared exclude set for scanned directories: `IGNORED_DIRS` and
+  `IGNORED_DIRS_CASEFOLDED` (`[src/vibetrace/constants.py:IGNORED_DIRS]`).
 - CWE helpers: `normalize_cwe_id`, `CweTaxonomyManager`
   (`[src/vibetrace/taxonomy.py:normalize_cwe_id]`).
 - Tool installation: `ToolsManager`, `ToolStatus`, and the pinned download URL
@@ -143,7 +145,7 @@ these modules call into.
 
 ## Invariants
 
-- The package requires Python 3.10 or newer and is built by hatchling with
+- The package requires Python 3.11 or newer and is built by hatchling with
   `packages = ["src/vibetrace"]` (`[pyproject.toml:[project]]`,
   `[pyproject.toml:[tool.hatch.build.targets.wheel]]`).
 - The `vibetrace` console script must resolve to `vibetrace.cli:main`
