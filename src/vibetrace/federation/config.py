@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 from vibetrace.federation.models import ProjectManifest, ProjectSettings, RepoMember
 

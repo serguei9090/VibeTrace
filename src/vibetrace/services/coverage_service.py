@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import tomllib
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB

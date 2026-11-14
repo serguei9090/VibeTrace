@@ -6,12 +6,11 @@ import hashlib
 import json
 import re
 import time
+import tomllib
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-import tomllib
 
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.security.models import FindingCategory, SecurityFinding, Severity

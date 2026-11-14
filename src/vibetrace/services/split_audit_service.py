@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import tomllib
 from pydantic import BaseModel, Field
 
 from vibetrace.indexer.db import IndexerDB
