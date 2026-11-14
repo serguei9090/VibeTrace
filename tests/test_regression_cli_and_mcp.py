@@ -18,7 +18,6 @@ from vibetrace import cli
 from vibetrace.cli import build_parser
 from vibetrace.cli import main as cli_main
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.indexer.embeddings import try_load_sqlite_vec
 from vibetrace.indexer.git_utils import get_git_delta, get_git_sha
 from vibetrace.indexer.lsp_bridge import LSPClient
 from vibetrace.indexer.main import reindex_all
@@ -166,22 +165,6 @@ def test_compute_impact_analysis_windows_paths_same_file(tmp_path: Path):
     total_rel, impacts_rel = compute_impact_analysis(db, "./src/utils/calc.py")
     assert total_rel == 0
     assert len(impacts_rel[1]) == 0
-
-
-def test_try_load_sqlite_vec_exception_safety():
-    """Verify try_load_sqlite_vec always leaves extension loading disabled."""
-    conn = sqlite3.connect(":memory:")
-    # Execution should not throw and must ensure extension loading is disabled
-    try_load_sqlite_vec(conn)
-
-    # If extension loading remained enabled, loading a dummy extension would fail
-    # with 'not authorized' rather than 'cannot open' or disabled error.
-    # In Python sqlite3, when disabled, calling enable_load_extension is required.
-    try:
-        with pytest.raises((sqlite3.OperationalError, AttributeError)):
-            conn.load_extension("dummy_nonexistent")
-    finally:
-        conn.close()
 
 
 needs_git = pytest.mark.skipif(not shutil.which("git"), reason="git not installed")

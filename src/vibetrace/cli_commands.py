@@ -857,3 +857,33 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
 
     print(safe_str(format_diagnosis_md(report)))
     return 0
+
+
+def cmd_dead_code(args: argparse.Namespace) -> int:
+    """CLI handler for listing unreferenced functions, methods, and classes."""
+    from vibetrace.services.graph_service import find_dead_symbols
+
+    auto_sync = not getattr(args, "no_sync", False)
+    db, _root = get_context_for_path(
+        getattr(args, "path", "."),
+        auto_sync=auto_sync,
+        root_override=getattr(args, "root", None),
+    )
+    results = find_dead_symbols(
+        db=db,
+        limit=getattr(args, "limit", 100),
+        include_tests=getattr(args, "include_tests", False),
+    )
+    if getattr(args, "json", False):
+        print(json.dumps({"total": len(results), "symbols": results}, indent=2))
+        return 0
+    if not results:
+        print("No unreferenced symbols found.")
+        return 0
+    print(f"Found {len(results)} unreferenced symbol(s):\n")
+    for item in results:
+        print(
+            f"- [{item['kind']}] {item['qualified_name']} "
+            f"({item['file_path']}:{item['start_line']})"
+        )
+    return 0

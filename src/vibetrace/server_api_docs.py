@@ -124,7 +124,7 @@ def check_docs_drift() -> dict[str, Any]:
     from vibetrace.indexer.db import IndexerDB
 
     root = _get_project_root()
-    db_path = root / ".vibetrace" / "index.db"
+    db_path = root / ".vibetrace" / "vibetrace.db"
     if not db_path.is_file():
         raise HTTPException(status_code=400, detail="VibeTrace index not found. Run index first.")
     db = IndexerDB(db_path)
@@ -139,7 +139,7 @@ def sync_doc_links() -> dict[str, Any]:
     from vibetrace.indexer.db import IndexerDB
 
     root = _get_project_root()
-    db_path = root / ".vibetrace" / "index.db"
+    db_path = root / ".vibetrace" / "vibetrace.db"
     if not db_path.is_file():
         raise HTTPException(status_code=400, detail="VibeTrace index not found. Run index first.")
     db = IndexerDB(db_path)

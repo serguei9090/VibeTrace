@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    import vibetrace._rust_core as _rust_core  # type: ignore[import-not-found]
+
+    _HAS_RUST_CORE = True
+except ImportError:
+    _rust_core = None  # type: ignore[assignment]
+    _HAS_RUST_CORE = False
 from typing import Any
 
 from vibetrace.indexer.db import Edge, IndexerDB, Node
@@ -29,98 +35,6 @@ class PythonWorkspaceScan:
     deleted_files: list[str]
 
 
-def scan_workspace_python(
-    target_path: Path,
-    project_root: Path,
-    known_hashes: dict[str, str],
-    extra_excludes: list[str] | None = None,
-    force: bool = False,
-) -> PythonWorkspaceScan:
-    """Pure-Python fallback workspace scanner when native Rust core is not compiled."""
-    from vibetrace.indexer.main import is_ignored_path, load_ignore_spec
-
-    spec = load_ignore_spec(project_root, extra_excludes)
-    active_root = project_root.resolve()
-    target_abs = target_path.resolve()
-
-    found_rel_paths: set[str] = set()
-    dirty_files: list[PythonFileDelta] = []
-    valid_exts = ParserFactory.get_supported_extensions()
-
-    for root, dirs, files in os.walk(str(target_abs)):
-        dirs[:] = [
-            d
-            for d in dirs
-            if not is_ignored_path(
-                str((Path(root) / d).relative_to(active_root)).replace("\\", "/"),
-                spec,
-                is_dir=True,
-            )
-        ]
-
-        for file_name in files:
-            full_p = Path(root) / file_name
-            try:
-                rel_p = str(full_p.relative_to(active_root)).replace("\\", "/")
-            except ValueError:
-                rel_p = str(full_p).replace("\\", "/")
-
-            if is_ignored_path(rel_p, spec, is_dir=False):
-                continue
-
-            found_rel_paths.add(rel_p)
-
-            if not any(rel_p.endswith(ext) for ext in valid_exts):
-                continue
-
-            try:
-                data = full_p.read_bytes()
-            except OSError:
-                continue
-
-            cur_hash = hashlib.sha256(data).hexdigest()
-            prev_hash = known_hashes.get(rel_p)
-
-            if force or prev_hash is None or prev_hash != cur_hash:
-                dirty_files.append(
-                    PythonFileDelta(
-                        rel_path=rel_p,
-                        content_hash=cur_hash,
-                        source_bytes=data,
-                    )
-                )
-
-    deleted_files: list[str] = []
-    try:
-        target_rel = str(target_abs.relative_to(active_root)).replace("\\", "/")
-    except ValueError:
-        target_rel = ""
-
-    for known_p in known_hashes:
-        if target_rel and target_rel not in ("", ".") and not known_p.startswith(f"{target_rel}/"):
-            continue
-        if known_p not in found_rel_paths:
-            deleted_files.append(known_p)
-
-    return PythonWorkspaceScan(dirty_files=dirty_files, deleted_files=deleted_files)
-
-
-_rust_core: Any = None
-try:
-    from vibetrace import _rust_core as _rc  # type: ignore[attr-defined]
-
-    _rust_core = _rc
-    _HAS_RUST_CORE = True
-except ImportError:
-    try:
-        import _rust_core as _rc2  # type: ignore[no-redef]
-
-        _rust_core = _rc2
-        _HAS_RUST_CORE = True
-    except ImportError:
-        _HAS_RUST_CORE = False
-
-
 def is_native_available() -> bool:
     """Return True if the compiled PyO3 Rust extension (`_rust_core`) is loaded."""
     return _HAS_RUST_CORE and _rust_core is not None
@@ -128,7 +42,7 @@ def is_native_available() -> bool:
 
 def get_native_version() -> str | None:
     """Return the version string of the compiled Rust extension, or None if unavailable."""
-    if not is_native_available():
+    if not is_native_available() or _rust_core is None:
         return None
     try:
         return str(_rust_core.rust_engine_version())
@@ -144,7 +58,7 @@ def scan_workspace_native(
     force: bool = False,
 ) -> Any | None:
     """Invoke the parallel Rust directory walker (`ignore` + `rayon` + `sha2`) releasing the GIL."""
-    if not is_native_available():
+    if not is_native_available() or _rust_core is None:
         return None
     try:
         return _rust_core.py_scan_and_hash_workspace(
@@ -161,7 +75,7 @@ def scan_workspace_native(
 
 def extract_batch_native(deltas: list[Any]) -> list[Any]:
     """Invoke parallel Rust Tree-sitter AST extraction across dirty files."""
-    if not is_native_available() or not deltas:
+    if not is_native_available() or _rust_core is None or not deltas:
         return []
     try:
         return list(_rust_core.py_extract_batch_parallel(deltas))
@@ -195,14 +109,9 @@ def reindex_workspace_hybrid(
         force=force,
     )
     if scan_res is None:
-        if verbose:
-            logger.info("Native Rust core (_rust_core) not found; utilizing pure-Python scanner.")
-        scan_res = scan_workspace_python(
-            target_path=target_path,
-            project_root=project_root,
-            known_hashes=db.get_all_file_hashes(),
-            extra_excludes=extra_excludes,
-            force=force,
+        raise RuntimeError(
+            "Native Rust core (vibetrace._rust_core) is required but not installed. "
+            "Run scripts/build_source.ps1 (Windows) or scripts/build_source.sh (Linux/macOS)."
         )
 
     dirty_deltas = list(scan_res.dirty_files)

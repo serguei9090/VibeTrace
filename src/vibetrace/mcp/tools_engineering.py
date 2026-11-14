@@ -32,14 +32,26 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
 VIBETRACE_DIR = ".vibetrace"
-INDEX_DB_NAME = "index.db"
+INDEX_DB_NAME = "vibetrace.db"
 INDEX_NOT_FOUND_MSG = "Error: VibeTrace index not found. Run index first."
+
+_ROOT_MARKERS = (
+    ".vibetrace",
+    "vibetrace_context",
+    ".vibetrace.toml",
+    "vibetrace.toml",
+    ".git",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+)
 
 
 def _resolve_project_root(scope_path: str) -> Path:
     target = Path(scope_path).resolve() if scope_path else Path.cwd().resolve()
     for p in [target, *list(target.parents)]:
-        if (p / VIBETRACE_DIR).is_dir() or (p / "pyproject.toml").is_file():
+        if any((p / marker).exists() for marker in _ROOT_MARKERS):
             return p
     return target
 

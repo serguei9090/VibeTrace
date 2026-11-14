@@ -56,7 +56,7 @@ class VectorConfig(BaseModel):
     )
     engine: str = Field(
         default="lancedb",
-        description="Vector engine: 'lancedb' (embedded/cloud), 'sqlite-vec', or 'none'",
+        description="Vector engine: 'lancedb' (embedded/cloud) or 'none'",
     )
     uri: str = Field(
         default=".vibetrace/vectors.lance",
@@ -255,7 +255,7 @@ busy_timeout_seconds = 30.0
 codebase = {emb_str}
 # Target compute device: "auto" (CUDA with CPU fallback), "gpu", or "cpu"
 device = "{dev_str}"
-# Vector engine: "lancedb" (recommended), "sqlite-vec", or "none"
+# Vector engine: "lancedb" (recommended) or "none"
 engine = "lancedb"
 # Local directory or remote cloud URI (e.g. "s3://company-vectors/{safe_name}")
 uri = ".vibetrace/vectors.lance"

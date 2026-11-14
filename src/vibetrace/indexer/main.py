@@ -309,6 +309,11 @@ def reindex_all(
             if has_lsp_candidates:
                 print("💡 Tip: Run 'vibetrace tools install-lsp' for deep type resolution.")
 
+    from vibetrace.indexer.rust_bridge import is_native_available
+
+    engine_label = "rust-native" if is_native_available() else "python-fallback"
+    edge_metrics = db.get_edge_resolution_metrics()
+
     elapsed = max(time.perf_counter() - t_start, 0.0001)
     file_count = len(processed_files)
     throughput = file_count / elapsed
@@ -317,9 +322,14 @@ def reindex_all(
         counts = db.get_statistics()
         node_c = counts.get("nodes", 0)
         edge_c = counts.get("edges", 0)
+        exact_c = edge_metrics.get("exact", 0)
+        inferred_c = edge_metrics.get("inferred", 0)
+        total_e = exact_c + inferred_c
+        exact_pct = (exact_c / total_e * 100.0) if total_e > 0 else 100.0
         print(
             f"[OK] Indexed {file_count} files in {elapsed:.2f}s "
-            f"({throughput:.1f} files/sec) [rust-native] * {node_c} nodes, {edge_c} edges."
+            f"({throughput:.1f} files/sec) [{engine_label}] * {node_c} nodes, {edge_c} edges "
+            f"({exact_pct:.1f}% exact, {inferred_c} inferred)."
         )
 
     return {
@@ -327,8 +337,8 @@ def reindex_all(
         "elapsed_seconds": round(elapsed, 4),
         "throughput_fps": round(throughput, 1),
         "modified_files": processed_files,
-        "engine": "rust-native",
-        "edge_resolution": db.get_edge_resolution_metrics(),
+        "engine": engine_label,
+        "edge_resolution": edge_metrics,
     }
 
 

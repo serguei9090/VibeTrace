@@ -25,7 +25,6 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/main.py:load_ignore_spec] / [src/vibetrace/indexer/main.py:load_gitignore] - Build ignore spec from `.gitignore` plus configured excludes.
 - [src/vibetrace/indexer/resolver.py:ModuleResolver] - Resolve module names to project-relative file paths.
 - [src/vibetrace/indexer/embeddings.py:EmbeddingEngine] - Local embedding encode, index, and semantic search.
-- [src/vibetrace/indexer/embeddings.py:try_load_sqlite_vec] - Loads the optional `sqlite-vec` extension into a connection.
 - [src/vibetrace/indexer/embeddings.py:EmbeddingConfig] - Embedding pipeline configuration contract.
 - [src/vibetrace/indexer/embeddings.py:build_symbol_document] / [src/vibetrace/indexer/embeddings.py:truncate_and_normalize] / [src/vibetrace/indexer/embeddings.py:pack_vector] / [src/vibetrace/indexer/embeddings.py:unpack_vector] / [src/vibetrace/indexer/embeddings.py:cosine_similarity] - Symbol text build, Matryoshka truncation, blob serialization, similarity.
 - [src/vibetrace/indexer/vector_store.py:VectorStore] - Protocol for embedding storage and ANN search.
@@ -42,7 +41,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/lsp_bridge.py:MultiLanguageLSPManager] / [src/vibetrace/indexer/lsp_bridge.py:LSPDaemonManager] - Pooled language-server lifecycle.
 - [src/vibetrace/indexer/rust_bridge.py:reindex_workspace_hybrid] - Workspace scan, SHA-256 diff, single-transaction commit.
 - [src/vibetrace/indexer/rust_bridge.py:PythonFileDelta] / [src/vibetrace/indexer/rust_bridge.py:PythonWorkspaceScan] - Per-file change record and workspace scan result returned by the pure-Python fallback scanner.
-- [src/vibetrace/indexer/rust_bridge.py:scan_workspace_python] / [src/vibetrace/indexer/rust_bridge.py:scan_workspace_native] / [src/vibetrace/indexer/rust_bridge.py:extract_batch_native] / [src/vibetrace/indexer/rust_bridge.py:is_native_available] / [src/vibetrace/indexer/rust_bridge.py:get_native_version] - Native Rust core access with pure-Python fallback.
+- [src/vibetrace/indexer/rust_bridge.py:scan_workspace_native] / [src/vibetrace/indexer/rust_bridge.py:extract_batch_native] / [src/vibetrace/indexer/rust_bridge.py:is_native_available] / [src/vibetrace/indexer/rust_bridge.py:get_native_version] - Native Rust core access (`vibetrace._rust_core` required).
 - [src/vibetrace/indexer/scip_importer.py:ScipImporter] / [src/vibetrace/indexer/scip_importer.py:parse_scip_symbol_name] - Import SCIP index data into the graph.
 - [src/vibetrace/indexer/schema.sql] - Tables: `indexed_files`, `nodes`, `edges`, `file_imports`, `edge_targets`, `nodes_fts`, `node_embeddings`, `meta`, `saved_traces`, `symbol_doc_links`, `function_taint_contracts`.
 - Child contract: [Parsers](./parsers/README.md) - Tree-sitter language extractors producing the node/edge records persisted here.
@@ -63,7 +62,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - `get_git_delta` returns `None` unless the base SHA is 40 or 64 hex characters, and `get_git_sha` validates SHA shape before use [src/vibetrace/indexer/git_utils.py:get_git_delta], [src/vibetrace/indexer/git_utils.py:get_git_sha].
 - `with_write_retry` raises `ValueError` when `max_attempts < 1` [src/vibetrace/indexer/db_retry.py:with_write_retry].
 - `EmbeddingConfig.dimensions` is constrained to 64-768 [src/vibetrace/indexer/embeddings.py:EmbeddingConfig].
-- `get_vector_store` raises `NotImplementedError` for engine `sqlite-vec` and `ValueError` for any other unsupported engine [src/vibetrace/indexer/vector_store.py:get_vector_store].
+- `get_vector_store` raises `ValueError` for any unsupported engine (supports `'lancedb'` or `'none'`) [src/vibetrace/indexer/vector_store.py:get_vector_store].
 
 ## Side Effects
 
@@ -76,7 +75,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - Launches language-server subprocesses and exchanges JSON-RPC over stdio [src/vibetrace/indexer/lsp_bridge.py:LSPClient.start].
 - Starts a recursive watchdog observer that reindexes changed, created, moved, and deleted files [src/vibetrace/indexer/watcher.py:start_observer].
 - Downloads the HuggingFace sentence-transformers model on first load when it is not cached locally [src/vibetrace/indexer/embeddings.py:EmbeddingEngine._load_model].
-- Uses the optional compiled `vibetrace._rust_core` extension for parallel scanning and falls back to the pure-Python scanner when absent [src/vibetrace/indexer/rust_bridge.py:is_native_available].
+- Requires the compiled `vibetrace._rust_core` extension for workspace scanning [src/vibetrace/indexer/rust_bridge.py:is_native_available].
 - Prints indexing progress and throughput telemetry to stdout [src/vibetrace/indexer/main.py:reindex_all].
 
 ## Verification

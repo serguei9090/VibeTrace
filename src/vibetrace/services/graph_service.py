@@ -479,3 +479,41 @@ def analyze_file_dependencies(db: IndexerDB, normalized_path: str) -> dict[str, 
         "dependents": dependents,
         "circular": circular,
     }
+
+
+def find_dead_symbols(
+    db: IndexerDB,
+    limit: int = 100,
+    include_tests: bool = False,
+) -> list[dict[str, Any]]:
+    """Find functions, methods, and classes with zero incoming graph edges."""
+    sql = """
+        SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path, n.start_line, n.end_line
+        FROM nodes n
+        WHERE n.kind IN ('function', 'method', 'class')
+          AND n.name NOT LIKE '\\_\\_%\\_\\_' ESCAPE '\\'
+          AND n.name != 'main'
+          AND NOT EXISTS (
+              SELECT 1 FROM edges e
+              WHERE e.to_node_id = n.id
+                AND e.relation_type IN ('calls', 'routes', 'references', 'inherits')
+          )
+        ORDER BY n.file_path, n.start_line
+    """
+    with db._get_conn() as conn:
+        rows = conn.execute(sql).fetchall()
+
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        fpath = str(row["file_path"]).replace("\\", "/")
+        if not include_tests and (
+            "/tests/" in f"/{fpath}"
+            or fpath.startswith("tests/")
+            or "/test_" in f"/{fpath}"
+            or "_test." in fpath
+        ):
+            continue
+        results.append(dict(row))
+        if len(results) >= limit:
+            break
+    return results

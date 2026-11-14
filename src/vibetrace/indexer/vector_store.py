@@ -318,9 +318,6 @@ def get_vector_store(
             project_name=project_name,
         )
 
-    if cfg.engine == "sqlite-vec":
-        raise NotImplementedError("Vector engine 'sqlite-vec' is planned but not yet implemented.")
-
     raise ValueError(
-        f"Unsupported vector engine '{cfg.engine}'. Must be 'lancedb', 'sqlite-vec', or 'none'."
+        f"Unsupported vector engine '{cfg.engine}'. Must be 'lancedb' or 'none'."
     )

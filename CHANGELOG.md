@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`vibetrace dead-code` Command**: Added `find_dead_symbols` (`services/graph_service.py`) and the `vibetrace dead-code` CLI subcommand to list functions, methods, and classes with zero incoming graph references.
+- **Build-from-Source Scripts**: Added `scripts/build_source.ps1` (Windows) and `scripts/build_source.sh` (Linux/macOS) to check prerequisites (`uv`, `rustc`, `cargo`) and compile `vibetrace._rust_core` via `maturin`.
+
+### Changed
+- **Standardized on LanceDB & Native Rust Core**: Removed legacy `sqlite-vec` references (`vector_store.py`, `embeddings.py`, `config.py`) and removed the pure-Python `scan_workspace_python` fallback (`rust_bridge.py`).
+- **Reindex Telemetry**: `reindex_all` now reports `exact` vs. `inferred` edge precision and accurate engine status (`rust-native`).
+- **CI/CD PyPI Publishing**: Updated `.github/workflows/publish.yml` to build multi-OS `maturin` wheels (`ubuntu-latest`, `windows-latest`, `macos-latest`) and sdist before publishing to PyPI.
+
+### Fixed
+- **Database Path & Root Resolution**: Fixed `index.db` → `vibetrace.db` mismatch in `mcp/tools_engineering.py` and `server_api_docs.py`, and unified `_resolve_project_root` across all project root markers.
+
 ---
 
 ## [0.1.9] - 2026-11-09

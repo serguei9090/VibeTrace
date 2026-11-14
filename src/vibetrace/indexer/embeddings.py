@@ -6,7 +6,6 @@ import heapq
 import importlib
 import logging
 import math
-import sqlite3
 import struct
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -89,20 +88,6 @@ def unpack_vector(blob: bytes, dimensions: int | None = None) -> tuple[float, ..
 def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
     """Compute dot-product cosine similarity between two L2-normalized vectors."""
     return sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
-
-
-def try_load_sqlite_vec(conn: sqlite3.Connection) -> bool:
-    """Attempt to load the sqlite-vec extension onto a SQLite connection if installed."""
-    try:
-        sqlite_vec = importlib.import_module("sqlite_vec")
-        conn.enable_load_extension(True)
-        try:
-            sqlite_vec.load(conn)
-            return True
-        finally:
-            conn.enable_load_extension(False)
-    except Exception:
-        return False
 
 
 class EmbeddingEngine:
@@ -348,27 +333,6 @@ class EmbeddingEngine:
         if not query_vecs:
             return []
         q_vec = query_vecs[0]
-        q_blob = pack_vector(q_vec)
-
-        # Fast path: use sqlite-vec C extension when loadable
-        with db._get_conn() as conn:
-            if try_load_sqlite_vec(conn):
-                try:
-                    cursor = conn.execute(
-                        """
-                        SELECT node_id, (1.0 - vec_distance_cosine(embedding, ?)) AS score
-                        FROM node_embeddings
-                        WHERE model_id = ? AND dimensions = ?
-                        ORDER BY score DESC
-                        LIMIT ?
-                        """,
-                        (q_blob, self.config.model_id, self.config.dimensions, limit),
-                    )
-                    results = [(row[0], float(row[1])) for row in cursor.fetchall()]
-                    if results:
-                        return results
-                except sqlite3.Error:
-                    pass
 
         # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
         top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
