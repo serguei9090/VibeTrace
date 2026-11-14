@@ -16,9 +16,9 @@ from vibetrace.cli_audit import (
 from vibetrace.cli_commands import (
     cmd_call_stack,
     cmd_call_tree,
+    cmd_dead_code,
     cmd_dependencies,
     cmd_diagnose,
-    cmd_dead_code,
     cmd_docs,
     cmd_hooks,
     cmd_impact,
@@ -1312,7 +1312,9 @@ examples:
         help="List functions, methods, and classes with zero incoming graph references",
     )
     p_dead.add_argument("path", nargs="?", default=".", help="Project path (default: .)")
-    p_dead.add_argument("--limit", type=int, default=100, help="Max symbols to return (default: 100)")
+    p_dead.add_argument(
+        "--limit", type=int, default=100, help="Max symbols to return (default: 100)"
+    )
     p_dead.add_argument(
         "--include-tests", action="store_true", help="Include symbols in test files"
     )

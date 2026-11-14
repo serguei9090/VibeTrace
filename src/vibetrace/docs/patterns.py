@@ -20,7 +20,9 @@ def is_pattern(entry: str) -> bool:
     return any(c in entry for c in MAGIC_CHARS)
 
 
-def match_segments(pattern_segments: list[str], path_segments: list[str]) -> bool:
+def match_segments(
+    pattern_segments: list[str] | tuple[str, ...], path_segments: list[str] | tuple[str, ...]
+) -> bool:
     """Case-insensitive segment match; a `**` segment matches zero or more segments."""
     if not pattern_segments:
         return not path_segments
@@ -55,7 +57,7 @@ def split_pattern(entry: str, base_dir: Path) -> tuple[Path, list[str]] | None:
         if is_pattern(s):
             break
         base_segs.append(s)
-    glob_segs = segments[len(base_segs):]
+    glob_segs = segments[len(base_segs) :]
     base_str = "/".join(base_segs)
     if norm.startswith("/") or _DRIVE_RE.match(segments[0]) or Path(norm).is_absolute():
         base = Path(base_str) if base_str else Path("/")

@@ -318,6 +318,4 @@ def get_vector_store(
             project_name=project_name,
         )
 
-    raise ValueError(
-        f"Unsupported vector engine '{cfg.engine}'. Must be 'lancedb' or 'none'."
-    )
+    raise ValueError(f"Unsupported vector engine '{cfg.engine}'. Must be 'lancedb' or 'none'.")
