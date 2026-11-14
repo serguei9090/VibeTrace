@@ -38,7 +38,7 @@ jobs:
           toolchain: stable
 
       - name: Cache Rust toolchain and dependencies
-        uses: Swatinem/rust-cache@82a92a6e8fbeee08c636dad575c63740c4c47384 # v2.7.5
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: "crates/vibetrace-core -> target"
 
