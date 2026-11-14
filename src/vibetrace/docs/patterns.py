@@ -117,11 +117,15 @@ def pattern_matches(entry: str, base_dir: Path, path: Path) -> bool:
     base, glob_segs = split
     if not glob_segs or path.suffix.casefold() not in MARKDOWN_EXTS:
         return False
-    try:
-        rel = path.relative_to(base)
-    except ValueError:
+    base_parts = base.parts
+    path_parts = path.parts
+    if len(path_parts) <= len(base_parts):
         return False
-    parts = rel.parts
+    if tuple(p.casefold() for p in path_parts[: len(base_parts)]) != tuple(
+        p.casefold() for p in base_parts
+    ):
+        return False
+    parts = path_parts[len(base_parts) :]
     if any(seg.casefold() in IGNORED_DIRS_CASEFOLDED for seg in parts[:-1]):
         return False
     return match_segments(glob_segs, parts)
