@@ -251,7 +251,7 @@ def test_vector_store_project_and_model_isolation(tmp_path: Path) -> None:
         get_vector_store(tmp_path, cfg_unsupported)
 
     cfg_sqlite_vec = VectorConfig(engine="sqlite-vec")
-    with pytest.raises(NotImplementedError, match="sqlite-vec"):
+    with pytest.raises(ValueError, match="Unsupported vector engine"):
         get_vector_store(tmp_path, cfg_sqlite_vec)
 
 

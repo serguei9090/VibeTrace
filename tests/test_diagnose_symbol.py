@@ -45,7 +45,7 @@ def _create_sample_project(tmp_path: Path) -> IndexerDB:
 
     db_dir = tmp_path / ".vibetrace"
     db_dir.mkdir()
-    db = IndexerDB(db_dir / "index.db")
+    db = IndexerDB(db_dir / "vibetrace.db")
     reindex_all(db, str(tmp_path), verbose=False)
     return db
 
