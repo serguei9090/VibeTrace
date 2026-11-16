@@ -148,7 +148,7 @@ def reindex_all(
     verbose: bool = True,
     force: bool = False,
     project_root: Path | None = None,
-    use_lsp: bool = False,
+    use_lsp: bool = True,
 ) -> dict[str, Any]:
     """Reindex a file or directory recursively.
 

@@ -23,7 +23,7 @@ class ReindexService:
         force: bool = False,
         embed: bool | None = None,
         docs: bool = True,
-        use_lsp: bool = False,
+        use_lsp: bool = True,
         verbose: bool = False,
         is_json: bool = False,
     ) -> dict[str, Any]:
