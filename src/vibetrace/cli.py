@@ -577,6 +577,12 @@ examples:
         action="store_false",
         help="Disable optional SonarQube / SonarLint Tier-2 rules",
     )
+    p_init.add_argument(
+        "--install-lsp",
+        action="store_true",
+        default=False,
+        help="Auto-install missing LSP servers (e.g., gopls) for detected ecosystems",
+    )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
 

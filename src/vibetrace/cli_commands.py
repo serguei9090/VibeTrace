@@ -644,6 +644,18 @@ def cmd_init(args: argparse.Namespace) -> int:
     ]
     if res.get("ecosystems"):
         lines.append(f"- **Detected Ecosystems**: {', '.join(res['ecosystems'])}")
+        import shutil
+
+        if any("Go" in eco for eco in res["ecosystems"]) and not shutil.which("gopls"):
+            if getattr(args, "install_lsp", False):
+                from vibetrace.cli_tools import cmd_tools
+
+                cmd_tools(argparse.Namespace(action="install-lsp", language="lsp"))
+            elif not getattr(args, "json", False):
+                lines.append(
+                    "- **LSP Tip**: `gopls` not found. Run `vibetrace tools install-lsp` "
+                    "(or `vibetrace init --install-lsp`) for compiler-accurate Go resolution."
+                )
     if res.get("doc_catalog_registered"):
         chunks_count = res.get("doc_chunks_indexed", 0)
         lines.append(f"- **Docs Catalog**: 'core' (docs/) [{chunks_count} chunks indexed]")
