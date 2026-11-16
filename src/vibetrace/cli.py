@@ -579,9 +579,16 @@ examples:
     )
     p_init.add_argument(
         "--install-lsp",
+        dest="install_lsp",
         action="store_true",
-        default=False,
-        help="Auto-install missing LSP servers (e.g., gopls) for detected ecosystems",
+        default=True,
+        help="Auto-install missing LSP servers (e.g., gopls) for detected ecosystems (default)",
+    )
+    p_init.add_argument(
+        "--no-lsp",
+        dest="install_lsp",
+        action="store_false",
+        help="Skip auto-installing missing LSP servers during init",
     )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
