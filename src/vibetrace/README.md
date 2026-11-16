@@ -47,7 +47,7 @@ these modules call into.
 - Command handlers registered on the parser:
   - Index and navigation: `cmd_index`, `cmd_search`, `cmd_trace`, `cmd_slice`,
     `cmd_call_tree`, `cmd_call_stack`, `cmd_impact`, `cmd_references`,
-    `cmd_dependencies`, `cmd_summary`, `cmd_test`, `cmd_diagnose`
+    `cmd_dependencies`, `cmd_summary`, `cmd_test`, `cmd_diagnose`, `cmd_dead_code`
     (`[src/vibetrace/cli_commands.py:cmd_index]`).
   - Audit and review: `cmd_audit_splits`, `cmd_audit_security`, `cmd_audit_quality`,
     `cmd_review`, `cmd_audit_fix_deps`, `cmd_audit_pr_taint`

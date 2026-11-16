@@ -706,7 +706,6 @@ async def vibetrace_audit_security(params: AuditSecurityInput) -> str:
     Detects static AST flaws (CWE-78, CWE-95, CWE-798, CWE-327, CWE-502) and package CVEs.
     """
     try:
-        from vibetrace.security.formatters import format_security_audit_md
         from vibetrace.security.service import SecurityService
 
         db, root = get_context_for_path(params.scope_path)
@@ -721,7 +720,14 @@ async def vibetrace_audit_security(params: AuditSecurityInput) -> str:
 
         if params.response_format == ResponseFormat.JSON:
             return report.model_dump_json(indent=2)
-        return format_security_audit_md(report)
+
+        from vibetrace.services.report_store import ReportStore
+
+        return ReportStore.save_split_report(
+            project_root=root,
+            domain="security",
+            findings=report.findings,
+        )
     except Exception as e:
         return handle_error(e, "auditing security vulnerabilities")
 

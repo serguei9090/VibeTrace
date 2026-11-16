@@ -379,6 +379,14 @@ def get_security_audit_endpoint(
         force_update_cves=update,
         analyze_taint=not no_taint,
     )
+    from vibetrace.services.report_store import ReportStore
+
+    ReportStore.save_split_report(
+        project_root=Path(project_root),
+        domain="quality",
+        findings=report.findings,
+        approve_hint="vibetrace audit quality approve",
+    )
     return report.model_dump()
 
 
@@ -432,6 +440,14 @@ def get_quality_audit_endpoint(
         file_filter=file_path,
         complexity_threshold=threshold,
         include_tests=include_tests,
+    )
+    from vibetrace.services.report_store import ReportStore
+
+    ReportStore.save_split_report(
+        project_root=Path(project_root),
+        domain="quality",
+        findings=report.findings,
+        approve_hint="vibetrace audit quality approve",
     )
     return report.model_dump()
 

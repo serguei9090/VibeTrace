@@ -1050,6 +1050,11 @@ examples:
         action="store_true",
         help="Enable optional Tier-2 SonarLint Headless Java Engine for security & ReDoS rules",
     )
+    p_security.add_argument(
+        "--status",
+        action="store_true",
+        help="Show the last saved security audit summary and category status",
+    )
     p_security.set_defaults(func=cmd_audit_security)
 
     p_quality = p_audit_sub.add_parser(
@@ -1144,6 +1149,11 @@ examples:
         default="intentional",
         choices=["intentional", "legacy", "perf-critical"],
         help="Disposition tag saved when approving exceptions with --approve",
+    )
+    p_quality.add_argument(
+        "--status",
+        action="store_true",
+        help="Show the last saved quality audit summary and category status",
     )
     p_quality.set_defaults(func=cmd_audit_quality)
 

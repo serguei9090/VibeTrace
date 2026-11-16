@@ -137,6 +137,16 @@ def cmd_audit_splits(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
 
+    if getattr(args, "status", False):
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.read_summary(project_root, "quality")
+        if summary is None:
+            print("No saved quality report found. Run `vibetrace audit quality` first.")
+            return 0
+        print(safe_str(summary))
+        return 0
+
     symbol_filter = getattr(args, "symbol", None)
     report = audit_splits(db, project_root, symbol=symbol_filter)
 
@@ -283,7 +293,14 @@ def _render_security_output(
     elif is_json:
         print(report.model_dump_json(indent=2))
     else:
-        print(safe_str(format_security_audit_md(report, summary_only=is_summary)))
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.save_split_report(
+            project_root=Path(getattr(report, "project_root", ".")),
+            domain="security",
+            findings=report.findings,
+        )
+        print(safe_str(summary if is_summary else format_security_audit_md(report)))
 
 
 def _handle_security_ai_fix(db: Any, project_root: Path, file_filter: str | None) -> None:
@@ -305,6 +322,16 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
+
+    if getattr(args, "status", False):
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.read_summary(project_root, "security")
+        if summary is None:
+            print("No saved security report found. Run `vibetrace audit security` first.")
+            return 0
+        print(safe_str(summary))
+        return 0
 
     if getattr(args, "staged", False):
         from vibetrace.security.git_secret_scanner import GitSecretScanner
@@ -456,6 +483,16 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
+
+    if getattr(args, "status", False):
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.read_summary(project_root, "quality")
+        if summary is None:
+            print("No saved quality report found. Run `vibetrace audit quality` first.")
+            return 0
+        print(safe_str(summary))
+        return 0
 
     file_filter = getattr(args, "file", None)
     threshold = getattr(args, "threshold", 15)
@@ -653,6 +690,16 @@ def cmd_audit_fix_deps(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
 
+    if getattr(args, "status", False):
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.read_summary(project_root, "quality")
+        if summary is None:
+            print("No saved quality report found. Run `vibetrace audit quality` first.")
+            return 0
+        print(safe_str(summary))
+        return 0
+
     # 1. Run security audit for lockfile dependencies
     report_sec = SecurityService.audit_project(
         db=db,
@@ -696,6 +743,16 @@ def cmd_audit_pr_taint(args: argparse.Namespace) -> int:
 
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
+
+    if getattr(args, "status", False):
+        from vibetrace.services.report_store import ReportStore
+
+        summary = ReportStore.read_summary(project_root, "quality")
+        if summary is None:
+            print("No saved quality report found. Run `vibetrace audit quality` first.")
+            return 0
+        print(safe_str(summary))
+        return 0
 
     base_ref = getattr(args, "base", "main") or "main"
     staged = getattr(args, "staged", False)

@@ -16,6 +16,7 @@ Domain service layer for VibeTrace. Holds the pure-Python workflows that sit bet
 - [`refactor_service.py`](./refactor_service.py) — `RefactorService` (`suggest_split_candidates`, `_analyze_block_lifetimes`, `build_refactor_plan`, `apply_refactor_plan`); private `_BlockUsageVisitor`, `_extract_func_parameters`, `_compute_block_complexity`, `_find_target_function`.
 - [`reindex_service.py`](./reindex_service.py) — `ReindexService` (`execute_reindex`).
 - [`repo_map_service.py`](./repo_map_service.py) — `RepoMapService` (`generate_budgeted_repo_map`); `estimate_tokens`.
+- [`report_store.py`](./report_store.py) — `ReportStore` (`get_report_dir`, `read_summary`, `save_split_report`); `VALID_STATUSES`.
 - [`review_service.py`](./review_service.py) — `UnifiedReviewReport` (Pydantic); `run_unified_review`, `format_unified_review_md`; private `_detect_git_changed_files`.
 - [`saved_traces_service.py`](./saved_traces_service.py) — `SavedTrace`, `SavedTraceCreate` (Pydantic); `list_saved_traces`, `get_saved_trace_by_name`, `get_saved_trace_by_id`, `create_saved_trace`, `delete_saved_trace`, `delete_saved_trace_by_name`.
 - [`split_audit_service.py`](./split_audit_service.py) — `BranchDetail`, `ArchitecturalSplit`, `SplitAuditReport` (Pydantic); `compute_symbol_code_hash`, `get_splits_toml_path`, `load_split_baseline`, `save_split_baseline`, `scan_architectural_splits`, `audit_splits`, `record_split_approval`; private `_escape_toml_str`.

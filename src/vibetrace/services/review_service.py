@@ -39,6 +39,7 @@ class UnifiedReviewReport(BaseModel):
     approved_splits_count: int = 0
     silenced_sarif_count: int = 0
     modified_symbols_with_callers: int = 0
+    dead_code_count: int = 0
     coverage_gate: CoverageGateReport = Field(default_factory=CoverageGateReport)
     security_findings: list[SecurityFinding] = Field(default_factory=list)
     all_security_findings: list[SecurityFinding] = Field(default_factory=list)
@@ -228,6 +229,74 @@ def run_unified_review(
         and cov_gate.passed
     )
 
+    from vibetrace.services.graph_service import find_dead_symbols
+    from vibetrace.services.report_store import ReportStore
+
+    dead_symbols = find_dead_symbols(db, limit=100)
+    if norm_scope == "changed" and changed_files:
+        changed_set = {f.replace("\\", "/") for f in changed_files}
+        dead_symbols = [
+            d for d in dead_symbols if str(d["file_path"]).replace("\\", "/") in changed_set
+        ]
+
+    ReportStore.save_split_report(
+        project_root=project_root,
+        domain="security",
+        findings=sec_report.findings,
+        scope=norm_scope,
+    )
+    ReportStore.save_split_report(
+        project_root=project_root,
+        domain="quality",
+        findings=qual_report.findings,
+        scope=norm_scope,
+        approve_hint="vibetrace audit quality approve",
+    )
+    if active_splits:
+        split_items = [
+            {
+                "id": f"SPLIT-{sp.code_hash[:12]}",
+                "category": "splits",
+                "severity": "MEDIUM",
+                "status": "OPEN",
+                "title": f"{sp.status}: {sp.symbol}",
+                "rule_id": "architectural-split",
+                "file_path": sp.file_path,
+                "line_number": sp.start_line,
+                "remediation": f"Verify {sp.branches_count} branches and approve split.",
+            }
+            for sp in active_splits
+        ]
+        ReportStore.save_split_report(
+            project_root=project_root,
+            domain="splits",
+            findings=split_items,
+            scope=norm_scope,
+            approve_hint="vibetrace_approve_split",
+        )
+    if dead_symbols:
+        dead_items = [
+            {
+                "id": f"DEAD-{item['id'][:12]}",
+                "category": "dead_code",
+                "severity": "LOW",
+                "status": "OPEN",
+                "title": f"Unreferenced {item['kind']}: {item['qualified_name']}",
+                "rule_id": "dead-code",
+                "file_path": item["file_path"],
+                "line_number": item["start_line"],
+                "remediation": "Remove unused symbol or mark [FALSE_POSITIVE] / [DEFERRED].",
+            }
+            for item in dead_symbols
+        ]
+        ReportStore.save_split_report(
+            project_root=project_root,
+            domain="dead_code",
+            findings=dead_items,
+            scope=norm_scope,
+            approve_hint="vibetrace dead-code",
+        )
+
     return UnifiedReviewReport(
         scope=norm_scope,
         passed=passed,
@@ -244,6 +313,7 @@ def run_unified_review(
         approved_splits_count=split_report.approved_count,
         silenced_sarif_count=silenced_sarif,
         modified_symbols_with_callers=len(with_callers),
+        dead_code_count=len(dead_symbols),
         coverage_gate=cov_gate,
         security_findings=active_sec,
         all_security_findings=sec_report.findings,
@@ -300,6 +370,11 @@ def format_unified_review_md(report: UnifiedReviewReport) -> str:
         (
             f"- **📞 Caller Guard Advisories:** {report.modified_symbols_with_callers} "
             "modified symbol(s) with active callers"
+        ),
+        f"- **🧹 Dead Code (advisory):** {report.dead_code_count} unreferenced symbol(s)",
+        (
+            "- **📁 Full Reports:** `.vibetrace/reports/security/summary.md`, "
+            "`.vibetrace/reports/quality/summary.md`, `.vibetrace/reports/review/`"
         ),
     ]
 

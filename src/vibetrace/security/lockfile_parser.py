@@ -35,6 +35,8 @@ class LockfileParser:
         if cached and cached[0] == digest:
             return cached[1]
         pkgs = fn(file_path)
+        if len(_LOCKFILE_HASH_CACHE) >= 64:
+            _LOCKFILE_HASH_CACHE.pop(next(iter(_LOCKFILE_HASH_CACHE)))
         _LOCKFILE_HASH_CACHE[key] = (digest, pkgs)
         return pkgs
 

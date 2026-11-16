@@ -48,7 +48,7 @@ class SemgrepAdapter:
             config,
         ]
         if target_files:
-            cmd.extend(target_files[:100])
+            cmd.extend(target_files)
         else:
             cmd.append(".")
 
