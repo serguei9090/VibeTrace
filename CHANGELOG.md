@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-16
+
+### Fixed
+- **Monorepo LSP Provisioning**: Unified `tools_manager.py` to reuse `detect_project_ecosystems(root)` so `gopls` and `rust-analyzer` are provisioned automatically when Go/Rust live in 1-level subdirectories.
+
 ## [0.1.13] - 2026-11-16
 
 ### Added
