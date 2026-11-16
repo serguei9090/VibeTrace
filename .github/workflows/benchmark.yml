@@ -30,8 +30,9 @@ jobs:
         run: |
           uv python install 3.12
           T0=$(date +%s%3N)
-          uv sync --no-dev
-          uv run maturin develop --release
+          uv sync --all-groups
+          cargo build --release -p vibetrace-core --features extension-module
+          cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
           T1=$(date +%s%3N)
           uv run vibetrace index /tmp/bench_repo --no-lsp
           T2=$(date +%s%3N)
@@ -175,8 +176,6 @@ jobs:
 
           md = "\n".join(lines) + "\n"
           Path("docs/benchmarks/latest.md").write_text(md, encoding="utf-8")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
-              fh.write(md) if False else None
           EOF
           cat docs/benchmarks/latest.md >> "$GITHUB_STEP_SUMMARY"
 
