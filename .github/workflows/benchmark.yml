@@ -34,7 +34,7 @@ jobs:
           cargo build --release -p vibetrace-core --features extension-module
           cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
           T1=$(date +%s%3N)
-          uv run vibetrace index /tmp/bench_repo --no-lsp
+          uv run vibetrace index /tmp/bench_repo
           T2=$(date +%s%3N)
           uv run vibetrace search "APIRouter" --root /tmp/bench_repo >/dev/null
           T3=$(date +%s%3N)
