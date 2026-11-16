@@ -33,7 +33,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --features extension-module -m crates/vibetrace-core/Cargo.toml --out dist
+          args: --release --out dist
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -52,7 +52,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: -m crates/vibetrace-core/Cargo.toml --out dist
+          args: --out dist
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
@@ -95,8 +95,10 @@ jobs:
       - name: Install vibetrace from PyPI and smoke test
         run: |
           uv python install 3.12
+          PKG_VER="${GITHUB_REF_NAME#v}"
+          PKG_SPEC=$( [[ "$PKG_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] && echo "vibetrace==$PKG_VER" || echo "vibetrace" )
           for i in 1 2 3 4 5; do
-            if uv tool install --refresh vibetrace; then
+            if uv tool install --refresh "$PKG_SPEC"; then
               break
             fi
             echo "Waiting for PyPI propagation (attempt $i)..."
