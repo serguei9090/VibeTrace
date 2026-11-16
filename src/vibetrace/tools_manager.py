@@ -510,8 +510,17 @@ class ToolsManager:
                 or any(root.glob("*/*.ts"))
                 or (root / "package.json").exists()
             )
-            has_go = any(root.glob("*.go")) or (root / "go.mod").exists()
-            has_rs = any(root.glob("*.rs")) or (root / "Cargo.toml").exists()
+            has_go = (
+                any(root.glob("*.go"))
+                or any(root.glob("*/*.go"))
+                or (root / "go.mod").exists()
+                or any(root.glob("*/go.mod"))
+            )
+            has_rs = (
+                any(root.glob("*.rs"))
+                or (root / "Cargo.toml").exists()
+                or any(root.glob("*/Cargo.toml"))
+            )
             has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
 
             results: list[str] = []
