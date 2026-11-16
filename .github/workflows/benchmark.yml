@@ -36,8 +36,9 @@ jobs:
           T1=$(date +%s%3N)
           uv run vibetrace index /tmp/bench_repo
           T2=$(date +%s%3N)
-          uv run vibetrace search "APIRouter" --root /tmp/bench_repo >/dev/null
+          Q_OUT=$(uv run vibetrace search "APIRouter" --root /tmp/bench_repo 2>/dev/null || true)
           T3=$(date +%s%3N)
+          Q_HITS=$(printf '%s\n' "$Q_OUT" | grep -ci "APIRouter" || true)
           DB_KB=$(du -sk /tmp/bench_repo/.vibetrace 2>/dev/null | cut -f1 || echo 0)
           python3 -c "import json; json.dump({
             'tool': 'VibeTrace',
@@ -45,6 +46,7 @@ jobs:
             'install_ms': $T1 - $T0,
             'index_ms': $T2 - $T1,
             'query_ms': $T3 - $T2,
+            'query_hits': int('${Q_HITS:-0}'),
             'index_kb': int('${DB_KB:-0}')
           }, open('bench-vibetrace.json', 'w'))"
 
@@ -71,8 +73,9 @@ jobs:
             (cd /tmp/bench_repo && codanna init || true)
             (cd /tmp/bench_repo && codanna index .)
             T2=$(date +%s%3N)
-            (cd /tmp/bench_repo && codanna retrieve search "APIRouter" >/dev/null 2>&1 || true)
+            Q_OUT=$(cd /tmp/bench_repo && codanna retrieve search "APIRouter" 2>/dev/null || true)
             T3=$(date +%s%3N)
+            Q_HITS=$(printf '%s\n' "$Q_OUT" | grep -ci "APIRouter" || true)
             DB_KB=$(du -sk /tmp/bench_repo/.codanna 2>/dev/null | cut -f1 || echo 0)
             python3 -c "import json; json.dump({
               'tool': 'Codanna',
@@ -80,6 +83,7 @@ jobs:
               'install_ms': $T1 - $T0,
               'index_ms': $T2 - $T1,
               'query_ms': $T3 - $T2,
+              'query_hits': int('${Q_HITS:-0}'),
               'index_kb': int('${DB_KB:-0}')
             }, open('bench-codanna.json', 'w'))"
           else
@@ -110,8 +114,9 @@ jobs:
             T1=$(date +%s%3N)
             (cd /tmp/bench_repo && gitnexus analyze)
             T2=$(date +%s%3N)
-            (cd /tmp/bench_repo && gitnexus query "APIRouter" >/dev/null 2>&1 || true)
+            Q_OUT=$(cd /tmp/bench_repo && gitnexus query "APIRouter" 2>/dev/null || true)
             T3=$(date +%s%3N)
+            Q_HITS=$(printf '%s\n' "$Q_OUT" | grep -ci "APIRouter" || true)
             DB_KB=$(du -sk /tmp/bench_repo/.gitnexus 2>/dev/null | cut -f1 || echo 0)
             python3 -c "import json; json.dump({
               'tool': 'GitNexus',
@@ -119,6 +124,7 @@ jobs:
               'install_ms': $T1 - $T0,
               'index_ms': $T2 - $T1,
               'query_ms': $T3 - $T2,
+              'query_hits': int('${Q_HITS:-0}'),
               'index_kb': int('${DB_KB:-0}')
             }, open('bench-gitnexus.json', 'w'))"
           else
@@ -162,17 +168,17 @@ jobs:
               f"- **Run:** {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
               f"- **Target:** `${{ inputs.target_repo || 'https://github.com/fastapi/fastapi.git' }}`",
               "",
-              "| Tool | Status | Install (s) | Cold Index (s) | Query (ms) | Index Size (KB) |",
-              "| :--- | :--- | :---: | :---: | :---: | :---: |",
+              "| Tool | Status | Install (s) | Cold Index (s) | Query (ms) | Query Hits | Index Size (KB) |",
+              "| :--- | :--- | :---: | :---: | :---: | :---: | :---: |",
           ]
           for r in rows:
               if r.get("status") == "ok":
                   lines.append(
                       f"| {r['tool']} | ok | {r['install_ms']/1000:.2f} | "
-                      f"{r['index_ms']/1000:.2f} | {r['query_ms']} | {r['index_kb']} |"
+                      f"{r['index_ms']/1000:.2f} | {r['query_ms']} | {r.get('query_hits', 0)} | {r['index_kb']} |"
                   )
               else:
-                  lines.append(f"| {r.get('tool', '?')} | {r.get('status', 'missing')} | - | - | - | - |")
+                  lines.append(f"| {r.get('tool', '?')} | {r.get('status', 'missing')} | - | - | - | - | - |")
 
           md = "\n".join(lines) + "\n"
           Path("docs/benchmarks/latest.md").write_text(md, encoding="utf-8")
@@ -185,4 +191,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/benchmarks/latest.md
           git diff --cached --quiet || git commit -m "docs(benchmarks): update latest comparison"
+          git pull --rebase origin main
           git push
