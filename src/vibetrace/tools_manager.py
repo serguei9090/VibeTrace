@@ -498,29 +498,18 @@ class ToolsManager:
             return False, "Package manager (winget/brew) not found to install Trivy."
 
         if lang in ("lsp", "install-lsp", "lsp-server"):
-            # Auto-detect project languages and install best matching LSP
-            has_py = (
-                any(root.glob("*.py"))
-                or any(root.glob("*/*.py"))
-                or (root / "pyproject.toml").exists()
-            )
+            from vibetrace.skill_installer import detect_project_ecosystems
+
+            ecosystems = detect_project_ecosystems(root)
+            has_py = any("Python" in e for e in ecosystems) or any(root.glob("*.py")) or any(root.glob("*/*.py"))
             has_ts = (
-                any(root.glob("*.ts"))
+                any("JavaScript/TypeScript" in e for e in ecosystems)
+                or any(root.glob("*.ts"))
                 or any(root.glob("*.tsx"))
                 or any(root.glob("*/*.ts"))
-                or (root / "package.json").exists()
             )
-            has_go = (
-                any(root.glob("*.go"))
-                or any(root.glob("*/*.go"))
-                or (root / "go.mod").exists()
-                or any(root.glob("*/go.mod"))
-            )
-            has_rs = (
-                any(root.glob("*.rs"))
-                or (root / "Cargo.toml").exists()
-                or any(root.glob("*/Cargo.toml"))
-            )
+            has_go = any("Go" in e for e in ecosystems) or any(root.glob("*.go")) or any(root.glob("*/*.go"))
+            has_rs = any("Rust" in e for e in ecosystems) or any(root.glob("*.rs"))
             has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
 
             results: list[str] = []
