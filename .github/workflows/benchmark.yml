@@ -68,10 +68,10 @@ jobs:
           T0=$(date +%s%3N)
           if cargo install codanna --locked; then
             T1=$(date +%s%3N)
-            codanna init /tmp/bench_repo || true
-            codanna index /tmp/bench_repo
+            (cd /tmp/bench_repo && codanna init || true)
+            (cd /tmp/bench_repo && codanna index .)
             T2=$(date +%s%3N)
-            codanna retrieve search "APIRouter" --path /tmp/bench_repo >/dev/null 2>&1 || true
+            (cd /tmp/bench_repo && codanna retrieve search "APIRouter" >/dev/null 2>&1 || true)
             T3=$(date +%s%3N)
             DB_KB=$(du -sk /tmp/bench_repo/.codanna 2>/dev/null | cut -f1 || echo 0)
             python3 -c "import json; json.dump({

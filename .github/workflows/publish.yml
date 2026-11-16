@@ -82,3 +82,27 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+  verify-pypi-install:
+    name: Verify PyPI install
+    needs: [pypi-publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install vibetrace from PyPI and smoke test
+        run: |
+          uv python install 3.12
+          for i in 1 2 3 4 5; do
+            if uv tool install --refresh vibetrace; then
+              break
+            fi
+            echo "Waiting for PyPI propagation (attempt $i)..."
+            sleep 15
+          done
+          vibetrace --help
+          mkdir -p /tmp/smoke_repo && echo "def hello(): return 'world'" > /tmp/smoke_repo/app.py
+          vibetrace index /tmp/smoke_repo
+          vibetrace search "hello" --root /tmp/smoke_repo
