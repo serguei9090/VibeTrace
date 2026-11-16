@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-16
+
+### Added
+- **Default LSP Auto-Install in `vibetrace init`**: `vibetrace init` now automatically installs missing LSPs (such as `gopls` when `Go (modules)` is detected) by default, with `--no-lsp` to opt out.
+
 ## [0.1.12] - 2026-11-16
 
 ### Added
