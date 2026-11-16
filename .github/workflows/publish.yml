@@ -33,7 +33,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release -m crates/vibetrace-core/Cargo.toml --out dist
+          args: --release --features extension-module -m crates/vibetrace-core/Cargo.toml --out dist
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
