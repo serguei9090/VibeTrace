@@ -21,13 +21,21 @@ def detect_project_ecosystems(project_root: Path) -> list[str]:
     candidates = [root] + [
         p
         for p in root.iterdir()
-        if p.is_dir() and not p.name.startswith(".") and p.name not in ("node_modules", "target", "build", "dist", "vendor")
+        if p.is_dir()
+        and not p.name.startswith(".")
+        and p.name not in ("node_modules", "target", "build", "dist", "vendor")
     ]
-    if any((d / "pyproject.toml").exists() or (d / "requirements.txt").exists() for d in candidates):
+    if any(
+        (d / "pyproject.toml").exists() or (d / "requirements.txt").exists() for d in candidates
+    ):
         uv_hint = " (uv)" if any((d / "uv.lock").exists() for d in candidates) else ""
         ecosystems.append(f"Python{uv_hint}")
     if any((d / "package.json").exists() for d in candidates):
-        bun_hint = " (bun)" if any((d / "bun.lock").exists() or (d / "bun.lockb").exists() for d in candidates) else ""
+        bun_hint = (
+            " (bun)"
+            if any((d / "bun.lock").exists() or (d / "bun.lockb").exists() for d in candidates)
+            else ""
+        )
         ecosystems.append(f"JavaScript/TypeScript{bun_hint}")
     if any((d / "Cargo.toml").exists() for d in candidates):
         ecosystems.append("Rust (cargo)")
@@ -172,10 +180,10 @@ def _init_docs_catalog(root: Path, db_path: Path, no_index: bool) -> tuple[bool,
         return False, 0
 
 
-def _run_initial_indexing(db_path: Path, root: Path) -> tuple[int, int, int]:
-    """Runs initial AST indexing and rule catalog synchronization."""
+def _run_initial_indexing(db_path: Path, root: Path, use_lsp: bool = True) -> tuple[int, int, int]:
+    """Runs initial AST + LSP indexing and rule catalog synchronization."""
     db = IndexerDB(str(db_path))
-    reindex_all(db, str(root), verbose=False, project_root=root)
+    reindex_all(db, str(root), verbose=False, project_root=root, use_lsp=use_lsp)
     db.update_centrality_scores()
     graph_stats = db.get_graph_data()
     indexed_nodes = len(graph_stats.get("nodes", []))
