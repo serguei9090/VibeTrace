@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
+### Added
+- **Parallel Benchmark Workflow**: Added `.github/workflows/benchmark.yml` comparing VibeTrace, Codanna, and GitNexus on install time, cold index time, query latency, query hits, and index size (`docs/benchmarks/latest.md`).
+- **Go Integration & LSP CI**: Added `.github/workflows/go-integration.yml` to verify `vibetrace init`, `index`, and `dead-code` with and without `gopls`.
+- **Wheel & PyPI Verification**: Added `verify-pypi-install` in `.github/workflows/publish.yml` and standalone `.github/workflows/test-wheel.yml`.
+
+### Fixed
+- **Wheel Packaging (`[tool.maturin]`)**: Configured `[tool.maturin]` in `pyproject.toml` (`python-source = "src"`, `manifest-path = "crates/vibetrace-core/Cargo.toml"`, `features = ["extension-module"]`) so `src/vibetrace` is bundled in published wheels.
+- **Go Function-Value References**: `go_parser.py` now records non-call `selector_expression` and `identifier` references passed as arguments or stored in slice/map/struct literals.
+- **Monorepo Ecosystem Detection**: `detect_project_ecosystems()` in `skill_installer.py` now scans both the repository root and 1-level subdirectories, and detects `Flutter/Dart` (`pubspec.yaml`).
+
 ### Added
 - **`vibetrace dead-code` Command**: Added `find_dead_symbols` (`services/graph_service.py`) and the `vibetrace dead-code` CLI subcommand to list functions, methods, and classes with zero incoming graph references.
 - **Build-from-Source Scripts**: Added `scripts/build_source.ps1` (Windows) and `scripts/build_source.sh` (Linux/macOS) to check prerequisites (`uv`, `rustc`, `cargo`) and compile `vibetrace._rust_core` via `maturin`.
