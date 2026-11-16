@@ -1,0 +1,189 @@
+name: Benchmark (VibeTrace vs Codanna vs GitNexus)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Git repository URL to benchmark"
+        required: false
+        default: "https://github.com/fastapi/fastapi.git"
+
+permissions:
+  contents: write
+
+jobs:
+  bench-vibetrace:
+    name: Benchmark VibeTrace
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv & Rust
+        uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Clone target repo
+        run: git clone --depth 1 "${{ inputs.target_repo || 'https://github.com/fastapi/fastapi.git' }}" /tmp/bench_repo
+
+      - name: Benchmark VibeTrace
+        run: |
+          uv python install 3.12
+          T0=$(date +%s%3N)
+          uv sync --no-dev
+          uv run maturin develop --release
+          T1=$(date +%s%3N)
+          uv run vibetrace index /tmp/bench_repo --no-lsp
+          T2=$(date +%s%3N)
+          uv run vibetrace search "APIRouter" --root /tmp/bench_repo >/dev/null
+          T3=$(date +%s%3N)
+          DB_KB=$(du -sk /tmp/bench_repo/.vibetrace 2>/dev/null | cut -f1 || echo 0)
+          python3 -c "import json; json.dump({
+            'tool': 'VibeTrace',
+            'status': 'ok',
+            'install_ms': $T1 - $T0,
+            'index_ms': $T2 - $T1,
+            'query_ms': $T3 - $T2,
+            'index_kb': int('${DB_KB:-0}')
+          }, open('bench-vibetrace.json', 'w'))"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-vibetrace
+          path: bench-vibetrace.json
+
+  bench-codanna:
+    name: Benchmark Codanna
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Clone target repo
+        run: git clone --depth 1 "${{ inputs.target_repo || 'https://github.com/fastapi/fastapi.git' }}" /tmp/bench_repo
+
+      - name: Benchmark Codanna
+        run: |
+          T0=$(date +%s%3N)
+          if cargo install codanna --locked; then
+            T1=$(date +%s%3N)
+            codanna init /tmp/bench_repo || true
+            codanna index /tmp/bench_repo
+            T2=$(date +%s%3N)
+            codanna retrieve search "APIRouter" --path /tmp/bench_repo >/dev/null 2>&1 || true
+            T3=$(date +%s%3N)
+            DB_KB=$(du -sk /tmp/bench_repo/.codanna 2>/dev/null | cut -f1 || echo 0)
+            python3 -c "import json; json.dump({
+              'tool': 'Codanna',
+              'status': 'ok',
+              'install_ms': $T1 - $T0,
+              'index_ms': $T2 - $T1,
+              'query_ms': $T3 - $T2,
+              'index_kb': int('${DB_KB:-0}')
+            }, open('bench-codanna.json', 'w'))"
+          else
+            python3 -c "import json; json.dump({'tool': 'Codanna', 'status': 'install_failed'}, open('bench-codanna.json', 'w'))"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-codanna
+          path: bench-codanna.json
+
+  bench-gitnexus:
+    name: Benchmark GitNexus
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Clone target repo
+        run: git clone --depth 1 "${{ inputs.target_repo || 'https://github.com/fastapi/fastapi.git' }}" /tmp/bench_repo
+
+      - name: Benchmark GitNexus
+        run: |
+          T0=$(date +%s%3N)
+          if npm install -g gitnexus; then
+            T1=$(date +%s%3N)
+            (cd /tmp/bench_repo && gitnexus analyze)
+            T2=$(date +%s%3N)
+            (cd /tmp/bench_repo && gitnexus query "APIRouter" >/dev/null 2>&1 || true)
+            T3=$(date +%s%3N)
+            DB_KB=$(du -sk /tmp/bench_repo/.gitnexus 2>/dev/null | cut -f1 || echo 0)
+            python3 -c "import json; json.dump({
+              'tool': 'GitNexus',
+              'status': 'ok',
+              'install_ms': $T1 - $T0,
+              'index_ms': $T2 - $T1,
+              'query_ms': $T3 - $T2,
+              'index_kb': int('${DB_KB:-0}')
+            }, open('bench-gitnexus.json', 'w'))"
+          else
+            python3 -c "import json; json.dump({'tool': 'GitNexus', 'status': 'install_failed'}, open('bench-gitnexus.json', 'w'))"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-gitnexus
+          path: bench-gitnexus.json
+
+  compare:
+    name: Compare & Save Results
+    needs: [bench-vibetrace, bench-codanna, bench-gitnexus]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: bench-results
+          merge-multiple: true
+
+      - name: Generate comparison report
+        run: |
+          mkdir -p docs/benchmarks
+          python3 - << 'EOF'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          rows = []
+          for name in ("bench-vibetrace.json", "bench-codanna.json", "bench-gitnexus.json"):
+              p = Path("bench-results") / name
+              if p.exists():
+                  rows.append(json.loads(p.read_text()))
+
+          lines = [
+              "# Benchmark Comparison (VibeTrace vs Codanna vs GitNexus)",
+              f"- **Run:** {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+              f"- **Target:** `${{ inputs.target_repo || 'https://github.com/fastapi/fastapi.git' }}`",
+              "",
+              "| Tool | Status | Install (s) | Cold Index (s) | Query (ms) | Index Size (KB) |",
+              "| :--- | :--- | :---: | :---: | :---: | :---: |",
+          ]
+          for r in rows:
+              if r.get("status") == "ok":
+                  lines.append(
+                      f"| {r['tool']} | ok | {r['install_ms']/1000:.2f} | "
+                      f"{r['index_ms']/1000:.2f} | {r['query_ms']} | {r['index_kb']} |"
+                  )
+              else:
+                  lines.append(f"| {r.get('tool', '?')} | {r.get('status', 'missing')} | - | - | - | - |")
+
+          md = "\n".join(lines) + "\n"
+          Path("docs/benchmarks/latest.md").write_text(md, encoding="utf-8")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
+              fh.write(md) if False else None
+          EOF
+          cat docs/benchmarks/latest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit benchmark report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/benchmarks/latest.md
+          git diff --cached --quiet || git commit -m "docs(benchmarks): update latest comparison"
+          git push
