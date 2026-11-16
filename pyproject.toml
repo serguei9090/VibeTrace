@@ -99,3 +99,9 @@ exclude = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.maturin]
+manifest-path = "crates/vibetrace-core/Cargo.toml"
+python-source = "src"
+module-name = "vibetrace._rust_core"
+features = ["extension-module"]

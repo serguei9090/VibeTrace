@@ -1,0 +1,33 @@
+name: Test Wheel Install
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-wheel:
+    name: Build & Test Wheel (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel with maturin
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install built wheel and smoke test
+        run: |
+          uv tool install dist/*.whl
+          vibetrace --help
+          mkdir -p /tmp/smoke_repo && echo "def hello(): return 'world'" > /tmp/smoke_repo/app.py
+          vibetrace index /tmp/smoke_repo
+          vibetrace search "hello" --root /tmp/smoke_repo
