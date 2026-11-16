@@ -1,0 +1,72 @@
+name: Go Integration & LSP Check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/vibetrace/indexer/parsers/go_parser.py'
+      - 'src/vibetrace/indexer/lsp_bridge.py'
+      - '.github/workflows/go-integration.yml'
+
+jobs:
+  go-without-lsp:
+    name: Go Index & Dead-Code (No LSP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build VibeTrace
+        run: |
+          uv python install 3.12
+          uv sync --all-groups
+          cargo build --release -p vibetrace-core --features extension-module
+          cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
+
+      - name: Clone Go repo
+        run: git clone --depth 1 https://github.com/spf13/cobra.git /tmp/go_repo
+
+      - name: Init, Index & Check Dead-Code (No LSP)
+        run: |
+          uv run vibetrace init /tmp/go_repo --yes
+          test -f /tmp/go_repo/.agents/skills/vibetrace-navigator/SKILL.md
+          test -d /tmp/go_repo/.vibetrace
+          uv run vibetrace index /tmp/go_repo
+          uv run vibetrace dead-code --root /tmp/go_repo --json | head -n 40
+
+  go-with-lsp:
+    name: Go Index & Dead-Code (With gopls)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install gopls
+        run: |
+          go install golang.org/x/tools/gopls@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Build VibeTrace
+        run: |
+          uv python install 3.12
+          uv sync --all-groups
+          cargo build --release -p vibetrace-core --features extension-module
+          cp target/release/lib_rust_core.so src/vibetrace/_rust_core.so
+
+      - name: Clone Go repo
+        run: git clone --depth 1 https://github.com/spf13/cobra.git /tmp/go_repo
+
+      - name: Init, Index & Check Dead-Code (With gopls)
+        run: |
+          which gopls && gopls version
+          uv run vibetrace init /tmp/go_repo --yes
+          test -f /tmp/go_repo/.agents/skills/vibetrace-navigator/SKILL.md
+          uv run vibetrace index /tmp/go_repo
+          uv run vibetrace dead-code --root /tmp/go_repo --json | head -n 40

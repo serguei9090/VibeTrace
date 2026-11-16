@@ -15,19 +15,26 @@ from vibetrace.indexer.main import reindex_all
 
 
 def detect_project_ecosystems(project_root: Path) -> list[str]:
-    """Detect active project ecosystems and runtime toolchains."""
+    """Detect active project ecosystems and runtime toolchains (root + 1-level subdirs)."""
     ecosystems: list[str] = []
     root = project_root.resolve()
-    if (root / "pyproject.toml").exists() or (root / "requirements.txt").exists():
-        uv_hint = " (uv)" if (root / "uv.lock").exists() else ""
+    candidates = [root] + [
+        p
+        for p in root.iterdir()
+        if p.is_dir() and not p.name.startswith(".") and p.name not in ("node_modules", "target", "build", "dist", "vendor")
+    ]
+    if any((d / "pyproject.toml").exists() or (d / "requirements.txt").exists() for d in candidates):
+        uv_hint = " (uv)" if any((d / "uv.lock").exists() for d in candidates) else ""
         ecosystems.append(f"Python{uv_hint}")
-    if (root / "package.json").exists():
-        bun_hint = " (bun)" if (root / "bun.lock").exists() or (root / "bun.lockb").exists() else ""
+    if any((d / "package.json").exists() for d in candidates):
+        bun_hint = " (bun)" if any((d / "bun.lock").exists() or (d / "bun.lockb").exists() for d in candidates) else ""
         ecosystems.append(f"JavaScript/TypeScript{bun_hint}")
-    if (root / "Cargo.toml").exists():
+    if any((d / "Cargo.toml").exists() for d in candidates):
         ecosystems.append("Rust (cargo)")
-    if (root / "go.mod").exists():
+    if any((d / "go.mod").exists() for d in candidates):
         ecosystems.append("Go (modules)")
+    if any((d / "pubspec.yaml").exists() for d in candidates):
+        ecosystems.append("Flutter/Dart")
     return ecosystems
 
 

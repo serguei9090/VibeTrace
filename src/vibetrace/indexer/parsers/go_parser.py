@@ -413,6 +413,25 @@ class GoParser(LanguageParser):
                     target_id = self._resolve_call_target(called_name, ctx)
                     if target_id:
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+            elif parent_id and node.type in ("selector_expression", "identifier"):
+                p_type = node.parent.type if node.parent else ""
+                # Track function/method values passed as callbacks or stored in literals/vars
+                # (skip selector_expression's own child identifier to avoid double-counting)
+                is_call_func = (
+                    p_type == "call_expression"
+                    and node.parent is not None
+                    and node.parent.child_by_field_name("function") == node
+                )
+                if not is_call_func and p_type in (
+                    "argument_list",
+                    "literal_element",
+                    "keyed_element",
+                    "expression_list",
+                ):
+                    ref_name = self._get_text(node)
+                    target_id = self._resolve_call_target(ref_name, ctx)
+                    if target_id:
+                        edges.append(self._create_edge(parent_id, target_id, "references", node=node))
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
