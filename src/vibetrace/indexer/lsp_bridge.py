@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from collections.abc import Sequence
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -298,7 +299,18 @@ class LSPClient:
         results: list[tuple[str, int] | None] = [None] * len(queries)
 
         # 2. Process queries in sliding window chunks to avoid OS pipe buffer deadlock
-        for chunk_start in range(0, len(queries), batch_size):
+        total_q = len(queries)
+        next_pct = 10
+        for chunk_start in range(0, total_q, batch_size):
+            if total_q >= 64:
+                pct = int((chunk_start / total_q) * 100)
+                if pct >= next_pct:
+                    print(
+                        f"  [LSP] {pct:3d}% ({chunk_start}/{total_q} queries)...",
+                        file=sys.stderr,
+                    )
+                    while next_pct <= pct:
+                        next_pct += 10
             chunk = queries[chunk_start : chunk_start + batch_size]
             pending: list[tuple[int, int, concurrent.futures.Future[Any]]] = []
             payload_chunks: list[bytes] = []
