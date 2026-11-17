@@ -1368,6 +1368,12 @@ examples:
         default=None,
         help="Exclude exported/public API symbols from dead-code reports",
     )
+    p_dead.add_argument(
+        "--no-lsp",
+        dest="no_lsp",
+        action="store_true",
+        help="Disable LSP verification (use AST graph only)",
+    )
     p_dead.set_defaults(func=cmd_dead_code)
 
     # tools (sub-engine health status and on-demand provisioning)
