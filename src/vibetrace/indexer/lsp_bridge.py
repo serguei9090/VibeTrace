@@ -721,7 +721,17 @@ class MultiLanguageLSPManager:
             if not cmd:
                 return None
 
-            client = LSPClient(cmd, project_root)
+            lsp_root = project_root
+            if (
+                language.lower() == "go"
+                and not (project_root / "go.mod").exists()
+                and not (project_root / "go.work").exists()
+            ):
+                sub_mods = sorted(project_root.glob("*/go.mod"))
+                if sub_mods:
+                    lsp_root = sub_mods[0].parent
+
+            client = LSPClient(cmd, lsp_root)
             if client.start():
                 client._running = True
                 cls._instances[cache_key] = client
