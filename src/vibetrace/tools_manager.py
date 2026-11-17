@@ -535,6 +535,11 @@ class ToolsManager:
                         res2 = subprocess.run([which_uv, "tool", "install", "pyright"], check=False)
                         if res2.returncode == 0:
                             results.append("pyright (Python)")
+                else:
+                    print(
+                        "⚠️  Python project detected, but 'uv' is not on PATH — skipping "
+                        "basedpyright/pyright install."
+                    )
 
             # TypeScript LSP (typescript-language-server)
             if has_ts:
@@ -548,6 +553,11 @@ class ToolsManager:
                     res = subprocess.run(cmd_install, check=False)
                     if res.returncode == 0:
                         results.append("typescript-language-server (TypeScript/JS)")
+                else:
+                    print(
+                        "⚠️  TypeScript/JS project detected, but neither 'bun' nor 'npm' is on "
+                        "PATH — skipping typescript-language-server install."
+                    )
 
             # Go LSP (gopls) — install locally into <project>/.vibetrace/bin
             if has_go:
@@ -579,6 +589,11 @@ class ToolsManager:
                     )
                     if res.returncode == 0:
                         results.append("rust-analyzer (Rust)")
+                else:
+                    print(
+                        "⚠️  Rust project detected, but 'rustup' is not on PATH — skipping "
+                        "rust-analyzer install."
+                    )
 
             # PHP LSP (intelephense)
             if has_php:
