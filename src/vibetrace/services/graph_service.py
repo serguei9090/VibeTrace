@@ -496,9 +496,20 @@ def find_dead_symbols(
           AND n.name NOT LIKE '\\_\\_%\\_\\_' ESCAPE '\\'
           AND n.name NOT LIKE '<anonymous%'
           AND n.name != 'main'
-          AND (n.decorators IS NULL OR n.decorators NOT LIKE '%tauri::command%')
+          AND (n.decorators IS NULL OR (
+              n.decorators NOT LIKE '%tauri::command%'
+              AND n.decorators NOT LIKE '%#[test]%'
+              AND n.decorators NOT LIKE '%#[trait_impl]%'
+          ))
           AND NOT (n.name = 'run' AND REPLACE(n.file_path, '\\', '/') LIKE '%src-tauri/src/lib.rs')
-          AND NOT (n.name = 'Error' AND n.file_path LIKE '%.go')
+          AND NOT (
+              n.file_path LIKE '%.go'
+              AND n.name IN (
+                  'Error', 'String', 'Len', 'Less', 'Swap',
+                  'Read', 'Write', 'Close', 'ServeHTTP', 'MarshalJSON', 'UnmarshalJSON'
+              )
+          )
+          AND NOT (n.file_path LIKE '%.java' AND n.name IN ('toString', 'equals', 'hashCode'))
           AND NOT EXISTS (
               SELECT 1 FROM nodes p
               WHERE p.id = n.parent_id AND p.kind IN ('function', 'interface')

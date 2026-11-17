@@ -288,7 +288,9 @@ class JavaScriptParser(LanguageParser):
 
                     if curr:
                         if curr.type == "variable_declarator":
-                            if decl_name := curr.child_by_field_name("name"):
+                            if (
+                                decl_name := curr.child_by_field_name("name")
+                            ) and decl_name.type == "identifier":
                                 name = self._get_text(decl_name)
                         elif curr.type == "assignment_expression":
                             if ln := curr.child_by_field_name("left"):
@@ -303,7 +305,7 @@ class JavaScriptParser(LanguageParser):
                             name = stem or "<anonymous>"
                             visibility = "exported"
 
-                if name == "<anonymous>":
+                if name == "<anonymous>" or name.startswith(('"', "'", "`", "{", "[")):
                     name = f"<anonymous:L{node.start_point[0] + 1}>"
 
                 qualified_name = self._scoped_name(name, ctx.scope_stack)

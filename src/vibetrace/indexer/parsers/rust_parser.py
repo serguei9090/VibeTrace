@@ -126,6 +126,14 @@ class RustParser(LanguageParser):
                         decorators.append(self._get_text(prev).strip())
                         prev = prev.prev_sibling
                     decorators.reverse()
+                    if (
+                        node.parent
+                        and node.parent.type == "declaration_list"
+                        and node.parent.parent
+                        and node.parent.parent.type == "impl_item"
+                        and node.parent.parent.child_by_field_name("trait") is not None
+                    ):
+                        decorators.append("#[trait_impl]")
 
                     nodes.append(
                         self._create_node(
