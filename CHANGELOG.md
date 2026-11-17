@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-11-17
+
+### Fixed
+- **JS/TS Arrow-Function Naming**: `js_parser.py` now only inherits `variable_declarator` / `assignment_expression` names for `arrow_function` arguments when they are the first argument of a call expression, preventing multi-argument initializers like `Array.from(len, fn)` from being misclassified as `[function]` dead code.
+
 ## [0.1.23] - 2026-11-17
 
 ### Changed

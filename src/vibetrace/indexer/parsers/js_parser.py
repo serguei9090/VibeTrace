@@ -268,6 +268,7 @@ class JavaScriptParser(LanguageParser):
                 # Support `const divide = (a, b) => a / b`,
                 # `useCallback(() => ...)`, or CommonJS exports
                 if name == "<anonymous>" and node.parent:
+                    prev = node
                     curr = node.parent
                     while curr and curr.type in (
                         "arguments",
@@ -277,6 +278,12 @@ class JavaScriptParser(LanguageParser):
                         "type_assertion",
                         "satisfies_expression",
                     ):
+                        if curr.type == "arguments" and (
+                            not curr.named_children or curr.named_children[0] != prev
+                        ):
+                            curr = None
+                            break
+                        prev = curr
                         curr = curr.parent
 
                     if curr:
