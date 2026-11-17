@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-11-16
+
+### Fixed
+- **LSP-Backed Indexing by Default**: Enabled `use_lsp=True` by default in `vibetrace init` (`_run_initial_indexing`), `reindex_all`, and `ReindexService` so LSP resolution runs automatically when an LSP is available.
+
 ## [0.1.14] - 2026-11-16
 
 ### Fixed
