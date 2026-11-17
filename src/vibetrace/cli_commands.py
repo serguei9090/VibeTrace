@@ -931,7 +931,8 @@ def cmd_dead_code(args: argparse.Namespace) -> int:
         md_lines = [
             f"# Dead Code Report ({len(results)} unreferenced symbol(s))\n",
             *[
-                f"- [{it['kind']}] `{it['qualified_name']}` ({it['file_path']}:{it['start_line']})"
+                f"- [ ] [{it['kind']}] `{it['qualified_name']}` "
+                f"({it['file_path']}:{it['start_line']})"
                 for it in results
             ],
         ]

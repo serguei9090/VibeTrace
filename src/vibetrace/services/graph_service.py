@@ -537,6 +537,9 @@ def find_dead_symbols(
             or fpath.startswith("tests/")
             or "/test_" in f"/{fpath}"
             or "_test." in fpath
+            or ".test." in fpath
+            or ".spec." in fpath
+            or ".config." in fpath
         ):
             continue
         if exclude_exported and row["visibility"] == "exported":
