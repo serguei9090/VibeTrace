@@ -1376,3 +1376,70 @@ def test_cli_tools_install_lsp(tmp_path: Path, capsys: pytest.CaptureFixture[str
         assert ret == 0
         captured = capsys.readouterr().out
         assert "Installed Pyright" in captured
+
+
+def test_cli_verbose_flag_and_logging(tmp_path: Path) -> None:
+    """Verify --verbose and -v work on root and subcommands and write project logs."""
+    from vibetrace.cli import build_parser
+    from vibetrace.observability import configure_logging
+
+    sub = tmp_path / "proj"
+    sub.mkdir()
+    (sub / ".vibetrace").mkdir()
+    (sub / "app.py").write_text("def f(): return 1\n", encoding="utf-8")
+
+    parser = build_parser()
+    ns_sub = parser.parse_args(["index", str(sub), "--verbose"])
+    assert ns_sub.verbose is True
+    ns_root = parser.parse_args(["-v", "search", "f", "--root", str(sub)])
+    assert ns_root.verbose is True
+
+    logger = configure_logging(verbose=True, project_root=sub)
+    logger.info("test-verbose-entry")
+    for h in list(logger.handlers):
+        h.flush()
+        logger.removeHandler(h)
+        h.close()
+    assert (sub / ".vibetrace" / "vibetrace.log").is_file()
+
+
+def test_unified_error_formatting_and_handle_error() -> None:
+    """Verify format_error_dict and handle_error preserve compatibility and support verbose."""
+    from vibetrace.observability import format_error_dict
+    from vibetrace.services.graph_service import handle_error
+
+    try:
+        raise FileNotFoundError("missing.db")
+    except FileNotFoundError as exc:
+        compact = handle_error(exc, "loading db")
+        assert compact == "Error (FileNotFoundError): loading db - missing.db"
+
+        detailed = handle_error(exc, "loading db", verbose=True)
+        assert "Traceback:" in detailed
+        assert "FileNotFoundError" in detailed
+
+        payload = format_error_dict(exc, context="loading db", verbose=True)
+        assert payload["status"] == "error"
+        assert payload["error_type"] == "FileNotFoundError"
+        assert "hint" in payload
+        assert "traceback" in payload
+
+
+def test_lsp_parse_definition_monorepo_relative_path(tmp_path: Path) -> None:
+    """Verify LSPClient normalizes paths relative to project_root in monorepos."""
+    from vibetrace.indexer.lsp_bridge import LSPClient
+
+    repo = tmp_path / "monorepo"
+    backend = repo / "backend-go" / "internal" / "app"
+    backend.mkdir(parents=True)
+    target_file = backend / "handlers_settings.go"
+    target_file.write_text("package app\nfunc GetSettings() {}\n", encoding="utf-8")
+
+    client = LSPClient(["gopls"], repo / "backend-go", project_root=repo)
+    parsed = client._parse_definition_response(
+        {
+            "uri": target_file.resolve().as_uri(),
+            "range": {"start": {"line": 1, "character": 5}},
+        }
+    )
+    assert parsed == ("backend-go/internal/app/handlers_settings.go", 2)

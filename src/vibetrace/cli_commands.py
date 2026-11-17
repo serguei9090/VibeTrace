@@ -79,7 +79,7 @@ def cmd_index(args: argparse.Namespace) -> int:
         embed=args.embed,
         docs=not getattr(args, "no_docs", False),
         use_lsp=args.lsp,
-        verbose=not args.json,
+        verbose=not args.json or getattr(args, "verbose", False),
         is_json=args.json,
     )
 
@@ -91,6 +91,8 @@ def cmd_index(args: argparse.Namespace) -> int:
             "docs": res.get("doc_stats", {}),
             "telemetry": res.get("telemetry", {}),
         }
+        if "diagnostics" in res:
+            payload["diagnostics"] = res["diagnostics"]
         if "embeddings_error" in res:
             payload["embeddings_error"] = res["embeddings_error"]
         print(json.dumps(payload, indent=2))
@@ -145,7 +147,10 @@ def cmd_search(args: argparse.Namespace) -> int:
                 scope="local",
                 limit=3,
             )
-        except Exception:
+        except Exception as err:
+            import logging
+
+            logging.getLogger(__name__).debug("Doc search failed during hybrid search: %s", err)
             doc_chunks = None
 
     if args.json:

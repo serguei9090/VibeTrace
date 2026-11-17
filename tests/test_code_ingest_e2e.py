@@ -227,6 +227,7 @@ def test_cli_code_ingest_per_language_gates(tmp_path: Path) -> None:
         (dest_folder / ".vibetrace").mkdir(parents=True, exist_ok=True)
         (dest_folder / ".vibetrace").mkdir(parents=True, exist_ok=True)
         (dest_folder / ".vibetrace").mkdir(parents=True, exist_ok=True)
+        (dest_folder / ".vibetrace").mkdir(parents=True, exist_ok=True)
 
         # Gate 1: CLI Indexing
         buf_idx = io.StringIO()

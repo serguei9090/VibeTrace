@@ -2707,7 +2707,7 @@ wheels = [
 
 [[package]]
 name = "vibetrace"
-version = "0.1.9"
+version = "0.1.18"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

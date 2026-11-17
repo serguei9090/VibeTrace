@@ -139,6 +139,10 @@ class ReindexInput(BaseModel):
         default=False,
         description="Compute and store 256d Matryoshka vector embeddings after indexing",
     )
+    verbose: bool = Field(
+        default=False,
+        description="Include verbose step-by-step diagnostics and tracebacks on error",
+    )
 
 
 class ReferencesInput(BaseModel):

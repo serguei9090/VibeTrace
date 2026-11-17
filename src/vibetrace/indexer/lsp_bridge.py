@@ -25,9 +25,12 @@ logger = logging.getLogger(__name__)
 class LSPClient:
     """Lightweight stdio JSON-RPC 2.0 client for LSP servers."""
 
-    def __init__(self, command: list[str], root_path: Path) -> None:
+    def __init__(
+        self, command: list[str], root_path: Path, project_root: Path | None = None
+    ) -> None:
         self.command = command
         self.root_path = root_path.resolve()
+        self.project_root = (project_root or root_path).resolve()
         self.process: subprocess.Popen[bytes] | None = None
         self._req_id = 0
         self._pending_requests: dict[int, concurrent.futures.Future[Any]] = {}
@@ -39,7 +42,9 @@ class LSPClient:
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
-        executable = _resolve_lsp_binary(self.command[0], self.root_path)
+        executable = _resolve_lsp_binary(self.command[0], self.project_root) or _resolve_lsp_binary(
+            self.command[0], self.root_path
+        )
         if not executable:
             return False
         cmd = [executable, *self.command[1:]]
@@ -238,10 +243,14 @@ class LSPClient:
             parsed_path = parsed_path[1:]
         target_file = Path(parsed_path)
 
+        resolved_target = target_file.resolve()
         try:
-            rel_file = str(target_file.relative_to(self.root_path)).replace("\\", "/")
+            rel_file = str(resolved_target.relative_to(self.project_root)).replace("\\", "/")
         except ValueError:
-            rel_file = str(target_file).replace("\\", "/")
+            try:
+                rel_file = str(resolved_target.relative_to(self.root_path)).replace("\\", "/")
+            except ValueError:
+                rel_file = str(resolved_target).replace("\\", "/")
 
         start_line = target_range.get("start", {}).get("line", 0) + 1
         return rel_file, start_line
@@ -564,6 +573,11 @@ def resolve_unresolved_edges(
         return 0
 
     # Query LSP definitions via high-throughput pipelining with sliding window
+    logger.info(
+        "[LSP] Querying %d unresolved call site(s) (lsp_root=%s)...",
+        len(query_items),
+        lsp_client.root_path,
+    )
     lsp_queries = [(item[1], item[2], item[3]) for item in query_items]
     batch_results = lsp_client.get_definitions_batch(
         lsp_queries, batch_size=32, per_batch_timeout=3.0
@@ -627,6 +641,11 @@ def resolve_unresolved_edges(
         return count
 
     resolved_count = _apply_rewires()
+    logger.info(
+        "[LSP] Received %d definition location(s) from LSP; rewired %d edge(s) in DB.",
+        len(rewire_candidates),
+        resolved_count,
+    )
 
     if verbose and resolved_count > 0:
         print(f"LSP Hybrid Bridge: Rewired {resolved_count} polymorphic/re-exported call edges.")
@@ -683,9 +702,15 @@ def resolve_unresolved_edges_polyglot(
     for lang, lang_files in files_by_lang.items():
         client = MultiLanguageLSPManager.get_client(project_root, lang)
         if not client:
-            if verbose:
-                logger.debug("No LSP server available for %s", lang)
+            logger.info("[LSP] No LSP server available for '%s' (%d files)", lang, len(lang_files))
             continue
+        logger.info(
+            "[LSP] Language '%s': binary=%s, lsp_root=%s, candidate_files=%d",
+            lang,
+            client.command[0],
+            client.root_path,
+            len(lang_files),
+        )
         try:
             rewired = resolve_unresolved_edges(
                 db=db,
@@ -742,7 +767,8 @@ class MultiLanguageLSPManager:
             if not cmd:
                 return None
 
-            client = LSPClient(cmd, _resolve_lsp_root(project_root, language))
+            lsp_root = _resolve_lsp_root(project_root, language)
+            client = LSPClient(cmd, lsp_root, project_root=project_root)
             if client.start():
                 client._running = True
                 cls._instances[cache_key] = client

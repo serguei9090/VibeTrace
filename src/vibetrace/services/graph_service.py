@@ -221,12 +221,11 @@ def safe_str(s: str) -> str:
         return s.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def handle_error(e: Exception, context: str = "") -> str:
+def handle_error(e: Exception, context: str = "", verbose: bool = False) -> str:
     """Consistent error formatting across all tools."""
-    error_type = type(e).__name__
-    if context:
-        return f"Error ({error_type}): {context} - {e}"
-    return f"Error ({error_type}): {e}"
+    from vibetrace.observability import format_error_text
+
+    return format_error_text(e, context=context, verbose=verbose)
 
 
 class GraphTraverser:

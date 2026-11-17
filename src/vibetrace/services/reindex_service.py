@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,10 @@ from typing import Any
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.embeddings import EmbeddingEngine
 from vibetrace.indexer.main import index_file, reindex_all
+from vibetrace.observability import StepTracker, is_verbose_enabled
 from vibetrace.services.graph_service import normalize_path
+
+logger = logging.getLogger(__name__)
 
 
 class ReindexService:
@@ -51,6 +55,8 @@ class ReindexService:
 
         # Mode B: Full workspace reindex
         # Resolve effective LSP mode: CLI flag overrides, else check config indexer.lsp_mode
+        eff_verbose = is_verbose_enabled(verbose)
+        tracker = StepTracker(verbose=eff_verbose)
         eff_lsp = use_lsp
         if not eff_lsp:
             try:
@@ -64,16 +70,27 @@ class ReindexService:
                 elif mode == "auto":
                     # In auto mode, use LSP if an LSP command is available
                     eff_lsp = get_default_lsp_command(active_root) is not None
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to resolve LSP config for %s: %s", active_root, exc)
                 eff_lsp = False
 
+        tracker.record(
+            "1/4 AST & LSP",
+            f"Indexing workspace {active_root} (force={force}, use_lsp={eff_lsp})",
+        )
         telemetry = reindex_all(
             db,
             str(active_root),
-            verbose=verbose,
+            verbose=verbose and not is_json,
             force=force,
             project_root=active_root,
             use_lsp=eff_lsp,
+        )
+        tracker.record(
+            "1/4 AST & LSP",
+            f"Processed {telemetry.get('files_processed', 0)} file(s) in "
+            f"{telemetry.get('elapsed_seconds', 0.0)}s",
+            files_processed=telemetry.get("files_processed", 0),
         )
         pruned_edges = db.prune_orphaned_edges()
         if not is_json and verbose and pruned_edges > 0:
@@ -82,6 +99,12 @@ class ReindexService:
         purged_embeddings = db.purge_orphaned_embeddings()
         if not is_json and verbose and purged_embeddings > 0:
             print(f"Purged {purged_embeddings} orphaned vector embeddings.")
+        tracker.record(
+            "2/4 Graph Cleanup",
+            f"Pruned {pruned_edges} orphaned edge(s), purged {purged_embeddings} embedding(s)",
+            pruned_edges=pruned_edges,
+            purged_embeddings=purged_embeddings,
+        )
 
         # Determine whether embeddings should run:
         # 1. Explicit CLI argument (--embed: True, --no-embed: False)
@@ -97,7 +120,8 @@ class ReindexService:
 
                 cfg = load_config(active_root)
                 should_embed = bool(cfg.vectors.codebase)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to load vector config for %s: %s", active_root, exc)
                 should_embed = False
 
         embedded_count = 0
@@ -109,14 +133,18 @@ class ReindexService:
                     "Optional [embeddings] extra not installed. "
                     "Run: uv pip install -e '.[embeddings]'"
                 )
+                tracker.warn("3/4 Embeddings", embeddings_error)
                 if not is_json:
                     print(f"Warning: {embeddings_error}", file=sys.stderr)
             else:
                 embedded_count = engine.index_missing_embeddings(
                     db, verbose=verbose and not is_json
                 )
+                tracker.record("3/4 Embeddings", f"Encoded {embedded_count} symbol embedding(s)")
                 if not is_json and verbose and embedded_count > 0:
                     print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
+        else:
+            tracker.record("3/4 Embeddings", "Skipped (disabled)")
 
         doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
         if docs:
@@ -143,8 +171,16 @@ class ReindexService:
                             f"({doc_stats['chunks']} chunks) "
                             f"across {doc_stats['catalogs']} catalog(s)."
                         )
-            except Exception:
-                pass
+                tracker.record(
+                    "4/4 Docs Catalog",
+                    f"Synced {doc_stats['files']} doc file(s), {doc_stats['chunks']} chunk(s)",
+                    **doc_stats,
+                )
+            except Exception as exc:
+                logger.warning("Doc catalog sync failed during reindex: %s", exc)
+                tracker.warn("4/4 Docs Catalog", f"Doc sync failed: {exc}")
+        else:
+            tracker.record("4/4 Docs Catalog", "Skipped (--no-docs)")
 
         result: dict[str, Any] = {
             "status": "ok",
@@ -154,6 +190,8 @@ class ReindexService:
             "doc_stats": doc_stats,
             "telemetry": telemetry,
         }
+        if eff_verbose:
+            result["diagnostics"] = tracker.events
         if embeddings_error:
             result["embeddings_error"] = embeddings_error
         return result

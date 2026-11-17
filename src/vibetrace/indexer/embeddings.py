@@ -199,6 +199,7 @@ class EmbeddingEngine:
 
         st_mod = importlib.import_module("sentence_transformers")
         sentence_transformer_cls = st_mod.SentenceTransformer
+        logger.info("[Embeddings] Loading model '%s' on %s...", self.config.model_id, device)
         try:
             self._st_model = sentence_transformer_cls(self.config.model_id, device=device)
             _MODEL_CACHE[cache_key] = self._st_model

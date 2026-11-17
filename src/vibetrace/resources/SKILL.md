@@ -236,7 +236,10 @@ uv run vibetrace slice extract --file src/vibetrace/indexer/parsers/python.py
 VibeTrace uses its native Rust parallel workspace scanner (`_rust_core.scan_and_parse_workspace`) with SHA-256 content-hash tracking (`indexed_files`), incremental LSP resolution, and real-time throughput telemetry (`files/s`, elapsed time, nodes/edges summary):
 
 ```bash
+# Full incremental index (LSP hybrid bridge is enabled by default; pass --no-lsp for AST-only)
 uv run vibetrace index .
+# Step-by-step diagnostic logging on stderr + .vibetrace/vibetrace.log (works on any subcommand)
+uv run vibetrace index . --verbose
 # Structured JSON telemetry output for CI / automation
 uv run vibetrace index . --json
 # Optional: encode local EmbeddingGemma 2 (256d MRL) vectors

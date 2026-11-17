@@ -526,8 +526,13 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
             p = Path(params.path)
             target_path = p.resolve() if p.is_absolute() else (root / p).resolve()
 
+        if params.verbose:
+            from vibetrace.observability import configure_logging
+
+            configure_logging(verbose=True, project_root=root)
+
         with redirect_stdout(sys.stderr):
-            reindex_all(
+            telemetry = reindex_all(
                 db,
                 str(target_path),
                 verbose=True,
@@ -542,9 +547,15 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
             engine = EmbeddingEngine(project_root=root)
             indexed_count = engine.index_missing_embeddings(db)
             msg += f" (generated {indexed_count} vector embeddings)"
+        if params.verbose and isinstance(telemetry, dict):
+            msg += (
+                f"\n[Diagnostics] files={telemetry.get('files_processed', 0)}, "
+                f"elapsed={telemetry.get('elapsed_seconds', 0.0)}s, "
+                f"engine={telemetry.get('engine', 'unknown')}"
+            )
         return safe_str(msg)
     except Exception as e:
-        return handle_error(e, f"reindexing {params.path}")
+        return handle_error(e, f"reindexing {params.path}", verbose=params.verbose)
 
 
 @mcp.tool()
@@ -836,6 +847,9 @@ def main() -> None:
                 reconfig_err(encoding="utf-8")
         except Exception:
             pass
+    from vibetrace.observability import configure_logging
+
+    configure_logging()
     mcp.run()
 
 

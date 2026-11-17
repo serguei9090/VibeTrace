@@ -4,9 +4,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -42,6 +42,7 @@ class ReindexPayload(BaseModel):
     force: bool = False
     embed: bool = False
     docs: bool = True
+    verbose: bool = False
 
 
 class AgentFocusPayload(BaseModel):
@@ -141,6 +142,9 @@ db, project_root = get_context_for_path(".", root_override=root_override)
 # Lifespan for Watcher
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from vibetrace.observability import configure_logging
+
+    configure_logging(project_root=project_root)
     loop = asyncio.get_running_loop()
 
     def on_change() -> None:
@@ -164,6 +168,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VibeTrace API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return unified JSON error responses for unhandled REST API exceptions."""
+    from vibetrace.observability import format_error_dict
+
+    verbose_q = request.query_params.get("verbose", "").strip().lower() in ("1", "true", "yes")
+    payload = format_error_dict(
+        exc,
+        context=f"{request.method} {request.url.path}",
+        verbose=verbose_q,
+    )
+    return JSONResponse(status_code=500, content=payload)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -821,6 +840,7 @@ def post_reindex_endpoint(payload: ReindexPayload | None = None):
             force=eff_payload.force,
             embed=eff_payload.embed,
             docs=eff_payload.docs,
+            verbose=eff_payload.verbose,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc

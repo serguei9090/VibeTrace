@@ -416,7 +416,11 @@ class GoParser(LanguageParser):
                     elif called_name:
                         edges.append(
                             self._create_edge(
-                                parent_id, f"unresolved:{called_name}", "calls", node=node
+                                parent_id,
+                                f"unresolved:{called_name}",
+                                "calls",
+                                node=node,
+                                confidence="inferred",
                             )
                         )
             elif parent_id and node.type in ("selector_expression", "identifier"):

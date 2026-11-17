@@ -26,6 +26,7 @@ from vibetrace.services.diagnose_service import (
     DiagnoseService,
     format_diagnosis_md,
 )
+from vibetrace.services.graph_service import handle_error
 from vibetrace.services.refactor_service import RefactorService
 
 if TYPE_CHECKING:
@@ -121,7 +122,7 @@ def vibetrace_explain_dependency(params: ExplainDependencyInput) -> str:
 
         return graph.render_ascii_chains(params.package_name, chains)
     except Exception as e:
-        return f"Error analyzing transitive dependencies: {e}"
+        return handle_error(e, "analyzing transitive dependencies")
 
 
 def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
@@ -190,7 +191,7 @@ def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
             f"### Replacement Call Site\n```python\n{plan.call_replacement}\n```"
         )
     except Exception as e:
-        return f"Error executing AST refactoring: {e}"
+        return handle_error(e, "executing AST refactoring")
 
 
 def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
@@ -246,7 +247,7 @@ def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
             lines.append("✅ No vulnerable packages require upgrading.")
         return "\n".join(lines)
     except Exception as e:
-        return f"Error patching dependencies: {e}"
+        return handle_error(e, "patching dependencies")
 
 
 def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
@@ -285,7 +286,7 @@ def vibetrace_check_docs_drift(params: CheckDocsDriftInput) -> str:
             lines.append("\n✅ All documented symbols match live AST definitions in the codebase!")
         return "\n".join(lines)
     except Exception as e:
-        return f"Error checking documentation drift: {e}"
+        return handle_error(e, "checking documentation drift")
 
 
 def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
@@ -310,7 +311,7 @@ def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
 
         return format_diagnosis_md(report)
     except Exception as e:
-        return f"Error diagnosing symbol '{params.symbol_name}': {e}"
+        return handle_error(e, f"diagnosing symbol '{params.symbol_name}'")
 
 
 def register_engineering_tools(mcp: FastMCP) -> None:

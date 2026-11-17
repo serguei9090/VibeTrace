@@ -176,7 +176,10 @@ def _init_docs_catalog(root: Path, db_path: Path, no_index: bool) -> tuple[bool,
             res_docs = DocIndexService.index_catalog("core", ["docs"], doc_db, root)
             doc_chunks = res_docs.get("chunks", 0)
         return True, doc_chunks
-    except Exception:
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("Failed to initialize docs catalog: %s", exc)
         return False, 0
 
 

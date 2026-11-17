@@ -15,6 +15,7 @@ from vibetrace.mcp.schemas import (
     ProjectStatusInput,
     ResponseFormat,
 )
+from vibetrace.services.graph_service import handle_error
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -62,7 +63,7 @@ def vibetrace_project_status(params: ProjectStatusInput) -> str:
         finally:
             ws.close()
     except Exception as e:
-        return f"Error resolving project status: {e}"
+        return handle_error(e, "resolving project status")
 
 
 def vibetrace_project_search(params: ProjectSearchInput) -> str:
@@ -87,7 +88,7 @@ def vibetrace_project_search(params: ProjectSearchInput) -> str:
         finally:
             ws.close()
     except Exception as e:
-        return f"Error executing project search: {e}"
+        return handle_error(e, "executing project search")
 
 
 def vibetrace_project_guard(params: ProjectGuardInput) -> str:
@@ -120,7 +121,7 @@ def vibetrace_project_guard(params: ProjectGuardInput) -> str:
         finally:
             ws.close()
     except Exception as e:
-        return f"Error running project caller guard: {e}"
+        return handle_error(e, "running project caller guard")
 
 
 def vibetrace_project_links(params: ProjectLinksInput) -> str:
@@ -146,7 +147,7 @@ def vibetrace_project_links(params: ProjectLinksInput) -> str:
         finally:
             ws.close()
     except Exception as e:
-        return f"Error discovering cross-repo links: {e}"
+        return handle_error(e, "discovering cross-repo links")
 
 
 def register_project_tools(mcp: FastMCP) -> None:

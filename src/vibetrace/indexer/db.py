@@ -943,6 +943,7 @@ class IndexerDB(DBQueriesMixin):
                 """
                 DELETE FROM edges
                 WHERE confidence = 'exact'
+                  AND to_node_id NOT LIKE 'unresolved:%'
                   AND to_node_id NOT IN (SELECT id FROM nodes)
                 """
             )

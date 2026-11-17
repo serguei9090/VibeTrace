@@ -79,6 +79,13 @@ examples:
         help="Disable Lazy JIT auto-sync (skip checking uncommitted file changes)",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON output for machine parsing")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Enable verbose step-by-step diagnostic logging and tracebacks",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # index
@@ -1399,6 +1406,14 @@ examples:
             parser_obj.add_argument("--no-sync", action="store_true", default=argparse.SUPPRESS)
         if not any("--json" in a.option_strings for a in parser_obj._actions):
             parser_obj.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+        if not any("--verbose" in a.option_strings for a in parser_obj._actions):
+            parser_obj.add_argument(
+                "-v",
+                "--verbose",
+                action="store_true",
+                default=argparse.SUPPRESS,
+                help="Enable verbose step-by-step diagnostic logging and tracebacks",
+            )
 
         for act in parser_obj._actions:
             if isinstance(act, argparse._SubParsersAction):
@@ -1425,13 +1440,40 @@ def main(argv: list[str] | None = None) -> int:
 
     eff_argv = sys.argv[1:] if argv is None else argv
     top_json = "--json" in eff_argv
+    top_verbose = "-v" in eff_argv or "--verbose" in eff_argv
     parser = build_parser()
     args = parser.parse_args(argv)
     if top_json:
         args.json = True
+    args.verbose = bool(getattr(args, "verbose", False) or top_verbose)
     if getattr(args, "root", None) and getattr(args, "path", ".") == ".":
         args.path = args.root
-    code = int(args.func(args))
+
+    from vibetrace.observability import configure_logging, format_error_dict, format_error_text
+
+    proj_hint = getattr(args, "root", None) or getattr(args, "path", None)
+    configure_logging(verbose=args.verbose, project_root=proj_hint)
+
+    try:
+        code = int(args.func(args))
+    except Exception as exc:
+        cmd_ctx = f"command '{getattr(args, 'command', 'vibetrace')}'"
+        if getattr(args, "json", False):
+            import json
+
+            print(
+                json.dumps(
+                    format_error_dict(exc, context=cmd_ctx, verbose=args.verbose),
+                    indent=2,
+                )
+            )
+        else:
+            print(
+                format_error_text(exc, context=cmd_ctx, verbose=args.verbose),
+                file=sys.stderr,
+            )
+        code = 1
+
     if argv is None:
         sys.exit(code)
     return code
