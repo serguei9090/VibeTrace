@@ -90,6 +90,9 @@ def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
     return sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
 
 
+_MODEL_CACHE: dict[tuple[str, str], Any] = {}
+
+
 class EmbeddingEngine:
     """Manages local EmbeddingGemma 2 encoding and vector similarity search."""
 
@@ -188,11 +191,17 @@ class EmbeddingEngine:
         if self._st_model is not None:
             return self._st_model
 
+        device = self._resolve_device()
+        cache_key = (self.config.model_id, device)
+        if cache_key in _MODEL_CACHE:
+            self._st_model = _MODEL_CACHE[cache_key]
+            return self._st_model
+
         st_mod = importlib.import_module("sentence_transformers")
         sentence_transformer_cls = st_mod.SentenceTransformer
-        device = self._resolve_device()
         try:
             self._st_model = sentence_transformer_cls(self.config.model_id, device=device)
+            _MODEL_CACHE[cache_key] = self._st_model
         except Exception as err:
             hf_url = f"https://huggingface.co/{self.config.model_id}"
             raise RuntimeError(
