@@ -55,6 +55,32 @@ def cmd_index(args: argparse.Namespace) -> int:
         target, auto_sync=False, root_override=getattr(args, "root", None)
     )
 
+    excludes = list(getattr(args, "exclude", []) or [])
+    if excludes:
+        import re
+
+        from vibetrace.config import load_config, save_default_config
+
+        toml_path = Path(root) / ".vibetrace.toml"
+        if not toml_path.exists():
+            save_default_config(Path(root), project_name=Path(root).name)
+        cfg = load_config(Path(root))
+        merged = list(dict.fromkeys([*cfg.indexer.exclude_patterns, *excludes]))
+        text = toml_path.read_text(encoding="utf-8")
+        formatted = ", ".join(f'"{p}"' for p in merged)
+        if re.search(r"(?ms)^exclude_patterns\s*=\s*\[.*?\]", text):
+            text = re.sub(
+                r"(?ms)^exclude_patterns\s*=\s*\[.*?\]",
+                f"exclude_patterns = [{formatted}]",
+                text,
+                count=1,
+            )
+        elif "[indexer]" in text:
+            text = text.replace("[indexer]", f"[indexer]\nexclude_patterns = [{formatted}]", 1)
+        else:
+            text += f"\n[indexer]\nexclude_patterns = [{formatted}]\n"
+        toml_path.write_text(text, encoding="utf-8")
+
     if getattr(args, "scip", None):
         from vibetrace.indexer.scip_importer import ScipImporter
 

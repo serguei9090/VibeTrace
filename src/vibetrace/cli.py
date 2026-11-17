@@ -142,6 +142,12 @@ examples:
         help="Skip synchronizing local documentation catalogs",
     )
     p_idx.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Add glob pattern(s) to [indexer].exclude_patterns in .vibetrace.toml",
+    )
+    p_idx.add_argument(
         "--scip",
         type=str,
         default=None,
