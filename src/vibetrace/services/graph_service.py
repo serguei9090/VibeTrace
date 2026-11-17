@@ -497,6 +497,10 @@ def find_dead_symbols(
           AND NOT (n.name = 'run' AND REPLACE(n.file_path, '\\', '/') LIKE '%src-tauri/src/lib.rs')
           AND NOT (n.name = 'Error' AND n.file_path LIKE '%.go')
           AND NOT EXISTS (
+              SELECT 1 FROM nodes p
+              WHERE p.id = n.parent_id AND p.kind = 'function'
+          )
+          AND NOT EXISTS (
               SELECT 1 FROM edges e
               WHERE e.to_node_id = n.id
                 AND e.relation_type IN ('calls', 'routes', 'references', 'inherits')
