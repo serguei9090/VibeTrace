@@ -924,8 +924,34 @@ def cmd_dead_code(args: argparse.Namespace) -> int:
         ignore_symbols=cfg.deadcode.ignore_symbols,
         exclude_exported=bool(exclude_exp),
     )
+    report_path_str: str | None = None
+    vibetrace_dir = Path(root) / ".vibetrace"
+    if results and vibetrace_dir.is_dir():
+        report_file = vibetrace_dir / "dead_code_report.md"
+        md_lines = [
+            f"# Dead Code Report ({len(results)} unreferenced symbol(s))\n",
+            *[
+                f"- [{it['kind']}] `{it['qualified_name']}` ({it['file_path']}:{it['start_line']})"
+                for it in results
+            ],
+        ]
+        report_file.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+        report_path_str = str(report_file)
+
+    next_steps = (
+        "Confirm genuine dead code with 'vibetrace references <symbol>', remove unused code "
+        "or add intentional entry points to [deadcode].ignore_symbols in .vibetrace.toml, "
+        "then re-run 'vibetrace index . --force' and 'vibetrace dead-code' to verify."
+    )
     if getattr(args, "json", False):
-        print(json.dumps({"total": len(results), "symbols": results}, indent=2))
+        payload: dict[str, object] = {
+            "total": len(results),
+            "symbols": results,
+            "next_steps": next_steps,
+        }
+        if report_path_str:
+            payload["report_path"] = report_path_str
+        print(json.dumps(payload, indent=2))
         return 0
     if not results:
         print("No unreferenced symbols found.")
@@ -936,4 +962,8 @@ def cmd_dead_code(args: argparse.Namespace) -> int:
             f"- [{item['kind']}] {item['qualified_name']} "
             f"({item['file_path']}:{item['start_line']})"
         )
+    if report_path_str:
+        print(f"\n📄 Full report saved to: {report_path_str}")
+    print(f"\n💡 Next Steps: {next_steps}")
+    return 0
     return 0
