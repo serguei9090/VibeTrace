@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-16
+
+### Added
+- **Unified Error Manager & Verbose Logging (`observability.py`)**: Added `configure_logging()`, `format_error_dict()`, `format_error_text()`, and `StepTracker` across CLI (`-v`/`--verbose`), MCP server, and REST API (`@app.exception_handler(Exception)`), routing all logs to `stderr` + `.vibetrace/vibetrace.log` and silencing noisy third-party tqdm/HuggingFace progress bars.
+
+### Fixed
+- **Monorepo LSP Definition Path Normalization**: `LSPClient._parse_definition_response()` now resolves definition paths relative to `project_root` (rather than subdirectory `root_path`), allowing `gopls` and other monorepo LSPs to rewire cross-package edges accurately.
+- **Unresolved Edge Preservation**: `prune_orphaned_edges()` now preserves `unresolved:%` edges (and `go_parser.py` marks `unresolved:` edges as `inferred`) so incremental LSP passes can rewire them.
+
 ## [0.1.18] - 2026-11-16
 
 ### Fixed
