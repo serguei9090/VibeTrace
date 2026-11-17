@@ -701,6 +701,27 @@ def resolve_unresolved_edges_polyglot(
     return total_rewired
 
 
+_LANGUAGE_ROOT_MARKERS: dict[str, tuple[str, ...]] = {
+    "go": ("go.mod", "go.work"),
+    "rust": ("Cargo.toml",),
+    "python": ("pyproject.toml", "requirements.txt"),
+    "typescript": ("tsconfig.json", "package.json"),
+    "php": ("composer.json",),
+}
+
+
+def _resolve_lsp_root(project_root: Path, language: str) -> Path:
+    """Return project_root or the 1-level subdirectory containing the language's root marker."""
+    markers = _LANGUAGE_ROOT_MARKERS.get(language.lower(), ())
+    if not markers or any((project_root / m).exists() for m in markers):
+        return project_root
+    for m in markers:
+        sub = sorted(project_root.glob(f"*/{m}"))
+        if sub:
+            return sub[0].parent
+    return project_root
+
+
 class MultiLanguageLSPManager:
     """Manages pooled language server clients across multiple programming languages."""
 
@@ -721,17 +742,7 @@ class MultiLanguageLSPManager:
             if not cmd:
                 return None
 
-            lsp_root = project_root
-            if (
-                language.lower() == "go"
-                and not (project_root / "go.mod").exists()
-                and not (project_root / "go.work").exists()
-            ):
-                sub_mods = sorted(project_root.glob("*/go.mod"))
-                if sub_mods:
-                    lsp_root = sub_mods[0].parent
-
-            client = LSPClient(cmd, lsp_root)
+            client = LSPClient(cmd, _resolve_lsp_root(project_root, language))
             if client.start():
                 client._running = True
                 cls._instances[cache_key] = client
