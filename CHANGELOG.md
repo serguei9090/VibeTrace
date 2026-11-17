@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-11-16
+
+### Fixed
+- **Go Unresolved Call Edges for LSP**: `go_parser.py` now emits `unresolved:<called_name>` edges when `target_id` is `None`, enabling `gopls` to rewire cross-package Go calls.
+- **`vibetrace index` Default `--lsp`**: `vibetrace index` now enables `--lsp` by default (opt-out with `--no-lsp`).
+- **Embedding Model Caching**: Added module-level `_MODEL_CACHE` in `embeddings.py` so `SentenceTransformer` loads weights once per process instead of per instance.
+
 ## [0.1.17] - 2026-11-16
 
 ### Fixed
