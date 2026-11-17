@@ -248,6 +248,26 @@ uv run vibetrace index . --embed
 uv run vibetrace watch .
 ```
 
+### Configuration (`.vibetrace.toml`) & Exclusions
+Customize indexing, vectors, and quality/security gates in `.vibetrace.toml` (or via `vibetrace config`):
+
+```toml
+[indexer]
+# Gitignore-style globs excluded from AST/LSP indexing and dead-code analysis
+exclude_patterns = ["scratch/**", "scripts/**", "tests/e2e/**", "*.generated.*"]
+lsp_mode = "auto"   # "auto" | "always" | "off"
+
+[vectors]
+codebase = false    # true to compute 256d EmbeddingGemma 2 vectors during index
+device = "auto"     # "auto" | "gpu" | "cpu"
+
+[quality]
+include_tests = false
+sonar_enabled = false
+```
+
+> **Note:** After adding new paths to `exclude_patterns`, run `vibetrace index . --force` once so previously indexed files in those folders are purged from `vibetrace.db`.
+
 ---
 
 ## 🌐 Monorepos & Multi-Repo Federation Workflow
