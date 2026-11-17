@@ -39,7 +39,7 @@ class LSPClient:
 
     def start(self, timeout: float = 5.0) -> bool:
         """Start the LSP server process and initialize the session."""
-        executable = shutil.which(self.command[0])
+        executable = _resolve_lsp_binary(self.command[0], self.root_path)
         if not executable:
             return False
         cmd = [executable, *self.command[1:]]
@@ -425,14 +425,36 @@ EXT_TO_LANGUAGE: dict[str, str] = {
 }
 
 
+def _resolve_lsp_binary(binary: str, project_root: Path | None = None) -> str | None:
+    """Resolve an LSP binary from <project>/.vibetrace/bin, PATH, or ~/go/bin."""
+    exe_names = [f"{binary}.exe", binary] if os.name == "nt" else [binary]
+    if project_root is not None:
+        local_bin = project_root / ".vibetrace" / "bin"
+        for name in exe_names:
+            candidate = local_bin / name
+            if candidate.is_file():
+                return str(candidate)
+    found = shutil.which(binary)
+    if found:
+        return found
+    if binary == "gopls":
+        go_bin = Path.home() / "go" / "bin"
+        for name in exe_names:
+            candidate = go_bin / name
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
 def get_lsp_command_for_language(
     language: str, project_root: Path | None = None
 ) -> list[str] | None:
     """Finds an available LSP binary for a specific language."""
     candidates = LSP_SERVER_CANDIDATES.get(language, [])
     for binary, cmd in candidates:
-        if shutil.which(binary):
-            return cmd
+        resolved = _resolve_lsp_binary(binary, project_root)
+        if resolved:
+            return [resolved, *cmd[1:]]
     return None
 
 

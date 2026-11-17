@@ -501,14 +501,22 @@ class ToolsManager:
             from vibetrace.skill_installer import detect_project_ecosystems
 
             ecosystems = detect_project_ecosystems(root)
-            has_py = any("Python" in e for e in ecosystems) or any(root.glob("*.py")) or any(root.glob("*/*.py"))
+            has_py = (
+                any("Python" in e for e in ecosystems)
+                or any(root.glob("*.py"))
+                or any(root.glob("*/*.py"))
+            )
             has_ts = (
                 any("JavaScript/TypeScript" in e for e in ecosystems)
                 or any(root.glob("*.ts"))
                 or any(root.glob("*.tsx"))
                 or any(root.glob("*/*.ts"))
             )
-            has_go = any("Go" in e for e in ecosystems) or any(root.glob("*.go")) or any(root.glob("*/*.go"))
+            has_go = (
+                any("Go" in e for e in ecosystems)
+                or any(root.glob("*.go"))
+                or any(root.glob("*/*.go"))
+            )
             has_rs = any("Rust" in e for e in ecosystems) or any(root.glob("*.rs"))
             has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
 
@@ -541,15 +549,21 @@ class ToolsManager:
                     if res.returncode == 0:
                         results.append("typescript-language-server (TypeScript/JS)")
 
-            # Go LSP (gopls)
+            # Go LSP (gopls) — install locally into <project>/.vibetrace/bin
             if has_go:
                 which_go = shutil.which("go")
                 if which_go:
+                    local_bin = root / ".vibetrace" / "bin"
+                    local_bin.mkdir(parents=True, exist_ok=True)
+                    env = os.environ.copy()
+                    env["GOBIN"] = str(local_bin)
                     res = subprocess.run(
-                        [which_go, "install", "golang.org/x/tools/gopls@latest"], check=False
+                        [which_go, "install", "golang.org/x/tools/gopls@latest"],
+                        env=env,
+                        check=False,
                     )
                     if res.returncode == 0:
-                        results.append("gopls (Go)")
+                        results.append(f"gopls (Go -> {local_bin})")
 
             # Rust LSP (rust-analyzer)
             if has_rs:
