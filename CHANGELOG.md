@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-11-16
+
+### Fixed
+- **Monorepo LSP `rootUri` Resolution**: Added `_resolve_lsp_root()` in `lsp_bridge.py` so `gopls`, `rust-analyzer`, `basedpyright`, `typescript-language-server`, and PHP LSPs automatically root at 1-level monorepo subdirectories (e.g., `backend-go/go.mod`) when no marker exists at the repository root.
+- **LSP Toolchain `PATH` Warnings**: `tools_manager.py` now emits clear warnings when `uv`, `bun`/`npm`, `go`, or `rustup` is missing from `PATH`.
+
 ## [0.1.16] - 2026-11-16
 
 ### Fixed
