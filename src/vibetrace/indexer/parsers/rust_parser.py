@@ -120,6 +120,13 @@ class RustParser(LanguageParser):
                                         self._get_text(pt).lstrip("&* ").split("<")[0].strip()
                                     )
 
+                    decorators: list[str] = []
+                    prev = node.prev_sibling
+                    while prev is not None and prev.type == "attribute_item":
+                        decorators.append(self._get_text(prev).strip())
+                        prev = prev.prev_sibling
+                    decorators.reverse()
+
                     nodes.append(
                         self._create_node(
                             node_id,
@@ -128,6 +135,7 @@ class RustParser(LanguageParser):
                             file_path,
                             node,
                             signature,
+                            decorators=decorators or None,
                             qualified_name=qualified_name,
                             parent_id=parent_id,
                         )
@@ -291,6 +299,23 @@ class RustParser(LanguageParser):
                     target_id = self._resolve_call_target(called_name, ctx)
                     if target_id:
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
+
+            elif parent_id and node.type == "macro_invocation":
+                # Track symbol references inside macro invocations (e.g. generate_handler![fn])
+                def _scan_macro_tokens(tok_node: Node) -> None:
+                    if tok_node.type in ("identifier", "scoped_identifier"):
+                        ref_name = self._get_text(tok_node).replace("::", ".").strip()
+                        if ref_name and (target_id := self._resolve_call_target(ref_name, ctx)):
+                            edges.append(
+                                self._create_edge(parent_id, target_id, "references", node=tok_node)
+                            )
+                        return
+                    for ch in tok_node.children:
+                        _scan_macro_tokens(ch)
+
+                for ch in node.children:
+                    if ch.type == "token_tree":
+                        _scan_macro_tokens(ch)
 
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:

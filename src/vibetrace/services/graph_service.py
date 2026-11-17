@@ -484,10 +484,13 @@ def find_dead_symbols(
     db: IndexerDB,
     limit: int = 100,
     include_tests: bool = False,
+    ignore_symbols: list[str] | None = None,
+    exclude_exported: bool = False,
 ) -> list[dict[str, Any]]:
     """Find functions, methods, and classes with zero incoming graph edges."""
     sql = """
-        SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path, n.start_line, n.end_line
+        SELECT n.id, n.name, n.qualified_name, n.kind, n.file_path, n.start_line, n.end_line,
+               n.decorators, n.visibility
         FROM nodes n
         WHERE n.kind IN ('function', 'method', 'class')
           AND n.name NOT LIKE '\\_\\_%\\_\\_' ESCAPE '\\'
@@ -498,7 +501,7 @@ def find_dead_symbols(
           AND NOT (n.name = 'Error' AND n.file_path LIKE '%.go')
           AND NOT EXISTS (
               SELECT 1 FROM nodes p
-              WHERE p.id = n.parent_id AND p.kind = 'function'
+              WHERE p.id = n.parent_id AND p.kind IN ('function', 'interface')
           )
           AND NOT EXISTS (
               SELECT 1 FROM edges e
@@ -509,6 +512,22 @@ def find_dead_symbols(
     """
     with db._get_conn() as conn:
         rows = conn.execute(sql).fetchall()
+        # Pre-fetch Go functions that DO have incoming callers (for build-tag sibling matching)
+        go_called_names: set[tuple[str, str]] = set()
+        for r in conn.execute(
+            """
+            SELECT DISTINCT n.name, n.file_path
+            FROM nodes n
+            JOIN edges e ON e.to_node_id = n.id
+            WHERE n.file_path LIKE '%.go'
+              AND e.relation_type IN ('calls', 'references')
+            """
+        ).fetchall():
+            pkg_dir = str(Path(str(r["file_path"]).replace("\\", "/")).parent)
+            go_called_names.add((pkg_dir, str(r["name"])))
+
+    ignore_set = set(ignore_symbols or [])
+    _py_entry_decs = ("@app.", "@router.", "@mcp.tool", "@click.command", "@pytest.fixture")
 
     results: list[dict[str, Any]] = []
     for row in rows:
@@ -519,6 +538,15 @@ def find_dead_symbols(
             or "/test_" in f"/{fpath}"
             or "_test." in fpath
         ):
+            continue
+        if exclude_exported and row["visibility"] == "exported":
+            continue
+        if row["name"] in ignore_set or row["qualified_name"] in ignore_set:
+            continue
+        decs = str(row["decorators"] or "")
+        if decs and any(d in decs for d in _py_entry_decs):
+            continue
+        if fpath.endswith(".go") and (str(Path(fpath).parent), str(row["name"])) in go_called_names:
             continue
         results.append(dict(row))
         if len(results) >= limit:

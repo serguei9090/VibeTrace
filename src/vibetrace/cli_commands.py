@@ -904,18 +904,25 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
 
 def cmd_dead_code(args: argparse.Namespace) -> int:
     """CLI handler for listing unreferenced functions, methods, and classes."""
+    from vibetrace.config import load_config
     from vibetrace.services.graph_service import find_dead_symbols
 
     auto_sync = not getattr(args, "no_sync", False)
-    db, _root = get_context_for_path(
+    db, root = get_context_for_path(
         getattr(args, "path", "."),
         auto_sync=auto_sync,
         root_override=getattr(args, "root", None),
     )
+    cfg = load_config(Path(root))
+    exclude_exp = getattr(args, "exclude_exported", None)
+    if exclude_exp is None:
+        exclude_exp = cfg.deadcode.exclude_exported
     results = find_dead_symbols(
         db=db,
         limit=getattr(args, "limit", 100),
         include_tests=getattr(args, "include_tests", False),
+        ignore_symbols=cfg.deadcode.ignore_symbols,
+        exclude_exported=bool(exclude_exp),
     )
     if getattr(args, "json", False):
         print(json.dumps({"total": len(results), "symbols": results}, indent=2))

@@ -545,6 +545,31 @@ class JavaScriptParser(LanguageParser):
                     if tag[0].isupper() and (target_id := self._resolve_call_target(tag, ctx)):
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
 
+            elif parent_id and node.type in (
+                "identifier",
+                "member_expression",
+                "shorthand_property_identifier",
+            ):
+                p_type = node.parent.type if node.parent else ""
+                is_call_fn = (
+                    p_type == "call_expression"
+                    and node.parent is not None
+                    and node.parent.child_by_field_name("function") == node
+                )
+                is_pair_val = (
+                    p_type == "pair"
+                    and node.parent is not None
+                    and node.parent.child_by_field_name("value") == node
+                )
+                if not is_call_fn and (
+                    p_type in ("jsx_expression", "arguments", "object", "array") or is_pair_val
+                ):
+                    ref_name = self._get_text(node).strip()
+                    if ref_name and (target_id := self._resolve_call_target(ref_name, ctx)):
+                        edges.append(
+                            self._create_edge(parent_id, target_id, "references", node=node)
+                        )
+
             current_scope_id = node_id if node_id else parent_id
             for child in node.children:
                 traverse(child, current_scope_id, is_exported=is_exported)

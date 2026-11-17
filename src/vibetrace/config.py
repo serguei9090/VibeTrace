@@ -183,12 +183,26 @@ class SecurityConfig(BaseModel):
     )
 
 
+class DeadCodeConfig(BaseModel):
+    """Dead-code analysis exclusions and visibility settings."""
+
+    ignore_symbols: list[str] = Field(
+        default_factory=list,
+        description="Symbol names or qualified names to ignore in dead-code reports",
+    )
+    exclude_exported: bool = Field(
+        default=False,
+        description="Exclude exported/public API symbols from dead-code reports",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     vectors: VectorConfig = Field(default_factory=VectorConfig)
+    deadcode: DeadCodeConfig = Field(default_factory=DeadCodeConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)

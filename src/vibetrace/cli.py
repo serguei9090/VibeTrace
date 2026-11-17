@@ -1362,6 +1362,12 @@ examples:
     p_dead.add_argument(
         "--include-tests", action="store_true", help="Include symbols in test files"
     )
+    p_dead.add_argument(
+        "--exclude-exported",
+        action="store_true",
+        default=None,
+        help="Exclude exported/public API symbols from dead-code reports",
+    )
     p_dead.set_defaults(func=cmd_dead_code)
 
     # tools (sub-engine health status and on-demand provisioning)
