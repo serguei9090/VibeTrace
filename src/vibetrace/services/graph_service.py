@@ -491,7 +491,11 @@ def find_dead_symbols(
         FROM nodes n
         WHERE n.kind IN ('function', 'method', 'class')
           AND n.name NOT LIKE '\\_\\_%\\_\\_' ESCAPE '\\'
+          AND n.name NOT LIKE '<anonymous%'
           AND n.name != 'main'
+          AND (n.decorators IS NULL OR n.decorators NOT LIKE '%tauri::command%')
+          AND NOT (n.name = 'run' AND REPLACE(n.file_path, '\\', '/') LIKE '%src-tauri/src/lib.rs')
+          AND NOT (n.name = 'Error' AND n.file_path LIKE '%.go')
           AND NOT EXISTS (
               SELECT 1 FROM edges e
               WHERE e.to_node_id = n.id
