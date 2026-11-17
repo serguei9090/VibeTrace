@@ -311,6 +311,7 @@ class GenericParser(LanguageParser):
                             elif "public" in vis_text:
                                 visibility = "public"
 
+                    fn_annotations = self._extract_node_annotations(node) if is_func else []
                     new_node = self._create_node(
                         node_id,
                         name.split(".")[-1],
@@ -319,23 +320,22 @@ class GenericParser(LanguageParser):
                         node,
                         signature=signature,
                         visibility=visibility,
+                        decorators=fn_annotations or None,
                         qualified_name=qualified_name,
                         parent_id=parent_id,
                     )
                     nodes.append(new_node)
-                    if is_func:
-                        fn_annotations = self._extract_node_annotations(node)
-                        if fn_annotations:
-                            ep_nodes, r_edges = extract_enterprise_routes(
-                                fn_annotations,
-                                new_node,
-                                file_path,
-                                self._get_id,
-                                class_prefix=ctx.current_class_prefix,
-                                controller_name=ctx.scope_stack[-1] if ctx.scope_stack else "",
-                            )
-                            nodes.extend(ep_nodes)
-                            edges.extend(r_edges)
+                    if is_func and fn_annotations:
+                        ep_nodes, r_edges = extract_enterprise_routes(
+                            fn_annotations,
+                            new_node,
+                            file_path,
+                            self._get_id,
+                            class_prefix=ctx.current_class_prefix,
+                            controller_name=ctx.scope_stack[-1] if ctx.scope_stack else "",
+                        )
+                        nodes.extend(ep_nodes)
+                        edges.extend(r_edges)
 
                     if parent_id:
                         edges.append(self._create_edge(parent_id, node_id, "defines", node=node))

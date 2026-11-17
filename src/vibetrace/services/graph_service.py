@@ -500,6 +500,7 @@ def find_dead_symbols(
               n.decorators NOT LIKE '%tauri::command%'
               AND n.decorators NOT LIKE '%#[test]%'
               AND n.decorators NOT LIKE '%#[trait_impl]%'
+              AND n.decorators NOT LIKE '%@Override%'
           ))
           AND NOT (n.name = 'run' AND REPLACE(n.file_path, '\\', '/') LIKE '%src-tauri/src/lib.rs')
           AND NOT (

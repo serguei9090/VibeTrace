@@ -91,8 +91,18 @@ class RustParser(LanguageParser):
                         sym = as_parts[-1].strip()
                         orig = as_parts[0].strip()
                         items.append((sym, orig, orig))
+                    is_pub = any(c.type == "visibility_modifier" for c in node.children)
                     for sym, orig, mod in items:
                         res = self._register_imported_module(mod, ctx, node)
+                        if is_pub and res and orig != "*":
+                            edges.append(
+                                self._create_edge(
+                                    file_module_id,
+                                    self._get_id(res, orig),
+                                    "references",
+                                    node=node,
+                                )
+                            )
                         m_path = res or "external"
                         ctx.imported_symbols[sym] = (m_path, orig)
                 return
