@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-11-17
+
+### Added
+- **Dead-Code Report & AI Next Steps**: `vibetrace dead-code` now saves `.vibetrace/dead_code_report.md` and emits `report_path` + `💡 Next Steps` in both text and `--json` outputs.
+- **Dead-Code Config & CLI**: Added `[deadcode]` (`ignore_symbols`, `exclude_exported`) in `.vibetrace.toml` and `--exclude-exported` on `vibetrace dead-code`.
+
+### Fixed
+- **JS/TS Value & JSX References**: `js_parser.py` now emits `"references"` edges for identifiers/member expressions in `jsx_expression`, `arguments`, `pair` values, `object`, and `array` literals.
+- **Rust Attributes & Macro References**: `rust_parser.py` now extracts `#[...]` attributes into `decorators` and scans `macro_invocation` token trees (e.g., `tauri::generate_handler![...]`).
+- **Go Interface, Build-Tag & Python Entry Points**: `find_dead_symbols()` now excludes interface methods, Go build-tag siblings with callers in the same package, and Python `@app.`/`@router.`/`@mcp.tool`/`@click.command`/`@pytest.fixture` entry points.
+
 ## [0.1.21] - 2026-11-16
 
 ### Added
