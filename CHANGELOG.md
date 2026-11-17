@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-11-17
+
+### Changed
+- **Dead-Code Report Checklist**: `.vibetrace/dead_code_report.md` now formats unreferenced symbols as `- [ ]` checklist items so agents can track fixed batches across iterations.
+
+### Fixed
+- **Dead-Code Test & Config Exclusions**: `find_dead_symbols()` now excludes `.test.`, `.spec.`, and `.config.` files.
+
 ## [0.1.22] - 2026-11-17
 
 ### Added
