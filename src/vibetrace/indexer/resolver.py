@@ -91,7 +91,7 @@ class ModuleResolver:
                                 rel = str(Path(root).relative_to(self.project_root)).replace(
                                     "\\", "/"
                                 )
-                                packages[pkg_name] = "" if rel == "." else rel
+                                packages[pkg_name.replace("-", "_")] = "" if rel == "." else rel
                                 break
                 except Exception as e:
                     logger.debug("Failed to parse Cargo.toml at %s: %s", c_path, e)
