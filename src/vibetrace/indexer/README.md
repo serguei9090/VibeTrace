@@ -23,7 +23,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/main.py:reindex_all] - Recursive/incremental reindex entry point returning telemetry.
 - [src/vibetrace/indexer/main.py:is_ignored_path] - Shared ignore rule for walk, git delta, and watcher.
 - [src/vibetrace/indexer/main.py:load_ignore_spec] / [src/vibetrace/indexer/main.py:load_gitignore] - Build ignore spec from `.gitignore` plus configured excludes.
-- [src/vibetrace/indexer/resolver.py:ModuleResolver] - Resolve module names to project-relative file paths.
+- [src/vibetrace/indexer/resolver.py:ModuleResolver] - Resolve module names (including Cargo workspace packages with hyphen-to-underscore normalization) to project-relative file paths.
 - [src/vibetrace/indexer/embeddings.py:EmbeddingEngine] - Local embedding encode, index, and semantic search.
 - [src/vibetrace/indexer/embeddings.py:EmbeddingConfig] - Embedding pipeline configuration contract.
 - [src/vibetrace/indexer/embeddings.py:build_symbol_document] / [src/vibetrace/indexer/embeddings.py:truncate_and_normalize] / [src/vibetrace/indexer/embeddings.py:pack_vector] / [src/vibetrace/indexer/embeddings.py:unpack_vector] / [src/vibetrace/indexer/embeddings.py:cosine_similarity] - Symbol text build, Matryoshka truncation, blob serialization, similarity.

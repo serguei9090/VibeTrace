@@ -20,11 +20,11 @@ used to suppress unresolvable language builtins.
 - [src/vibetrace/indexer/parsers/base.py:get_language] / [src/vibetrace/indexer/parsers/base.py:get_parser] - Cached tree-sitter `Language` and `Parser` construction.
 - [src/vibetrace/indexer/parsers/python_parser.py:PythonParser] - Python AST extraction with decorators, docstrings, type aliases, pytest fixtures, and match-case patterns.
 - [src/vibetrace/indexer/parsers/python_helpers.py:extract_python_imports] / [src/vibetrace/indexer/parsers/python_helpers.py:extract_pattern_references] / [src/vibetrace/indexer/parsers/python_helpers.py:resolve_deferred_fixtures] / [src/vibetrace/indexer/parsers/python_helpers.py:link_all_exports] - Python import resolution, pattern references, deferred fixture links, and `__all__` re-export linking.
-- [src/vibetrace/indexer/parsers/js_parser.py:JavaScriptParser] - JavaScript and JSX extraction with `require` and ES module import/export handling.
+- [src/vibetrace/indexer/parsers/js_parser.py:JavaScriptParser] - JavaScript and JSX extraction with `require`, ES module import/export, and first-arg arrow-function naming.
 - [src/vibetrace/indexer/parsers/ts_parser.py:TypeScriptParser] - TypeScript and TSX parser built on `JavaScriptParser`.
 - [src/vibetrace/indexer/parsers/go_parser.py:GoParser] - Go extraction with type-directed call resolution and struct field tracking.
-- [src/vibetrace/indexer/parsers/rust_parser.py:RustParser] - Rust extraction with module, struct, trait, and impl scope handling.
-- [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser] - Shared parser for Java, C, C++, C#, Ruby, and PHP.
+- [src/vibetrace/indexer/parsers/rust_parser.py:RustParser] - Rust extraction with module, struct, trait (`#[trait_impl]`), `pub use` re-exports, and impl scope handling.
+- [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser] - Shared parser for Java (with annotation `decorators`), C, C++, C#, Ruby, and PHP.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_python_routes] - FastAPI and Flask decorator routes to endpoint nodes.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_python_router_prefixes] - `APIRouter` and `Blueprint` prefix extraction.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_js_endpoint_route] - JS/TS client and backend route extraction.
