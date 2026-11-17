@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-11-16
+
+### Added
+- **`vibetrace index --exclude`**: Added repeatable `--exclude` flag on `vibetrace index` to persist glob patterns into `[indexer].exclude_patterns` in `.vibetrace.toml` before indexing.
+- **LSP Batch Progress**: `get_definitions_batch()` in `lsp_bridge.py` now emits 10%-step progress percentages (`[LSP]  10% (...)`) to `stderr`.
+
+### Fixed
+- **Dead-Code Entry Points & Callbacks**: `find_dead_symbols()` now excludes `<anonymous...>` TS/TSX callbacks, `#[tauri::command]` / `src-tauri/src/lib.rs:run`, and Go `Error()` interface methods.
+
 ## [0.1.20] - 2026-11-16
 
 ### Added
