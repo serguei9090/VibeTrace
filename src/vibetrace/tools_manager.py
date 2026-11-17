@@ -564,6 +564,11 @@ class ToolsManager:
                     )
                     if res.returncode == 0:
                         results.append(f"gopls (Go -> {local_bin})")
+                else:
+                    print(
+                        "⚠️  Go project detected, but 'go' is not on PATH — skipping gopls "
+                        "install. Ensure 'go' is on PATH and run 'vibetrace tools install-lsp'."
+                    )
 
             # Rust LSP (rust-analyzer)
             if has_rs:
