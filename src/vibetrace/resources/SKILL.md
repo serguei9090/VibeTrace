@@ -266,7 +266,7 @@ include_tests = false
 sonar_enabled = false
 ```
 
-> **Note:** After adding new paths to `exclude_patterns`, run `vibetrace index . --force` once so previously indexed files in those folders are purged from `vibetrace.db`.
+> **Note:** After adding new paths to `exclude_patterns` (or pass `vibetrace index . --exclude "scripts/**" --force` to update `.vibetrace.toml` and reindex in one step), run `vibetrace index . --force` so previously indexed files in those folders are purged from `vibetrace.db`.
 
 ---
 
