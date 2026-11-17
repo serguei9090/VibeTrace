@@ -117,8 +117,16 @@ examples:
     )
     p_idx.add_argument(
         "--lsp",
+        dest="lsp",
         action="store_true",
-        help="Enable LSP hybrid bridge for dynamic types and re-exports",
+        default=True,
+        help="Enable LSP hybrid bridge for dynamic types and re-exports (default)",
+    )
+    p_idx.add_argument(
+        "--no-lsp",
+        dest="lsp",
+        action="store_false",
+        help="Disable LSP hybrid bridge during indexing",
     )
     p_idx.add_argument(
         "--no-docs",
