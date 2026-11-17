@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-11-17
+
+### Added
+- **`vibetrace dead-code --no-lsp`**: Added `--no-lsp` flag to run pure AST dead-code analysis without LSP verification.
+
+### Fixed
+- **Rust Dead-Code & Workspace Resolution**: Excluded `#[test]` functions and `impl <Trait> for <Type>` methods (`#[trait_impl]`), tracked `pub use` re-exports in `rust_parser.py`, and normalized hyphens to underscores in Cargo package names in `resolver.py`.
+- **Java Dead-Code**: Stored method/function annotations as `decorators` in `generic_parser.py` and excluded `@Override`, `toString`, `equals`, and `hashCode` in `find_dead_symbols()`.
+- **Go Dead-Code**: Excluded standard library interface methods (`String`, `Len`, `Less`, `Swap`, `Read`, `Write`, `Close`, `ServeHTTP`, `MarshalJSON`, `UnmarshalJSON`) in `find_dead_symbols()`.
+- **JS/TS Function Naming**: Stopped naming arrow/function expressions from quoted string-literal keys or destructuring patterns in `js_parser.py`.
+
 ## [0.1.24] - 2026-11-17
 
 ### Fixed
