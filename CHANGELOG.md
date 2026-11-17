@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-11-16
+
+### Fixed
+- **Local `gopls` Provisioning & Resolution**: `vibetrace tools install-lsp` / `vibetrace init` now installs `gopls` into `<project>/.vibetrace/bin` (via `GOBIN`), and `LspBridge` resolves LSP binaries from `<project>/.vibetrace/bin` → `PATH` → `~/go/bin` without requiring global `PATH` changes.
+
 ## [0.1.15] - 2026-11-16
 
 ### Fixed
