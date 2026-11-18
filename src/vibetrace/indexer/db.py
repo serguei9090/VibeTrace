@@ -939,16 +939,23 @@ class IndexerDB(DBQueriesMixin):
 
     @with_write_retry()
     def prune_orphaned_edges(self) -> int:
-        """Prunes exact edges whose target node no longer exists in the nodes table."""
+        """Prunes exact edges whose target node no longer exists and legacy builtin edges."""
+        from vibetrace.indexer.parsers.builtins import GO_BUILTINS
+
+        builtin_targets = tuple(f"unresolved:{name}" for name in sorted(GO_BUILTINS))
+        ph = ",".join("?" for _ in builtin_targets)
         with self._get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             cursor = conn.execute(
-                """
+                f"""
                 DELETE FROM edges
-                WHERE confidence = 'exact'
-                  AND to_node_id NOT LIKE 'unresolved:%'
-                  AND to_node_id NOT IN (SELECT id FROM nodes)
-                """
+                WHERE (
+                    confidence = 'exact'
+                    AND to_node_id NOT LIKE 'unresolved:%'
+                    AND to_node_id NOT IN (SELECT id FROM nodes)
+                ) OR to_node_id IN ({ph})
+                """,
+                builtin_targets,
             )
             deleted = cursor.rowcount
             if deleted > 0:

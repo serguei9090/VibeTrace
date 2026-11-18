@@ -180,6 +180,15 @@ class VibeBundleService:
                 limit=2,
                 scope="local",
             )
+            if not raw_docs and code_slice_res and code_slice_res.file_path:
+                stem_terms = Path(code_slice_res.file_path).stem.replace("-", " ").replace("_", " ")
+                if stem_terms.strip():
+                    raw_docs = DocSearchService.search(
+                        query=f"{clean_intent} {stem_terms}",
+                        project_root=root,
+                        limit=2,
+                        scope="local",
+                    )
             # If local docs had no results, search global
             if not raw_docs:
                 raw_docs = DocSearchService.search(
@@ -292,6 +301,15 @@ class VibeBundleService:
                 candidates = [
                     f"{parent_rel}/{stem}.test{suffix}" if parent_rel else f"{stem}.test{suffix}",
                     f"{parent_rel}/{stem}.spec{suffix}" if parent_rel else f"{stem}.spec{suffix}",
+                    *(
+                        [
+                            f"{parent_rel}/tests/{stem}.test{suffix}",
+                            f"{parent_rel}/tests/{stem}.spec{suffix}",
+                            f"{parent_rel}/__tests__/{stem}.test{suffix}",
+                        ]
+                        if parent_rel
+                        else []
+                    ),
                     f"tests/{stem}.test{suffix}",
                     f"tests/{stem}.spec{suffix}",
                     f"tests/{stem}.test.ts",

@@ -150,7 +150,8 @@ def _summarize_json_dict(cmd: str, data: dict[str, Any]) -> tuple[str, bool]:
     if cmd == "bundle":
         tok = int(data.get("estimated_tokens", 0))
         docs_n = len(data.get("doc_context", []))
-        tests_n = len(data.get("test_context", []))
+        tc = data.get("test_context") or {}
+        tests_n = 1 if (isinstance(tc, dict) and tc.get("found")) else 0
         has_prompt = bool(data.get("formatted_prompt"))
         return f"~{tok} tok, {docs_n} docs, {tests_n} tests", tok > 0 and has_prompt
     if cmd == "docs catalog add":
@@ -186,7 +187,13 @@ def _summarize_json_list(cmd: str, data: list[Any]) -> tuple[str, bool]:
         return cats or f"{len(data)} catalogs", True
     if cmd == "docs search":
         top = first.get("file_path") or "?"
-        srcs = ",".join(first.get("match_sources", []))
+        all_srcs: list[str] = []
+        for item in data:
+            if isinstance(item, dict):
+                for s in item.get("match_sources", []):
+                    if s not in all_srcs:
+                        all_srcs.append(s)
+        srcs = ",".join(all_srcs)
         return f"{len(data)} hits (top: {top}, src={srcs})", True
     return f"{len(data)} items", True
 

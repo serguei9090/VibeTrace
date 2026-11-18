@@ -94,6 +94,8 @@ class ReindexService:
             files_processed=telemetry.get("files_processed", 0),
         )
         pruned_edges = db.prune_orphaned_edges()
+        if pruned_edges > 0:
+            telemetry["edge_resolution"] = db.get_edge_resolution_metrics()
         if not is_json and verbose and pruned_edges > 0:
             print(f"Cleaned {pruned_edges} orphaned graph edges.")
 

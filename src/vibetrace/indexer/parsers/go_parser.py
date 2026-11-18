@@ -413,7 +413,7 @@ class GoParser(LanguageParser):
                     target_id = self._resolve_call_target(called_name, ctx)
                     if target_id:
                         edges.append(self._create_edge(parent_id, target_id, "calls", node=node))
-                    elif called_name:
+                    elif called_name and not self._is_builtin(called_name, ctx):
                         edges.append(
                             self._create_edge(
                                 parent_id,

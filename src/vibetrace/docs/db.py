@@ -323,7 +323,7 @@ class DocDB:
 
         norm_q = [float(x) / q_norm for x in query_vec]
         raw_hits = search_fn(norm_q, candidates, dim, limit)
-        hits = [(str(cid), float(sc)) for cid, sc in raw_hits if float(sc) >= 0.25]
+        hits = [(str(cid), float(sc)) for cid, sc in raw_hits if float(sc) >= 0.15]
         if not hits:
             return []
 
@@ -390,7 +390,7 @@ class DocDB:
                 dot = sum(a * b for a, b in zip(query_vec, v, strict=True))
                 v_norm = sum(x * x for x in v) ** 0.5
                 sim = dot / (q_norm * v_norm) if (q_norm * v_norm) > 0 else 0.0
-                if sim < 0.25:
+                if sim < 0.15:
                     continue
                 item = dict(row)
                 del item["embedding"]
@@ -422,8 +422,19 @@ class DocDB:
 
 
 def re_clean_query(query: str) -> list[str]:
-    """Extract clean alphanumeric words for FTS5 queries."""
-    return [w.strip() for w in re.findall(r"\w+", query) if len(w.strip()) > 1]
+    """Extract clean alphanumeric words plus snake/camel sub-tokens for FTS5 queries."""
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for w in re.findall(r"\w+", query):
+        w_clean = w.strip()
+        if len(w_clean) > 1 and w_clean not in seen:
+            seen.add(w_clean)
+            tokens.append(w_clean)
+        for part in re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)|\d+", w_clean):
+            if len(part) > 2 and part not in seen:
+                seen.add(part)
+                tokens.append(part)
+    return tokens
 
 
 _DOC_DB_CACHE: dict[str, DocDB] = {}

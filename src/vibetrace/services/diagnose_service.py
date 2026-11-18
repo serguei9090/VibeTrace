@@ -115,13 +115,15 @@ class DiagnoseService:
                     {r[0] for r in l2_rows if r[0] and r[0] not in l1_names and r[0] != clean_name}
                 )
 
-            # 4. Sibling test fixture reachability
+            # 4. Sibling test fixture reachability (L1 + L2 callers, then test-file fallback)
             if target_id:
+                caller_targets = [target_id, *sorted(l1_ids)]
+                ph_t = ",".join("?" for _ in caller_targets)
                 all_callers = conn.execute(
-                    "SELECT DISTINCT n.name, n.file_path FROM edges e "
-                    "JOIN nodes n ON e.from_node_id = n.id "
-                    "WHERE e.to_node_id = ?",
-                    (target_id,),
+                    f"SELECT DISTINCT n.name, n.file_path FROM edges e "
+                    f"JOIN nodes n ON e.from_node_id = n.id "
+                    f"WHERE e.to_node_id IN ({ph_t})",
+                    caller_targets,
                 ).fetchall()
             else:
                 all_callers = conn.execute(
@@ -132,11 +134,29 @@ class DiagnoseService:
                     (clean_name, clean_name),
                 ).fetchall()
 
-        exercising_tests: list[str] = []
-        for c_name, c_path in all_callers:
-            clean_fp = (c_path or "").replace("\\", "/")
-            if _is_test_symbol_or_file(c_name or "", clean_fp):
-                exercising_tests.append(f"{c_name} ({clean_fp})")
+            exercising_tests: list[str] = []
+            for c_name, c_path in all_callers:
+                clean_fp = (c_path or "").replace("\\", "/")
+                if _is_test_symbol_or_file(c_name or "", clean_fp):
+                    exercising_tests.append(f"{c_name} ({clean_fp})")
+
+            if not exercising_tests and slice_res.file_path:
+                stem = Path(slice_res.file_path).stem
+                if stem:
+                    test_rows = conn.execute(
+                        "SELECT DISTINCT file_path FROM nodes WHERE kind = 'module' AND ("
+                        "file_path LIKE ? OR file_path LIKE ? OR file_path LIKE ? "
+                        "OR file_path LIKE ? OR file_path LIKE ?) LIMIT 5",
+                        (
+                            f"%/{stem}.test.%",
+                            f"%/{stem}.spec.%",
+                            f"%/{stem}_test.%",
+                            f"%/test_{stem}.%",
+                            f"%/{stem}Test.%",
+                        ),
+                    ).fetchall()
+                    for tr in test_rows:
+                        exercising_tests.append(f"test suite ({tr[0]})")
 
         callees_list = [
             {

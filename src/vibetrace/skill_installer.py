@@ -187,10 +187,11 @@ def _run_initial_indexing(db_path: Path, root: Path, use_lsp: bool = True) -> tu
     """Runs initial AST + LSP indexing and rule catalog synchronization."""
     db = IndexerDB(str(db_path))
     reindex_all(db, str(root), verbose=False, project_root=root, use_lsp=use_lsp)
+    db.prune_orphaned_edges()
     db.update_centrality_scores()
-    graph_stats = db.get_graph_data()
-    indexed_nodes = len(graph_stats.get("nodes", []))
-    indexed_edges = len(graph_stats.get("edges", []))
+    stats = db.get_statistics()
+    indexed_nodes = int(stats.get("nodes", 0))
+    indexed_edges = int(stats.get("edges", 0))
     try:
         from vibetrace.security.rule_sync import RuleCatalogManager
 
