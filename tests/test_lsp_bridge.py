@@ -79,6 +79,7 @@ def test_resolve_unresolved_edges_with_mock_lsp(tmp_path: Path) -> None:
 
     # Mock LSP client returning (service.py, line 25)
     mock_client = MagicMock(spec=LSPClient)
+    mock_client.root_path = tmp_path
     mock_client.get_definition.return_value = ("service.py", 25)
 
     rewired = resolve_unresolved_edges(db, tmp_path, mock_client, verbose=False)

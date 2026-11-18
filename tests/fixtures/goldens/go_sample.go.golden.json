@@ -66,6 +66,16 @@
       "from_node_id": "0015ffce62b0cbb101fd53c1a8c5e3ea",
       "to_node_id": "15b3b0a8042ec4f972024101365c6cd3",
       "relation_type": "imports"
+    },
+    {
+      "from_node_id": "b8a5da52754c485bf6d3025343460812",
+      "to_node_id": "bd833c1138aa9fa4e80cffac107651a1",
+      "relation_type": "references"
+    },
+    {
+      "from_node_id": "b8a5da52754c485bf6d3025343460812",
+      "to_node_id": "d21d0b9792ec2da98f2884ce6d7c08c3",
+      "relation_type": "references"
     }
   ]
 }

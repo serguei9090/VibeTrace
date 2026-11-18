@@ -2305,6 +2305,7 @@ def test_lsp_bridge_decoupled_resolution_and_clean_path(tmp_path: Path):
 
     # Mock LSP client returning un-normalized path with leading ./ and backslash
     mock_lsp = MagicMock(spec=LSPClient)
+    mock_lsp.root_path = project_root
     mock_lsp.get_definition.return_value = (".\\src\\helper.py", 1)
 
     rewired = resolve_unresolved_edges(db, project_root, mock_lsp, verbose=False)
