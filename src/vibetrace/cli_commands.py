@@ -721,11 +721,11 @@ def cmd_init(args: argparse.Namespace) -> int:
         )
     lines.extend(
         [
-            "\nNext steps:",
-            '  vibetrace search "<query>"',
-            "  vibetrace bundle <symbol>",
-            "  vibetrace guard --staged",
-            "  vibetrace serve",
+            "\nMajor Modules:",
+            "  Core Graph   : index, search, trace, call-tree, impact, slice, dead-code",
+            "  Audits & Gate: audit security, audit quality, audit splits, review, guard",
+            "  Docs & Tools : docs, bundle, diagnose, serve, mcp",
+            "\nRun `vibetrace -h` for the full command list and options.",
         ]
     )
     print("\n".join(lines))
