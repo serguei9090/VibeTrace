@@ -279,7 +279,7 @@ def reindex_all(
             elif not current_sha and target_rel in ("", ".") and not failed:
                 db.set_meta("last_indexed_git_sha", "non-git")
 
-    if use_lsp and eff_root.is_dir():
+    if use_lsp and eff_root.is_dir() and (force or processed_files):
         from vibetrace.indexer.lsp_bridge import (
             MultiLanguageLSPManager,
             resolve_unresolved_edges_polyglot,
