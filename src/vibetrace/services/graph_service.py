@@ -85,7 +85,9 @@ def ensure_index_fresh(
 
     # If repository has never been indexed, perform initial indexing
     if not last_sha:
-        reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+        reindex_all(
+            db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
+        )
         return True
 
     # If in non-git workspace, initial indexing was already completed
@@ -97,12 +99,16 @@ def ensure_index_fresh(
         if current_sha != last_sha:
             delta = get_git_delta(project_root, last_sha)
             if delta is None or delta[0] or delta[1]:
-                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+                reindex_all(
+                    db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
+                )
                 return True
         else:
             delta = get_git_delta(project_root, current_sha)
             if delta is not None and (delta[0] or delta[1]):
-                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
+                reindex_all(
+                    db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
+                )
                 return True
 
     return False
