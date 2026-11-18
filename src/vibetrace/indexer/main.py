@@ -220,15 +220,17 @@ def reindex_all(
                     f"Git delta cache: {len(changed)} changed/added, {len(deleted)} deleted files."
                 )
             indexed_any = False
+            known_indexed = db.get_all_indexed_file_paths()
             for d in deleted:
                 if target_rel not in ("", ".") and not (
                     d == target_rel or d.startswith(f"{target_rel}/")
                 ):
                     continue
-                db.clear_file(d)
+                if d in known_indexed:
+                    db.clear_file(d)
+                    indexed_any = True
                 if resolver:
                     resolver.remove_file(d)
-                indexed_any = True
             for c in changed:
                 if target_rel not in ("", ".") and not (
                     c == target_rel or c.startswith(f"{target_rel}/")
@@ -236,7 +238,9 @@ def reindex_all(
                     continue
                 full_path = eff_root / c
                 if is_ignored_path(c, spec):
-                    db.clear_file(c)
+                    if c in known_indexed:
+                        db.clear_file(c)
+                        indexed_any = True
                     if resolver:
                         resolver.remove_file(c)
                     continue

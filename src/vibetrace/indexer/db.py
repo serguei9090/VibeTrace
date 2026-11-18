@@ -734,12 +734,15 @@ class IndexerDB(DBQueriesMixin):
 
             conn.commit()
 
-        if self.vector_store and self.vector_store.is_available():
-            for fp in touched_paths:
-                try:
-                    self.vector_store.delete_file_embeddings(fp)
-                except Exception as e:
-                    logger.warning("Failed to delete old file embeddings for %s: %s", fp, e)
+        if self.vector_store and self.vector_store.is_available() and touched_paths:
+            try:
+                if hasattr(self.vector_store, "delete_files_embeddings"):
+                    self.vector_store.delete_files_embeddings(touched_paths)
+                else:
+                    for fp in touched_paths:
+                        self.vector_store.delete_file_embeddings(fp)
+            except Exception as e:
+                logger.warning("Failed to delete old file embeddings in batch: %s", e)
 
         return len(file_records)
 

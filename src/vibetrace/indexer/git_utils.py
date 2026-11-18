@@ -88,7 +88,7 @@ def get_git_delta(
         if diff_res.returncode != 0:
             return None
 
-        # 2. Check for untracked files
+        # 2. Check for untracked files (excluding internal VibeTrace metadata dirs)
         status_res = subprocess.run(
             [
                 "git",
@@ -99,6 +99,10 @@ def get_git_delta(
                 "status",
                 "--porcelain",
                 "-uall",
+                "--",
+                ".",
+                ":(exclude).vibetrace",
+                ":(exclude)vibetrace_context",
             ],
             capture_output=True,
             text=True,
@@ -162,7 +166,12 @@ def get_git_delta(
 
         # Disk is the source of truth: a path deleted in history but present now
         # (re-created, `git rm --cached`, reverted delete) must be re-indexed, not purged.
-        all_paths = changed | deleted
+        all_paths = {
+            p
+            for p in (changed | deleted)
+            if p not in (".vibetrace", "vibetrace_context")
+            and not p.startswith((".vibetrace/", "vibetrace_context/"))
+        }
         verified_changed = {
             p for p in all_paths if (repo_root / p).exists() or (repo_root / p).is_symlink()
         }

@@ -219,3 +219,38 @@ def test_git_delta_staged_rename(tmp_path: Path) -> None:
     nodes = db.find_nodes_by_name("run_service")
     assert len(nodes) == 1
     assert nodes[0]["file_path"] == "new_service.py"
+
+
+def test_git_delta_excludes_vibetrace_dirs_and_no_lazy_lance_dir(tmp_path: Path) -> None:
+    """Internal metadata dirs must never enter git delta or create .lance dirs on read/delete."""
+    from vibetrace.indexer.vector_store import LanceDBVectorStore
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
+
+    (repo_dir / "app.py").write_text("def hello():\n    return 1\n")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo_dir, check=True)
+    sha = get_git_sha(repo_dir)
+    assert sha is not None
+
+    # Create untracked files inside .vibetrace and vibetrace_context
+    (repo_dir / ".vibetrace" / "vectors.lance").mkdir(parents=True)
+    (repo_dir / ".vibetrace" / "vectors.lance" / "dummy.txn").write_text("x")
+    (repo_dir / "vibetrace_context").mkdir(parents=True)
+    (repo_dir / "vibetrace_context" / "vibetrace.db").write_text("x")
+
+    delta = get_git_delta(repo_dir, sha)
+    assert delta == (set(), set())
+
+    # Read/delete operations on LanceDBVectorStore must not eagerly create symbol_embeddings.lance
+    lance_uri = repo_dir / ".vibetrace" / "fresh_vectors.lance"
+    store = LanceDBVectorStore(lance_uri)
+    assert store.has_embeddings() is False
+    assert store.count() == 0
+    store.delete_file_embeddings("app.py")
+    store.delete_files_embeddings(["app.py"])
+    assert not lance_uri.exists()

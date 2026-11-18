@@ -72,7 +72,7 @@ def ensure_index_fresh(
     Uses Git-SHA delta caching (<20ms).
     Debounced by debounce_seconds to prevent duplicate checks during burst queries.
     """
-    from vibetrace.indexer.main import reindex_all
+    from vibetrace.indexer.main import is_ignored_path, load_gitignore, reindex_all
 
     key = str(project_root.resolve())
     now = time.time()
@@ -85,30 +85,34 @@ def ensure_index_fresh(
 
     # If repository has never been indexed, perform initial indexing
     if not last_sha:
-        reindex_all(
-            db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
-        )
+        reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
         return True
 
     # If in non-git workspace, initial indexing was already completed
     if last_sha == "non-git" and not current_sha:
         return False
 
+    def _has_relevant_delta(delta_pair: tuple[set[str], set[str]]) -> bool:
+        changed_paths, deleted_paths = delta_pair
+        if not changed_paths and not deleted_paths:
+            return False
+        spec = load_gitignore(project_root)
+        known_indexed = db.get_all_indexed_file_paths()
+        if any(d in known_indexed for d in deleted_paths):
+            return True
+        return any((not is_ignored_path(c, spec)) or (c in known_indexed) for c in changed_paths)
+
     # If in git repo, check for delta
     if current_sha:
         if current_sha != last_sha:
             delta = get_git_delta(project_root, last_sha)
-            if delta is None or delta[0] or delta[1]:
-                reindex_all(
-                    db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
-                )
+            if delta is None or _has_relevant_delta(delta):
+                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
                 return True
         else:
             delta = get_git_delta(project_root, current_sha)
-            if delta is not None and (delta[0] or delta[1]):
-                reindex_all(
-                    db, str(project_root), verbose=verbose, project_root=project_root, use_lsp=False
-                )
+            if delta is not None and _has_relevant_delta(delta):
+                reindex_all(db, str(project_root), verbose=verbose, project_root=project_root)
                 return True
 
     return False

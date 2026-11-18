@@ -41,6 +41,8 @@ class VectorStore(Protocol):
 
     def delete_file_embeddings(self, file_path: str) -> None: ...
 
+    def delete_files_embeddings(self, file_paths: list[str] | set[str]) -> None: ...
+
     def purge_orphaned_embeddings(self, valid_node_ids: set[str]) -> int: ...
 
     def search_semantic(
@@ -72,12 +74,17 @@ class LanceDBVectorStore:
         """Check if lancedb and pyarrow are installed and importable (cached)."""
         return _check_lancedb_available()
 
-    def _get_table(self) -> Any:
+    def _get_table(self, create: bool = True) -> Any:
         if self._table is not None:
             return self._table
 
         if not self.is_available():
             return None
+
+        if not create and not self.uri.startswith(("s3://", "gs://", "az://")):
+            local_tbl = Path(self.uri).resolve() / f"{self.TABLE_NAME}.lance"
+            if not local_tbl.exists():
+                return None
 
         import lancedb
         import pyarrow as pa
@@ -85,7 +92,10 @@ class LanceDBVectorStore:
         # Resolve local directories and ensure parents exist
         if not self.uri.startswith(("s3://", "gs://", "az://")):
             local_p = Path(self.uri).resolve()
-            local_p.mkdir(parents=True, exist_ok=True)
+            if create:
+                local_p.mkdir(parents=True, exist_ok=True)
+            elif not local_p.exists():
+                return None
             self._db = lancedb.connect(str(local_p))  # pyright: ignore[reportAttributeAccessIssue]
         else:
             self._db = lancedb.connect(self.uri)  # pyright: ignore[reportAttributeAccessIssue]
@@ -106,6 +116,8 @@ class LanceDBVectorStore:
         try:
             self._table = self._db.open_table(self.TABLE_NAME)
         except Exception:
+            if not create:
+                return None
             self._table = self._db.create_table(self.TABLE_NAME, schema=schema, exist_ok=True)
 
         return self._table
@@ -118,7 +130,7 @@ class LanceDBVectorStore:
 
     def has_embeddings(self, model_id: str | None = None) -> bool:
         """Check if vector store contains indexed embeddings."""
-        table = self._get_table()
+        table = self._get_table(create=False)
         if table is None:
             return False
         extra = None
@@ -135,7 +147,7 @@ class LanceDBVectorStore:
 
     def count(self, model_id: str | None = None) -> int:
         """Return total number of vector embeddings."""
-        table = self._get_table()
+        table = self._get_table(create=False)
         if table is None:
             return 0
         extra = None
@@ -215,7 +227,7 @@ class LanceDBVectorStore:
 
     def delete_file_embeddings(self, file_path: str) -> None:
         """Purge all symbol vectors belonging to a file path."""
-        table = self._get_table()
+        table = self._get_table(create=False)
         if table is None:
             return
         clean_path = file_path.replace("\\", "/").replace("'", "''")
@@ -226,9 +238,27 @@ class LanceDBVectorStore:
             logger.exception("LanceDB file delete failed for '%s': %s", file_path, err)
             raise
 
+    def delete_files_embeddings(self, file_paths: list[str] | set[str]) -> None:
+        """Purge symbol vectors for multiple file paths in batches."""
+        if not file_paths:
+            return
+        table = self._get_table(create=False)
+        if table is None:
+            return
+        clean_paths = sorted({p.replace("\\", "/") for p in file_paths if p})
+        safe_proj = self.project_name.replace("'", "''")
+        try:
+            for i in range(0, len(clean_paths), 500):
+                chunk = clean_paths[i : i + 500]
+                escaped = ", ".join("'" + p.replace("'", "''") + "'" for p in chunk)
+                table.delete(f"project_name = '{safe_proj}' AND file_path IN ({escaped})")
+        except Exception as err:
+            logger.exception("LanceDB batch file delete failed: %s", err)
+            raise
+
     def purge_orphaned_embeddings(self, valid_node_ids: set[str]) -> int:
         """Purge LanceDB vectors whose node_id is no longer present in the SQLite nodes table."""
-        table = self._get_table()
+        table = self._get_table(create=False)
         if table is None:
             return 0
         safe_proj = self.project_name.replace("'", "''")
@@ -262,7 +292,7 @@ class LanceDBVectorStore:
         """Execute sub-millisecond cosine ANN search directly against disk-backed vectors."""
         if not query_vec or limit <= 0:
             return []
-        table = self._get_table()
+        table = self._get_table(create=False)
         if table is None:
             return []
 
