@@ -255,49 +255,6 @@ class DocIndexService:
         return matched, warnings
 
     @classmethod
-    def _index_file_entry(
-        cls,
-        fpath: Path,
-        catalog_name: str,
-        db: DocDB,
-        base_dir: Path,
-        force: bool,
-        engine: EmbeddingEngine | None,
-    ) -> int:
-        rel_file = (
-            str(fpath.relative_to(base_dir)).replace("\\", "/")
-            if fpath.is_relative_to(base_dir)
-            else str(fpath).replace("\\", "/")
-        )
-        try:
-            mtime = fpath.stat().st_mtime
-        except OSError:
-            return 0
-
-        prev_mtime = db.get_file_mtime(catalog_name, rel_file)
-        if not force and prev_mtime is not None and abs(prev_mtime - mtime) < 1e-4:
-            return 0
-
-        chunks = cls._extract_chunks(fpath)
-        if chunks is None:
-            # Error reading/parsing file; do not delete old chunks
-            return 0
-        if len(chunks) == 0:
-            db.delete_file_chunks(catalog_name, rel_file)
-            return 0
-
-        embeddings: list[list[float]] | None = None
-        if engine and engine.is_available():
-            texts = [f"{c.heading_path}\n{c.content}" for c in chunks]
-            try:
-                embeddings = engine.embed_texts(texts)
-            except Exception:
-                embeddings = None
-
-        db.upsert_chunks(catalog_name, rel_file, mtime, chunks, embeddings)
-        return len(chunks)
-
-    @classmethod
     def index_catalog(
         cls,
         catalog_name: str,
@@ -313,7 +270,11 @@ class DocIndexService:
         eff_engine = engine if engine.is_available() else None
 
         files_to_index, warnings = cls._collect_catalog_files(paths, base_dir)
+        file_states = db.get_catalog_file_states(catalog_name)
         seen_rel_files: set[str] = set()
+
+        extracted: list[tuple[str, float, list[HeadingChunk]]] = []
+        all_texts: list[str] = []
 
         for fpath in files_to_index:
             rel_file = (
@@ -322,17 +283,60 @@ class DocIndexService:
                 else str(fpath).replace("\\", "/")
             )
             seen_rel_files.add(rel_file)
-            chunk_count = cls._index_file_entry(
-                fpath=fpath,
-                catalog_name=catalog_name,
-                db=db,
-                base_dir=base_dir,
-                force=force,
-                engine=eff_engine,
-            )
-            if chunk_count > 0:
+            try:
+                mtime = fpath.stat().st_mtime
+            except OSError:
+                continue
+
+            state = file_states.get(rel_file)
+            if (
+                not force
+                and state is not None
+                and abs(state[0] - mtime) < 1e-4
+                and (state[1] or eff_engine is None)
+            ):
+                continue
+
+            chunks = cls._extract_chunks(fpath)
+            if chunks is None:
+                continue
+            if len(chunks) == 0:
+                if state is not None:
+                    extracted.append((rel_file, mtime, []))
+                continue
+
+            extracted.append((rel_file, mtime, chunks))
+            for c in chunks:
+                all_texts.append(f"{c.heading_path}\n{c.content}")
+
+        all_embeddings: list[list[float]] | None = None
+        if all_texts and eff_engine:
+            try:
+                all_embeddings = eff_engine.embed_texts(all_texts)
+            except Exception:
+                all_embeddings = None
+
+        if extracted:
+            batch_entries: list[
+                tuple[str, float, list[HeadingChunk], list[list[float]] | None]
+            ] = []
+            emb_offset = 0
+            for rel_file, mtime, chunks in extracted:
+                if not chunks:
+                    batch_entries.append((rel_file, mtime, [], None))
+                    continue
+                n_chunks = len(chunks)
+                file_embs = (
+                    all_embeddings[emb_offset : emb_offset + n_chunks]
+                    if all_embeddings is not None
+                    else None
+                )
+                emb_offset += n_chunks
+                batch_entries.append((rel_file, mtime, chunks, file_embs))
                 indexed_files += 1
-                total_chunks += chunk_count
+                total_chunks += n_chunks
+
+            db.upsert_files_batch(catalog_name, batch_entries)
 
         # Clean up deleted files from this catalog only if whole directory/paths were scanned
         # Avoid deleting siblings when indexing a single specific file
@@ -344,12 +348,7 @@ class DocIndexService:
             is_targeted_file = single.is_file()
 
         if not is_targeted_file:
-            with db._get_conn() as conn:
-                stored_rows = conn.execute(
-                    "SELECT DISTINCT file_path FROM doc_chunks WHERE catalog = ?",
-                    (catalog_name,),
-                ).fetchall()
-            stored_files = [r[0] for r in stored_rows]
+            stored_files = list(file_states.keys())
             all_patterns_zero = (
                 bool(paths)
                 and all(is_pattern(p) for p in paths)

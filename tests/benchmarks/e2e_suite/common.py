@@ -60,6 +60,7 @@ def run_step(
     args: list[str],
     cwd: Path,
     timeout: int = 90,
+    expect_substr: str | None = None,
 ) -> StepResult:
     """Execute a VibeTrace CLI command with live logging and timeout protection."""
     t0 = time.perf_counter()
@@ -77,13 +78,16 @@ def run_step(
         )
         dt = time.perf_counter() - t0
         passed = proc.returncode == 0
+        detail = "" if passed else (proc.stderr.strip() or proc.stdout.strip())[:300]
+        if passed and expect_substr and expect_substr not in proc.stdout:
+            passed = False
+            detail = f"Expected substring '{expect_substr}' not found in stdout"
         status = "PASS" if passed else "FAIL"
         print(
             f"[{time.strftime('%H:%M:%S')}] [{stack}] {status:4s}  {name} "
             f"(exit={proc.returncode}, {dt:.2f}s)",
             flush=True,
         )
-        detail = "" if passed else (proc.stderr.strip() or proc.stdout.strip())[:300]
         return StepResult(stack, name, passed, proc.returncode, dt, detail)
     except subprocess.TimeoutExpired:
         dt = time.perf_counter() - t0

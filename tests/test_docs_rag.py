@@ -275,3 +275,33 @@ async def test_mcp_docs_tools(doc_workspace):
     )
     assert "[LOCAL:mcp_cat]" in md_res
     assert "**Tag:** `[LOCAL]`" in md_res
+
+
+def test_incremental_doc_index_backfills_missing_embeddings(doc_workspace):
+    """Incremental index_catalog automatically backfills NULL embeddings without force=True."""
+    proj_root = doc_workspace["proj_root"]
+    docs_dir = doc_workspace["docs_dir"]
+    doc_db = DocDB(proj_root / ".vibetrace" / "vibetrace.db")
+
+    # Initial index populates chunks + embeddings
+    res1 = DocIndexService.index_catalog("core", [str(docs_dir)], doc_db, proj_root)
+    assert res1["files"] >= 1
+
+    # Simulate legacy rows with matching mtime but embedding IS NULL
+    with doc_db._get_conn() as conn:
+        conn.execute("UPDATE doc_chunks SET embedding = NULL WHERE catalog = 'core'")
+        missing_before = conn.execute(
+            "SELECT COUNT(*) FROM doc_chunks WHERE catalog = 'core' AND embedding IS NULL"
+        ).fetchone()[0]
+    assert missing_before > 0
+
+    # Incremental re-index (force=False) detects NULL embeddings and backfills them
+    res2 = DocIndexService.index_catalog("core", [str(docs_dir)], doc_db, proj_root, force=False)
+    assert res2["files"] >= 1
+    assert res2["chunks"] >= missing_before
+
+    with doc_db._get_conn() as conn:
+        missing_after = conn.execute(
+            "SELECT COUNT(*) FROM doc_chunks WHERE catalog = 'core' AND embedding IS NULL"
+        ).fetchone()[0]
+    assert missing_after == 0

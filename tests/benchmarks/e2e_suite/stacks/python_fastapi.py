@@ -34,32 +34,57 @@ def run_python_fastapi() -> list[StepResult]:
             )
             return results
 
-    query_steps: list[tuple[str, list[str], int]] = [
-        ("summary", ["summary", "fastapi/applications.py", "--json"], 60),
-        ("search (name)", ["search", "FastAPI", "--json"], 60),
-        ("search (--signature)", ["search", "add_api_route", "--signature", "--json"], 60),
-        ("trace", ["trace", "FastAPI.add_api_route", "APIRouter.add_api_route", "--json"], 60),
-        ("call-tree", ["call-tree", "FastAPI.add_api_route", "--json"], 60),
-        ("call-stack", ["call-stack", "FastAPI.add_api_route", "--json"], 60),
-        ("impact", ["impact", "fastapi/applications.py", "--json"], 60),
-        ("slice", ["slice", "FastAPI.add_api_route", "--json"], 60),
-        ("references", ["references", "FastAPI.add_api_route", "--json"], 60),
-        ("dependencies", ["dependencies", "fastapi/applications.py", "--json"], 60),
-        ("dead-code (--no-lsp)", ["dead-code", "--no-lsp", "--json"], 60),
-        ("dead-code (--exclude-exported)", ["dead-code", "--exclude-exported", "--json"], 180),
-        ("diagnose", ["diagnose", "FastAPI.add_api_route", "--json"], 60),
-        ("audit splits", ["audit", "splits", "--json"], 60),
+    query_steps: list[tuple[str, list[str], int, str | None]] = [
+        ("summary", ["summary", "fastapi/applications.py", "--json"], 60, None),
+        ("search (name)", ["search", "FastAPI", "--json"], 60, None),
+        ("search (--signature)", ["search", "add_api_route", "--signature", "--json"], 60, None),
+        (
+            "search (semantic vector)",
+            ["search", "OAuth2 password bearer token authentication", "--json"],
+            60,
+            "OAuth2PasswordBearer",
+        ),
+        (
+            "trace",
+            ["trace", "FastAPI.add_api_route", "APIRouter.add_api_route", "--json"],
+            60,
+            None,
+        ),
+        ("call-tree", ["call-tree", "FastAPI.add_api_route", "--json"], 60, None),
+        ("call-stack", ["call-stack", "FastAPI.add_api_route", "--json"], 60, None),
+        ("impact", ["impact", "fastapi/applications.py", "--json"], 60, None),
+        ("slice", ["slice", "FastAPI.add_api_route", "--json"], 60, None),
+        ("references", ["references", "FastAPI.add_api_route", "--json"], 60, None),
+        ("dependencies", ["dependencies", "fastapi/applications.py", "--json"], 60, None),
+        ("dead-code (--no-lsp)", ["dead-code", "--no-lsp", "--json"], 60, None),
+        (
+            "dead-code (--exclude-exported)",
+            ["dead-code", "--exclude-exported", "--json"],
+            180,
+            None,
+        ),
+        ("diagnose", ["diagnose", "FastAPI.add_api_route", "--json"], 60, None),
+        ("audit splits", ["audit", "splits", "--json"], 60, None),
         (
             "audit splits (--max-lines 600 --margin 100)",
             ["audit", "splits", "--max-lines", "600", "--margin", "100", "--json"],
             60,
+            None,
         ),
-        ("guard", ["guard", "FastAPI.add_api_route", "--json"], 60),
-        ("bundle", ["bundle", "FastAPI.add_api_route", "--json"], 60),
-        ("docs catalog list", ["docs", "catalog", "list", "--json"], 60),
-        ("docs sync-links", ["docs", "sync-links", "--json"], 60),
+        ("guard", ["guard", "FastAPI.add_api_route", "--json"], 60, None),
+        ("bundle", ["bundle", "FastAPI.add_api_route", "--json"], 60, None),
+        ("docs catalog list", ["docs", "catalog", "list", "--json"], 60, None),
+        (
+            "docs search (hybrid vector)",
+            ["docs", "search", "OAuth2 password bearer token security", "--json"],
+            60,
+            "oauth2",
+        ),
+        ("docs sync-links", ["docs", "sync-links", "--json"], 60, None),
     ]
 
-    for name, args, timeout in query_steps:
-        results.append(run_step("python", name, args, repo, timeout=timeout))
+    for name, args, timeout, expect_substr in query_steps:
+        results.append(
+            run_step("python", name, args, repo, timeout=timeout, expect_substr=expect_substr)
+        )
     return results
