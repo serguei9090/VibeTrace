@@ -15,13 +15,17 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tests.benchmarks.e2e_suite.common import REPORT_PATH, REPOS_DIR, StepResult  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.go_cobra import run_go_cobra  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.java_gson import run_java_gson  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.python_fastapi import run_python_fastapi  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.rust_ripgrep import run_rust_ripgrep  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.typescript_zod import run_typescript_zod  # noqa: E402
 
 ENABLE_PYTHON = True
-ENABLE_TYPESCRIPT = False
-ENABLE_GO = False
-ENABLE_RUST = False
-ENABLE_JAVA = False
+ENABLE_TYPESCRIPT = True
+ENABLE_GO = True
+ENABLE_RUST = True
+ENABLE_JAVA = True
 
 
 def write_report(results: list[StepResult]) -> None:
@@ -53,7 +57,14 @@ def main() -> int:
     all_results: list[StepResult] = []
     if ENABLE_PYTHON:
         all_results.extend(run_python_fastapi())
-    # Future stacks: ENABLE_TYPESCRIPT, ENABLE_GO, ENABLE_RUST, ENABLE_JAVA
+    if ENABLE_TYPESCRIPT:
+        all_results.extend(run_typescript_zod())
+    if ENABLE_GO:
+        all_results.extend(run_go_cobra())
+    if ENABLE_RUST:
+        all_results.extend(run_rust_ripgrep())
+    if ENABLE_JAVA:
+        all_results.extend(run_java_gson())
     write_report(all_results)
     return 0 if all(r.passed for r in all_results) else 1
 

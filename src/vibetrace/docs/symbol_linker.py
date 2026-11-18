@@ -443,6 +443,26 @@ class SymbolDocLinker:
             ):
                 continue
             md_files.append(p)
+
+        seen_resolved = {str(p.resolve()) for p in md_files}
+        try:
+            from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+            local_cats = [
+                c for c in DocCatalogManager.list_catalogs(project_root) if c.scope == "local"
+            ]
+            for cat in local_cats:
+                files, _ = DocIndexService._collect_catalog_files(cat.paths, project_root)
+                for fp in files:
+                    if fp.suffix.lower() not in (".md", ".markdown"):
+                        continue
+                    res_key = str(fp.resolve())
+                    if res_key not in seen_resolved:
+                        seen_resolved.add(res_key)
+                        md_files.append(fp)
+        except Exception as exc:
+            logger.debug("Catalog markdown scan skipped: %s", exc)
+
         return md_files
 
     @classmethod

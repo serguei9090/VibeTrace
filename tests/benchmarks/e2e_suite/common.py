@@ -153,9 +153,18 @@ def _summarize_json_dict(cmd: str, data: dict[str, Any]) -> tuple[str, bool]:
         tests_n = len(data.get("test_context", []))
         has_prompt = bool(data.get("formatted_prompt"))
         return f"~{tok} tok, {docs_n} docs, {tests_n} tests", tok > 0 and has_prompt
+    if cmd == "docs catalog add":
+        return (
+            f"added {data.get('catalog')} -> {data.get('path')}",
+            data.get("status") == "added",
+        )
+    if cmd == "docs index":
+        files_c = int(data.get("total_files", 0))
+        chunks_c = int(data.get("total_chunks", 0))
+        return f"files={files_c}, chunks={chunks_c}", data.get("status") == "ok" and chunks_c > 0
     if cmd == "docs sync-links":
         links = int(data.get("links_created", 0))
-        return f"{links} links synced", data.get("status") == "synced"
+        return f"{links} links synced", data.get("status") == "synced" and links > 0
     return f"dict({len(data)} keys)", bool(data)
 
 
@@ -248,3 +257,117 @@ def run_step(
             flush=True,
         )
         return StepResult(stack, name, False, -1, dt, "", f"Timed out after {timeout}s")
+
+
+@dataclass(frozen=True, slots=True)
+class StackSpec:
+    """Configuration for a language stack E2E CLI benchmark suite."""
+
+    stack: str
+    repo_dir_name: str
+    repo_url: str
+    summary_file: str
+    impact_file: str
+    deps_file: str
+    search_name: str
+    search_sig: str
+    semantic_query: str
+    semantic_expect: str
+    primary_symbol: str
+    callee_symbol: str
+    doc_catalog_path: str | None
+    doc_search_query: str
+    doc_search_expect: str
+
+
+def run_stack_suite(spec: StackSpec) -> list[StepResult]:
+    """Run all core VibeTrace CLI commands against a repository matching `spec`."""
+    repo = REPOS_DIR / spec.repo_dir_name
+    ensure_repo(spec.repo_url, repo)
+    db_exists = (repo / ".vibetrace" / "vibetrace.db").exists()
+
+    setup_steps: list[tuple[str, list[str], int]] = [
+        ("init (auto)", ["init"], 600),
+    ]
+    if not db_exists:
+        setup_steps.append(("index . --force", ["index", ".", "--force", "--json"], 600))
+    setup_steps.append(("index . (incremental)", ["index", ".", "--json"], 600))
+    setup_steps.append(
+        ("index . --embed (Rust vectors)", ["index", ".", "--embed", "--no-lsp", "--json"], 120)
+    )
+    if spec.doc_catalog_path:
+        setup_steps.append(
+            (
+                f"docs catalog add ({spec.doc_catalog_path})",
+                ["docs", "catalog", "add", "core", spec.doc_catalog_path, "--json"],
+                60,
+            )
+        )
+        setup_steps.append(
+            (
+                "docs index (--force)",
+                ["docs", "index", "core", "--force", "--json"],
+                180,
+            )
+        )
+
+    results: list[StepResult] = []
+    for name, args, timeout in setup_steps:
+        res = run_step(spec.stack, name, args, repo, timeout=timeout)
+        results.append(res)
+        if not res.passed:
+            print(
+                f"[FATAL] Setup step '{name}' failed (exit={res.exit_code}): {res.detail}",
+                flush=True,
+            )
+            return results
+
+    query_steps: list[tuple[str, list[str], int, str | None]] = [
+        ("summary", ["summary", spec.summary_file, "--json"], 60, None),
+        ("search (name)", ["search", spec.search_name, "--json"], 60, None),
+        ("search (--signature)", ["search", spec.search_sig, "--signature", "--json"], 60, None),
+        (
+            "search (semantic vector)",
+            ["search", spec.semantic_query, "--json"],
+            60,
+            spec.semantic_expect,
+        ),
+        ("trace", ["trace", spec.primary_symbol, spec.callee_symbol, "--json"], 60, None),
+        ("call-tree", ["call-tree", spec.primary_symbol, "--json"], 60, None),
+        ("call-stack", ["call-stack", spec.primary_symbol, "--json"], 60, None),
+        ("impact", ["impact", spec.impact_file, "--json"], 60, None),
+        ("slice", ["slice", spec.primary_symbol, "--json"], 60, None),
+        ("references", ["references", spec.primary_symbol, "--json"], 60, None),
+        ("dependencies", ["dependencies", spec.deps_file, "--json"], 60, None),
+        ("dead-code (--no-lsp)", ["dead-code", "--no-lsp", "--json"], 60, None),
+        (
+            "dead-code (--exclude-exported)",
+            ["dead-code", "--exclude-exported", "--json"],
+            180,
+            None,
+        ),
+        ("diagnose", ["diagnose", spec.primary_symbol, "--json"], 60, None),
+        ("audit splits", ["audit", "splits", "--json"], 60, None),
+        (
+            "audit splits (--max-lines 600 --margin 100)",
+            ["audit", "splits", "--max-lines", "600", "--margin", "100", "--json"],
+            60,
+            None,
+        ),
+        ("guard", ["guard", spec.primary_symbol, "--json"], 60, None),
+        ("bundle", ["bundle", spec.primary_symbol, "--json"], 60, None),
+        ("docs catalog list", ["docs", "catalog", "list", "--json"], 60, None),
+        (
+            "docs search (hybrid vector)",
+            ["docs", "search", spec.doc_search_query, "--json"],
+            60,
+            spec.doc_search_expect,
+        ),
+        ("docs sync-links", ["docs", "sync-links", "--json"], 60, None),
+    ]
+
+    for name, args, timeout, expect_substr in query_steps:
+        results.append(
+            run_step(spec.stack, name, args, repo, timeout=timeout, expect_substr=expect_substr)
+        )
+    return results

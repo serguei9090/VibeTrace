@@ -133,6 +133,9 @@ class IndexerDB(DBQueriesMixin):
             except Exception as e:
                 logger.warning("Error running migration on edges table: %s", e)
 
+            with open(schema_path, encoding="utf-8") as f:
+                conn.executescript(f.read())
+
             try:
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_nodes_centrality_kind "
@@ -140,9 +143,6 @@ class IndexerDB(DBQueriesMixin):
                 )
             except Exception as e:
                 logger.warning("Error creating centrality index on nodes table: %s", e)
-
-            with open(schema_path, encoding="utf-8") as f:
-                conn.executescript(f.read())
 
     @with_write_retry()
     def upsert_node(self, node: Node) -> None:
