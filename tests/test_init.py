@@ -122,7 +122,7 @@ def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
 
     # Mock isatty to simulate terminal
     with patch("sys.stdin.isatty", return_value=True):
-        exit_code = main(["init", str(tmp_path), "--no-index"])
+        exit_code = main(["init", str(tmp_path), "--no-index", "--interactive"])
         assert exit_code == 0
 
     cfg_file = tmp_path / ".vibetrace.toml"
@@ -136,3 +136,19 @@ def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
     assert data["quality"]["enable_sonar"] is True
     assert data["security"]["enable_semgrep"] is True
     assert data["security"]["enable_trivy"] is True
+
+
+def test_cli_init_default_automatic_on_tty(tmp_path: Path, monkeypatch) -> None:
+    """Bare `vibetrace init` must run automatically without prompting even on a TTY."""
+    from unittest.mock import patch
+
+    def fail_if_prompted(_prompt: str = "") -> str:
+        raise AssertionError("bare `vibetrace init` must not call input()")
+
+    monkeypatch.setattr("builtins.input", fail_if_prompted)
+    with patch("sys.stdin.isatty", return_value=True):
+        exit_code = main(["init", str(tmp_path), "--no-index"])
+        assert exit_code == 0
+
+    assert (tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md").is_file()
+    assert (tmp_path / ".vibetrace.toml").is_file()

@@ -220,13 +220,13 @@ def initialize_workspace(
     root = Path(project_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
-    # 1. Update .gitignore
-    added_ignores = configure_gitignore(root)
-
-    # 2. Install navigator skill
+    # 1. Install navigator skill first
     installed_skills = install_skill(
         root, global_install=global_skill, custom_skills_dir=custom_skills_dir
     )
+
+    # 2. Update .gitignore
+    added_ignores = configure_gitignore(root)
 
     # 3. Create root .vibetrace.toml configuration file
     from vibetrace.config import save_default_config

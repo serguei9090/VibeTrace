@@ -514,10 +514,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     except ImportError:
         has_embeddings_pkg = False
 
-    non_interactive = getattr(args, "yes", False) or getattr(args, "json", False)
-    run_prompts = getattr(args, "interactive", False) or (
-        not non_interactive and sys.stdin.isatty() and not (root / ".vibetrace.toml").exists()
-    )
+    run_prompts = bool(getattr(args, "interactive", False)) and sys.stdin.isatty()
 
     # If non-interactive and embedding not explicitly set, default to False
     if codebase_embeddings is None:

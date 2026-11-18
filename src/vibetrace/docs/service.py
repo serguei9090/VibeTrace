@@ -310,7 +310,7 @@ class DocIndexService:
         indexed_files = 0
         total_chunks = 0
         engine = EmbeddingEngine(project_root=base_dir)
-        eff_engine = engine if engine.is_available() else None
+        eff_engine = engine if (engine.config.codebase and engine.is_available()) else None
 
         files_to_index, warnings = cls._collect_catalog_files(paths, base_dir)
         seen_rel_files: set[str] = set()
@@ -397,7 +397,7 @@ class DocSearchService:
     @classmethod
     def _resolve_query_vector(cls, query: str, project_root: Path | None) -> list[float] | None:
         engine = EmbeddingEngine(project_root=project_root)
-        if not engine.is_available():
+        if not engine.config.codebase or not engine.is_available():
             return None
         try:
             emb_res = engine.embed_texts([query])

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import heapq
 import importlib
 import logging
 import math
+import re
 import struct
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -91,6 +93,35 @@ def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
 
 
 _MODEL_CACHE: dict[tuple[str, str], Any] = {}
+_FAILED_MODELS: set[tuple[str, str]] = set()
+
+
+def _embed_texts_native(texts: list[str], dimensions: int) -> list[list[float]]:
+    """Compute deterministic L2-normalized vectors via Rust `_rust_core` or pure Python."""
+    try:
+        from vibetrace.indexer.rust_bridge import _rust_core
+
+        fn = getattr(_rust_core, "py_embed_texts_parallel", None)
+        if fn is not None:
+            return [list(v) for v in fn(texts, dimensions)]
+    except Exception:
+        pass
+
+    results: list[list[float]] = []
+    for text in texts:
+        vec = [0.0] * dimensions
+        for tok in re.findall(r"[A-Za-z0-9_]+", text):
+            for part in (tok.lower(), *re.findall(r"[A-Z]?[a-z]+|[0-9]+|[A-Z]+(?=[A-Z]|$)", tok)):
+                p = part.lower().encode("utf-8")
+                h = int.from_bytes(hashlib.blake2b(p, digest_size=8).digest(), "little")
+                bucket = h % dimensions
+                sign = 1.0 if ((h >> 32) & 1) == 0 else -1.0
+                vec[bucket] += sign
+        norm = math.sqrt(sum(x * x for x in vec))
+        if norm > 1e-12:
+            vec = [x / norm for x in vec]
+        results.append(vec)
+    return results
 
 
 class EmbeddingEngine:
@@ -161,12 +192,18 @@ class EmbeddingEngine:
             self._init_vector_store(root)
 
     def is_available(self) -> bool:
-        """Check whether an encoder callable or sentence-transformers is available."""
+        """Check whether an encoder callable, sentence-transformers, or Rust core is available."""
         if self._encoder is not None:
             return True
         try:
             importlib.import_module("sentence_transformers")
             return True
+        except ImportError:
+            pass
+        try:
+            from vibetrace.indexer.rust_bridge import _rust_core
+
+            return hasattr(_rust_core, "py_embed_texts_parallel")
         except ImportError:
             return False
 
@@ -196,6 +233,10 @@ class EmbeddingEngine:
         if cache_key in _MODEL_CACHE:
             self._st_model = _MODEL_CACHE[cache_key]
             return self._st_model
+        if cache_key in _FAILED_MODELS:
+            raise RuntimeError(
+                f"Embedding model '{self.config.model_id}' previously failed to load."
+            )
 
         st_mod = importlib.import_module("sentence_transformers")
         sentence_transformer_cls = st_mod.SentenceTransformer
@@ -204,6 +245,7 @@ class EmbeddingEngine:
             self._st_model = sentence_transformer_cls(self.config.model_id, device=device)
             _MODEL_CACHE[cache_key] = self._st_model
         except Exception as err:
+            _FAILED_MODELS.add(cache_key)
             hf_url = f"https://huggingface.co/{self.config.model_id}"
             raise RuntimeError(
                 f"Failed to load embedding model '{self.config.model_id}': {err}\n"
@@ -220,13 +262,20 @@ class EmbeddingEngine:
         if self._encoder is not None:
             raw_vectors = self._encoder(texts)
         else:
-            model = self._load_model()
-            raw_vectors = model.encode(
-                texts,
-                batch_size=self.config.batch_size,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-            ).tolist()
+            try:
+                model = self._load_model()
+                raw_vectors = model.encode(
+                    texts,
+                    batch_size=self.config.batch_size,
+                    show_progress_bar=False,
+                    convert_to_numpy=True,
+                ).tolist()
+            except Exception as exc:
+                logger.warning(
+                    "Falling back to native Rust feature-hashing embeddings (%s).",
+                    exc,
+                )
+                return _embed_texts_native(texts, self.config.dimensions)
 
         return [
             truncate_and_normalize(vec, dimensions=self.config.dimensions) for vec in raw_vectors
@@ -255,6 +304,7 @@ class EmbeddingEngine:
         dev = self._resolve_device()
 
         total_indexed = 0
+        last_pct_logged = -1
         for batch_idx, idx in enumerate(range(0, total_nodes, batch_size), start=1):
             batch = missing_nodes[idx : idx + batch_size]
             docs = [build_symbol_document(n) for n in batch]
@@ -291,11 +341,14 @@ class EmbeddingEngine:
             total_indexed += len(rows)
 
             if verbose:
-                pct = (total_indexed / total_nodes) * 100.0
-                print(
-                    f"[{batch_idx}/{total_batches} {pct:5.1f}%] "
-                    f"Vectorized {total_indexed}/{total_nodes} symbols on {dev.upper()}..."
-                )
+                pct = int((total_indexed / total_nodes) * 100.0)
+                if pct >= last_pct_logged + 10 or total_indexed == total_nodes:
+                    last_pct_logged = pct
+                    print(
+                        f"  [Embeddings] {pct:3d}% ({total_indexed}/{total_nodes} symbols) "
+                        f"on {dev.upper()}...",
+                        flush=True,
+                    )
 
             if progress_callback:
                 progress_callback(batch_idx, total_batches, total_indexed)
@@ -344,12 +397,32 @@ class EmbeddingEngine:
             return []
         q_vec = query_vecs[0]
 
-        # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
-        top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
+        # Fast path 2: Parallel Rust cosine similarity over SQLite blobs
         sql_scan = (
             "SELECT node_id, embedding, dimensions FROM node_embeddings "
             "WHERE model_id = ? AND dimensions = ?"
         )
+        try:
+            from vibetrace.indexer.rust_bridge import _rust_core
+
+            search_fn = getattr(_rust_core, "py_search_vectors_parallel", None)
+            if search_fn is not None:
+                with db._get_conn() as conn:
+                    raw_rows = conn.execute(
+                        sql_scan, (self.config.model_id, self.config.dimensions)
+                    ).fetchall()
+                candidates = [(r[0], bytes(r[1])) for r in raw_rows if r[1]]
+                if candidates:
+                    hits = search_fn(
+                        [float(x) for x in q_vec], candidates, self.config.dimensions, limit
+                    )
+                    return [(str(nid), float(sc)) for nid, sc in hits]
+                return []
+        except Exception:
+            pass
+
+        # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
+        top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
         with db._get_conn() as conn:
             cursor = conn.execute(sql_scan, (self.config.model_id, self.config.dimensions))
             while True:

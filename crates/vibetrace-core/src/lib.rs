@@ -5,6 +5,7 @@
 
 pub mod models;
 pub mod parser;
+pub mod vectors;
 pub mod walker;
 
 use models::{RustEdge, RustFileDelta, RustFileExtraction, RustNode, RustWorkspaceScanResult};
@@ -53,11 +54,39 @@ pub fn py_extract_batch_parallel(
     Ok(res)
 }
 
+/// Compute deterministic L2-normalized feature-hashing embeddings in parallel without the GIL.
+#[pyfunction]
+pub fn py_embed_texts_parallel(
+    py: Python<'_>,
+    texts: Vec<String>,
+    dimensions: usize,
+) -> PyResult<Vec<Vec<f32>>> {
+    let res = py.allow_threads(move || vectors::embed_texts_parallel(&texts, dimensions));
+    Ok(res)
+}
+
+/// Search packed little-endian `f32` embedding blobs via parallel cosine similarity without the GIL.
+#[pyfunction]
+pub fn py_search_vectors_parallel(
+    py: Python<'_>,
+    query: Vec<f32>,
+    candidates: Vec<(String, Vec<u8>)>,
+    dimensions: usize,
+    limit: usize,
+) -> PyResult<Vec<(String, f32)>> {
+    let res = py.allow_threads(move || {
+        vectors::search_vectors_parallel(&query, &candidates, dimensions, limit)
+    });
+    Ok(res)
+}
+
 #[pymodule]
 fn _rust_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rust_engine_version, m)?)?;
     m.add_function(wrap_pyfunction!(py_scan_and_hash_workspace, m)?)?;
     m.add_function(wrap_pyfunction!(py_extract_batch_parallel, m)?)?;
+    m.add_function(wrap_pyfunction!(py_embed_texts_parallel, m)?)?;
+    m.add_function(wrap_pyfunction!(py_search_vectors_parallel, m)?)?;
     m.add_class::<RustNode>()?;
     m.add_class::<RustEdge>()?;
     m.add_class::<RustFileDelta>()?;

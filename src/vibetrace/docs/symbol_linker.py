@@ -446,11 +446,52 @@ class SymbolDocLinker:
         return md_files
 
     @classmethod
+    def _build_node_lookup(
+        cls, conn: sqlite3.Connection
+    ) -> tuple[
+        dict[str, tuple[str, str]],
+        dict[str, tuple[str, str]],
+        dict[str, str],
+    ]:
+        """Pre-load AST nodes into in-memory lookup maps for O(1) doc symbol resolution."""
+        exact_qname: dict[str, tuple[str, str]] = {}
+        exact_name: dict[str, tuple[str, str]] = {}
+        by_suffix: dict[str, tuple[str, str]] = {}
+        prefix_close: dict[str, str] = {}
+
+        rows = conn.execute(
+            "SELECT id, name, qualified_name FROM nodes ORDER BY LENGTH(qualified_name) ASC"
+        ).fetchall()
+        for r in rows:
+            nid = str(r["id"])
+            nm = str(r["name"] or "")
+            qn = str(r["qualified_name"] or nm)
+            entry = (nid, qn)
+            if qn and qn not in exact_qname:
+                exact_qname[qn] = entry
+            if nm and nm not in exact_name:
+                exact_name[nm] = entry
+            if "." in qn:
+                suffix = qn.rsplit(".", 1)[-1]
+                if suffix not in by_suffix:
+                    by_suffix[suffix] = entry
+            if nm:
+                for p_len in range(1, min(len(nm), 12) + 1):
+                    pref = nm[:p_len]
+                    if pref not in prefix_close:
+                        prefix_close[pref] = qn
+
+        # Merge exact_qname, exact_name, and by_suffix respecting exact priority
+        resolved: dict[str, tuple[str, str]] = {**by_suffix, **exact_name, **exact_qname}
+        return resolved, exact_name, prefix_close
+
+    @classmethod
     def _sync_chunk_symbols(
         cls,
         conn: sqlite3.Connection,
         chunk: Any,
         rel_doc_path: str,
+        node_lookup: dict[str, tuple[str, str]] | None = None,
     ) -> int:
         """Indexes symbols from a single doc chunk into symbol_doc_links."""
         symbols = cls.extract_backticked_symbols(chunk.content)
@@ -459,35 +500,32 @@ class SymbolDocLinker:
 
         chunk_tokens = estimate_tokens(chunk.content)
         created = 0
+        to_insert: list[tuple[str, str, str, str, str, int, int, str, int]] = []
         for sym in set(symbols):
-            escaped_sym = sym.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            cursor = conn.execute(
-                "SELECT id, name, qualified_name FROM nodes "
-                "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? ESCAPE '\\' "
-                "ORDER BY (qualified_name = ?) DESC, LENGTH(qualified_name) ASC "
-                "LIMIT 1",
-                (sym, sym, f"%.{escaped_sym}", sym),
-            )
-            row = cursor.fetchone()
-            if not row:
+            sym_id: str | None = None
+            sym_name: str | None = None
+            if node_lookup is not None:
+                hit = node_lookup.get(sym)
+                if hit:
+                    sym_id, sym_name = hit
+            else:
+                escaped_sym = sym.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                cursor = conn.execute(
+                    "SELECT id, name, qualified_name FROM nodes "
+                    "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? ESCAPE '\\' "
+                    "ORDER BY (qualified_name = ?) DESC, LENGTH(qualified_name) ASC "
+                    "LIMIT 1",
+                    (sym, sym, f"%.{escaped_sym}", sym),
+                )
+                row = cursor.fetchone()
+                if row:
+                    sym_id = str(row["id"])
+                    sym_name = str(row["qualified_name"] or row["name"])
+
+            if not sym_id or not sym_name:
                 continue
 
-            sym_id = row["id"]
-            sym_name = row["qualified_name"] or row["name"]
-            conn.execute(
-                """
-                DELETE FROM symbol_doc_links 
-                WHERE symbol_id = ? AND doc_path = ? AND heading_path = ? AND start_line = ?
-                """,
-                (sym_id, rel_doc_path, chunk.heading_path, chunk.start_line),
-            )
-            conn.execute(
-                """
-                INSERT INTO symbol_doc_links (
-                    symbol_id, symbol_name, doc_path, heading,
-                    heading_path, start_line, end_line, content, token_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+            to_insert.append(
                 (
                     sym_id,
                     sym_name,
@@ -498,9 +536,27 @@ class SymbolDocLinker:
                     chunk.end_line,
                     chunk.content,
                     chunk_tokens,
-                ),
+                )
             )
             created += 1
+
+        if to_insert:
+            conn.executemany(
+                """
+                DELETE FROM symbol_doc_links 
+                WHERE symbol_id = ? AND doc_path = ? AND heading_path = ? AND start_line = ?
+                """,
+                [(row[0], row[2], row[4], row[5]) for row in to_insert],
+            )
+            conn.executemany(
+                """
+                INSERT INTO symbol_doc_links (
+                    symbol_id, symbol_name, doc_path, heading,
+                    heading_path, start_line, end_line, content, token_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                to_insert,
+            )
         return created
 
     @classmethod
@@ -511,6 +567,7 @@ class SymbolDocLinker:
 
         with db._get_conn() as conn:
             conn.execute("DELETE FROM symbol_doc_links")
+            node_lookup, _, _ = cls._build_node_lookup(conn)
 
             for md_path in md_files:
                 try:
@@ -524,7 +581,9 @@ class SymbolDocLinker:
                     continue
 
                 for chunk in chunk_markdown(content, max_chars=1200):
-                    total_links_created += cls._sync_chunk_symbols(conn, chunk, rel_doc_path)
+                    total_links_created += cls._sync_chunk_symbols(
+                        conn, chunk, rel_doc_path, node_lookup=node_lookup
+                    )
 
         return total_links_created
 
@@ -598,6 +657,8 @@ class SymbolDocLinker:
         line: str,
         line_idx: int,
         rel_doc_path: str,
+        node_lookup: dict[str, tuple[str, str]] | None = None,
+        prefix_close: dict[str, str] | None = None,
     ) -> tuple[int, int, list[DocLinkAuditFinding]]:
         """Audits backticked symbols on a single line of Markdown."""
         symbols = cls.extract_backticked_symbols(line)
@@ -609,25 +670,32 @@ class SymbolDocLinker:
         findings: list[DocLinkAuditFinding] = []
 
         for sym in symbols:
-            row = conn.execute(
-                "SELECT name, qualified_name FROM nodes "
-                "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? "
-                "LIMIT 1",
-                (sym, sym, f"%.{sym}"),
-            ).fetchone()
+            if node_lookup is not None:
+                if sym in node_lookup:
+                    valid += 1
+                    continue
+                clean_stem = sym.split(".")[-1]
+                suggested = prefix_close.get(clean_stem[:12]) if prefix_close else None
+            else:
+                row = conn.execute(
+                    "SELECT name, qualified_name FROM nodes "
+                    "WHERE name = ? OR qualified_name = ? OR qualified_name LIKE ? "
+                    "LIMIT 1",
+                    (sym, sym, f"%.{sym}"),
+                ).fetchone()
 
-            if row:
-                valid += 1
-                continue
+                if row:
+                    valid += 1
+                    continue
 
-            suggested: str | None = None
-            clean_stem = sym.split(".")[-1]
-            close = conn.execute(
-                "SELECT qualified_name FROM nodes WHERE name LIKE ? LIMIT 1",
-                (f"{clean_stem}%",),
-            ).fetchone()
-            if close:
-                suggested = close[0]
+                suggested = None
+                clean_stem = sym.split(".")[-1]
+                close = conn.execute(
+                    "SELECT qualified_name FROM nodes WHERE name LIKE ? LIMIT 1",
+                    (f"{clean_stem}%",),
+                ).fetchone()
+                if close:
+                    suggested = close[0]
 
             findings.append(
                 DocLinkAuditFinding(
@@ -650,6 +718,7 @@ class SymbolDocLinker:
         valid_count = 0
 
         with db._get_conn() as conn:
+            node_lookup, _, prefix_close = cls._build_node_lookup(conn)
             for md_path in md_files:
                 try:
                     rel_doc_path = str(md_path.relative_to(project_root)).replace("\\", "/")
@@ -675,7 +744,12 @@ class SymbolDocLinker:
                         continue
 
                     ref_c, val_c, line_findings = cls._audit_line_symbols(
-                        conn, line, line_idx, rel_doc_path
+                        conn,
+                        line,
+                        line_idx,
+                        rel_doc_path,
+                        node_lookup=node_lookup,
+                        prefix_close=prefix_close,
                     )
                     total_referenced += ref_c
                     valid_count += val_c

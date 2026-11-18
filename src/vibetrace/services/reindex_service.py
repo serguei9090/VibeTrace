@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -126,6 +127,8 @@ class ReindexService:
 
         embedded_count = 0
         embeddings_error = None
+        emb_executor: ThreadPoolExecutor | None = None
+        emb_future: Future[int] | None = None
         if should_embed:
             engine = EmbeddingEngine(project_root=active_root)
             if not engine.is_available():
@@ -137,12 +140,10 @@ class ReindexService:
                 if not is_json:
                     print(f"Warning: {embeddings_error}", file=sys.stderr)
             else:
-                embedded_count = engine.index_missing_embeddings(
-                    db, verbose=verbose and not is_json
+                emb_executor = ThreadPoolExecutor(max_workers=1)
+                emb_future = emb_executor.submit(
+                    engine.index_missing_embeddings, db, verbose and not is_json
                 )
-                tracker.record("3/4 Embeddings", f"Encoded {embedded_count} symbol embedding(s)")
-                if not is_json and verbose and embedded_count > 0:
-                    print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
         else:
             tracker.record("3/4 Embeddings", "Skipped (disabled)")
 
@@ -181,6 +182,18 @@ class ReindexService:
                 tracker.warn("4/4 Docs Catalog", f"Doc sync failed: {exc}")
         else:
             tracker.record("4/4 Docs Catalog", "Skipped (--no-docs)")
+
+        if emb_future is not None:
+            try:
+                if not emb_future.done() and not is_json and verbose:
+                    print("⏳ Waiting for background embeddings to finish...", flush=True)
+                embedded_count = emb_future.result()
+                tracker.record("3/4 Embeddings", f"Encoded {embedded_count} symbol embedding(s)")
+                if not is_json and verbose and embedded_count > 0:
+                    print(f"Encoded {embedded_count} symbol embeddings (256d Matryoshka).")
+            finally:
+                if emb_executor is not None:
+                    emb_executor.shutdown(wait=True)
 
         result: dict[str, Any] = {
             "status": "ok",

@@ -14,7 +14,7 @@ def run_python_fastapi() -> list[StepResult]:
     db_exists = (repo / ".vibetrace" / "vibetrace.db").exists()
 
     setup_steps: list[tuple[str, list[str], int]] = [
-        ("init --yes", ["init", "--yes"], 600),
+        ("init (auto)", ["init"], 600),
     ]
     if not db_exists:
         setup_steps.append(("index . --force", ["index", ".", "--force"], 600))
@@ -46,9 +46,10 @@ def run_python_fastapi() -> list[StepResult]:
         ("dead-code (--exclude-exported)", ["dead-code", "--exclude-exported", "--json"], 180),
         ("diagnose", ["diagnose", "FastAPI.add_api_route", "--json"], 60),
         ("audit splits", ["audit", "splits", "--json"], 60),
-        ("guard", ["guard", "--json"], 60),
+        ("guard", ["guard", "FastAPI.add_api_route", "--json"], 60),
         ("bundle", ["bundle", "FastAPI.add_api_route", "--json"], 60),
-        ("docs check", ["docs", "check", "--json"], 60),
+        ("docs catalog list", ["docs", "catalog", "list", "--json"], 60),
+        ("docs sync-links", ["docs", "sync-links", "--json"], 60),
     ]
 
     for name, args, timeout in query_steps:
