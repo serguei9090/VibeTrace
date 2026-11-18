@@ -232,15 +232,16 @@ class DBQueriesMixin:
         self, pattern: str, limit: int = 50, offset: int = 0
     ) -> list[dict[str, Any]]:
         """Search functions matching SQL LIKE pattern in signature, ranked by centrality."""
-        p = pattern if ("%" in pattern or "_" in pattern) else f"%{pattern}%"
+        p = pattern if "%" in pattern else f"%{pattern}%"
         with self._get_conn() as conn:
             query = (
                 "SELECT id, name, qualified_name, kind, signature, file_path, "
                 "start_line, end_line, centrality "
-                "FROM nodes WHERE signature LIKE ? "
+                "FROM nodes WHERE signature IS NOT NULL "
+                "AND (signature LIKE ? OR (qualified_name || signature) LIKE ?) "
                 "ORDER BY centrality DESC, file_path ASC, start_line ASC LIMIT ? OFFSET ?"
             )
-            cursor = conn.execute(query, (p, limit, offset))
+            cursor = conn.execute(query, (p, p, limit, offset))
             return [dict(r) for r in cursor.fetchall()]
 
     def search_ast_exact_or_prefix(self, query: str, limit: int = 20) -> list[dict[str, Any]]:

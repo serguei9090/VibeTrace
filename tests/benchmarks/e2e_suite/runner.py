@@ -34,15 +34,16 @@ def write_report(results: list[StepResult]) -> None:
         "",
         f"**Total:** {len(results)} | **Passed:** {passed} | **Failed:** {failed}",
         "",
-        "| Stack | Command | Status | Exit | Time | Detail |",
-        "| :--- | :--- | :--- | ---: | ---: | :--- |",
+        "| Stack | Command | Status | Exit | Time | Result Summary | Detail |",
+        "| :--- | :--- | :--- | ---: | ---: | :--- | :--- |",
     ]
     for r in results:
         status = "PASS" if r.passed else "FAIL"
+        summary = r.summary.replace("\n", " ").replace("|", "\\|")[:90]
         detail = r.detail.replace("\n", " ").replace("|", "\\|")[:120]
         lines.append(
             f"| {r.stack} | `{r.name}` | {status} | "
-            f"{r.exit_code} | {r.duration_s:.2f}s | {detail} |"
+            f"{r.exit_code} | {r.duration_s:.2f}s | {summary} | {detail} |"
         )
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"\nReport written to {REPORT_PATH} ({passed}/{len(results)} passed)", flush=True)

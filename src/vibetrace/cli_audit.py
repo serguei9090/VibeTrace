@@ -151,16 +151,6 @@ def cmd_audit_splits(args: argparse.Namespace) -> int:
     db, root = get_context_for_path(path_hint, auto_sync=auto_sync, root_override=root_override)
     project_root = Path(root)
 
-    if getattr(args, "status", False):
-        from vibetrace.services.report_store import ReportStore
-
-        summary = ReportStore.read_summary(project_root, "quality")
-        if summary is None:
-            print("No saved quality report found. Run `vibetrace audit quality` first.")
-            return 0
-        print(safe_str(summary))
-        return 0
-
     symbol_filter = getattr(args, "symbol", None)
     report = audit_splits(
         db,

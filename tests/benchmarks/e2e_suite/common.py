@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 REPOS_DIR = ROOT / ".benchmark_repos"
@@ -24,6 +27,7 @@ class StepResult:
     passed: bool
     exit_code: int
     duration_s: float
+    summary: str = ""
     detail: str = ""
 
 
@@ -54,6 +58,147 @@ def ensure_repo(url: str, dest: Path) -> None:
         raise RuntimeError(f"git clone failed for {url}: {proc.stderr.strip()}")
 
 
+def _cmd_key(args: list[str]) -> str:
+    if len(args) >= 2 and args[0] in ("audit", "docs"):
+        if args[0] == "docs" and len(args) >= 3 and args[1] == "catalog":
+            return f"docs catalog {args[2]}"
+        return f"{args[0]} {args[1]}"
+    return args[0] if args else ""
+
+
+def _summarize_init(stdout: str) -> tuple[str, bool]:
+    parts: list[str] = []
+    if m_docs := re.search(r"\[(\d+) chunks indexed", stdout):
+        parts.append(f"docs={m_docs.group(1)} chunks")
+    if m_idx := re.search(r"Initial Index\*\*:\s*(\d+) symbols,\s*(\d+) relations", stdout):
+        parts.append(f"symbols={m_idx.group(1)}, edges={m_idx.group(2)}")
+    if not parts:
+        parts.append("workspace initialized")
+    ok = "initialized" in stdout.lower()
+    return ", ".join(parts), ok
+
+
+def _summarize_json_dict(cmd: str, data: dict[str, Any]) -> tuple[str, bool]:
+    if cmd == "index":
+        tel = data.get("telemetry", {})
+        edge_res = tel.get("edge_resolution", {})
+        resolved = int(edge_res.get("resolved_total", 0))
+        total_e = int(edge_res.get("total_internal_call_edges", 0))
+        pct = float(edge_res.get("resolution_percentage", 0.0))
+        emb = int(data.get("embedded_count", 0))
+        files = int(tel.get("files_processed", 0))
+        doc_c = int(data.get("docs", {}).get("chunks", 0))
+        return (
+            f"files={files}, emb={emb}, docs={doc_c}, edges={resolved}/{total_e} ({pct:.1f}%)",
+            data.get("status") == "ok",
+        )
+    if cmd == "summary":
+        total = int(data.get("total", 0))
+        n_rows = len(data.get("nodes", []))
+        return f"{total} symbols ({n_rows} listed)", total > 0 and n_rows > 0
+    if cmd == "trace":
+        found = bool(data.get("found"))
+        hops = len(data.get("hops", []))
+        paths = len(data.get("paths", []))
+        return f"found={found}, {hops} hops, {paths} paths", found and hops > 0
+    if cmd == "call-tree":
+        found = bool(data.get("found"))
+        total_nodes = int(data.get("total_nodes", 0))
+        return f"{total_nodes} nodes (depth={data.get('max_depth')})", found and total_nodes > 1
+    if cmd == "call-stack":
+        found = bool(data.get("found"))
+        lines_cnt = len(data.get("call_stack", []))
+        return f"{lines_cnt} lines ({data.get('direction')})", found and lines_cnt > 1
+    if cmd == "impact":
+        imp = int(data.get("total_impact", 0))
+        lvls = len(data.get("levels", {}))
+        return f"{imp} impacted ({lvls} levels)", imp > 0
+    if cmd == "slice":
+        found = bool(data.get("found"))
+        src = data.get("source_code") or ""
+        callees = len(data.get("callees", []))
+        return f"{len(src.splitlines())} lines, {callees} callees", found and bool(src)
+    if cmd == "references":
+        found = bool(data.get("found"))
+        refs = int(data.get("total_references", 0))
+        targets = int(data.get("target_count", 0))
+        return f"{refs} refs ({targets} targets)", found and refs > 0
+    if cmd == "dependencies":
+        c = data.get("counts", {})
+        imp = int(c.get("total_imports", 0))
+        deps = int(c.get("dependents", 0))
+        return f"{imp} imports, {deps} dependents", imp > 0 or deps > 0
+    if cmd == "dead-code":
+        total = int(data.get("total", 0))
+        return f"{total} unreferenced candidates", isinstance(data.get("symbols"), list)
+    if cmd == "diagnose":
+        found = bool(data.get("found"))
+        c = len(data.get("callers", []))
+        e = len(data.get("callee_contracts", []))
+        t = len(data.get("exercising_tests", []))
+        return f"{c} callers, {e} callees, {t} tests", found
+    if cmd == "audit splits":
+        splits = int(data.get("total_splits", 0))
+        oversized = len(data.get("oversized_files", []))
+        lim = f"{data.get('max_lines', 0)}+{data.get('margin', 0)}"
+        return f"{splits} splits, {oversized} oversized ({lim})", (splits > 0 or oversized > 0)
+    if cmd == "guard":
+        found = bool(data.get("found"))
+        callers = int(data.get("total_callers", 0))
+        risk = data.get("risk_level", "unknown")
+        return f"{callers} callers (risk={risk})", found and callers > 0
+    if cmd == "bundle":
+        tok = int(data.get("estimated_tokens", 0))
+        docs_n = len(data.get("doc_context", []))
+        tests_n = len(data.get("test_context", []))
+        has_prompt = bool(data.get("formatted_prompt"))
+        return f"~{tok} tok, {docs_n} docs, {tests_n} tests", tok > 0 and has_prompt
+    if cmd == "docs sync-links":
+        links = int(data.get("links_created", 0))
+        return f"{links} links synced", data.get("status") == "synced"
+    return f"dict({len(data)} keys)", bool(data)
+
+
+def _summarize_json_list(cmd: str, data: list[Any]) -> tuple[str, bool]:
+    if not data:
+        return "0 items", False
+    first = data[0] if isinstance(data[0], dict) else {}
+    if cmd == "search":
+        top = first.get("qualified_name") or first.get("name") or "?"
+        srcs = ",".join(first.get("match_sources", []))
+        suffix = f", src={srcs}" if srcs else ""
+        return f"{len(data)} hits (top: {top}{suffix})", True
+    if cmd == "docs catalog list":
+        cats = ", ".join(
+            f"{c.get('name')}({c.get('doc_count', 0)}/{c.get('chunk_count', 0)})"
+            for c in data[:2]
+            if isinstance(c, dict)
+        )
+        return cats or f"{len(data)} catalogs", True
+    if cmd == "docs search":
+        top = first.get("file_path") or "?"
+        srcs = ",".join(first.get("match_sources", []))
+        return f"{len(data)} hits (top: {top}, src={srcs})", True
+    return f"{len(data)} items", True
+
+
+def summarize_step_output(args: list[str], stdout: str) -> tuple[str, bool]:
+    """Parse CLI command stdout into a short summary and non-empty check."""
+    cmd = _cmd_key(args)
+    if cmd == "init":
+        return _summarize_init(stdout)
+    try:
+        data = json.loads(stdout)
+    except Exception:
+        first_line = stdout.strip().splitlines()[0][:60] if stdout.strip() else "empty"
+        return first_line, ("--json" not in args) and bool(stdout.strip())
+    if isinstance(data, dict):
+        return _summarize_json_dict(cmd, data)
+    if isinstance(data, list):
+        return _summarize_json_list(cmd, data)
+    return str(data)[:60], bool(data)
+
+
 def run_step(
     stack: str,
     name: str,
@@ -78,21 +223,28 @@ def run_step(
         )
         dt = time.perf_counter() - t0
         passed = proc.returncode == 0
+        summary = ""
         detail = "" if passed else (proc.stderr.strip() or proc.stdout.strip())[:300]
+        if passed:
+            summary, has_data = summarize_step_output(args, proc.stdout)
+            if not has_data:
+                passed = False
+                detail = f"Command returned empty/zero result ({summary})"
         if passed and expect_substr and expect_substr not in proc.stdout:
             passed = False
             detail = f"Expected substring '{expect_substr}' not found in stdout"
         status = "PASS" if passed else "FAIL"
+        summary_tag = f" -> {summary}" if summary else ""
         print(
             f"[{time.strftime('%H:%M:%S')}] [{stack}] {status:4s}  {name} "
-            f"(exit={proc.returncode}, {dt:.2f}s)",
+            f"(exit={proc.returncode}, {dt:.2f}s){summary_tag}",
             flush=True,
         )
-        return StepResult(stack, name, passed, proc.returncode, dt, detail)
+        return StepResult(stack, name, passed, proc.returncode, dt, summary, detail)
     except subprocess.TimeoutExpired:
         dt = time.perf_counter() - t0
         print(
             f"[{time.strftime('%H:%M:%S')}] [{stack}] FAIL  {name} (TIMEOUT >{timeout}s)",
             flush=True,
         )
-        return StepResult(stack, name, False, -1, dt, f"Timed out after {timeout}s")
+        return StepResult(stack, name, False, -1, dt, "", f"Timed out after {timeout}s")

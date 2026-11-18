@@ -17,10 +17,10 @@ def run_python_fastapi() -> list[StepResult]:
         ("init (auto)", ["init"], 600),
     ]
     if not db_exists:
-        setup_steps.append(("index . --force", ["index", ".", "--force"], 600))
-    setup_steps.append(("index . (incremental)", ["index", "."], 600))
+        setup_steps.append(("index . --force", ["index", ".", "--force", "--json"], 600))
+    setup_steps.append(("index . (incremental)", ["index", ".", "--json"], 600))
     setup_steps.append(
-        ("index . --embed (Rust vectors)", ["index", ".", "--embed", "--no-lsp"], 120)
+        ("index . --embed (Rust vectors)", ["index", ".", "--embed", "--no-lsp", "--json"], 120)
     )
 
     results: list[StepResult] = []
