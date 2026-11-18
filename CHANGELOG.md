@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-11-17
+
+### Fixed
+- **Incremental Sync & Vector Store Feedback Loop**: Excluded `.vibetrace` and `vibetrace_context` in `get_git_delta()`, guarded `db.clear_file()` with `known_indexed`, prevented `LanceDBVectorStore` from eagerly creating `.lance` tables on read/delete (`_get_table(create=False)`), batched `delete_files_embeddings()`, and restored incremental hybrid LSP in `ensure_index_fresh()`.
+- **CI Tests**: Fixed `LSPClient` mock `root_path` in `test_lsp_bridge.py` and `test_regression_parsers_core.py`, and updated `ts_sample.tsx.golden.json` / `go_sample.go.golden.json`.
+
 ## [0.1.25] - 2026-11-17
 
 ### Added
