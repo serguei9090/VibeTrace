@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -50,15 +51,21 @@ class PyrightAdapter(LinterSubEngine):
         is_win = os.name == "nt"
         venv_bin = "Scripts" if is_win else "bin"
         cmd_suffix = ".cmd" if is_win else ""
+        exe_suffix = ".exe" if is_win else ""
         venv_pyright = project_root / ".venv" / venv_bin / f"pyright{cmd_suffix}"
         if venv_pyright.is_file():
             candidates.append([str(venv_pyright)])
 
-        if shutil.which("uv"):
-            candidates.append(["uv", "run", "pyright"])
+        for suffix in (exe_suffix, cmd_suffix):
+            active_pyright = Path(sys.executable).parent / f"pyright{suffix}"
+            if active_pyright.is_file() and [str(active_pyright)] not in candidates:
+                candidates.append([str(active_pyright)])
 
         if shutil.which("pyright"):
             candidates.append(["pyright"])
+
+        if (project_root / ".venv").is_dir() and shutil.which("uv"):
+            candidates.append(["uv", "run", "--no-sync", "pyright"])
 
         if shutil.which("uvx"):
             candidates.append(["uvx", "pyright"])
@@ -69,6 +76,7 @@ class PyrightAdapter(LinterSubEngine):
             try:
                 res = subprocess.run(
                     [*cand, "--version"],
+                    cwd=str(project_root),
                     capture_output=True,
                     text=True,
                     check=False,

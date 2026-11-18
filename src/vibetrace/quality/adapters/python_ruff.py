@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -64,11 +65,15 @@ class RuffAdapter(LinterSubEngine):
         if venv_ruff.is_file():
             candidates.append([str(venv_ruff)])
 
-        if shutil.which("uv"):
-            candidates.append(["uv", "run", "ruff"])
+        active_ruff = Path(sys.executable).parent / f"ruff{exe_suffix}"
+        if active_ruff.is_file():
+            candidates.append([str(active_ruff)])
 
         if shutil.which("ruff"):
             candidates.append(["ruff"])
+
+        if (project_root / ".venv").is_dir() and shutil.which("uv"):
+            candidates.append(["uv", "run", "--no-sync", "ruff"])
 
         if shutil.which("uvx"):
             candidates.append(["uvx", "ruff"])
@@ -79,6 +84,7 @@ class RuffAdapter(LinterSubEngine):
             try:
                 res = subprocess.run(
                     [*cand, "--version"],
+                    cwd=str(project_root),
                     capture_output=True,
                     text=True,
                     check=False,

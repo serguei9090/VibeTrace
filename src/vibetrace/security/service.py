@@ -23,7 +23,11 @@ class SecurityService:
     """Provides high-level security audit and exception recording workflows."""
 
     @staticmethod
-    def _is_test_path(rel_path: str, project_root: Path | None = None) -> bool:
+    def _is_test_path(
+        rel_path: str,
+        project_root: Path | None = None,
+        exclude_spec: object | None = None,
+    ) -> bool:
         norm = rel_path.replace("\\", "/")
         parts = norm.lower().split("/")
         if any(p in ("tests", "test", "e2e", "__tests__", "fixtures") for p in parts[:-1]):
@@ -46,6 +50,8 @@ class SecurityService:
             )
         ):
             return True
+        if exclude_spec is not None:
+            return bool(exclude_spec.match_file(norm))  # type: ignore[attr-defined]
         if project_root is not None:
             try:
                 import pathspec
@@ -86,14 +92,40 @@ class SecurityService:
 
         cfg = load_config(project_root)
         effective_include_tests = include_tests or cfg.quality.include_tests
+        exclude_spec = None
+        try:
+            import pathspec
+
+            patterns = [*cfg.indexer.exclude_patterns, *cfg.quality.exclude_patterns]
+            if patterns:
+                exclude_spec = pathspec.PathSpec.from_lines("gitignore", patterns)
+        except Exception:
+            exclude_spec = None
 
         if file_filter:
-            target_files = [file_filter]
+            norm_filter = file_filter.replace("\\", "/").strip("/")
+            if (project_root / norm_filter).is_dir():
+                with db._get_conn() as conn:
+                    rows = conn.execute(
+                        "SELECT DISTINCT file_path FROM nodes WHERE file_path IS NOT NULL"
+                    ).fetchall()
+                in_dir = [
+                    r[0]
+                    for r in rows
+                    if r[0] and (r[0] == norm_filter or r[0].startswith(f"{norm_filter}/"))
+                ]
+                target_files = (
+                    in_dir
+                    if effective_include_tests
+                    else [f for f in in_dir if not cls._is_test_path(f, exclude_spec=exclude_spec)]
+                )
+            else:
+                target_files = [file_filter]
         elif file_list is not None:
             target_files = (
                 file_list
                 if effective_include_tests
-                else [f for f in file_list if not cls._is_test_path(f, project_root)]
+                else [f for f in file_list if not cls._is_test_path(f, exclude_spec=exclude_spec)]
             )
         else:
             with db._get_conn() as conn:
@@ -105,7 +137,9 @@ class SecurityService:
             if effective_include_tests:
                 target_files = all_files
             else:
-                non_tests = [f for f in all_files if not cls._is_test_path(f, project_root)]
+                non_tests = [
+                    f for f in all_files if not cls._is_test_path(f, exclude_spec=exclude_spec)
+                ]
                 target_files = non_tests if non_tests else all_files
 
         # 1. Source code AST + declarative rule catalog inspection

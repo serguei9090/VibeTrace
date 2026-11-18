@@ -1,0 +1,74 @@
+rules:
+  - id: python.security.eval-exec
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: Dynamic code execution with eval()/exec() risks arbitrary code injection.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-95"
+
+  - id: python.security.subprocess-shell-true
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+    message: Passing shell=True to subprocess risks OS command injection.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-78"
+
+  - id: python.security.unsafe-deserialization
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+      - pattern: yaml.load($DATA, Loader=yaml.Loader)
+      - pattern: yaml.unsafe_load(...)
+    message: Unsafe deserialization can execute arbitrary objects on untrusted payloads.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-502"
+
+  - id: python.security.hardcoded-secret-assignment
+    patterns:
+      - pattern: $VAR = "$VAL"
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^.*(secret_key|api_key|private_key|auth_token|access_token|password)$
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: .{8,}
+    message: Potential hardcoded credential or secret assigned to literal string.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-798"
+
+  - id: python.security.weak-hash-algorithm
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+    message: MD5/SHA-1 are weak cryptographic hashes; prefer SHA-256 or better.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      cwe: "CWE-328"
+
+  - id: python.security.requests-tls-verify-disabled
+    patterns:
+      - pattern: requests.$METHOD(..., verify=False, ...)
+    message: Disabling TLS certificate verification exposes connections to MITM attacks.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-295"
+
+  - id: python.security.sql-string-format
+    patterns:
+      - pattern: $CURSOR.execute($SQL % $ARGS)
+    message: SQL formatting via string interpolation risks SQL injection.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      cwe: "CWE-89"

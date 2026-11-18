@@ -393,7 +393,8 @@ class _SonarJsonRpcSession:
             diags = params.get("diagnostics") or []
             if uri:
                 self._diagnostics_by_uri[uri] = diags
-                self._published_uris.add(uri)
+                rel_key = _file_uri_to_rel_path(uri, self.project_root).lower()
+                self._published_uris.add(rel_key)
         elif method == "window/logMessage":
             log_msg = str(params.get("message") or "")
             if any(
@@ -447,7 +448,7 @@ class _SonarJsonRpcSession:
             except OSError:
                 continue
             uri = _path_to_file_uri(f_path)
-            expected_uris.add(uri)
+            expected_uris.add(_file_uri_to_rel_path(uri, self.project_root).lower())
             self._send_message(
                 {
                     "jsonrpc": "2.0",
@@ -470,10 +471,11 @@ class _SonarJsonRpcSession:
         stable_ticks = 0
         while time.monotonic() < deadline:
             time.sleep(0.25)
-            if self._published_uris < expected_uris:
+            all_published = self._published_uris >= expected_uris
+            if not all_published and not self._published_uris:
                 continue
             total_diags = sum(len(v) for v in self._diagnostics_by_uri.values())
-            target_ticks = 4 if total_diags > 0 else 8
+            target_ticks = (4 if total_diags > 0 else 8) if all_published else 8
             if total_diags != last_count:
                 last_count = total_diags
                 stable_ticks = 0
@@ -662,6 +664,17 @@ class SonarLintAdapter(LinterSubEngine):
             is_docker = lower_name == _DOCKERFILE_NAME or lower_name.startswith("dockerfile.")
             if (p.suffix.lower() in SUPPORTED_EXTENSIONS or is_docker) and p.is_file():
                 supported.append(p.resolve())
+        if file_list is None and len(supported) > 60:
+            proj_res = project_root.resolve()
+            primary = [
+                p
+                for p in supported
+                if not any(
+                    seg in ("docs_src", "examples", "scripts")
+                    for seg in p.relative_to(proj_res).parts[:-1]
+                )
+            ]
+            supported = (primary or supported)[:60]
         return supported
 
     @staticmethod

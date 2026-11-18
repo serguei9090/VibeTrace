@@ -142,6 +142,31 @@ def _summarize_json_dict(cmd: str, data: dict[str, Any]) -> tuple[str, bool]:
         oversized = len(data.get("oversized_files", []))
         lim = f"{data.get('max_lines', 0)}+{data.get('margin', 0)}"
         return f"{splits} splits, {oversized} oversized ({lim})", (splits > 0 or oversized > 0)
+    if cmd == "audit security":
+        total = int(data.get("total_findings", 0))
+        findings = data.get("findings") or []
+        sem_n = sum(1 for f in findings if (f.get("metadata") or {}).get("scanner") == "semgrep")
+        nat_n = total - sem_n
+        c = int(data.get("critical_count", 0))
+        h = int(data.get("high_count", 0))
+        m = int(data.get("medium_count", 0))
+        low = int(data.get("low_count", 0))
+        return (
+            f"{total} findings (native={nat_n}, semgrep={sem_n}, C={c}/H={h}/M={m}/L={low})",
+            "total_findings" in data,
+        )
+    if cmd == "audit quality":
+        total = int(data.get("total_findings", 0))
+        findings = data.get("findings") or []
+        son_n = sum(
+            1 for f in findings if (f.get("metadata") or {}).get("engine") == "sonarlint-ls"
+        )
+        nat_n = total - son_n
+        max_cc = int(data.get("max_complexity", 0))
+        return (
+            f"{total} findings (native={nat_n}, sonar={son_n}, max_cc={max_cc})",
+            "total_findings" in data,
+        )
     if cmd == "guard":
         found = bool(data.get("found"))
         callers = int(data.get("total_callers", 0))

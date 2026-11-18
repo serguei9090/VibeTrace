@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,6 +15,10 @@ from vibetrace.security.models import SecurityFinding
 from vibetrace.security.sarif_ingest import SarifIngestEngine
 
 logger = logging.getLogger(__name__)
+
+BUNDLED_SEMGREP_PRESET_PATH = (
+    Path(__file__).parent.parent.parent / "resources" / "presets" / "semgrep_security.yml"
+)
 
 
 class SemgrepAdapter:
@@ -38,14 +43,20 @@ class SemgrepAdapter:
             logger.debug("Semgrep is not available on PATH; skipping external SAST scan.")
             return []
 
+        eff_config = (
+            str(BUNDLED_SEMGREP_PRESET_PATH)
+            if config == "auto" and BUNDLED_SEMGREP_PRESET_PATH.is_file()
+            else config
+        )
         cmd = [
             "semgrep",
             "scan",
+            *(["--experimental"] if os.name == "nt" else []),
             "--sarif",
             "--quiet",
             "--metrics=off",
             "--config",
-            config,
+            eff_config,
         ]
         if target_files:
             cmd.extend(target_files)
