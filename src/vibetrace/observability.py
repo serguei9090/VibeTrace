@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 _NOISY_LOGGERS = (
-    "sentence_transformers",
     "transformers",
     "huggingface_hub",
     "httpx",

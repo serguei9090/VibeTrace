@@ -200,7 +200,7 @@ class SplitsConfig(BaseModel):
     """Architectural split and file-size monolith audit configuration."""
 
     max_lines: int = Field(
-        default=400,
+        default=600,
         ge=50,
         le=10000,
         description="Target maximum lines per file before recommending a split",
@@ -210,6 +210,10 @@ class SplitsConfig(BaseModel):
         ge=0,
         le=5000,
         description="Buffer margin lines above max_lines (hard ceiling = max_lines + margin)",
+    )
+    approved_files: list[str] = Field(
+        default_factory=list,
+        description="File paths approved to exceed max_lines / ceiling",
     )
 
 
@@ -313,8 +317,12 @@ exclude_patterns = [
 
 [splits]
 # Target maximum lines per file and acceptable buffer margin (ceiling = max_lines + margin)
-max_lines = 400
+max_lines = 600
 margin = 100
+approved_files = []
+
+# [docs.catalogs]
+# "core" = ["docs"]
 
 [quality]
 # Include test files (*test*, tests/**, *.spec.*) in Quality & Security audits

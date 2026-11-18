@@ -125,6 +125,20 @@ def _handle_split_bulk_approve(
             rationale=rationale,
         )
         print(f"✅ Recorded '{status}' for {s.symbol} ({s.code_hash[:8]})")
+    if not symbol_filter:
+        for ov in getattr(report, "oversized_files", []) or []:
+            if ov.status != "APPROVED":
+                record_split_approval(
+                    project_root=project_root,
+                    symbol="<file>",
+                    qualified_name="<file>",
+                    file_path=ov.file_path,
+                    code_hash=str(ov.line_count),
+                    branches=[],
+                    status=status,
+                    rationale=rationale,
+                )
+                print(f"✅ Recorded '{status}' for oversized file {ov.file_path}")
     return 0
 
 

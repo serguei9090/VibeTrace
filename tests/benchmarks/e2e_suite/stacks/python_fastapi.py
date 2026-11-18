@@ -50,8 +50,8 @@ def run_python_fastapi() -> list[StepResult]:
         ("diagnose", ["diagnose", "FastAPI.add_api_route", "--json"], 60),
         ("audit splits", ["audit", "splits", "--json"], 60),
         (
-            "audit splits (--max-lines 400 --margin 100)",
-            ["audit", "splits", "--max-lines", "400", "--margin", "100", "--json"],
+            "audit splits (--max-lines 600 --margin 100)",
+            ["audit", "splits", "--max-lines", "600", "--margin", "100", "--json"],
             60,
         ),
         ("guard", ["guard", "FastAPI.add_api_route", "--json"], 60),

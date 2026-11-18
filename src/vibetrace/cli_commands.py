@@ -505,15 +505,6 @@ def cmd_init(args: argparse.Namespace) -> int:
     enable_semgrep = True
     enable_trivy = True
 
-    # Check if embeddings extra is installed
-    has_embeddings_pkg = False
-    try:
-        import sentence_transformers  # noqa: F401
-
-        has_embeddings_pkg = True
-    except ImportError:
-        has_embeddings_pkg = False
-
     run_prompts = bool(getattr(args, "interactive", False)) and sys.stdin.isatty()
 
     # If non-interactive and embedding not explicitly set, default to False
@@ -537,31 +528,25 @@ def cmd_init(args: argparse.Namespace) -> int:
                     include_tests = True
 
             if getattr(args, "codebase_embeddings", None) is None:
-                if has_embeddings_pkg:
-                    ans_emb = (
-                        input(
-                            "Enable codebase vector embeddings by default? "
-                            "(Requires ~1.5GB model download) [y/N]: "
-                        )
-                        .strip()
-                        .lower()
+                ans_emb = (
+                    input(
+                        "Enable codebase vector embeddings by default? "
+                        "(Native Rust 256d engine) [y/N]: "
                     )
-                    if ans_emb in ("y", "yes"):
-                        codebase_embeddings = True
-                        if getattr(args, "device", None) is None:
-                            prompt_msg = (
-                                "Target compute device for embeddings? (auto/gpu/cpu) [auto]: "
-                            )
-                            ans_dev = input(prompt_msg).strip().lower()
-                            if ans_dev in ("gpu", "cuda"):
-                                compute_device = "gpu"
-                            elif ans_dev == "cpu":
-                                compute_device = "cpu"
-                            else:
-                                compute_device = "auto"
-                else:
-                    # Inform user that embeddings require optional dependencies
-                    codebase_embeddings = False
+                    .strip()
+                    .lower()
+                )
+                if ans_emb in ("y", "yes"):
+                    codebase_embeddings = True
+                    if getattr(args, "device", None) is None:
+                        prompt_msg = "Target compute device for embeddings? (auto/gpu/cpu) [auto]: "
+                        ans_dev = input(prompt_msg).strip().lower()
+                        if ans_dev in ("gpu", "cuda"):
+                            compute_device = "gpu"
+                        elif ans_dev == "cpu":
+                            compute_device = "cpu"
+                        else:
+                            compute_device = "auto"
 
             if getattr(args, "enable_sonar", None) is None:
                 ans_sonar = (
@@ -686,7 +671,17 @@ def cmd_init(args: argparse.Namespace) -> int:
                 )
     if res.get("doc_catalog_registered"):
         chunks_count = res.get("doc_chunks_indexed", 0)
-        lines.append(f"- **Docs Catalog**: 'core' (docs/) [{chunks_count} chunks indexed]")
+        lines.append(
+            f"- **Docs Catalog**: 'core' (docs/) [{chunks_count} chunks indexed & embedded]"
+        )
+    else:
+        lines.append(
+            "- **Docs Catalog**: Documentation was not embedded (no `docs/` directory found).\n"
+            "  💡 Please add your docs path in `.vibetrace.toml` if needed:\n"
+            "     [docs.catalogs]\n"
+            '     "core" = ["path/to/docs"]\n'
+            "     (or run: `vibetrace docs catalog add core path/to/docs`)"
+        )
     if res.get("hooks_installed"):
         lines.append(f"- **Git Pre-Commit Guard**: {res.get('hooks_message', 'configured')}")
     if res["installed_skills"]:

@@ -156,6 +156,13 @@ class ReindexService:
                 local_cats = [
                     c for c in DocCatalogManager.list_catalogs(active_root) if c.scope == "local"
                 ]
+                if not local_cats and (active_root / "docs").is_dir():
+                    DocCatalogManager.add_path("core", "docs", project_root=active_root)
+                    local_cats = [
+                        c
+                        for c in DocCatalogManager.list_catalogs(active_root)
+                        if c.scope == "local"
+                    ]
                 if local_cats:
                     doc_db = DocDB(db.db_path)
                     for cat in local_cats:
@@ -172,6 +179,12 @@ class ReindexService:
                             f"({doc_stats['chunks']} chunks) "
                             f"across {doc_stats['catalogs']} catalog(s)."
                         )
+                elif not is_json and verbose:
+                    print(
+                        "💡 Documentation was not embedded (no `docs/` directory or catalog "
+                        'found). Add `[docs.catalogs]` `"core" = ["path/to/docs"]` in '
+                        "`.vibetrace.toml` or run `vibetrace docs catalog add core path/to/docs`."
+                    )
                 tracker.record(
                     "4/4 Docs Catalog",
                     f"Synced {doc_stats['files']} doc file(s), {doc_stats['chunks']} chunk(s)",

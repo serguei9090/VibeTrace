@@ -74,7 +74,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - Writes and removes hook content in `.git/hooks/post-commit`, `.git/hooks/post-merge`, `lefthook.yml`, and `.lefthook.yml` [src/vibetrace/indexer/hooks.py:install_git_hooks], [src/vibetrace/indexer/hooks.py:install_lefthook_config], [src/vibetrace/indexer/hooks.py:uninstall_hooks].
 - Launches language-server subprocesses and exchanges JSON-RPC over stdio [src/vibetrace/indexer/lsp_bridge.py:LSPClient.start].
 - Starts a recursive watchdog observer that reindexes changed, created, moved, and deleted files [src/vibetrace/indexer/watcher.py:start_observer].
-- Downloads the HuggingFace sentence-transformers model on first load when it is not cached locally [src/vibetrace/indexer/embeddings.py:EmbeddingEngine._load_model].
+- Computes 256d feature-hashing embeddings and cosine similarity in parallel via `vibetrace._rust_core` [src/vibetrace/indexer/embeddings.py:EmbeddingEngine.embed_texts].
 - Requires the compiled `vibetrace._rust_core` extension for workspace scanning [src/vibetrace/indexer/rust_bridge.py:is_native_available].
 - Prints indexing progress and throughput telemetry to stdout [src/vibetrace/indexer/main.py:reindex_all].
 

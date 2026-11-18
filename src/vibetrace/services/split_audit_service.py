@@ -60,7 +60,7 @@ class SplitAuditReport(BaseModel):
     approved_count: int
     modified_count: int
     new_unapproved_count: int
-    max_lines: int = 400
+    max_lines: int = 600
     margin: int = 100
     splits: list[ArchitecturalSplit] = Field(default_factory=list)
     oversized_files: list[OversizedFileSplit] = Field(default_factory=list)
@@ -272,6 +272,7 @@ def scan_oversized_files(
     max_lines: int,
     margin: int,
     include_tests: bool = False,
+    approved_files: set[str] | None = None,
 ) -> list[OversizedFileSplit]:
     """Scan indexed files exceeding configured max_lines / (max_lines + margin)."""
     file_symbols: dict[str, list[str]] = {}
@@ -289,6 +290,7 @@ def scan_oversized_files(
             if r["kind"] in ("function", "method", "class") and r["name"]:
                 file_symbols.setdefault(fp, []).append(str(r["name"]))
 
+    approved_set = {p.replace("\\", "/").lstrip("/") for p in (approved_files or set())}
     ceiling = max_lines + margin
     resolved_root = project_root.resolve()
     oversized: list[OversizedFileSplit] = []
@@ -309,7 +311,11 @@ def scan_oversized_files(
         except OSError:
             continue
         if line_count > max_lines:
-            status = "MONOLITH" if line_count > ceiling else "MARGIN_WARNING"
+            norm_fp = fp.replace("\\", "/").lstrip("/")
+            if norm_fp in approved_set:
+                status = "APPROVED"
+            else:
+                status = "MONOLITH" if line_count > ceiling else "MARGIN_WARNING"
             oversized.append(
                 OversizedFileSplit(
                     file_path=fp,
@@ -374,6 +380,16 @@ def audit_splits(
             s.status = "NEW_UNAPPROVED"
             new_unapproved += 1
 
+    approved_file_set: set[str] = set(cfg.splits.approved_files)
+    for rec in baseline.values():
+        if (
+            isinstance(rec, dict)
+            and str(rec.get("status", "")).upper() == "APPROVED"
+            and rec.get("symbol") == "<file>"
+            and rec.get("file_path")
+        ):
+            approved_file_set.add(str(rec["file_path"]))
+
     oversized_files = (
         []
         if symbol
@@ -383,6 +399,7 @@ def audit_splits(
             max_lines=eff_max_lines,
             margin=eff_margin,
             include_tests=cfg.quality.include_tests,
+            approved_files=approved_file_set,
         )
     )
 

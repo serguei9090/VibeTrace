@@ -251,16 +251,11 @@ def test_split_audit_ignores_references_and_duplicate_calls_to_same_target(temp_
 
 
 def test_split_audit_configurable_max_lines_and_margin(temp_project: Path):
-    """Ensure [splits] max_lines/margin in config and overrides classify warning vs monolith."""
+    """Ensure [splits] max_lines/margin defaults (600/100), config, approved_files & overrides."""
     src_dir = temp_project / "src"
     (src_dir / "small.py").write_text("x = 1\n" * 40, encoding="utf-8")
     (src_dir / "margin_file.py").write_text("x = 1\n" * 70, encoding="utf-8")
     (src_dir / "monolith_file.py").write_text("x = 1\n" * 120, encoding="utf-8")
-
-    (temp_project / ".vibetrace.toml").write_text(
-        "[splits]\nmax_lines = 50\nmargin = 30\n",
-        encoding="utf-8",
-    )
 
     db = IndexerDB(str(temp_project / ".vibetrace_lines.db"))
     with db._get_conn() as conn:
@@ -274,17 +269,27 @@ def test_split_audit_configurable_max_lines_and_margin(temp_project: Path):
             """
         )
 
+    # Defaults without [splits] section
+    rep_def = audit_splits(db, temp_project)
+    assert rep_def.max_lines == 600
+    assert rep_def.margin == 100
+
+    (temp_project / ".vibetrace.toml").write_text(
+        '[splits]\nmax_lines = 50\nmargin = 30\napproved_files = ["src/monolith_file.py"]\n',
+        encoding="utf-8",
+    )
+
     rep_cfg = audit_splits(db, temp_project)
     assert rep_cfg.max_lines == 50
     assert rep_cfg.margin == 30
     statuses = {ov.file_path: ov.status for ov in rep_cfg.oversized_files}
     assert "src/small.py" not in statuses
     assert statuses["src/margin_file.py"] == "MARGIN_WARNING"
-    assert statuses["src/monolith_file.py"] == "MONOLITH"
+    assert statuses["src/monolith_file.py"] == "APPROVED"
 
     rep_override = audit_splits(db, temp_project, max_lines=100, margin=10)
     assert rep_override.max_lines == 100
     assert rep_override.margin == 10
     statuses_ov = {ov.file_path: ov.status for ov in rep_override.oversized_files}
     assert "src/margin_file.py" not in statuses_ov
-    assert statuses_ov["src/monolith_file.py"] == "MONOLITH"
+    assert statuses_ov["src/monolith_file.py"] == "APPROVED"

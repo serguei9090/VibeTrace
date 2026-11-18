@@ -274,6 +274,8 @@ class DocDB:
                 dot = sum(a * b for a, b in zip(query_vec, v, strict=True))
                 v_norm = sum(x * x for x in v) ** 0.5
                 sim = dot / (q_norm * v_norm) if (q_norm * v_norm) > 0 else 0.0
+                if sim < 0.25:
+                    continue
                 item = dict(row)
                 del item["embedding"]
                 scored.append((sim, item))

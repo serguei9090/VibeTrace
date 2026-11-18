@@ -400,7 +400,7 @@ def format_vibe_bundle_markdown(bundle: Any) -> str:
 
 def format_split_audit_md(report: Any) -> str:
     """Format architectural split audit report as clean Markdown."""
-    max_lines = getattr(report, "max_lines", 400)
+    max_lines = getattr(report, "max_lines", 600)
     margin = getattr(report, "margin", 100)
     oversized = list(getattr(report, "oversized_files", []) or [])
     lines = [
@@ -451,7 +451,12 @@ def format_split_audit_md(report: Any) -> str:
             ]
         )
         for ov in oversized:
-            st_label = "🛑 MONOLITH" if ov.status == "MONOLITH" else "⚠️ MARGIN"
+            if ov.status == "APPROVED":
+                st_label = "✅ APPROVED"
+            elif ov.status == "MONOLITH":
+                st_label = "🛑 MONOLITH"
+            else:
+                st_label = "⚠️ MARGIN"
             syms = ", ".join(f"`{n}`" for n in ov.symbols[:5]) or "-"
             lines.append(
                 f"| {st_label} | `{ov.file_path}` | {ov.line_count} | "
