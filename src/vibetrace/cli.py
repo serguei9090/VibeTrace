@@ -977,6 +977,18 @@ examples:
         default="Architectural split verified via CLI",
         help="Rationale saved when approving splits with --approve",
     )
+    p_splits.add_argument(
+        "--max-lines",
+        type=int,
+        default=None,
+        help="Override max lines per file threshold (default from .vibetrace.toml [splits])",
+    )
+    p_splits.add_argument(
+        "--margin",
+        type=int,
+        default=None,
+        help="Override buffer margin lines above max-lines (default from .vibetrace.toml [splits])",
+    )
     p_splits.set_defaults(func=cmd_audit_splits)
 
     p_security = p_audit_sub.add_parser(

@@ -400,6 +400,9 @@ def format_vibe_bundle_markdown(bundle: Any) -> str:
 
 def format_split_audit_md(report: Any) -> str:
     """Format architectural split audit report as clean Markdown."""
+    max_lines = getattr(report, "max_lines", 400)
+    margin = getattr(report, "margin", 100)
+    oversized = list(getattr(report, "oversized_files", []) or [])
     lines = [
         "## Architectural Split Audit Report",
         "",
@@ -407,30 +410,52 @@ def format_split_audit_md(report: Any) -> str:
         f"- **Approved:** {report.approved_count} ✅",
         f"- **Modified Code:** {report.modified_count} ⚠️",
         f"- **New Unapproved:** {report.new_unapproved_count} ❓",
+        f"- **File Size Threshold:** max `{max_lines}` lines "
+        f"(+`{margin}` margin, ceiling `{max_lines + margin}`)",
+        f"- **Oversized Files:** {len(oversized)}",
         "",
     ]
-    if not report.splits:
+    if not report.splits and not oversized:
         lines.append("No cross-module bifurcations detected.")
         return "\n".join(lines)
 
-    lines.append("| Status | Symbol | File | Branches | Hash | Rationale |")
-    lines.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
+    if report.splits:
+        lines.append("| Status | Symbol | File | Branches | Hash | Rationale |")
+        lines.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
 
-    for s in report.splits:
-        st_icon = "❓ NEW"
-        if s.status == "APPROVED":
-            st_icon = "✅ APPROVED"
-        elif s.status == "MODIFIED_CODE":
-            st_icon = "⚠️ MODIFIED"
-        elif s.status == "RISK":
-            st_icon = "🛑 RISK"
+        for s in report.splits:
+            st_icon = "❓ NEW"
+            if s.status == "APPROVED":
+                st_icon = "✅ APPROVED"
+            elif s.status == "MODIFIED_CODE":
+                st_icon = "⚠️ MODIFIED"
+            elif s.status == "RISK":
+                st_icon = "🛑 RISK"
 
-        short_hash = s.code_hash[:8] if s.code_hash else "n/a"
-        file_loc = f"`{s.file_path}:L{s.start_line}`"
-        rationale = s.rationale or "-"
-        lines.append(
-            f"| {st_icon} | `{s.symbol}` | {file_loc} | "
-            f"{s.branches_count} | `{short_hash}` | {rationale} |"
+            short_hash = s.code_hash[:8] if s.code_hash else "n/a"
+            file_loc = f"`{s.file_path}:L{s.start_line}`"
+            rationale = s.rationale or "-"
+            lines.append(
+                f"| {st_icon} | `{s.symbol}` | {file_loc} | "
+                f"{s.branches_count} | `{short_hash}` | {rationale} |"
+            )
+
+    if oversized:
+        lines.extend(
+            [
+                "",
+                "### Oversized / Monolith Files",
+                "",
+                "| Status | File | Lines | Threshold / Ceiling | Candidate Symbols |",
+                "| :--- | :--- | ---: | :--- | :--- |",
+            ]
         )
+        for ov in oversized:
+            st_label = "🛑 MONOLITH" if ov.status == "MONOLITH" else "⚠️ MARGIN"
+            syms = ", ".join(f"`{n}`" for n in ov.symbols[:5]) or "-"
+            lines.append(
+                f"| {st_label} | `{ov.file_path}` | {ov.line_count} | "
+                f"{ov.max_lines} / {ov.ceiling} | {syms} |"
+            )
 
     return "\n".join(lines).strip()

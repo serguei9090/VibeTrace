@@ -1,13 +1,10 @@
-"""Self-hosted EmbeddingGemma 2 vector engine with 256d Matryoshka truncation."""
+"""Native Rust parallel vector embedding and search engine."""
 
 from __future__ import annotations
 
-import hashlib
-import heapq
 import importlib
 import logging
 import math
-import re
 import struct
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -92,40 +89,21 @@ def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
     return sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
 
 
-_MODEL_CACHE: dict[tuple[str, str], Any] = {}
-_FAILED_MODELS: set[tuple[str, str]] = set()
-
-
 def _embed_texts_native(texts: list[str], dimensions: int) -> list[list[float]]:
-    """Compute deterministic L2-normalized vectors via Rust `_rust_core` or pure Python."""
-    try:
-        from vibetrace.indexer.rust_bridge import _rust_core
+    """Compute deterministic L2-normalized vectors via Rust `_rust_core`."""
+    from vibetrace.indexer.rust_bridge import _rust_core
 
-        fn = getattr(_rust_core, "py_embed_texts_parallel", None)
-        if fn is not None:
-            return [list(v) for v in fn(texts, dimensions)]
-    except Exception:
-        pass
-
-    results: list[list[float]] = []
-    for text in texts:
-        vec = [0.0] * dimensions
-        for tok in re.findall(r"[A-Za-z0-9_]+", text):
-            for part in (tok.lower(), *re.findall(r"[A-Z]?[a-z]+|[0-9]+|[A-Z]+(?=[A-Z]|$)", tok)):
-                p = part.lower().encode("utf-8")
-                h = int.from_bytes(hashlib.blake2b(p, digest_size=8).digest(), "little")
-                bucket = h % dimensions
-                sign = 1.0 if ((h >> 32) & 1) == 0 else -1.0
-                vec[bucket] += sign
-        norm = math.sqrt(sum(x * x for x in vec))
-        if norm > 1e-12:
-            vec = [x / norm for x in vec]
-        results.append(vec)
-    return results
+    fn = getattr(_rust_core, "py_embed_texts_parallel", None)
+    if fn is None:
+        raise RuntimeError(
+            "Native Rust vector engine (vibetrace._rust_core.py_embed_texts_parallel) "
+            "is required but not built."
+        )
+    return [list(v) for v in fn(texts, dimensions)]
 
 
 class EmbeddingEngine:
-    """Manages local EmbeddingGemma 2 encoding and vector similarity search."""
+    """Manages native Rust parallel vector encoding and similarity search."""
 
     def __init__(
         self,
@@ -155,7 +133,6 @@ class EmbeddingEngine:
         self.project_root = project_root
         if self.vector_store is None and project_root is not None:
             self._init_vector_store(project_root)
-        self._st_model: Any = None
 
     def _init_vector_store(self, root: Path) -> None:
         """Initialize LanceDB vector store scoped to specified project root."""
@@ -192,14 +169,9 @@ class EmbeddingEngine:
             self._init_vector_store(root)
 
     def is_available(self) -> bool:
-        """Check whether an encoder callable, sentence-transformers, or Rust core is available."""
+        """Check whether an encoder callable or native Rust core is available."""
         if self._encoder is not None:
             return True
-        try:
-            importlib.import_module("sentence_transformers")
-            return True
-        except ImportError:
-            pass
         try:
             from vibetrace.indexer.rust_bridge import _rust_core
 
@@ -224,62 +196,19 @@ class EmbeddingEngine:
             pass
         return "cpu"
 
-    def _load_model(self) -> Any:
-        if self._st_model is not None:
-            return self._st_model
-
-        device = self._resolve_device()
-        cache_key = (self.config.model_id, device)
-        if cache_key in _MODEL_CACHE:
-            self._st_model = _MODEL_CACHE[cache_key]
-            return self._st_model
-        if cache_key in _FAILED_MODELS:
-            raise RuntimeError(
-                f"Embedding model '{self.config.model_id}' previously failed to load."
-            )
-
-        st_mod = importlib.import_module("sentence_transformers")
-        sentence_transformer_cls = st_mod.SentenceTransformer
-        logger.info("[Embeddings] Loading model '%s' on %s...", self.config.model_id, device)
-        try:
-            self._st_model = sentence_transformer_cls(self.config.model_id, device=device)
-            _MODEL_CACHE[cache_key] = self._st_model
-        except Exception as err:
-            _FAILED_MODELS.add(cache_key)
-            hf_url = f"https://huggingface.co/{self.config.model_id}"
-            raise RuntimeError(
-                f"Failed to load embedding model '{self.config.model_id}': {err}\n"
-                "Please ensure internet access for auto-download, "
-                f"or download the model manually at: {hf_url}"
-            ) from err
-        return self._st_model
-
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Encode a batch of texts and apply 256d Matryoshka truncation + L2 normalization."""
+        """Encode a batch of texts via custom encoder or parallel Rust engine."""
         if not texts:
             return []
 
         if self._encoder is not None:
             raw_vectors = self._encoder(texts)
-        else:
-            try:
-                model = self._load_model()
-                raw_vectors = model.encode(
-                    texts,
-                    batch_size=self.config.batch_size,
-                    show_progress_bar=False,
-                    convert_to_numpy=True,
-                ).tolist()
-            except Exception as exc:
-                logger.warning(
-                    "Falling back to native Rust feature-hashing embeddings (%s).",
-                    exc,
-                )
-                return _embed_texts_native(texts, self.config.dimensions)
+            return [
+                truncate_and_normalize(vec, dimensions=self.config.dimensions)
+                for vec in raw_vectors
+            ]
 
-        return [
-            truncate_and_normalize(vec, dimensions=self.config.dimensions) for vec in raw_vectors
-        ]
+        return _embed_texts_native(texts, self.config.dimensions)
 
     def index_missing_embeddings(
         self,
@@ -398,49 +327,25 @@ class EmbeddingEngine:
         q_vec = query_vecs[0]
 
         # Fast path 2: Parallel Rust cosine similarity over SQLite blobs
+        from vibetrace.indexer.rust_bridge import _rust_core
+
+        search_fn = getattr(_rust_core, "py_search_vectors_parallel", None)
+        if search_fn is None:
+            raise RuntimeError(
+                "Native Rust vector search (vibetrace._rust_core.py_search_vectors_parallel) "
+                "is required but not built."
+            )
+
         sql_scan = (
             "SELECT node_id, embedding, dimensions FROM node_embeddings "
             "WHERE model_id = ? AND dimensions = ?"
         )
-        try:
-            from vibetrace.indexer.rust_bridge import _rust_core
-
-            search_fn = getattr(_rust_core, "py_search_vectors_parallel", None)
-            if search_fn is not None:
-                with db._get_conn() as conn:
-                    raw_rows = conn.execute(
-                        sql_scan, (self.config.model_id, self.config.dimensions)
-                    ).fetchall()
-                candidates = [(r[0], bytes(r[1])) for r in raw_rows if r[1]]
-                if candidates:
-                    hits = search_fn(
-                        [float(x) for x in q_vec], candidates, self.config.dimensions, limit
-                    )
-                    return [(str(nid), float(sc)) for nid, sc in hits]
-                return []
-        except Exception:
-            pass
-
-        # Memory-efficient pure-stdlib fallback: stream batches & maintain top-K min-heap
-        top_heap: list[tuple[float, str]] = []  # min-heap storing (score, node_id)
         with db._get_conn() as conn:
-            cursor = conn.execute(sql_scan, (self.config.model_id, self.config.dimensions))
-            while True:
-                batch = cursor.fetchmany(1000)
-                if not batch:
-                    break
-                for node_id, blob, dims in batch:
-                    if dims != len(q_vec):
-                        continue
-                    try:
-                        cand_vec = unpack_vector(blob, dims)
-                    except (struct.error, ValueError):
-                        continue
-                    score = cosine_similarity(q_vec, cand_vec)
-                    if len(top_heap) < limit:
-                        heapq.heappush(top_heap, (score, node_id))
-                    elif score > top_heap[0][0]:
-                        heapq.heapreplace(top_heap, (score, node_id))
-
-        top_heap.sort(key=lambda item: item[0], reverse=True)
-        return [(node_id, score) for score, node_id in top_heap]
+            raw_rows = conn.execute(
+                sql_scan, (self.config.model_id, self.config.dimensions)
+            ).fetchall()
+        candidates = [(r[0], bytes(r[1])) for r in raw_rows if r[1]]
+        if not candidates:
+            return []
+        hits = search_fn([float(x) for x in q_vec], candidates, self.config.dimensions, limit)
+        return [(str(nid), float(sc)) for nid, sc in hits]

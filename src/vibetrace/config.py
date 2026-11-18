@@ -196,6 +196,23 @@ class DeadCodeConfig(BaseModel):
     )
 
 
+class SplitsConfig(BaseModel):
+    """Architectural split and file-size monolith audit configuration."""
+
+    max_lines: int = Field(
+        default=400,
+        ge=50,
+        le=10000,
+        description="Target maximum lines per file before recommending a split",
+    )
+    margin: int = Field(
+        default=100,
+        ge=0,
+        le=5000,
+        description="Buffer margin lines above max_lines (hard ceiling = max_lines + margin)",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
@@ -203,6 +220,7 @@ class VibeTraceConfig(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     vectors: VectorConfig = Field(default_factory=VectorConfig)
     deadcode: DeadCodeConfig = Field(default_factory=DeadCodeConfig)
+    splits: SplitsConfig = Field(default_factory=SplitsConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
@@ -292,6 +310,11 @@ exclude_patterns = [
     "tests/fixtures/**",
     "**/*.min.js",
 ]
+
+[splits]
+# Target maximum lines per file and acceptable buffer margin (ceiling = max_lines + margin)
+max_lines = 400
+margin = 100
 
 [quality]
 # Include test files (*test*, tests/**, *.spec.*) in Quality & Security audits

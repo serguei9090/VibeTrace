@@ -19,6 +19,9 @@ def run_python_fastapi() -> list[StepResult]:
     if not db_exists:
         setup_steps.append(("index . --force", ["index", ".", "--force"], 600))
     setup_steps.append(("index . (incremental)", ["index", "."], 600))
+    setup_steps.append(
+        ("index . --embed (Rust vectors)", ["index", ".", "--embed", "--no-lsp"], 120)
+    )
 
     results: list[StepResult] = []
     for name, args, timeout in setup_steps:
@@ -46,6 +49,11 @@ def run_python_fastapi() -> list[StepResult]:
         ("dead-code (--exclude-exported)", ["dead-code", "--exclude-exported", "--json"], 180),
         ("diagnose", ["diagnose", "FastAPI.add_api_route", "--json"], 60),
         ("audit splits", ["audit", "splits", "--json"], 60),
+        (
+            "audit splits (--max-lines 400 --margin 100)",
+            ["audit", "splits", "--max-lines", "400", "--margin", "100", "--json"],
+            60,
+        ),
         ("guard", ["guard", "FastAPI.add_api_route", "--json"], 60),
         ("bundle", ["bundle", "FastAPI.add_api_route", "--json"], 60),
         ("docs catalog list", ["docs", "catalog", "list", "--json"], 60),

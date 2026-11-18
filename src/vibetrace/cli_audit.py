@@ -148,7 +148,13 @@ def cmd_audit_splits(args: argparse.Namespace) -> int:
         return 0
 
     symbol_filter = getattr(args, "symbol", None)
-    report = audit_splits(db, project_root, symbol=symbol_filter)
+    report = audit_splits(
+        db,
+        project_root,
+        symbol=symbol_filter,
+        max_lines=getattr(args, "max_lines", None),
+        margin=getattr(args, "margin", None),
+    )
 
     if getattr(args, "approve", False):
         status = getattr(args, "status", "approved")

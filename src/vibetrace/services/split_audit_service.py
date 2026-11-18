@@ -41,6 +41,18 @@ class ArchitecturalSplit(BaseModel):
     reviewed_at: str | None = None
 
 
+class OversizedFileSplit(BaseModel):
+    """File exceeding configured max_lines or hard ceiling (max_lines + margin)."""
+
+    file_path: str
+    line_count: int
+    max_lines: int
+    margin: int
+    ceiling: int
+    status: str  # "MARGIN_WARNING" | "MONOLITH"
+    symbols: list[str] = Field(default_factory=list)
+
+
 class SplitAuditReport(BaseModel):
     """Comprehensive summary of split audit results across the project."""
 
@@ -48,7 +60,10 @@ class SplitAuditReport(BaseModel):
     approved_count: int
     modified_count: int
     new_unapproved_count: int
+    max_lines: int = 400
+    margin: int = 100
     splits: list[ArchitecturalSplit] = Field(default_factory=list)
+    oversized_files: list[OversizedFileSplit] = Field(default_factory=list)
 
 
 def compute_symbol_code_hash(
@@ -251,8 +266,80 @@ def scan_architectural_splits(db: IndexerDB, project_root: Path) -> list[Archite
         return splits
 
 
-def audit_splits(db: IndexerDB, project_root: Path, symbol: str | None = None) -> SplitAuditReport:
+def scan_oversized_files(
+    db: IndexerDB,
+    project_root: Path,
+    max_lines: int,
+    margin: int,
+    include_tests: bool = False,
+) -> list[OversizedFileSplit]:
+    """Scan indexed files exceeding configured max_lines / (max_lines + margin)."""
+    file_symbols: dict[str, list[str]] = {}
+    all_files: set[str] = set()
+    with db._get_conn() as conn:
+        for r in conn.execute("SELECT file_path FROM indexed_files").fetchall():
+            if fp := r["file_path"]:
+                all_files.add(str(fp).replace("\\", "/"))
+        for r in conn.execute(
+            "SELECT file_path, name, kind FROM nodes "
+            "WHERE file_path != 'external' ORDER BY file_path, start_line"
+        ).fetchall():
+            fp = str(r["file_path"]).replace("\\", "/")
+            all_files.add(fp)
+            if r["kind"] in ("function", "method", "class") and r["name"]:
+                file_symbols.setdefault(fp, []).append(str(r["name"]))
+
+    ceiling = max_lines + margin
+    resolved_root = project_root.resolve()
+    oversized: list[OversizedFileSplit] = []
+    for fp in sorted(all_files):
+        if not include_tests and (
+            fp.startswith("tests/")
+            or "/tests/" in f"/{fp}"
+            or "_test." in fp
+            or ".test." in fp
+            or ".spec." in fp
+        ):
+            continue
+        abs_file = (resolved_root / fp.lstrip("/")).resolve()
+        if not abs_file.is_file() or not abs_file.is_relative_to(resolved_root):
+            continue
+        try:
+            line_count = len(abs_file.read_text(encoding="utf-8", errors="replace").splitlines())
+        except OSError:
+            continue
+        if line_count > max_lines:
+            status = "MONOLITH" if line_count > ceiling else "MARGIN_WARNING"
+            oversized.append(
+                OversizedFileSplit(
+                    file_path=fp,
+                    line_count=line_count,
+                    max_lines=max_lines,
+                    margin=margin,
+                    ceiling=ceiling,
+                    status=status,
+                    symbols=file_symbols.get(fp, [])[:10],
+                )
+            )
+
+    oversized.sort(key=lambda item: item.line_count, reverse=True)
+    return oversized
+
+
+def audit_splits(
+    db: IndexerDB,
+    project_root: Path,
+    symbol: str | None = None,
+    max_lines: int | None = None,
+    margin: int | None = None,
+) -> SplitAuditReport:
     """Audits detected architectural splits against .vibetrace/splits.toml baseline."""
+    from vibetrace.config import load_config
+
+    cfg = load_config(project_root)
+    eff_max_lines = max_lines if max_lines is not None else cfg.splits.max_lines
+    eff_margin = margin if margin is not None else cfg.splits.margin
+
     splits = scan_architectural_splits(db, project_root)
     if symbol:
         splits = [s for s in splits if s.symbol == symbol or s.qualified_name == symbol]
@@ -287,12 +374,27 @@ def audit_splits(db: IndexerDB, project_root: Path, symbol: str | None = None) -
             s.status = "NEW_UNAPPROVED"
             new_unapproved += 1
 
+    oversized_files = (
+        []
+        if symbol
+        else scan_oversized_files(
+            db,
+            project_root,
+            max_lines=eff_max_lines,
+            margin=eff_margin,
+            include_tests=cfg.quality.include_tests,
+        )
+    )
+
     return SplitAuditReport(
         total_splits=len(splits),
         approved_count=approved,
         modified_count=modified,
         new_unapproved_count=new_unapproved,
+        max_lines=eff_max_lines,
+        margin=eff_margin,
         splits=splits,
+        oversized_files=oversized_files,
     )
 
 

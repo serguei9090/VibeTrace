@@ -215,42 +215,21 @@ def test_hybrid_search_graceful_degradation_without_vectors(tmp_path: Path):
     assert results_fallback[0].name == "authenticate_jwt"
 
 
-def test_rust_native_parallel_embeddings_and_failed_model_cache(tmp_path: Path):
-    """Verify native Rust parallel embeddings and one-shot failure caching."""
-    from unittest.mock import patch
-
-    from vibetrace.indexer.embeddings import _FAILED_MODELS
-
+def test_rust_native_parallel_embeddings(tmp_path: Path):
+    """Verify direct native Rust parallel embeddings and cosine similarity search."""
     db = _populate_sample_db(tmp_path)
-    config = EmbeddingConfig(model_id="test/gated-hf-model-xyz", dimensions=128)
+    config = EmbeddingConfig(model_id="rust-native-256d", dimensions=128)
     engine = EmbeddingEngine(config=config)
 
-    _FAILED_MODELS.clear()
-    load_calls = 0
+    assert engine.is_available() is True
+    v1 = engine.embed_texts(["AuthService.authenticate_jwt", "DatabasePool.connect_pool"])
+    v2 = engine.embed_texts(["AuthService.authenticate_jwt"])
 
-    def failing_loader():
-        nonlocal load_calls
-        load_calls += 1
-        raise OSError("401 gated repo")
-
-    with patch("importlib.import_module") as mock_imp:
-        mock_mod = mock_imp.return_value
-        mock_mod.SentenceTransformer.side_effect = lambda *_a, **_kw: failing_loader()
-
-        # First call caches failure and falls back to native Rust feature hashing;
-        # second call must NOT retry SentenceTransformer.
-        v1 = engine.embed_texts(["AuthService.authenticate_jwt", "DatabasePool.connect_pool"])
-        v2 = engine.embed_texts(["AuthService.authenticate_jwt"])
-
-    assert load_calls == 1
     assert len(v1) == 2
     assert len(v1[0]) == 128
     assert v1[0] == v2[0]
-    _FAILED_MODELS.clear()
 
-    # Verify index_missing_embeddings + search_semantic using native fallback (mocking offline)
-    with patch.object(engine, "_load_model", side_effect=RuntimeError("offline")):
-        assert engine.index_missing_embeddings(db) == 3
-        hits = engine.search_semantic(db, "authenticate_jwt", limit=3)
+    assert engine.index_missing_embeddings(db, verbose=True) == 3
+    hits = engine.search_semantic(db, "authenticate_jwt", limit=3)
     assert hits
     assert hits[0][0] == "n1"
