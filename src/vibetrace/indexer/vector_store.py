@@ -170,33 +170,34 @@ class LanceDBVectorStore:
             return 0
 
         # Purge existing records for the same node IDs scoped by model_id and project_name
-        model_groups: dict[str, list[str]] = {}
-        for r in records:
-            nid = r.get("node_id")
-            mid = r.get("model_id", "")
-            if nid:
-                model_groups.setdefault(mid, []).append(nid)
+        if table.count_rows() > 0:
+            model_groups: dict[str, list[str]] = {}
+            for r in records:
+                nid = r.get("node_id")
+                mid = r.get("model_id", "")
+                if nid:
+                    model_groups.setdefault(mid, []).append(nid)
 
-        safe_proj = self.project_name.replace("'", "''")
-        for mid, nids in model_groups.items():
-            safe_mid = mid.replace("'", "''")
-            for i in range(0, len(nids), 500):
-                chunk = nids[i : i + 500]
-                escaped_ids = ", ".join("'" + n.replace("'", "''") + "'" for n in chunk)
-                delete_filter = (
-                    f"project_name = '{safe_proj}' AND model_id = '{safe_mid}' "
-                    f"AND node_id IN ({escaped_ids})"
-                )
-                try:
-                    table.delete(delete_filter)
-                except Exception as err:
-                    logger.exception(
-                        "LanceDB purge failed for model '%s' in project '%s': %s",
-                        mid,
-                        self.project_name,
-                        err,
+            safe_proj = self.project_name.replace("'", "''")
+            for mid, nids in model_groups.items():
+                safe_mid = mid.replace("'", "''")
+                for i in range(0, len(nids), 500):
+                    chunk = nids[i : i + 500]
+                    escaped_ids = ", ".join("'" + n.replace("'", "''") + "'" for n in chunk)
+                    delete_filter = (
+                        f"project_name = '{safe_proj}' AND model_id = '{safe_mid}' "
+                        f"AND node_id IN ({escaped_ids})"
                     )
-                    raise
+                    try:
+                        table.delete(delete_filter)
+                    except Exception as err:
+                        logger.exception(
+                            "LanceDB purge failed for model '%s' in project '%s': %s",
+                            mid,
+                            self.project_name,
+                            err,
+                        )
+                        raise
 
         # Filter fields against existing table schema to prevent invalid field exceptions
         schema_cols = set(table.schema.names)

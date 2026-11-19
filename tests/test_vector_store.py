@@ -396,3 +396,43 @@ def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
                         )
                         mock_index_emb.assert_called_once()
                         assert res.get("embedded_count") == 5
+
+
+def test_index_missing_embeddings_coalesces_lancedb_flushes(tmp_path: Path) -> None:
+    """Verify index_missing_embeddings coalesces small batches before flushing to LanceDB."""
+    from unittest.mock import patch
+
+    dim = 256
+    store = LanceDBVectorStore(
+        uri=tmp_path / "vectors_coalesce.lance",
+        dimensions=dim,
+        project_name="coalesce-test",
+    )
+    db = IndexerDB(db_path=str(tmp_path / "coalesce.db"))
+    with db._get_conn() as conn:
+        conn.executemany(
+            """
+            INSERT INTO nodes (id, name, qualified_name, kind, file_path, start_line, end_line)
+            VALUES (?, ?, ?, 'function', 'mod.py', ?, ?)
+            """,
+            [(f"n{i}", f"fn_{i}", f"mod.fn_{i}", i + 1, i + 2) for i in range(5)],
+        )
+        conn.commit()
+
+    def mock_encoder(texts: list[str]) -> list[list[float]]:
+        return [[1.0] + [0.0] * (dim - 1) for _ in texts]
+
+    engine = EmbeddingEngine(
+        config=EmbeddingConfig(dimensions=dim, model_id="mock-coalesce", batch_size=2),
+        encoder=mock_encoder,
+        vector_store=store,
+    )
+
+    with patch.object(store, "upsert_embeddings", wraps=store.upsert_embeddings) as spy_upsert:
+        indexed = engine.index_missing_embeddings(db)
+
+    assert indexed == 5
+    # 5 nodes with batch_size=2 encodes in 3 batches [2, 2, 1], but flushes to LanceDB once
+    assert spy_upsert.call_count == 1
+    assert store.count("mock-coalesce") == 5
+    assert len(db.get_all_embeddings("mock-coalesce")) == 5

@@ -17,6 +17,9 @@ from vibetrace.indexer.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 
+_NATIVE_EMBED_SUPER_BATCH = 256
+_LANCE_FLUSH_BATCH = 512
+
 
 class EmbeddingConfig(BaseModel):
     """Configuration contract for the local EmbeddingGemma 2 pipeline."""
@@ -276,9 +279,15 @@ class EmbeddingEngine:
             return 0
 
         total_nodes = len(missing_nodes)
-        batch_size = self.config.batch_size
+        batch_size = (
+            max(self.config.batch_size, _NATIVE_EMBED_SUPER_BATCH)
+            if self._encoder is None
+            else self.config.batch_size
+        )
         total_batches = (total_nodes + batch_size - 1) // batch_size
         dev = self._resolve_device()
+        has_vector_store = bool(self.vector_store and self.vector_store.is_available())
+        lance_buffer: list[dict[str, Any]] = []
 
         total_indexed = 0
         last_pct_logged = -1
@@ -289,8 +298,8 @@ class EmbeddingEngine:
             ]
             vectors = self.embed_documents(doc_items)
 
-            if self.vector_store and self.vector_store.is_available():
-                lance_records = [
+            if has_vector_store:
+                lance_buffer.extend(
                     {
                         "node_id": node["id"],
                         "name": node.get("name", ""),
@@ -301,11 +310,7 @@ class EmbeddingEngine:
                         "file_path": node.get("file_path", ""),
                     }
                     for node, vec in zip(batch, vectors, strict=True)
-                ]
-                try:
-                    self.vector_store.upsert_embeddings(lance_records)
-                except Exception as e:
-                    logger.warning("LanceDB upsert failed; continuing to SQLite: %s", e)
+                )
 
             rows = [
                 (
@@ -318,6 +323,18 @@ class EmbeddingEngine:
             ]
             db.upsert_embeddings(rows)
             total_indexed += len(rows)
+
+            if (
+                self.vector_store is not None
+                and has_vector_store
+                and lance_buffer
+                and (len(lance_buffer) >= _LANCE_FLUSH_BATCH or total_indexed == total_nodes)
+            ):
+                try:
+                    self.vector_store.upsert_embeddings(lance_buffer)
+                except Exception as e:
+                    logger.warning("LanceDB upsert failed; continuing to SQLite: %s", e)
+                lance_buffer.clear()
 
             if verbose:
                 pct = int((total_indexed / total_nodes) * 100.0)
