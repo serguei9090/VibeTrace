@@ -240,18 +240,32 @@ class SecurityService:
             elif TrivyAdapter.has_container_configs(project_root) and TrivyAdapter.is_available():
                 findings.extend(TrivyAdapter.scan_filesystem(project_root, db=db))
 
-        # 4. Optional external Semgrep CLI SAST adapter
+        # 4. Optional external Semgrep CLI SAST adapter (deduplicated against native findings)
         if enable_semgrep and not sarif_file:
             from vibetrace.security.adapters.semgrep import SemgrepAdapter
 
             if SemgrepAdapter.is_available():
-                findings.extend(
-                    SemgrepAdapter.scan_project(
-                        project_root=project_root,
-                        db=db,
-                        target_files=target_files if (file_filter or file_list) else None,
-                    )
+                semgrep_findings = SemgrepAdapter.scan_project(
+                    project_root=project_root,
+                    db=db,
+                    target_files=target_files if (file_filter or file_list) else None,
                 )
+                seen_cwe_keys: set[tuple[str, int, str]] = set()
+                for existing in findings:
+                    norm_fp = existing.file_path.replace("\\", "/")
+                    for cwe in (existing.cwe_id, *existing.cwe_ids):
+                        if cwe and cwe != "CWE-SAST":
+                            seen_cwe_keys.add((norm_fp, existing.start_line, cwe.upper()))
+                for sf in semgrep_findings:
+                    norm_fp = sf.file_path.replace("\\", "/")
+                    sf_cwes = {c.upper() for c in (sf.cwe_id, *sf.cwe_ids) if c and c != "CWE-SAST"}
+                    if sf_cwes and any(
+                        (norm_fp, sf.start_line, c) in seen_cwe_keys for c in sf_cwes
+                    ):
+                        continue
+                    for c in sf_cwes:
+                        seen_cwe_keys.add((norm_fp, sf.start_line, c))
+                    findings.append(sf)
 
         # 5. Optional Tier-2 SonarLint Headless Java Engine (--sonar or config.quality.enable_sonar)
         if enable_sonar or cfg.quality.enable_sonar:

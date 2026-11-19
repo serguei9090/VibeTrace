@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,12 +21,35 @@ from vibetrace.security.taint_engine import SANITIZERS, TaintEngine, is_source
 
 logger = logging.getLogger(__name__)
 
+_CWE_PATTERN = re.compile(r"cwe-(\d+)", re.IGNORECASE)
+
 _LEVEL_MAP: dict[str, Severity] = {
     "error": Severity.HIGH,
     "warning": Severity.MEDIUM,
     "note": Severity.LOW,
     "none": Severity.LOW,
 }
+
+
+def _extract_cwe_id(props: dict[str, Any], rule_id: str) -> str | None:
+    """Extracts a canonical `CWE-<num>` identifier from SARIF properties or rule ID."""
+    cwe_val = props.get("cwe")
+    cwe_items = (
+        [cwe_val] if isinstance(cwe_val, str) else (cwe_val if isinstance(cwe_val, list) else [])
+    )
+    for item in cwe_items:
+        if m := _CWE_PATTERN.search(str(item)):
+            return f"CWE-{int(m.group(1))}"
+
+    tags = props.get("tags")
+    if isinstance(tags, list):
+        for tag in tags:
+            if m := _CWE_PATTERN.search(str(tag)):
+                return f"CWE-{int(m.group(1))}"
+
+    if m := _CWE_PATTERN.search(rule_id.replace("_", "-")):
+        return f"CWE-{int(m.group(1))}"
+    return None
 
 
 class SarifIngestEngine:
@@ -117,20 +141,8 @@ class SarifIngestEngine:
         severity = _LEVEL_MAP.get(level_str, Severity.MEDIUM)
 
         # Extract CWE tags
-        cwe_id = None
         props = meta.get("properties") or {}
-        cwe_list = props.get("cwe") or []
-        if isinstance(cwe_list, list) and cwe_list:
-            cwe_str = str(cwe_list[0])
-            if "CWE-" in cwe_str.upper():
-                cwe_id = cwe_str.split(":")[0].strip()
-
-        # Fallback to rule_id if it mentions CWE
-        if not cwe_id and "cwe-" in rule_id.lower():
-            for part in rule_id.replace("_", "-").split("-"):
-                if part.isdigit():
-                    cwe_id = f"CWE-{part}"
-                    break
+        cwe_id = _extract_cwe_id(props if isinstance(props, dict) else {}, rule_id)
 
         # Map to VibeTrace known specs if available
         if cwe_id and cwe_id in RULES_CATALOG:
