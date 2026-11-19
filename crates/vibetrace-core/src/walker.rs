@@ -123,7 +123,18 @@ pub fn scan_and_hash_workspace(
             .git_global(false)
             .git_exclude(true)
             .require_git(false)
-            .parents(true);
+            .parents(false);
+
+        if let Ok(rel) = target_path.strip_prefix(project_root) {
+            let mut dir = project_root.to_path_buf();
+            for comp in rel.components() {
+                let gi = dir.join(".gitignore");
+                if gi.is_file() {
+                    let _ = builder.add_ignore(gi);
+                }
+                dir.push(comp);
+            }
+        }
 
         let root_clone = project_root.to_path_buf();
         builder.filter_entry(move |entry| {
@@ -295,5 +306,35 @@ mod tests {
         assert_eq!(dirty_paths, vec!["added.py", "modified.py"]);
         assert_eq!(second.unchanged_files, vec!["unchanged.py"]);
         assert_eq!(second.deleted_files, vec!["deleted_old.py"]);
+    }
+
+    #[test]
+    fn test_parent_repo_gitignore_does_not_leak_into_nested_project() {
+        let tmp = TempDir::new().expect("tempdir");
+        let outer = tmp.path();
+        let child = outer.join("child");
+        let child_lib = child.join("lib");
+        fs::create_dir_all(&child_lib).unwrap();
+
+        fs::write(outer.join(".gitignore"), "lib/\n").unwrap();
+        fs::write(child.join(".gitignore"), "*.gen.rb\n").unwrap();
+        fs::write(child_lib.join("app.rb"), b"module App; end\n").unwrap();
+        fs::write(child_lib.join("ignored.gen.rb"), b"module Gen; end\n").unwrap();
+
+        let res_root = scan_and_hash_workspace(&child, &child, &HashMap::new(), &[], false);
+        let root_paths: Vec<&str> = res_root
+            .dirty_files
+            .iter()
+            .map(|d| d.rel_path.as_str())
+            .collect();
+        assert_eq!(root_paths, vec!["lib/app.rb"]);
+
+        let res_sub = scan_and_hash_workspace(&child_lib, &child, &HashMap::new(), &[], false);
+        let sub_paths: Vec<&str> = res_sub
+            .dirty_files
+            .iter()
+            .map(|d| d.rel_path.as_str())
+            .collect();
+        assert_eq!(sub_paths, vec!["lib/app.rb"]);
     }
 }

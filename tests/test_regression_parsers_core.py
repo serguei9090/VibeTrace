@@ -2885,3 +2885,332 @@ def test_cli_search_sig_offset(tmp_path: Path, capsys):
     # offset=1, limit=2 -> run2, run1
     assert data[0]["name"] == "run2"
     assert data[1]["name"] == "run1"
+
+
+def test_c_header_include_resolves_c_impl_and_preserves_builtins(tmp_path: Path):
+    """Verify C #include resolves header -> .c impl while keeping stdlib <assert.h> builtin."""
+    (tmp_path / "alloc.h").write_text("void hi_free(void *ptr);\n", encoding="utf-8")
+    (tmp_path / "alloc.c").write_text(
+        '#include "alloc.h"\nvoid hi_free(void *ptr) {}\n', encoding="utf-8"
+    )
+    (tmp_path / "main.c").write_text(
+        '#include <assert.h>\n#include "alloc.h"\n'
+        "void run(void *p) { assert(p != 0); hi_free(p); }\n",
+        encoding="utf-8",
+    )
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db, str(tmp_path), verbose=False, force=True, project_root=tmp_path, use_lsp=False
+        )
+        with db._get_conn() as conn:
+            imp_rows = conn.execute(
+                "SELECT n.name, n.file_path, e.confidence FROM edges e "
+                "JOIN nodes src ON src.id = e.from_node_id "
+                "JOIN nodes n ON n.id = e.to_node_id "
+                "WHERE src.file_path = 'main.c' AND e.relation_type = 'imports'"
+            ).fetchall()
+            imp_map = {r["name"]: (r["file_path"], r["confidence"]) for r in imp_rows}
+            assert imp_map.get("alloc") == ("alloc.c", "exact")
+            assert imp_map.get("assert") == ("external", "inferred")
+
+            call_rows = conn.execute(
+                "SELECT t.name, t.file_path FROM edges e "
+                "JOIN nodes f ON f.id = e.from_node_id "
+                "JOIN nodes t ON t.id = e.to_node_id "
+                "WHERE f.name = 'run' AND e.relation_type = 'calls'"
+            ).fetchall()
+            assert ("hi_free", "alloc.c") in [(r["name"], r["file_path"]) for r in call_rows]
+
+            unres_assert = conn.execute(
+                "SELECT count(*) FROM edges e "
+                "LEFT JOIN edge_targets et ON et.target_id = e.to_node_id "
+                "WHERE e.relation_type = 'calls' AND et.target_symbol = 'assert'"
+            ).fetchone()[0]
+            assert unres_assert == 0
+    finally:
+        db.close()
+
+
+def test_cpp_header_uses_cpp_parser_and_include_dir_resolution(tmp_path: Path):
+    """Verify .h files in C++ repos use C++ grammar and resolve include/ paths + templates."""
+    inc_dir = tmp_path / "include" / "mylib"
+    src_dir = tmp_path / "src"
+    inc_dir.mkdir(parents=True)
+    src_dir.mkdir(parents=True)
+    (inc_dir / "fmt.h").write_text(
+        "namespace mylib {\ntemplate <typename T>\nvoid write(T v) {}\n}\n",
+        encoding="utf-8",
+    )
+    (src_dir / "fmt.cc").write_text(
+        "#include \"mylib/fmt.h\"\nnamespace mylib {\nvoid flush() { write<char>('a'); }\n}\n",
+        encoding="utf-8",
+    )
+    (src_dir / "app.cc").write_text(
+        '#include "mylib/fmt.h"\nnamespace mylib {\nvoid run() { flush(); }\n}\n',
+        encoding="utf-8",
+    )
+
+    resolver = ModuleResolver(tmp_path)
+    assert resolver.has_cpp_files is True
+    h_parser = ParserFactory.get_parser("include/mylib/fmt.h", resolver=resolver)
+    assert isinstance(h_parser, GenericParser)
+    assert h_parser.language_name == "cpp"
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db, str(tmp_path), verbose=False, force=True, project_root=tmp_path, use_lsp=False
+        )
+        with db._get_conn() as conn:
+            imp_files = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT n.file_path FROM edges e "
+                    "JOIN nodes s ON s.id = e.from_node_id "
+                    "JOIN nodes n ON n.id = e.to_node_id "
+                    "WHERE s.file_path = 'src/fmt.cc' AND e.relation_type = 'imports'"
+                ).fetchall()
+            ]
+            assert "include/mylib/fmt.h" in imp_files
+
+            app_imp_files = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT n.file_path FROM edges e "
+                    "JOIN nodes s ON s.id = e.from_node_id "
+                    "JOIN nodes n ON n.id = e.to_node_id "
+                    "WHERE s.file_path = 'src/app.cc' AND e.relation_type = 'imports'"
+                ).fetchall()
+            ]
+            assert "src/fmt.cc" in app_imp_files
+
+            callees = [
+                (r[0], r[1])
+                for r in conn.execute(
+                    "SELECT t.name, t.file_path FROM edges e "
+                    "JOIN nodes f ON f.id = e.from_node_id "
+                    "JOIN nodes t ON t.id = e.to_node_id "
+                    "WHERE f.name = 'flush' AND e.relation_type = 'calls'"
+                ).fetchall()
+            ]
+            assert ("write", "include/mylib/fmt.h") in callees
+    finally:
+        db.close()
+
+
+def test_csharp_namespace_using_generics_and_param_local_types(tmp_path: Path):
+    """Verify C# directory using, records, var local types, param types, and generic calls."""
+    core_dir = tmp_path / "src" / "MyApp" / "Core"
+    app_dir = tmp_path / "src" / "MyApp" / "App"
+    core_dir.mkdir(parents=True)
+    app_dir.mkdir(parents=True)
+
+    (core_dir / "Worker.cs").write_text(
+        "namespace MyApp.Core;\n"
+        "public record JobItem(string Name);\n"
+        "public class Worker {\n"
+        "    public void Execute() {}\n"
+        "    public void Transform<T>(T value) {}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (app_dir / "Runner.cs").write_text(
+        "using System;\n"
+        "using MyApp.Core;\n"
+        "namespace MyApp.App;\n"
+        "public class Runner {\n"
+        "    public void Run(Worker w) {\n"
+        "        var local = new Worker();\n"
+        "        local.Transform<int>(1);\n"
+        "        w.Execute();\n"
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db, str(tmp_path), verbose=False, force=True, project_root=tmp_path, use_lsp=False
+        )
+        with db._get_conn() as conn:
+            rec_kind = conn.execute("SELECT kind FROM nodes WHERE name = 'JobItem'").fetchone()
+            assert rec_kind is not None
+            assert rec_kind["kind"] == "class"
+
+            imp_rows = conn.execute(
+                "SELECT n.name, n.file_path, e.confidence FROM edges e "
+                "JOIN nodes s ON s.id = e.from_node_id "
+                "JOIN nodes n ON n.id = e.to_node_id "
+                "WHERE s.file_path = 'src/MyApp/App/Runner.cs' AND e.relation_type = 'imports'"
+            ).fetchall()
+            imp_map = {r["name"]: (r["file_path"], r["confidence"]) for r in imp_rows}
+            assert imp_map.get("System") == ("external", "inferred")
+            assert imp_map.get("Core") == ("src/MyApp/Core/Worker.cs", "exact")
+
+            callees = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT t.qualified_name FROM edges e "
+                    "JOIN nodes f ON f.id = e.from_node_id "
+                    "JOIN nodes t ON t.id = e.to_node_id "
+                    "WHERE f.qualified_name = 'Runner.Run' AND e.relation_type = 'calls'"
+                ).fetchall()
+            }
+            assert "Worker.Transform" in callees
+            assert "Worker.Execute" in callees
+    finally:
+        db.close()
+
+
+def test_ruby_scope_normalization_new_chain_and_qualified_linking(tmp_path: Path):
+    """Verify Ruby Rack::Utils calls, Rack::Lint.new(app).call chains, and .new -> initialize."""
+    rack_dir = tmp_path / "lib" / "rack"
+    rack_dir.mkdir(parents=True)
+    (rack_dir / "utils.rb").write_text(
+        "module Rack\n  module Utils\n    def self.parse_query(qs)\n    end\n  end\nend\n",
+        encoding="utf-8",
+    )
+    (rack_dir / "lint.rb").write_text(
+        "module Rack\n  class Lint\n    def initialize(app)\n      @app = app\n    end\n"
+        "    def call(env)\n    end\n  end\nend\n",
+        encoding="utf-8",
+    )
+    (rack_dir / "app.rb").write_text(
+        "require_relative 'utils'\n"
+        "require 'rack/lint'\n"
+        "module Rack\n  class App\n    def handle(env)\n"
+        "      Rack::Utils.parse_query(env)\n"
+        "      Rack::Lint.new(self).call(env)\n"
+        "      Rack::Lint.new(self)\n"
+        "    end\n  end\nend\n",
+        encoding="utf-8",
+    )
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db, str(tmp_path), verbose=False, force=True, project_root=tmp_path, use_lsp=False
+        )
+        with db._get_conn() as conn:
+            imp_files = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT n.file_path FROM edges e "
+                    "JOIN nodes s ON s.id = e.from_node_id "
+                    "JOIN nodes n ON n.id = e.to_node_id "
+                    "WHERE s.file_path = 'lib/rack/app.rb' AND e.relation_type = 'imports'"
+                ).fetchall()
+            }
+            assert {"lib/rack/utils.rb", "lib/rack/lint.rb"} <= imp_files
+
+            callees = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT t.qualified_name FROM edges e "
+                    "JOIN nodes f ON f.id = e.from_node_id "
+                    "JOIN nodes t ON t.id = e.to_node_id "
+                    "WHERE f.qualified_name = 'Rack.App.handle' AND e.relation_type = 'calls'"
+                ).fetchall()
+            }
+            assert {
+                "Rack.Utils.parse_query",
+                "Rack.Lint.call",
+                "Rack.Lint.initialize",
+            } <= callees
+    finally:
+        db.close()
+
+
+def test_php_calls_traits_promoted_params_and_psr4_imports(tmp_path: Path):
+    """Verify PHP use imports, traits, promoted/nullable params, member/nullsafe/scoped calls."""
+    mono = tmp_path / "src" / "Monolog"
+    mono.mkdir(parents=True)
+    (mono / "Level.php").write_text("<?php\nnamespace Monolog;\nenum Level {}\n", encoding="utf-8")
+    (mono / "Handler.php").write_text(
+        "<?php\nnamespace Monolog;\nclass Handler {\n"
+        "    public function write(): void {}\n"
+        "    public function close(): void {}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (mono / "AuditTrait.php").write_text(
+        "<?php\nnamespace Monolog;\ntrait AuditTrait { public function audit(): void {} }\n",
+        encoding="utf-8",
+    )
+    (mono / "Utils.php").write_text(
+        "<?php\nnamespace Monolog;\nclass Utils { public static function clean(): void {} }\n",
+        encoding="utf-8",
+    )
+    logger_code = (
+        "<?php\nnamespace Monolog;\n"
+        "use Monolog\\Level;\n"
+        "use Monolog\\{Handler, Utils};\n"
+        "class Logger {\n"
+        "    private ?Handler $prop = null;\n"
+        "    public function __construct(private Handler $h) {\n"
+        "        $this->prop = new Handler();\n"
+        "    }\n"
+        "    public function log(?Handler $arg): void {\n"
+        "        $this->h->write();\n"
+        "        $this->prop->write();\n"
+        "        $arg?->close();\n"
+        "        Utils::clean();\n"
+        "        strlen('x');\n"
+        "    }\n"
+        "}\n"
+    )
+    (mono / "Logger.php").write_text(logger_code, encoding="utf-8")
+
+    resolver = ModuleResolver(tmp_path)
+    p = GenericParser("php", resolver=resolver)
+    p.extract("src/Monolog/Logger.php", logger_code.encode("utf-8"))
+    assert "Handler" in p.last_imported_symbols
+    assert p.last_imported_symbols["Handler"][0] == "src/Monolog/Handler.php"
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db, str(tmp_path), verbose=False, force=True, project_root=tmp_path, use_lsp=False
+        )
+        with db._get_conn() as conn:
+            trait_row = conn.execute("SELECT kind FROM nodes WHERE name = 'AuditTrait'").fetchone()
+            assert trait_row is not None
+            assert trait_row["kind"] == "class"
+
+            imp_files = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT n.file_path FROM edges e "
+                    "JOIN nodes s ON s.id = e.from_node_id "
+                    "JOIN nodes n ON n.id = e.to_node_id "
+                    "WHERE s.file_path = 'src/Monolog/Logger.php' AND e.relation_type = 'imports'"
+                ).fetchall()
+            }
+            assert {
+                "src/Monolog/Level.php",
+                "src/Monolog/Handler.php",
+                "src/Monolog/Utils.php",
+            } <= imp_files
+
+            callees = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT t.qualified_name FROM edges e "
+                    "JOIN nodes f ON f.id = e.from_node_id "
+                    "JOIN nodes t ON t.id = e.to_node_id "
+                    "WHERE f.file_path = 'src/Monolog/Logger.php' AND e.relation_type = 'calls'"
+                ).fetchall()
+            }
+            assert {"Handler", "Handler.write", "Handler.close", "Utils.clean"} <= callees
+
+            unres_strlen = conn.execute(
+                "SELECT count(*) FROM edges e "
+                "LEFT JOIN edge_targets et ON et.target_id = e.to_node_id "
+                "WHERE e.relation_type = 'calls' AND et.target_symbol = 'strlen'"
+            ).fetchone()[0]
+            assert unres_strlen == 0
+    finally:
+        db.close()

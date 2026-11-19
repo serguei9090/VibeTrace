@@ -49,8 +49,11 @@ class ParserFactory:
             return RustParser(resolver)
         elif file_path.endswith(".java"):
             return GenericParser("java", resolver)
-        elif file_path.endswith((".c", ".h")):
+        elif file_path.endswith(".c"):
             return GenericParser("c", resolver)
+        elif file_path.endswith(".h"):
+            lang = "cpp" if (resolver is not None and resolver.has_cpp_files) else "c"
+            return GenericParser(lang, resolver)
         elif file_path.endswith((".cpp", ".cc", ".cxx", ".hpp")):
             return GenericParser("cpp", resolver)
         elif file_path.endswith(".cs"):

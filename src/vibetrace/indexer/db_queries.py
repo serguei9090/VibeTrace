@@ -54,6 +54,7 @@ class DBQueriesMixin:
 
             # Build in-memory lookup maps for fast single-pass linking
             imports_map: dict[tuple[str, str], tuple[str, str]] = {}
+            imported_files_by_caller: dict[str, set[str]] = {}
             for r in conn.execute(
                 "SELECT file_path, local_alias, target_file, target_symbol FROM file_imports"
             ).fetchall():
@@ -61,20 +62,32 @@ class DBQueriesMixin:
                     r["target_file"],
                     r["target_symbol"],
                 )
+                imported_files_by_caller.setdefault(r["file_path"], set()).add(r["target_file"])
 
             nodes_by_file_qual: dict[tuple[str, str], str] = {}
+            nodes_by_qual: dict[str, list[tuple[str, str]]] = {}
             nodes_by_name: dict[str, list[tuple[str, str]]] = {}
             for r in conn.execute(
-                "SELECT id, name, qualified_name, file_path, kind FROM nodes WHERE kind != 'module'"
+                "SELECT id, name, qualified_name, file_path FROM nodes WHERE kind != 'module'"
             ).fetchall():
-                fp = r["file_path"]
-                qn = r["qualified_name"]
-                nm = r["name"]
-                nid = r["id"]
+                fp, qn, nm, nid = r["file_path"], r["qualified_name"], r["name"], r["id"]
                 nodes_by_file_qual[(fp, qn)] = nid
                 if qn == nm or (fp, nm) not in nodes_by_file_qual:
                     nodes_by_file_qual[(fp, nm)] = nid
+                nodes_by_qual.setdefault(qn, []).append((fp, nid))
                 nodes_by_name.setdefault(nm, []).append((fp, nid))
+
+            def _match_candidates(
+                cands: list[tuple[str, str]], caller_imps: set[str], imp_conf: str
+            ) -> tuple[str, str] | None:
+                if not cands:
+                    return None
+                imp_hits = [nid for fp, nid in cands if fp in caller_imps]
+                if len(imp_hits) == 1:
+                    return imp_hits[0], imp_conf
+                if len(cands) == 1:
+                    return cands[0][1], "inferred"
+                return None
 
             updates: list[tuple[str, str, int]] = []
             for row in unresolved:
@@ -112,22 +125,24 @@ class DBQueriesMixin:
                     updates.append((resolved_exact_id, "exact", edge_id))
                     continue
 
-                # Level 2: Heuristic fallback on bare method/function name
-                bare_name = t_sym.split(".")[-1]
-                candidates = nodes_by_name.get(bare_name, [])
-                if not candidates:
-                    continue
-
-                # 2a. Check if any candidate resides in a file directly imported by caller_file
-                caller_imported_files = {
-                    tf for (cf, _), (tf, _) in imports_map.items() if cf == caller_file
-                }
-                imported_matches = [nid for fp, nid in candidates if fp in caller_imported_files]
-                if len(imported_matches) == 1:
-                    updates.append((imported_matches[0], "inferred", edge_id))
-                elif len(candidates) == 1:
-                    # 2b. Unique symbol across the entire repository
-                    updates.append((candidates[0][1], "inferred", edge_id))
+                caller_imps = imported_files_by_caller.get(caller_file, set())
+                probe_list: list[tuple[list[tuple[str, str]], str]] = []
+                if "." in t_sym:
+                    probe_list.append((nodes_by_qual.get(t_sym, []), "exact"))
+                if t_sym.endswith(".new"):
+                    cls_q = t_sym[:-4]
+                    probe_list.extend(
+                        [
+                            (nodes_by_qual.get(f"{cls_q}.initialize", []), "exact"),
+                            (nodes_by_qual.get(cls_q, []), "exact"),
+                            (nodes_by_name.get(cls_q.split(".")[-1], []), "exact"),
+                        ]
+                    )
+                probe_list.append((nodes_by_name.get(t_sym.split(".")[-1], []), "inferred"))
+                for cands, imp_conf in probe_list:
+                    if hit := _match_candidates(cands, caller_imps, imp_conf):
+                        updates.append((hit[0], hit[1], edge_id))
+                        break
 
             if updates:
                 conn.executemany(
@@ -395,26 +410,20 @@ class DBQueriesMixin:
                 filter_clause = f"AND e.relation_type IN ({placeholders})"
                 params.extend(relation_types)
 
-            if direction == "up":
-                query = f"""
-                    SELECT e.from_node_id as neighbor_id, e.relation_type, e.call_line,
-                           n.name, n.qualified_name, n.file_path, n.kind,
-                           n.start_line, n.end_line, n.signature
-                    FROM edges e
-                    JOIN nodes n ON e.from_node_id = n.id
-                    WHERE e.to_node_id = ? {filter_clause}
-                    ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
-                """
-            else:
-                query = f"""
-                    SELECT e.to_node_id as neighbor_id, e.relation_type, e.call_line,
-                           n.name, n.qualified_name, n.file_path, n.kind,
-                           n.start_line, n.end_line, n.signature
-                    FROM edges e
-                    JOIN nodes n ON e.to_node_id = n.id
-                    WHERE e.from_node_id = ? {filter_clause}
-                    ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
-                """
+            join_col, where_col = (
+                ("from_node_id", "to_node_id")
+                if direction == "up"
+                else ("to_node_id", "from_node_id")
+            )
+            query = f"""
+                SELECT e.{join_col} as neighbor_id, e.relation_type, e.call_line,
+                       n.name, n.qualified_name, n.file_path, n.kind,
+                       n.start_line, n.end_line, n.signature
+                FROM edges e
+                JOIN nodes n ON e.{join_col} = n.id
+                WHERE e.{where_col} = ? {filter_clause}
+                ORDER BY n.file_path ASC, n.start_line ASC, n.name ASC
+            """
             cursor = conn.execute(query, tuple(params))
             return [dict(r) for r in cursor.fetchall()]
 
@@ -525,23 +534,15 @@ class DBQueriesMixin:
         self, model_id: str, dimensions: int | None = None
     ) -> list[dict[str, Any]]:
         """Return nodes that do not yet have embeddings for the specified model and dimension."""
-        if dimensions is not None:
-            sql = (
-                "SELECT n.* FROM nodes n "
-                "LEFT JOIN node_embeddings e ON n.id = e.node_id "
-                "  AND e.model_id = ? AND e.dimensions = ? "
-                "WHERE e.node_id IS NULL "
-                "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
-            )
-            params: tuple[Any, ...] = (model_id, dimensions)
-        else:
-            sql = (
-                "SELECT n.* FROM nodes n "
-                "LEFT JOIN node_embeddings e ON n.id = e.node_id AND e.model_id = ? "
-                "WHERE e.node_id IS NULL "
-                "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
-            )
-            params = (model_id,)
+        dim_clause = "  AND e.dimensions = ?" if dimensions is not None else ""
+        params: tuple[Any, ...] = (model_id, dimensions) if dimensions is not None else (model_id,)
+        sql = (
+            "SELECT n.* FROM nodes n "
+            "LEFT JOIN node_embeddings e ON n.id = e.node_id "
+            f"  AND e.model_id = ?{dim_clause} "
+            "WHERE e.node_id IS NULL "
+            "ORDER BY n.file_path ASC, n.start_line ASC, n.id ASC"
+        )
         with self._get_conn() as conn:
             cursor = conn.execute(sql, params)
             return [dict(r) for r in cursor.fetchall()]

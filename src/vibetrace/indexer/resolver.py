@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 class ModuleResolver:
     """Resolves language-specific module names to local filesystem paths."""
 
+    SRC_DIRS: tuple[str, ...] = ("src", "lib", "python", "include")
+    CPP_EXTENSIONS: tuple[str, ...] = (".cpp", ".cc", ".cxx", ".hpp")
     SUPPORTED_EXTENSIONS = (
         ".py",
         ".js",
@@ -32,11 +34,17 @@ class ModuleResolver:
         self.project_root = project_root.resolve()
         self.module_map: dict[str, str] = {}
         self.known_files: set[str] = set()
+        self._cpp_files: set[str] = set()
         self.go_modules: dict[str, str] = self._detect_go_modules()
         self.cargo_packages: dict[str, str] = self._detect_cargo_packages()
         self.go_module: str | None = next(iter(self.go_modules.keys()), None)
         self.cargo_package: str | None = next(iter(self.cargo_packages.keys()), None)
         self._build_map()
+
+    @property
+    def has_cpp_files(self) -> bool:
+        """Return True if the indexed workspace contains any C++ source or header files."""
+        return bool(self._cpp_files)
 
     def _detect_go_modules(self) -> dict[str, str]:
         """Parse module names from root and subproject go.mod files."""
@@ -107,7 +115,7 @@ class ModuleResolver:
 
     def _build_map(self) -> None:
         """Builds a map of module names to relative file paths."""
-        src_dirs = {"src", "lib", "python"}
+        src_dirs = set(self.SRC_DIRS)
 
         for root, dirs, files in os.walk(self.project_root):
             dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
@@ -121,6 +129,8 @@ class ModuleResolver:
                 if rel_path_str.startswith("./"):
                     rel_path_str = rel_path_str[2:]
                 self.known_files.add(rel_path_str)
+                if rel_path_str.endswith(self.CPP_EXTENSIONS):
+                    self._cpp_files.add(rel_path_str)
 
                 name_parts = [p for p in rel_root.parts if p != "."]
                 base_name = file.rsplit(".", 1)[0]
@@ -148,14 +158,16 @@ class ModuleResolver:
         """Sets a module mapping with deterministic priority for conflicts."""
         if module_name in self.module_map and self.module_map[module_name] != path:
             existing = self.module_map[module_name]
-            # Priority order: prefer src/ over lib/, python/, or root
+            # Priority order: prefer src/ and include/ over lib/, python/, or root
             existing_score = (
                 2
-                if existing.startswith("src/")
+                if existing.startswith(("src/", "include/"))
                 else (1 if existing.startswith(("lib/", "python/")) else 0)
             )
             new_score = (
-                2 if path.startswith("src/") else (1 if path.startswith(("lib/", "python/")) else 0)
+                2
+                if path.startswith(("src/", "include/"))
+                else (1 if path.startswith(("lib/", "python/")) else 0)
             )
             if new_score <= existing_score:
                 logger.debug(
@@ -181,11 +193,13 @@ class ModuleResolver:
         if not rel_path_str.endswith(self.SUPPORTED_EXTENSIONS):
             return
         self.known_files.add(rel_path_str)
+        if rel_path_str.endswith(self.CPP_EXTENSIONS):
+            self._cpp_files.add(rel_path_str)
         path_obj = Path(rel_path_str)
         name_parts = [p for p in path_obj.parent.parts if p != "."]
         base_name = path_obj.stem
         self._add_to_map(name_parts, base_name, rel_path_str)
-        src_dirs = {"src", "lib", "python"}
+        src_dirs = set(self.SRC_DIRS)
         if name_parts and name_parts[0] in src_dirs:
             self._add_to_map(name_parts[1:], base_name, rel_path_str)
 
@@ -195,6 +209,7 @@ class ModuleResolver:
         if rel_path_str.startswith("./"):
             rel_path_str = rel_path_str[2:]
         self.known_files.discard(rel_path_str)
+        self._cpp_files.discard(rel_path_str)
         to_del = [k for k, v in self.module_map.items() if v == rel_path_str]
         for k in to_del:
             del self.module_map[k]
@@ -253,6 +268,21 @@ class ModuleResolver:
         res = self.module_map.get(module_name)
         if res:
             return res
+
+        norm_slash = module_name.replace("\\", "/").lstrip("/")
+        if "/" in norm_slash or norm_slash.endswith(self.SUPPORTED_EXTENSIONS):
+            for cand in (norm_slash, *(f"{d}/{norm_slash}" for d in self.SRC_DIRS)):
+                matched = self._match_known_file(cand, current_file)
+                if matched:
+                    return matched
+            dot_base = norm_slash
+            for ext in self.SUPPORTED_EXTENSIONS:
+                if dot_base.endswith(ext):
+                    dot_base = dot_base[: -len(ext)]
+                    break
+            dot_key = dot_base.replace("/", ".")
+            if dot_key in self.module_map:
+                return self.module_map[dot_key]
 
         if current_file:
             return self._resolve_relative(f"./{module_name}", current_file)
@@ -371,7 +401,7 @@ class ModuleResolver:
 
     def get_module_name(self, file_path: str) -> str | None:
         """Find the canonical module name for a file path."""
-        src_dirs = {"src", "lib", "python"}
+        src_dirs = set(self.SRC_DIRS)
         norm_path = file_path.replace("\\", "/")
         if norm_path.startswith("./"):
             norm_path = norm_path[2:]
