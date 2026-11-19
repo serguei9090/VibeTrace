@@ -574,7 +574,7 @@ class JavaScriptParser(LanguageParser):
                     p_type in ("jsx_expression", "arguments", "object", "array") or is_pair_val
                 ):
                     ref_name = self._get_text(node).strip()
-                    if ref_name and (target_id := self._resolve_call_target(ref_name, ctx)):
+                    if ref_name and (target_id := self._resolve_reference_target(ref_name, ctx)):
                         edges.append(
                             self._create_edge(parent_id, target_id, "references", node=node)
                         )

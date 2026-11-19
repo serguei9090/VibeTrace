@@ -65,19 +65,19 @@ class LSPClient:
             self._reader_thread.start()
 
             root_uri = self.root_path.as_uri()
-            init_res = self.send_request(
-                "initialize",
-                {
-                    "processId": os.getpid(),
-                    "rootUri": root_uri,
-                    "capabilities": {
-                        "textDocument": {
-                            "definition": {"dynamicRegistration": False},
-                        }
-                    },
+            init_params: dict[str, Any] = {
+                "processId": os.getpid(),
+                "rootUri": root_uri,
+                "capabilities": {
+                    "textDocument": {
+                        "definition": {"dynamicRegistration": False},
+                    }
                 },
-                timeout=timeout,
-            )
+            }
+            if "typescript-language-server" in Path(executable).name.lower():
+                if tsserver_path := _discover_tsserver_path(self.root_path, self.project_root):
+                    init_params["initializationOptions"] = {"tsserver": {"path": tsserver_path}}
+            init_res = self.send_request("initialize", init_params, timeout=timeout)
             if init_res is not None:
                 self.send_notification("initialized", {})
                 return True
@@ -457,6 +457,44 @@ EXT_TO_LANGUAGE: dict[str, str] = {
     ".php": "php",
     ".phtml": "php",
 }
+
+
+def _discover_tsserver_path(root_path: Path, project_root: Path) -> str | None:
+    """Locate `tsserver.js` from workspace node_modules, PATH `tsserver`, or global installs."""
+    candidates: list[Path] = [
+        root_path / "node_modules" / "typescript" / "lib" / "tsserver.js",
+        project_root / "node_modules" / "typescript" / "lib" / "tsserver.js",
+    ]
+    if tsserver_bin := shutil.which("tsserver"):
+        bin_path = Path(tsserver_bin)
+        candidates.extend(
+            [
+                bin_path.parent / "node_modules" / "typescript" / "lib" / "tsserver.js",
+                bin_path.resolve().parent.parent / "lib" / "tsserver.js",
+            ]
+        )
+    if appdata := os.environ.get("APPDATA"):
+        candidates.append(
+            Path(appdata) / "npm" / "node_modules" / "typescript" / "lib" / "tsserver.js"
+        )
+    candidates.extend(
+        [
+            Path.home()
+            / ".bun"
+            / "install"
+            / "global"
+            / "node_modules"
+            / "typescript"
+            / "lib"
+            / "tsserver.js",
+            Path("/usr/local/lib/node_modules/typescript/lib/tsserver.js"),
+            Path("/usr/lib/node_modules/typescript/lib/tsserver.js"),
+        ]
+    )
+    for cand in candidates:
+        if cand.is_file():
+            return str(cand)
+    return None
 
 
 def _resolve_lsp_binary(binary: str, project_root: Path | None = None) -> str | None:

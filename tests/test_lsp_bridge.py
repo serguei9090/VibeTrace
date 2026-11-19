@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from vibetrace.indexer.db import Edge, IndexerDB, Node
 from vibetrace.indexer.lsp_bridge import (
     LSPClient,
+    _discover_tsserver_path,
     get_default_lsp_command,
     resolve_unresolved_edges,
 )
@@ -374,3 +375,13 @@ def test_lsp_client_definitions_batch_pipelined(tmp_path: Path) -> None:
         # Verify no orphan futures leak
         with client._lock:
             assert len(client._pending_requests) == 0
+
+
+def test_discover_tsserver_path_prefers_workspace_local(tmp_path: Path) -> None:
+    """Verify _discover_tsserver_path finds workspace-local node_modules tsserver.js first."""
+    tsserver_js = tmp_path / "node_modules" / "typescript" / "lib" / "tsserver.js"
+    tsserver_js.parent.mkdir(parents=True)
+    tsserver_js.write_text("// stub tsserver\n", encoding="utf-8")
+
+    discovered = _discover_tsserver_path(tmp_path, tmp_path)
+    assert discovered == str(tsserver_js)

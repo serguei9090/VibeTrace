@@ -323,7 +323,9 @@ class RustParser(LanguageParser):
                 def _scan_macro_tokens(tok_node: Node) -> None:
                     if tok_node.type in ("identifier", "scoped_identifier"):
                         ref_name = self._get_text(tok_node).replace("::", ".").strip()
-                        if ref_name and (target_id := self._resolve_call_target(ref_name, ctx)):
+                        if ref_name and (
+                            target_id := self._resolve_reference_target(ref_name, ctx)
+                        ):
                             edges.append(
                                 self._create_edge(parent_id, target_id, "references", node=tok_node)
                             )

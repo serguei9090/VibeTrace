@@ -127,6 +127,32 @@ export let config = { timeout: 1000 };
         assert "config" in names
         assert names["config"] == "variable"
 
+    def test_ts_skips_local_param_reference_edges_keeps_callback_refs(self):
+        """Passing a local parameter must not emit an unresolved reference, unlike a callback."""
+        parser = TypeScriptParser()
+        code = b"""
+function onDone(): void {}
+function sendAlert(text: string): void {}
+function run(cb: () => void): void { cb(); }
+
+export function notifyOps(msg: string): void {
+    sendAlert(msg);
+    run(onDone);
+}
+"""
+        nodes, edges = parser.extract("index.ts", code)
+        by_id = {n.id: n for n in nodes}
+        notify_id = next(n.id for n in nodes if n.name == "notifyOps")
+        ref_edges = [
+            e for e in edges if e.from_node_id == notify_id and e.relation_type == "references"
+        ]
+        ref_targets = {
+            by_id[e.to_node_id].name if e.to_node_id in by_id else e.to_node_id for e in ref_edges
+        }
+
+        assert "onDone" in ref_targets
+        assert all(e.to_node_id in by_id for e in ref_edges)
+
 
 class TestGoParser:
     """Test Go parser"""

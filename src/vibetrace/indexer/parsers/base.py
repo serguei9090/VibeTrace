@@ -322,6 +322,17 @@ class LanguageParser(ABC):
             target_f = self._find_go_symbol_file(ctx.file_path, called_name)
         return self._get_id(target_f, called_name)
 
+    def _resolve_reference_target(self, ref_name: str, ctx: ParserContext) -> str | None:
+        """Resolve a symbol reference, skipping bare local variables/parameters."""
+        if (
+            "." not in ref_name
+            and ref_name in ctx.local_types
+            and ref_name not in ctx.imported_symbols
+            and ref_name not in ctx.defined_symbols
+        ):
+            return None
+        return self._resolve_call_target(ref_name, ctx)
+
     def _find_go_symbol_file(self, target_file: str, sym: str) -> str:
         """Find the specific .go file in the package folder where sym is declared (cached)."""
         if not self.resolver or not self.resolver.known_files:
