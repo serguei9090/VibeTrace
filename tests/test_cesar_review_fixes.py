@@ -335,8 +335,11 @@ def test_filter_sonar_targets_git_diff_and_wave_chunking(tmp_path: Path) -> None
         proc_mock = MagicMock()
         proc_mock.stdin = MagicMock()
         proc_mock.stdout = MagicMock()
+        proc_mock.stdout.readline.return_value = b""
         popen_mock.return_value = proc_mock
         sess.run(timeout_sec=30.0)
 
     assert wave_sizes == [12, 3]
     assert sent_methods.count("textDocument/didClose") == 15
+    assert sess._reader_thread is not None
+    assert not sess._reader_thread.is_alive()

@@ -22,6 +22,9 @@ from vibetrace.indexer.db_retry import with_write_retry
 
 logger = logging.getLogger(__name__)
 
+_MAX_LSP_HEADER_LINES = 64
+_MAX_LSP_BODY_BYTES = 64 * 1024 * 1024
+
 
 class LSPClient:
     """Lightweight stdio JSON-RPC 2.0 client for LSP servers."""
@@ -92,11 +95,14 @@ class LSPClient:
         while self._running:
             try:
                 content_length: int | None = None
-                while self._running:
-                    line = proc.stdout.readline().decode("latin1")
-                    if not line:
+                for _ in range(_MAX_LSP_HEADER_LINES):
+                    if not self._running:
+                        break
+                    raw_line = proc.stdout.readline()
+                    if not isinstance(raw_line, (bytes, bytearray)) or not raw_line:
                         self._running = False
                         break
+                    line = raw_line.decode("latin1")
                     if line == "\r\n":
                         break
                     if line.lower().startswith("content-length:"):
@@ -108,9 +114,16 @@ class LSPClient:
 
                 if not self._running or content_length is None:
                     break
+                if content_length <= 0 or content_length > _MAX_LSP_BODY_BYTES:
+                    self._running = False
+                    break
 
                 body_bytes = proc.stdout.read(content_length)
-                if len(body_bytes) < content_length:
+                if (
+                    not isinstance(body_bytes, (bytes, bytearray))
+                    or len(body_bytes) < content_length
+                ):
+                    self._running = False
                     break
 
                 msg = json.loads(body_bytes.decode("utf-8"))

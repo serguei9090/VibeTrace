@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from vibetrace.quality.adapters.sonar_lint import (
     SonarLintAdapter,
+    SonarRuntimePaths,
     _file_uri_to_rel_path,
+    _read_exact_bytes,
+    _read_lsp_headers,
+    _SonarJsonRpcSession,
     extract_rspec_short,
     resolve_sonar_runtime,
 )
@@ -153,3 +158,45 @@ def test_quality_and_security_service_sonar_deduplication(tmp_path: Path) -> Non
         s6353_sonar = [f for f in report_with_sonar.findings if "S6353" in f.rule_id]
         assert len(s6353_default) == 1
         assert len(s6353_sonar) == 1
+
+
+def test_sonar_reader_helpers_exit_on_non_bytes_and_closed_flag(tmp_path: Path) -> None:
+    """Verifies LSP header/body readers and session thread exit cleanly on mock/closed streams."""
+    # 1-2. Non-bytes streams (e.g. bare MagicMock) return None immediately without spinning
+    assert _read_lsp_headers(MagicMock()) is None
+    assert _read_exact_bytes(MagicMock(), 16) is None
+
+    # 3. is_closed guard aborts reading even on a valid header stream
+    assert (
+        _read_lsp_headers(io.BytesIO(b"Content-Length: 10\r\n\r\n"), is_closed=lambda: True) is None
+    )
+
+    # 4. Valid LSP framing reads header Content-Length and exact payload bytes
+    assert _read_lsp_headers(io.BytesIO(b"Content-Length: 8\r\n\r\n")) == 8
+    assert _read_exact_bytes(io.BytesIO(b'{"id":1}'), 8) == b'{"id":1}'
+
+    # 5. Oversized frame payload limit returns None without allocation
+    assert _read_exact_bytes(io.BytesIO(b""), 65 * 1024 * 1024) is None
+
+    # 6. Even if a caller passes an unconfigured MagicMock() stdout, the reader thread exits
+    rt = SonarRuntimePaths(
+        root_dir=tmp_path,
+        java_bin=tmp_path / "java",
+        ls_jar=tmp_path / "ls.jar",
+        analyzer_jars=(tmp_path / "py.jar",),
+        work_dir=tmp_path / "work",
+        source_kind="test",
+    )
+    sess = _SonarJsonRpcSession(runtime=rt, project_root=tmp_path, target_files=[])
+    sess._init_done.set()
+    sess._ready_to_analyze.set()
+
+    with patch("subprocess.Popen") as popen_mock:
+        proc_mock = MagicMock()
+        proc_mock.stdin = MagicMock()
+        proc_mock.stdout = MagicMock()
+        popen_mock.return_value = proc_mock
+        assert sess.run(timeout_sec=5.0) == {}
+
+    assert sess._reader_thread is not None
+    assert not sess._reader_thread.is_alive()

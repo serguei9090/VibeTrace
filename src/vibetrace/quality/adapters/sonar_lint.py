@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,8 @@ _RPC_METHOD_KEY = "method"
 _REDOS_RULE_CODE = "S8786"
 _COMPLEXITY_RULE_CODE = "S3776"
 _SONAR_WAVE_SIZE = 12
+_MAX_LSP_HEADER_LINES = 64
+_MAX_LSP_BODY_BYTES = 64 * 1024 * 1024
 
 
 def filter_sonar_targets(
@@ -334,14 +337,19 @@ def sys_platform_name() -> str:
     return "linux"
 
 
-def _read_lsp_headers(stream: Any) -> int | None:
+def _read_lsp_headers(
+    stream: Any,
+    is_closed: Callable[[], bool] | None = None,
+) -> int | None:
     """Reads LSP headers from stdout stream and returns Content-Length (or None on EOF)."""
     content_length = 0
-    while True:
-        line = stream.readline()
-        if not line:
+    for _ in range(_MAX_LSP_HEADER_LINES):
+        if is_closed is not None and is_closed():
             return None
-        line_str = line.decode("ascii", errors=_ERR_REPLACE).strip()
+        line = stream.readline()
+        if not isinstance(line, (bytes, bytearray)) or not line:
+            return None
+        line_str = bytes(line).decode("ascii", errors=_ERR_REPLACE).strip()
         if not line_str:
             return content_length
         if line_str.lower().startswith("content-length:"):
@@ -349,17 +357,30 @@ def _read_lsp_headers(stream: Any) -> int | None:
                 content_length = int(line_str.split(":", 1)[1].strip())
             except ValueError:
                 content_length = 0
+    return 0
 
 
-def _read_exact_bytes(stream: Any, num_bytes: int) -> bytes | None:
+def _read_exact_bytes(
+    stream: Any,
+    num_bytes: int,
+    is_closed: Callable[[], bool] | None = None,
+) -> bytes | None:
     """Reads exact number of bytes from stream or returns None on premature EOF."""
-    body = b""
-    while len(body) < num_bytes:
-        chunk = stream.read(num_bytes - len(body))
-        if not chunk:
+    if num_bytes > _MAX_LSP_BODY_BYTES:
+        logger.warning("Rejecting oversized SonarLint LSP frame (%d bytes)", num_bytes)
+        return None
+    chunks: list[bytes] = []
+    received = 0
+    while received < num_bytes:
+        if is_closed is not None and is_closed():
             return None
-        body += chunk
-    return body
+        chunk = stream.read(num_bytes - received)
+        if not isinstance(chunk, (bytes, bytearray)) or not chunk:
+            return None
+        chunk_bytes = bytes(chunk)
+        chunks.append(chunk_bytes)
+        received += len(chunk_bytes)
+    return b"".join(chunks)
 
 
 class _SonarJsonRpcSession:
@@ -375,12 +396,16 @@ class _SonarJsonRpcSession:
         self.project_root = project_root.resolve()
         self.target_files = [f.resolve() for f in target_files]
         self._proc: subprocess.Popen[bytes] | None = None
+        self._reader_thread: threading.Thread | None = None
         self._write_lock = threading.Lock()
         self._diagnostics_by_uri: dict[str, list[dict[str, Any]]] = {}
         self._published_uris: set[str] = set()
         self._init_done = threading.Event()
         self._ready_to_analyze = threading.Event()
         self._closed = False
+
+    def _is_closed(self) -> bool:
+        return self._closed
 
     def _send_message(self, payload: dict[str, Any]) -> None:
         if self._proc is None or self._proc.stdin is None or self._closed:
@@ -477,12 +502,12 @@ class _SonarJsonRpcSession:
         stream = self._proc.stdout
         try:
             while not self._closed:
-                content_length = _read_lsp_headers(stream)
+                content_length = _read_lsp_headers(stream, is_closed=self._is_closed)
                 if content_length is None:
                     return
                 if content_length <= 0:
                     continue
-                body = _read_exact_bytes(stream, content_length)
+                body = _read_exact_bytes(stream, content_length, is_closed=self._is_closed)
                 if body is None:
                     return
                 try:
@@ -570,6 +595,8 @@ class _SonarJsonRpcSession:
                 self._proc.wait(timeout=1.0)
             except Exception:
                 pass
+        if self._reader_thread is not None and self._reader_thread.is_alive():
+            self._reader_thread.join(timeout=1.0)
 
     def run(self, timeout_sec: float = 40.0) -> dict[str, list[dict[str, Any]]]:
         """Executes the LSP session, analyzes target files, and returns raw diagnostics by URI."""
@@ -601,7 +628,8 @@ class _SonarJsonRpcSession:
             logger.warning("Failed to spawn SonarLint Language Server: %s", exc)
             return {}
 
-        threading.Thread(target=self._reader_loop, daemon=True).start()
+        self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self._reader_thread.start()
 
         try:
             root_uri = _path_to_file_uri(self.project_root)
