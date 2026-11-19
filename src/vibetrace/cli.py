@@ -732,6 +732,11 @@ examples:
         default=5,
         help="Maximum number of chunks to return",
     )
+    p_doc_search.add_argument(
+        "--locale",
+        default=None,
+        help="Restrict or prioritize documentation to ISO locale (e.g. 'en', 'es', 'zh')",
+    )
 
     # docs check
     p_doc_check = docs_sub.add_parser(

@@ -305,3 +305,44 @@ def test_incremental_doc_index_backfills_missing_embeddings(doc_workspace):
             "SELECT COUNT(*) FROM doc_chunks WHERE catalog = 'core' AND embedding IS NULL"
         ).fetchone()[0]
     assert missing_after == 0
+
+
+def test_multilingual_docs_locale_detection_and_ranking(tmp_path: Path):
+    """Verify i18n locale detection, RRF preferred_locale boosting, and strict --locale filter."""
+    from vibetrace.docs.service import detect_path_locale, resolve_default_docs_dir
+
+    assert detect_path_locale("docs/en/tutorial/oauth2.md") == "en"
+    assert detect_path_locale("docs/zh-hant/tutorial/oauth2.md") == "zh-hant"
+    assert detect_path_locale("docs/tutorial/oauth2.md") is None
+
+    # Auto-detect selects docs/en when docs/ has >=2 ISO locale subdirectories
+    proj = tmp_path / "i18n_proj"
+    (proj / "docs" / "en").mkdir(parents=True)
+    (proj / "docs" / "es").mkdir(parents=True)
+    (proj / "docs" / "zh").mkdir(parents=True)
+    (proj / "docs" / "en" / "guide.md").write_text(
+        "# OAuth2 Security\n\nOAuth2 password bearer token guide.\n", encoding="utf-8"
+    )
+    (proj / "docs" / "es" / "guide.md").write_text(
+        "# Seguridad OAuth2\n\nOAuth2 password bearer token guia.\n", encoding="utf-8"
+    )
+    (proj / "docs" / "zh" / "guide.md").write_text(
+        "# OAuth2 安全\n\nOAuth2 password bearer token.\n", encoding="utf-8"
+    )
+
+    assert resolve_default_docs_dir(proj, "en") == "docs/en"
+    assert resolve_default_docs_dir(proj, "fr") == "docs"
+
+    # When multiple locales are indexed, preferred_locale='en' ranks docs/en first
+    doc_db = DocDB(proj / ".vibetrace" / "vibetrace.db")
+    DocIndexService.index_catalog("core", ["docs"], doc_db, proj)
+    hits_en = DocSearchService.search("OAuth2 password bearer token", project_root=proj, limit=3)
+    assert hits_en
+    assert hits_en[0].file_path == "docs/en/guide.md"
+
+    # Strict locale parameter restricts to that locale
+    hits_es = DocSearchService.search(
+        "OAuth2 password bearer token", project_root=proj, limit=3, locale="es"
+    )
+    assert hits_es
+    assert all(h.file_path.startswith("docs/es/") for h in hits_es)

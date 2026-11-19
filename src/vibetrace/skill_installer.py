@@ -162,18 +162,25 @@ def install_skill(
 
 def _init_docs_catalog(root: Path, db_path: Path, no_index: bool) -> tuple[bool, int]:
     """Auto-registers and indexes core docs catalog if docs/ exists."""
-    docs_dir = root / "docs"
-    if not docs_dir.is_dir():
-        return False, 0
     try:
+        from vibetrace.config import load_config
         from vibetrace.docs.db import DocDB
-        from vibetrace.docs.service import DocCatalogManager, DocIndexService
+        from vibetrace.docs.service import (
+            DocCatalogManager,
+            DocIndexService,
+            resolve_default_docs_dir,
+        )
 
-        DocCatalogManager.add_path("core", "docs", project_root=root)
+        pref_loc = load_config(root).docs.preferred_locale
+        docs_rel = resolve_default_docs_dir(root, pref_loc)
+        if not docs_rel:
+            return False, 0
+
+        DocCatalogManager.add_path("core", docs_rel, project_root=root)
         doc_chunks = 0
         if not no_index:
             doc_db = DocDB(db_path)
-            res_docs = DocIndexService.index_catalog("core", ["docs"], doc_db, root)
+            res_docs = DocIndexService.index_catalog("core", [docs_rel], doc_db, root)
             doc_chunks = res_docs.get("chunks", 0)
         return True, doc_chunks
     except Exception as exc:

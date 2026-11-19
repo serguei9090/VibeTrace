@@ -221,6 +221,7 @@ def _cmd_docs_search(args: argparse.Namespace) -> int:
         scope=scope,
         project_root=root,
         limit=limit,
+        locale=getattr(args, "locale", None),
     )
 
     if getattr(args, "json", False):

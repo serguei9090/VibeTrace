@@ -19,6 +19,118 @@ from vibetrace.indexer.embeddings import EmbeddingEngine
 
 logger = logging.getLogger(__name__)
 
+ISO_LOCALE_CODES: frozenset[str] = frozenset(
+    {
+        "af",
+        "ar",
+        "az",
+        "be",
+        "bg",
+        "bn",
+        "bs",
+        "ca",
+        "cs",
+        "da",
+        "de",
+        "el",
+        "em",
+        "en",
+        "es",
+        "et",
+        "eu",
+        "fa",
+        "fi",
+        "fil",
+        "fr",
+        "gl",
+        "gu",
+        "he",
+        "hi",
+        "hr",
+        "hu",
+        "hy",
+        "id",
+        "is",
+        "it",
+        "ja",
+        "ka",
+        "kk",
+        "km",
+        "kn",
+        "ko",
+        "lo",
+        "lt",
+        "lv",
+        "mk",
+        "ml",
+        "mn",
+        "mr",
+        "ms",
+        "my",
+        "ne",
+        "nl",
+        "no",
+        "pa",
+        "pl",
+        "pt",
+        "pt-br",
+        "ro",
+        "ru",
+        "si",
+        "sk",
+        "sl",
+        "sq",
+        "sr",
+        "sv",
+        "sw",
+        "ta",
+        "te",
+        "th",
+        "tr",
+        "uk",
+        "ur",
+        "uz",
+        "vi",
+        "yo",
+        "zh",
+        "zh-hans",
+        "zh-hant",
+    }
+)
+
+
+def detect_path_locale(rel_path: str) -> str | None:
+    """Return lowercase ISO locale segment from paths like `docs/<loc>/...`."""
+    parts = [p for p in rel_path.replace("\\", "/").split("/") if p]
+    if len(parts) >= 2 and parts[0].lower() == "docs":
+        cand = parts[1].lower()
+        if cand in ISO_LOCALE_CODES:
+            return cand
+    if parts and parts[0].lower() in ISO_LOCALE_CODES:
+        return parts[0].lower()
+    return None
+
+
+def resolve_default_docs_dir(project_root: Path, preferred_locale: str = "en") -> str | None:
+    """Auto-detect docs root, narrowing to `docs/<preferred_locale>` for multi-locale i18n trees."""
+    docs_root = project_root / "docs"
+    if not docs_root.is_dir():
+        return None
+    pref = preferred_locale.strip().lower() or "en"
+    locale_dir = docs_root / pref
+    if locale_dir.is_dir():
+        try:
+            locale_siblings = sum(
+                1
+                for child in docs_root.iterdir()
+                if child.is_dir() and child.name.lower() in ISO_LOCALE_CODES
+            )
+            if locale_siblings >= 2:
+                return f"docs/{pref}"
+        except OSError:
+            pass
+    return "docs"
+
 
 def get_global_config_path() -> Path:
     """Return path to user-global VibeTrace config (~/.vibetrace/config.toml)."""
@@ -411,20 +523,38 @@ class DocSearchService:
         bm25_hits: list[tuple[Literal["local", "global"], dict[str, Any]]],
         vec_hits: list[tuple[Literal["local", "global"], dict[str, Any]]],
         limit: int,
+        preferred_locale: str = "en",
+        strict_locale: str | None = None,
     ) -> list[DocChunkItem]:
         rrf_scores: dict[str, float] = {}
         chunk_map: dict[str, tuple[Literal["local", "global"], dict[str, Any]]] = {}
         sources_map: dict[str, set[str]] = {}
+        pref_loc = (preferred_locale or "en").strip().lower()
+        strict_loc = strict_locale.strip().lower() if strict_locale else None
+
+        def _accept_and_weight(item: dict[str, Any]) -> float | None:
+            path_loc = detect_path_locale(str(item.get("file_path") or ""))
+            if strict_loc is not None and path_loc is not None and path_loc != strict_loc:
+                return None
+            if path_loc is None or path_loc == pref_loc:
+                return 1.5
+            return 0.5
 
         for rank, (sc, item) in enumerate(bm25_hits, start=1):
+            mult = _accept_and_weight(item)
+            if mult is None:
+                continue
             cid = f"{sc}:{item['id']}"
-            rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (60.0 + rank))
+            rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (mult / (60.0 + rank))
             chunk_map[cid] = (sc, item)
             sources_map.setdefault(cid, set()).add("bm25")
 
         for rank, (sc, item) in enumerate(vec_hits, start=1):
+            mult = _accept_and_weight(item)
+            if mult is None:
+                continue
             cid = f"{sc}:{item['id']}"
-            rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (60.0 + rank))
+            rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (mult / (60.0 + rank))
             chunk_map[cid] = (sc, item)
             sources_map.setdefault(cid, set()).add("vector")
 
@@ -456,9 +586,21 @@ class DocSearchService:
         scope: Literal["local", "global", "all"] = "local",
         project_root: Path | None = None,
         limit: int = 5,
+        locale: str | None = None,
     ) -> list[DocChunkItem]:
         """Search documentation using hybrid reciprocal rank fusion."""
         limit = max(1, min(50, limit))
+        preferred_locale = "en"
+        if locale:
+            preferred_locale = locale.strip().lower()
+        elif project_root:
+            try:
+                from vibetrace.config import load_config
+
+                preferred_locale = load_config(project_root).docs.preferred_locale.strip().lower()
+            except Exception:
+                preferred_locale = "en"
+
         targets: list[tuple[DocDB, Literal["local", "global"]]] = []
 
         # If a specific catalog is requested, prioritize local over global shadowing
@@ -473,16 +615,23 @@ class DocSearchService:
             if scope in ("global", "all"):
                 targets.append((get_global_doc_db(), "global"))
 
+        cand_limit = max(limit * 4, 20)
         q_vec = cls._resolve_query_vector(query, project_root)
         bm25_hits: list[tuple[Literal["local", "global"], dict[str, Any]]] = []
         vec_hits: list[tuple[Literal["local", "global"], dict[str, Any]]] = []
 
         for db, sc in targets:
-            for r in db.search_bm25(query, catalog=catalog, limit=limit * 2):
+            for r in db.search_bm25(query, catalog=catalog, limit=cand_limit):
                 bm25_hits.append((sc, r))
 
             if q_vec:
-                for r in db.search_vector(q_vec, catalog=catalog, limit=limit * 2):
+                for r in db.search_vector(q_vec, catalog=catalog, limit=cand_limit):
                     vec_hits.append((sc, r))
 
-        return cls._fuse_rrf_results(bm25_hits, vec_hits, limit)
+        return cls._fuse_rrf_results(
+            bm25_hits,
+            vec_hits,
+            limit,
+            preferred_locale=preferred_locale,
+            strict_locale=locale,
+        )

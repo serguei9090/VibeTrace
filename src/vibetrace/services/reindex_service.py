@@ -152,19 +152,27 @@ class ReindexService:
         doc_stats = {"catalogs": 0, "files": 0, "chunks": 0}
         if docs:
             try:
+                from vibetrace.config import load_config
                 from vibetrace.docs.db import DocDB
-                from vibetrace.docs.service import DocCatalogManager, DocIndexService
+                from vibetrace.docs.service import (
+                    DocCatalogManager,
+                    DocIndexService,
+                    resolve_default_docs_dir,
+                )
 
                 local_cats = [
                     c for c in DocCatalogManager.list_catalogs(active_root) if c.scope == "local"
                 ]
-                if not local_cats and (active_root / "docs").is_dir():
-                    DocCatalogManager.add_path("core", "docs", project_root=active_root)
-                    local_cats = [
-                        c
-                        for c in DocCatalogManager.list_catalogs(active_root)
-                        if c.scope == "local"
-                    ]
+                if not local_cats:
+                    pref_loc = load_config(active_root).docs.preferred_locale
+                    docs_rel = resolve_default_docs_dir(active_root, pref_loc)
+                    if docs_rel:
+                        DocCatalogManager.add_path("core", docs_rel, project_root=active_root)
+                        local_cats = [
+                            c
+                            for c in DocCatalogManager.list_catalogs(active_root)
+                            if c.scope == "local"
+                        ]
                 if local_cats:
                     doc_db = DocDB(db.db_path)
                     for cat in local_cats:

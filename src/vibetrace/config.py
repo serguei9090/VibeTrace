@@ -217,12 +217,26 @@ class SplitsConfig(BaseModel):
     )
 
 
+class DocsConfig(BaseModel):
+    """Documentation catalogs and multilingual locale ranking preferences."""
+
+    preferred_locale: str = Field(
+        default="en",
+        description="Preferred ISO locale code for multilingual docs auto-detection and ranking",
+    )
+    catalogs: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Named documentation catalogs mapping to local paths or globs",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     vectors: VectorConfig = Field(default_factory=VectorConfig)
+    docs: DocsConfig = Field(default_factory=DocsConfig)
     deadcode: DeadCodeConfig = Field(default_factory=DeadCodeConfig)
     splits: SplitsConfig = Field(default_factory=SplitsConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
@@ -355,6 +369,10 @@ check_dependencies = true
 enable_semgrep = {semgrep_str}
 # Automatically run Trivy container & IaC audits when Dockerfiles/K8s manifests exist
 enable_trivy = {trivy_str}
+
+[docs]
+# Preferred ISO locale code for multilingual docs auto-detection and RRF boosting
+preferred_locale = "en"
 """
 
 
