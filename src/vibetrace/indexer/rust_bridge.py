@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from vibetrace.indexer.db import Edge, IndexerDB, Node
+from vibetrace.indexer.parsers import ParserFactory
+from vibetrace.indexer.resolver import ModuleResolver
+
+_DLL_DIR_HANDLE: Any = None
+if os.name == "nt" and hasattr(os, "add_dll_directory"):
+    _pkg_root = Path(__file__).resolve().parent.parent
+    if _pkg_root.is_dir():
+        _DLL_DIR_HANDLE = os.add_dll_directory(str(_pkg_root))
 
 try:
     import vibetrace._rust_core as _rust_core  # type: ignore[import-not-found]
@@ -13,11 +25,6 @@ try:
 except ImportError:
     _rust_core = None  # type: ignore[assignment]
     _HAS_RUST_CORE = False
-from typing import Any
-
-from vibetrace.indexer.db import Edge, IndexerDB, Node
-from vibetrace.indexer.parsers import ParserFactory
-from vibetrace.indexer.resolver import ModuleResolver
 
 logger = logging.getLogger(__name__)
 

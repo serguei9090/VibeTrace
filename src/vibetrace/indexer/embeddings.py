@@ -1,14 +1,14 @@
-"""Native Rust parallel vector embedding and search engine."""
+"""Native Rust EmbeddingGemma 2 ONNX vector embedding and search engine."""
 
 from __future__ import annotations
 
-import importlib
 import logging
 import math
+import os
 import struct
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -89,8 +89,26 @@ def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
     return sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
 
 
-def _embed_texts_native(texts: list[str], dimensions: int) -> list[list[float]]:
-    """Compute deterministic L2-normalized vectors via Rust `_rust_core`."""
+def format_embedding_query(query: str, task: Literal["code", "docs"] = "code") -> str:
+    """Format a query using official EmbeddingGemma 2 task prefixes."""
+    if task == "docs":
+        return f"task: search result | query: {query}"
+    return f"task: code retrieval | query: {query}"
+
+
+def format_embedding_document(text: str, title: str | None = None) -> str:
+    """Format a code symbol or document chunk using EmbeddingGemma 2 framing."""
+    clean_title = (title or "").strip() or "none"
+    return f"title: {clean_title} | text: {text}"
+
+
+def _embed_texts_native(
+    texts: list[str],
+    dimensions: int,
+    device: str = "auto",
+    model_dir: str | None = None,
+) -> list[list[float]]:
+    """Compute L2-normalized EmbeddingGemma 2 ONNX vectors via Rust `_rust_core`."""
     from vibetrace.indexer.rust_bridge import _rust_core
 
     fn = getattr(_rust_core, "py_embed_texts_parallel", None)
@@ -99,11 +117,12 @@ def _embed_texts_native(texts: list[str], dimensions: int) -> list[list[float]]:
             "Native Rust vector engine (vibetrace._rust_core.py_embed_texts_parallel) "
             "is required but not built."
         )
-    return [list(v) for v in fn(texts, dimensions)]
+    resolved_dir = model_dir if model_dir is not None else os.environ.get("VIBETRACE_MODEL_DIR")
+    return [list(v) for v in fn(texts, dimensions, device, resolved_dir)]
 
 
 class EmbeddingEngine:
-    """Manages native Rust parallel vector encoding and similarity search."""
+    """Manages native Rust EmbeddingGemma 2 encoding and similarity search."""
 
     def __init__(
         self,
@@ -111,6 +130,7 @@ class EmbeddingEngine:
         encoder: Callable[[list[str]], Sequence[Sequence[float]]] | None = None,
         vector_store: VectorStore | None = None,
         project_root: Path | None = None,
+        model_dir: str | None = None,
     ):
         if config is None and project_root is not None:
             try:
@@ -131,6 +151,7 @@ class EmbeddingEngine:
         self._encoder = encoder
         self.vector_store = vector_store
         self.project_root = project_root
+        self.model_dir = model_dir
         if self.vector_store is None and project_root is not None:
             self._init_vector_store(project_root)
 
@@ -180,24 +201,28 @@ class EmbeddingEngine:
             return False
 
     def _resolve_device(self) -> str:
-        """Resolve target device string based on configuration and hardware availability."""
+        """Resolve target device string for ONNX Runtime without touching PyTorch."""
         dev = (self.config.device or "auto").strip().lower()
-        if dev in ("cuda", "gpu"):
-            return "cuda"
+        if dev in ("cuda", "gpu", "directml", "dml"):
+            return "gpu"
         if dev == "cpu":
             return "cpu"
 
-        # Auto detection: check torch CUDA availability without hard-crashing if torch missing
         try:
-            torch_mod = importlib.import_module("torch")
-            if getattr(torch_mod, "cuda", None) and torch_mod.cuda.is_available():
-                return "cuda"
+            from vibetrace.indexer.rust_bridge import _rust_core
+
+            info_fn = getattr(_rust_core, "py_embedding_runtime_info", None)
+            if info_fn is not None:
+                info = info_fn(self.model_dir)
+                active = str(info.get("active_provider", "")).lower()
+                if active and active != "uninitialized":
+                    return active
         except Exception:
             pass
-        return "cpu"
+        return "auto"
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Encode a batch of texts via custom encoder or parallel Rust engine."""
+        """Encode a batch of texts via custom encoder or EmbeddingGemma 2 Rust engine."""
         if not texts:
             return []
 
@@ -208,7 +233,30 @@ class EmbeddingEngine:
                 for vec in raw_vectors
             ]
 
-        return _embed_texts_native(texts, self.config.dimensions)
+        return _embed_texts_native(
+            texts,
+            self.config.dimensions,
+            device=self._resolve_device(),
+            model_dir=self.model_dir,
+        )
+
+    def embed_query(self, query: str, task: Literal["code", "docs"] = "code") -> list[float]:
+        """Encode a single search query with task-specific EmbeddingGemma 2 prefix."""
+        if self._encoder is not None:
+            vecs = self.embed_texts([query])
+            return vecs[0] if vecs else []
+        formatted = format_embedding_query(query, task=task)
+        vecs = self.embed_texts([formatted])
+        return vecs[0] if vecs else []
+
+    def embed_documents(self, items: Sequence[tuple[str | None, str]]) -> list[list[float]]:
+        """Encode `(title, text)` pairs with EmbeddingGemma 2 document framing."""
+        if not items:
+            return []
+        if self._encoder is not None:
+            return self.embed_texts([text for _, text in items])
+        formatted = [format_embedding_document(text, title=title) for title, text in items]
+        return self.embed_texts(formatted)
 
     def index_missing_embeddings(
         self,
@@ -236,8 +284,10 @@ class EmbeddingEngine:
         last_pct_logged = -1
         for batch_idx, idx in enumerate(range(0, total_nodes, batch_size), start=1):
             batch = missing_nodes[idx : idx + batch_size]
-            docs = [build_symbol_document(n) for n in batch]
-            vectors = self.embed_texts(docs)
+            doc_items = [
+                (n.get("qualified_name") or n.get("name"), build_symbol_document(n)) for n in batch
+            ]
+            vectors = self.embed_documents(doc_items)
 
             if self.vector_store and self.vector_store.is_available():
                 lance_records = [
@@ -299,15 +349,16 @@ class EmbeddingEngine:
         self._resolve_vector_store(db)
 
         # Fast path 1: High-scale disk-backed LanceDB vector store if populated
+        q_vec: list[float] | None = None
         if (
             self.vector_store
             and self.vector_store.is_available()
             and self.vector_store.has_embeddings(self.config.model_id)
         ):
-            query_vecs = self.embed_texts([query])
-            if query_vecs:
+            q_vec = self.embed_query(query, task="code")
+            if q_vec:
                 store_results = self.vector_store.search_semantic(
-                    query_vecs[0], limit=limit, model_id=self.config.model_id
+                    q_vec, limit=limit, model_id=self.config.model_id
                 )
                 if store_results:
                     return store_results
@@ -321,10 +372,10 @@ class EmbeddingEngine:
             if not has_embeddings:
                 return []
 
-        query_vecs = self.embed_texts([query])
-        if not query_vecs:
+        if q_vec is None:
+            q_vec = self.embed_query(query, task="code")
+        if not q_vec:
             return []
-        q_vec = query_vecs[0]
 
         # Fast path 2: Parallel Rust cosine similarity over SQLite blobs
         from vibetrace.indexer.rust_bridge import _rust_core

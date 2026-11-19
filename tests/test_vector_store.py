@@ -271,18 +271,15 @@ def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
     assert vcfg.codebase is True
     assert vcfg.device == "gpu"
 
-    # 2. EmbeddingEngine device resolution
+    # 2. EmbeddingEngine device resolution (ONNX Runtime, torch-free)
     eng_gpu = EmbeddingEngine(config=EmbeddingConfig(device="gpu"))
-    assert eng_gpu._resolve_device() == "cuda"
+    assert eng_gpu._resolve_device() == "gpu"
 
     eng_cpu = EmbeddingEngine(config=EmbeddingConfig(device="cpu"))
     assert eng_cpu._resolve_device() == "cpu"
 
     eng_auto = EmbeddingEngine(config=EmbeddingConfig(device="auto"))
-    with patch("importlib.import_module") as mock_import:
-        mock_torch = mock_import.return_value
-        mock_torch.cuda.is_available.return_value = False
-        assert eng_auto._resolve_device() == "cpu"
+    assert eng_auto._resolve_device() in ("auto", "cpu", "directml")
 
     # 3. Purge orphaned embeddings in SQLite DB
     db = IndexerDB(str(tmp_path / "test_purge.db"))

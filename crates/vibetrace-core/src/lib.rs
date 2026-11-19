@@ -54,15 +54,29 @@ pub fn py_extract_batch_parallel(
     Ok(res)
 }
 
-/// Compute deterministic L2-normalized feature-hashing embeddings in parallel without the GIL.
+/// Compute EmbeddingGemma 2 Q8 L2-normalized embeddings natively in Rust without the Python GIL.
 #[pyfunction]
+#[pyo3(signature = (texts, dimensions=256, device="auto", model_dir=None))]
 pub fn py_embed_texts_parallel(
     py: Python<'_>,
     texts: Vec<String>,
     dimensions: usize,
+    device: &str,
+    model_dir: Option<String>,
 ) -> PyResult<Vec<Vec<f32>>> {
-    let res = py.allow_threads(move || vectors::embed_texts_parallel(&texts, dimensions));
-    Ok(res)
+    let res = py.allow_threads(move || {
+        let dir_path = model_dir.as_deref().map(Path::new);
+        vectors::embed_texts_parallel(&texts, dimensions, device, dir_path)
+    });
+    res.map_err(pyo3::exceptions::PyRuntimeError::new_err)
+}
+
+/// Report EmbeddingGemma 2 cache status and active ONNX Runtime execution provider.
+#[pyfunction]
+#[pyo3(signature = (model_dir=None))]
+pub fn py_embedding_runtime_info(model_dir: Option<String>) -> PyResult<HashMap<String, String>> {
+    let dir_path = model_dir.as_deref().map(Path::new);
+    Ok(vectors::embedding_runtime_info(dir_path))
 }
 
 /// Search packed little-endian `f32` embedding blobs via parallel cosine similarity without the GIL.
@@ -86,6 +100,7 @@ fn _rust_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_scan_and_hash_workspace, m)?)?;
     m.add_function(wrap_pyfunction!(py_extract_batch_parallel, m)?)?;
     m.add_function(wrap_pyfunction!(py_embed_texts_parallel, m)?)?;
+    m.add_function(wrap_pyfunction!(py_embedding_runtime_info, m)?)?;
     m.add_function(wrap_pyfunction!(py_search_vectors_parallel, m)?)?;
     m.add_class::<RustNode>()?;
     m.add_class::<RustEdge>()?;

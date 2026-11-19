@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from vibetrace.indexer.db import IndexerDB, Node
 from vibetrace.indexer.embeddings import (
     EmbeddingConfig,
@@ -216,20 +218,103 @@ def test_hybrid_search_graceful_degradation_without_vectors(tmp_path: Path):
 
 
 def test_rust_native_parallel_embeddings(tmp_path: Path):
-    """Verify direct native Rust parallel embeddings and cosine similarity search."""
+    """Verify native Rust EmbeddingGemma 2 ONNX inference and cosine similarity search."""
+    from vibetrace.indexer.embeddings import cosine_similarity
+
     db = _populate_sample_db(tmp_path)
-    config = EmbeddingConfig(model_id="rust-native-256d", dimensions=128)
+    config = EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=128)
     engine = EmbeddingEngine(config=config)
 
     assert engine.is_available() is True
     v1 = engine.embed_texts(["AuthService.authenticate_jwt", "DatabasePool.connect_pool"])
     v2 = engine.embed_texts(["AuthService.authenticate_jwt"])
+    v2_repeat = engine.embed_texts(["AuthService.authenticate_jwt"])
 
     assert len(v1) == 2
     assert len(v1[0]) == 128
-    assert v1[0] == v2[0]
+    assert v2[0] == v2_repeat[0]
+    assert cosine_similarity(v1[0], v2[0]) > 0.9999
 
     assert engine.index_missing_embeddings(db, verbose=True) == 3
     hits = engine.search_semantic(db, "authenticate_jwt", limit=3)
     assert hits
     assert hits[0][0] == "n1"
+
+
+def test_embeddinggemma2_zero_overlap_paraphrase(tmp_path: Path):
+    """Verify pure zero-word-overlap paraphrase semantic retrieval with EmbeddingGemma 2."""
+    db = IndexerDB(str(tmp_path / "paraphrase.db"))
+    for node in (
+        Node(
+            id="pool_gc",
+            name="evict_idle_pool",
+            qualified_name="storage.pool.evict_idle_pool",
+            kind="function",
+            signature="()",
+            docstring="Release unused socket handles after inactivity window",
+            file_path="storage/pool.py",
+            start_line=1,
+            end_line=10,
+        ),
+        Node(
+            id="ui_theme",
+            name="render_palette_tokens",
+            qualified_name="ui.theme.render_palette_tokens",
+            kind="function",
+            signature="()",
+            docstring="Build CSS theme variables for button states",
+            file_path="ui/theme.py",
+            start_line=1,
+            end_line=10,
+        ),
+        Node(
+            id="retry_util",
+            name="compute_backoff_delay",
+            qualified_name="net.retry.compute_backoff_delay",
+            kind="function",
+            signature="()",
+            docstring="Calculate exponential jitter interval for retries",
+            file_path="net/retry.py",
+            start_line=1,
+            end_line=10,
+        ),
+    ):
+        db.upsert_node(node)
+    engine = EmbeddingEngine(
+        config=EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=256)
+    )
+    assert engine.index_missing_embeddings(db) == 3
+
+    # Query shares zero stems with "evict_idle_pool" / "Release unused socket handles..."
+    hits = engine.search_semantic(db, "clean up stale database connections", limit=3)
+    assert hits
+    assert hits[0][0] == "pool_gc"
+    assert hits[0][1] > hits[1][1]
+
+
+def test_embeddinggemma2_offline_error_no_hash_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Offline execution without cached ONNX files must raise explicitly with URLs and cache dir."""
+    monkeypatch.setenv("VIBETRACE_OFFLINE", "1")
+    engine = EmbeddingEngine(
+        config=EmbeddingConfig(device="cpu"),
+        model_dir=str(tmp_path),
+    )
+    with pytest.raises(RuntimeError) as exc_info:
+        engine.embed_query("clean up stale database connections", task="code")
+
+    msg = str(exc_info.value)
+    assert str(tmp_path) in msg
+    assert (
+        "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/main/tokenizer.json"
+        in msg
+    )
+    assert (
+        "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/main/onnx/model_quantized.onnx"
+        in msg
+    )
+    assert (
+        "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/resolve/main/onnx/model_quantized.onnx_data"
+        in msg
+    )

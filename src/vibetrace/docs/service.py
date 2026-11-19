@@ -386,7 +386,7 @@ class DocIndexService:
         seen_rel_files: set[str] = set()
 
         extracted: list[tuple[str, float, list[HeadingChunk]]] = []
-        all_texts: list[str] = []
+        doc_items: list[tuple[str | None, str]] = []
 
         for fpath in files_to_index:
             rel_file = (
@@ -419,13 +419,15 @@ class DocIndexService:
 
             extracted.append((rel_file, mtime, chunks))
             for c in chunks:
-                all_texts.append(f"{c.heading_path}\n{c.content}")
+                doc_items.append((c.heading_path, c.content))
 
         all_embeddings: list[list[float]] | None = None
-        if all_texts and eff_engine:
+        if doc_items and eff_engine:
             try:
-                all_embeddings = eff_engine.embed_texts(all_texts)
-            except Exception:
+                all_embeddings = eff_engine.embed_documents(doc_items)
+            except Exception as exc:
+                logger.warning("Document embedding generation failed: %s", exc)
+                warnings.append(f"embeddings skipped: {exc}")
                 all_embeddings = None
 
         if extracted:
@@ -511,10 +513,10 @@ class DocSearchService:
         if not engine.is_available():
             return None
         try:
-            emb_res = engine.embed_texts([query])
-            return emb_res[0] if emb_res else None
+            vec = engine.embed_query(query, task="docs")
+            return vec or None
         except Exception as e:
-            logger.debug("Failed to embed search query: %s", e)
+            logger.warning("Failed to embed search query: %s", e)
             return None
 
     @classmethod
