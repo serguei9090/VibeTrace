@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -247,6 +248,7 @@ def run_step(
     cwd: Path,
     timeout: int = 90,
     expect_substr: str | None = None,
+    validator: Callable[[str], str | None] | None = None,
 ) -> StepResult:
     """Execute a VibeTrace CLI command with live logging and timeout protection."""
     t0 = time.perf_counter()
@@ -274,6 +276,11 @@ def run_step(
         if passed and expect_substr and expect_substr not in proc.stdout:
             passed = False
             detail = f"Expected substring '{expect_substr}' not found in stdout"
+        if passed and validator is not None:
+            err = validator(proc.stdout)
+            if err:
+                passed = False
+                detail = err
         status = "PASS" if passed else "FAIL"
         summary_tag = f" -> {summary}" if summary else ""
         print(
