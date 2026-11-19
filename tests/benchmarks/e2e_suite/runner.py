@@ -17,9 +17,14 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tests.benchmarks.e2e_suite.common import REPORT_PATH, REPOS_DIR, StepResult  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.c_hiredis import run_c_hiredis  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.cpp_fmt import run_cpp_fmt  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.csharp_automapper import run_csharp_automapper  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.go_cobra import run_go_cobra  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.java_gson import run_java_gson  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.php_monolog import run_php_monolog  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.python_fastapi import run_python_fastapi  # noqa: E402
+from tests.benchmarks.e2e_suite.stacks.ruby_rack import run_ruby_rack  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.rust_ripgrep import run_rust_ripgrep  # noqa: E402
 from tests.benchmarks.e2e_suite.stacks.typescript_zod import run_typescript_zod  # noqa: E402
 
@@ -28,6 +33,11 @@ ENABLE_TYPESCRIPT = True
 ENABLE_GO = True
 ENABLE_RUST = True
 ENABLE_JAVA = True
+ENABLE_C = False
+ENABLE_CPP = False
+ENABLE_CSHARP = False
+ENABLE_RUBY = False
+ENABLE_PHP = False
 
 PRIMARY_STACKS: tuple[str, ...] = ("python", "typescript", "go", "rust", "java")
 SECONDARY_STACKS: tuple[str, ...] = ("c", "cpp", "csharp", "ruby", "php")
@@ -38,6 +48,11 @@ STACK_RUNNERS: dict[str, Callable[[], list[StepResult]]] = {
     "go": run_go_cobra,
     "rust": run_rust_ripgrep,
     "java": run_java_gson,
+    "c": run_c_hiredis,
+    "cpp": run_cpp_fmt,
+    "csharp": run_csharp_automapper,
+    "ruby": run_ruby_rack,
+    "php": run_php_monolog,
 }
 
 
@@ -68,16 +83,25 @@ def write_report(results: list[StepResult]) -> None:
 
 def _resolve_stacks(spec: str) -> list[str]:
     """Resolve a --stacks selector ('primary', 'secondary', 'all', or CSV) into stack keys."""
-    enabled_primary = {
+    enabled = {
         "python": ENABLE_PYTHON,
         "typescript": ENABLE_TYPESCRIPT,
         "go": ENABLE_GO,
         "rust": ENABLE_RUST,
         "java": ENABLE_JAVA,
+        "c": ENABLE_C,
+        "cpp": ENABLE_CPP,
+        "csharp": ENABLE_CSHARP,
+        "ruby": ENABLE_RUBY,
+        "php": ENABLE_PHP,
     }
     norm = spec.strip().lower()
     if norm == "primary":
-        return [s for s in PRIMARY_STACKS if enabled_primary.get(s, False) and s in STACK_RUNNERS]
+        return [
+            s
+            for s in (*PRIMARY_STACKS, *SECONDARY_STACKS)
+            if enabled.get(s, False) and s in STACK_RUNNERS
+        ]
     if norm == "secondary":
         return [s for s in SECONDARY_STACKS if s in STACK_RUNNERS]
     if norm == "all":

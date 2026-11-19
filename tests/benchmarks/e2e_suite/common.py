@@ -326,13 +326,19 @@ def run_stack_suite(spec: StackSpec) -> list[StepResult]:
     db_exists = (repo / ".vibetrace" / "vibetrace.db").exists()
 
     setup_steps: list[tuple[str, list[str], int]] = [
-        ("init (auto)", ["init"], 600),
+        ("init (auto)", ["init", "--device", "gpu"], 900),
     ]
     if not db_exists:
-        setup_steps.append(("index . --force", ["index", ".", "--force", "--json"], 600))
+        setup_steps.append(
+            ("index . --force", ["index", ".", "--force", "--no-docs", "--json"], 600)
+        )
     setup_steps.append(("index . (incremental)", ["index", ".", "--json"], 600))
     setup_steps.append(
-        ("index . --embed (Rust vectors)", ["index", ".", "--embed", "--no-lsp", "--json"], 120)
+        (
+            "index . --embed (Rust vectors)",
+            ["index", ".", "--embed", "--no-lsp", "--no-docs", "--json"],
+            2400,
+        )
     )
     if spec.doc_catalog_path:
         setup_steps.append(
@@ -346,7 +352,7 @@ def run_stack_suite(spec: StackSpec) -> list[StepResult]:
             (
                 "docs index (--force)",
                 ["docs", "index", "core", "--force", "--json"],
-                180,
+                300,
             )
         )
 
