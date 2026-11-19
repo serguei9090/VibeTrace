@@ -264,3 +264,79 @@ def test_go_pkg_symbol_discovery_cached(tmp_path: Path) -> None:
 
     resolved_beta = parser._find_go_symbol_file("pkg/alpha.go", "BetaFn")
     assert resolved_beta.endswith("beta.go")
+
+
+def test_filter_sonar_targets_git_diff_and_wave_chunking(tmp_path: Path) -> None:
+    """Verify bare --sonar scopes to git-changed files while --sonar-all/--file keep all."""
+    from types import SimpleNamespace
+
+    from vibetrace.quality.adapters.sonar_lint import (
+        SonarRuntimePaths,
+        _SonarJsonRpcSession,
+        filter_sonar_targets,
+    )
+
+    f_a = tmp_path / "a.py"
+    f_b = tmp_path / "b.py"
+    f_a.write_text("x = 1\n", encoding="utf-8")
+    f_b.write_text("y = 2\n", encoding="utf-8")
+
+    # 1. Clean git working tree -> returns [] unless --sonar-all or --file is passed
+    clean_proc = SimpleNamespace(returncode=0, stdout="")
+    with patch("subprocess.run", return_value=clean_proc):
+        assert filter_sonar_targets(tmp_path, [f_a, f_b]) == []
+        assert filter_sonar_targets(tmp_path, [f_a, f_b], sonar_all=True) == [f_a, f_b]
+        assert filter_sonar_targets(tmp_path, [f_a, f_b], file_filter="a.py") == [f_a, f_b]
+
+    # 2. Modified b.py in git status -> selects only b.py
+    dirty_proc = SimpleNamespace(returncode=0, stdout=" M b.py\n")
+    with patch("subprocess.run", return_value=dirty_proc):
+        assert filter_sonar_targets(tmp_path, [f_a, f_b]) == [f_b]
+
+    # 3. _SonarJsonRpcSession processes >12 files in chunked waves with didClose
+    many_files = []
+    for idx in range(15):
+        fp = tmp_path / f"mod_{idx}.py"
+        fp.write_text("val = 1\n", encoding="utf-8")
+        many_files.append(fp)
+
+    rt = SonarRuntimePaths(
+        root_dir=tmp_path,
+        java_bin=tmp_path / "java",
+        ls_jar=tmp_path / "ls.jar",
+        analyzer_jars=(tmp_path / "py.jar",),
+        work_dir=tmp_path / "work",
+        source_kind="test",
+    )
+    sess = _SonarJsonRpcSession(runtime=rt, project_root=tmp_path, target_files=many_files)
+    sent_methods: list[str] = []
+
+    def fake_send(payload: dict) -> None:
+        m = payload.get("method", "")
+        if m:
+            sent_methods.append(m)
+
+    wave_sizes: list[int] = []
+
+    def fake_open(wave_files: list[Path]) -> list[tuple[str, str]]:
+        wave_sizes.append(len(wave_files))
+        return [(f"file://{p.name}", p.name) for p in wave_files]
+
+    sess._send_message = fake_send  # type: ignore[method-assign]
+    sess._open_wave_documents = fake_open  # type: ignore[method-assign]
+    sess._await_wave_diagnostics = lambda exp, t: None  # type: ignore[method-assign]
+    sess._close_wave_documents = lambda opened: sent_methods.extend(  # type: ignore[method-assign]
+        ["textDocument/didClose"] * len(opened)
+    )
+    sess._init_done.set()
+    sess._ready_to_analyze.set()
+
+    with patch("subprocess.Popen") as popen_mock:
+        proc_mock = MagicMock()
+        proc_mock.stdin = MagicMock()
+        proc_mock.stdout = MagicMock()
+        popen_mock.return_value = proc_mock
+        sess.run(timeout_sec=30.0)
+
+    assert wave_sizes == [12, 3]
+    assert sent_methods.count("textDocument/didClose") == 15

@@ -83,6 +83,7 @@ class SecurityService:
         enable_trivy: bool = True,
         enable_semgrep: bool = True,
         enable_sonar: bool = False,
+        sonar_all: bool = False,
         image_tag: str | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
@@ -257,22 +258,37 @@ class SecurityService:
             from vibetrace.quality.adapters.sonar_lint import (
                 SonarLintAdapter,
                 extract_rspec_short,
+                filter_sonar_targets,
             )
 
-            sonar_engine = SonarLintAdapter()
-            if sonar_engine.is_available(project_root):
-                sonar_sec = sonar_engine.scan_security_findings(
-                    project_root=project_root,
-                    target_files=target_files,
-                )
-                seen_sec_keys = {
-                    (f.file_path, f.start_line, extract_rspec_short(f.rule_id)) for f in findings
-                }
-                for sf in sonar_sec:
-                    key = (sf.file_path, sf.start_line, extract_rspec_short(sf.rule_id))
-                    if key not in seen_sec_keys:
-                        seen_sec_keys.add(key)
-                        findings.append(sf)
+            sonar_paths = filter_sonar_targets(
+                project_root=project_root,
+                candidates=[project_root / f for f in target_files],
+                file_filter=file_filter,
+                file_list=file_list,
+                sonar_all=sonar_all,
+            )
+            if sonar_paths:
+                sonar_engine = SonarLintAdapter()
+                if sonar_engine.is_available(project_root):
+                    sonar_sec = sonar_engine.scan_security_findings(
+                        project_root=project_root,
+                        target_files=[
+                            p.relative_to(project_root).as_posix()
+                            if p.is_relative_to(project_root)
+                            else str(p)
+                            for p in sonar_paths
+                        ],
+                    )
+                    seen_sec_keys = {
+                        (f.file_path, f.start_line, extract_rspec_short(f.rule_id))
+                        for f in findings
+                    }
+                    for sf in sonar_sec:
+                        key = (sf.file_path, sf.start_line, extract_rspec_short(sf.rule_id))
+                        if key not in seen_sec_keys:
+                            seen_sec_keys.add(key)
+                            findings.append(sf)
 
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)

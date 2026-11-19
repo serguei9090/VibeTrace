@@ -35,6 +35,61 @@ _ERR_REPLACE = "replace"
 _RPC_METHOD_KEY = "method"
 _REDOS_RULE_CODE = "S8786"
 _COMPLEXITY_RULE_CODE = "S3776"
+_SONAR_WAVE_SIZE = 12
+
+
+def filter_sonar_targets(
+    project_root: Path,
+    candidates: list[Path],
+    file_filter: str | None = None,
+    file_list: list[str] | None = None,
+    sonar_all: bool = False,
+) -> list[Path]:
+    """Scope SonarLint targets to git-changed files unless explicit filter or --sonar-all."""
+    if file_filter or file_list is not None or sonar_all:
+        return candidates
+    try:
+        res = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=5.0,
+        )
+        if res.returncode != 0:
+            return candidates
+    except (OSError, subprocess.SubprocessError):
+        return candidates
+
+    changed_rel: set[str] = set()
+    for line in res.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        raw_path = line[3:].strip()
+        if " -> " in raw_path:
+            raw_path = raw_path.split(" -> ", 1)[1].strip()
+        clean = raw_path.strip('"').replace("\\", "/").lstrip("./")
+        if clean:
+            changed_rel.add(clean)
+
+    if not changed_rel:
+        return []
+
+    proj_res = project_root.resolve()
+    matched: list[Path] = []
+    for p in candidates:
+        abs_p = p if p.is_absolute() else (proj_res / p)
+        try:
+            rel = abs_p.resolve().relative_to(proj_res).as_posix().lstrip("./")
+        except ValueError:
+            rel = str(p).replace("\\", "/").lstrip("./")
+        if rel in changed_rel:
+            matched.append(p)
+    return matched
+
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
     {
@@ -438,9 +493,9 @@ class _SonarJsonRpcSession:
         except Exception as exc:
             logger.debug("SonarLint JSON-RPC reader exited: %s", exc)
 
-    def _open_target_documents(self) -> set[str]:
-        expected_uris: set[str] = set()
-        for f_path in self.target_files:
+    def _open_wave_documents(self, wave_files: list[Path]) -> list[tuple[str, str]]:
+        opened: list[tuple[str, str]] = []
+        for f_path in wave_files:
             if not f_path.is_file():
                 continue
             try:
@@ -448,7 +503,8 @@ class _SonarJsonRpcSession:
             except OSError:
                 continue
             uri = _path_to_file_uri(f_path)
-            expected_uris.add(_file_uri_to_rel_path(uri, self.project_root).lower())
+            rel_key = _file_uri_to_rel_path(uri, self.project_root).lower()
+            opened.append((uri, rel_key))
             self._send_message(
                 {
                     "jsonrpc": "2.0",
@@ -463,25 +519,34 @@ class _SonarJsonRpcSession:
                     },
                 }
             )
-        return expected_uris
+        return opened
 
-    def _await_diagnostics(self, expected_uris: set[str], timeout_sec: float) -> None:
+    def _close_wave_documents(self, opened: list[tuple[str, str]]) -> None:
+        for uri, _ in opened:
+            self._send_message(
+                {
+                    "jsonrpc": "2.0",
+                    _RPC_METHOD_KEY: "textDocument/didClose",
+                    "params": {"textDocument": {"uri": uri}},
+                }
+            )
+
+    def _await_wave_diagnostics(self, expected_uris: set[str], timeout_sec: float) -> None:
         deadline = time.monotonic() + timeout_sec
-        last_count = 0
+        last_count = sum(len(v) for v in self._diagnostics_by_uri.values())
         stable_ticks = 0
         while time.monotonic() < deadline:
             time.sleep(0.25)
             all_published = self._published_uris >= expected_uris
-            if not all_published and not self._published_uris:
+            if not all_published:
                 continue
             total_diags = sum(len(v) for v in self._diagnostics_by_uri.values())
-            target_ticks = (4 if total_diags > 0 else 8) if all_published else 8
             if total_diags != last_count:
                 last_count = total_diags
                 stable_ticks = 0
                 continue
             stable_ticks += 1
-            if stable_ticks >= target_ticks:
+            if stable_ticks >= 3:
                 return
 
     def _shutdown_process(self) -> None:
@@ -570,10 +635,21 @@ class _SonarJsonRpcSession:
                 return {}
 
             self._send_message({"jsonrpc": "2.0", _RPC_METHOD_KEY: "initialized", "params": {}})
-            self._ready_to_analyze.wait(timeout=3.5)
+            self._ready_to_analyze.wait(timeout=15.0)
 
-            expected_uris = self._open_target_documents()
-            self._await_diagnostics(expected_uris, timeout_sec)
+            session_deadline = time.monotonic() + timeout_sec
+            for i in range(0, len(self.target_files), _SONAR_WAVE_SIZE):
+                remaining = session_deadline - time.monotonic()
+                if remaining <= 0.5:
+                    break
+                wave = self.target_files[i : i + _SONAR_WAVE_SIZE]
+                opened = self._open_wave_documents(wave)
+                if not opened:
+                    continue
+                wave_expected = {rel_key for _, rel_key in opened}
+                wave_budget = 40.0 if i == 0 else 25.0
+                self._await_wave_diagnostics(wave_expected, min(wave_budget, remaining))
+                self._close_wave_documents(opened)
             return dict(self._diagnostics_by_uri)
         finally:
             self._shutdown_process()
@@ -743,7 +819,8 @@ class SonarLintAdapter(LinterSubEngine):
             project_root=project_root,
             target_files=targets,
         )
-        raw_by_uri = session.run(timeout_sec=self.timeout_sec)
+        eff_timeout = max(self.timeout_sec, min(150.0, 25.0 + len(targets) * 1.5))
+        raw_by_uri = session.run(timeout_sec=eff_timeout)
 
         findings: list[QualityFinding] = []
         for uri, diags in raw_by_uri.items():

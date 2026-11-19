@@ -377,6 +377,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         enable_trivy=not skip_trivy,
         enable_semgrep=not skip_semgrep,
         enable_sonar=getattr(args, "sonar", False),
+        sonar_all=getattr(args, "sonar_all", False),
         image_tag=image_tag,
     )
 
@@ -537,6 +538,7 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
         include_tests=include_tests,
         typecheck=getattr(args, "typecheck", False),
         enable_sonar=getattr(args, "sonar", False),
+        sonar_all=getattr(args, "sonar_all", False),
     )
 
     if getattr(args, "approve", False):

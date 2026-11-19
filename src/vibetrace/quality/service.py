@@ -16,7 +16,11 @@ from vibetrace.quality.adapters.python_ruff import RuffAdapter
 from vibetrace.quality.adapters.rubocop import RuboCopAdapter
 from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
 from vibetrace.quality.adapters.shellcheck import ShellCheckAdapter
-from vibetrace.quality.adapters.sonar_lint import SonarLintAdapter, extract_rspec_short
+from vibetrace.quality.adapters.sonar_lint import (
+    SonarLintAdapter,
+    extract_rspec_short,
+    filter_sonar_targets,
+)
 from vibetrace.quality.adapters.sql_fluff import SqlFluffAdapter
 from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
 from vibetrace.quality.baseline import QualityBaselineManager
@@ -211,6 +215,7 @@ class QualityService:
         include_tests: bool = False,
         typecheck: bool = False,
         enable_sonar: bool = False,
+        sonar_all: bool = False,
     ) -> QualityAuditReport:
         """Audits project source files for cognitive complexity and clean code smells."""
         raw_findings: list[QualityFinding] = []
@@ -323,9 +328,17 @@ class QualityService:
 
         cfg_sonar = load_config(project_root).quality.enable_sonar
         if enable_sonar or cfg_sonar:
-            sonar_engine = SonarLintAdapter()
-            if sonar_engine.is_available(project_root):
-                raw_findings.extend(sonar_engine.audit_project(project_root, target_files))
+            sonar_targets = filter_sonar_targets(
+                project_root=project_root,
+                candidates=target_files,
+                file_filter=file_filter,
+                file_list=file_list,
+                sonar_all=sonar_all,
+            )
+            if sonar_targets:
+                sonar_engine = SonarLintAdapter()
+                if sonar_engine.is_available(project_root):
+                    raw_findings.extend(sonar_engine.audit_project(project_root, sonar_targets))
 
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
         if db is not None:
