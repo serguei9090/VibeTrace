@@ -3,43 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
+from collections.abc import Callable
 
-from vibetrace.cli_audit import (
-    cmd_audit_fix_deps,
-    cmd_audit_pr_taint,
-    cmd_audit_quality,
-    cmd_audit_security,
-    cmd_audit_splits,
-    cmd_review,
-)
-from vibetrace.cli_commands import (
-    cmd_call_stack,
-    cmd_call_tree,
-    cmd_dead_code,
-    cmd_dependencies,
-    cmd_diagnose,
-    cmd_docs,
-    cmd_hooks,
-    cmd_impact,
-    cmd_index,
-    cmd_init,
-    cmd_mcp,
-    cmd_references,
-    cmd_search,
-    cmd_serve,
-    cmd_skill,
-    cmd_slice,
-    cmd_summary,
-    cmd_test,
-    cmd_trace,
-)
 from vibetrace.cli_config import register_config_parser
-from vibetrace.cli_deps import cmd_deps
 from vibetrace.cli_project import register_project_parser
-from vibetrace.cli_refactor import cmd_refactor
-from vibetrace.cli_tools import cmd_tools
-from vibetrace.cli_vibe import cmd_bundle, cmd_guard
+
+
+def _lazy_cmd(module_name: str, func_name: str) -> Callable[[argparse.Namespace], int]:
+    """Defer importing heavy CLI handler modules until the selected command runs."""
+
+    def _dispatch(args: argparse.Namespace) -> int:
+        mod = importlib.import_module(module_name)
+        return int(getattr(mod, func_name)(args))
+
+    _dispatch.__name__ = func_name
+    return _dispatch
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -154,7 +134,7 @@ examples:
         help="Import external SCIP index file (.json or .scip dump)",
     )
     p_idx.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_idx.set_defaults(func=cmd_index)
+    p_idx.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_index"))
 
     # search
     p_search = sub.add_parser(
@@ -192,7 +172,7 @@ examples:
     )
     p_search.add_argument("--path", default=".", help="Project root directory path")
     p_search.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_search.set_defaults(func=cmd_search)
+    p_search.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_search"))
 
     # trace
     p_trace = sub.add_parser(
@@ -236,7 +216,7 @@ examples:
     )
     p_trace.add_argument("--path", default=".", help="Project root directory path")
     p_trace.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_trace.set_defaults(func=cmd_trace)
+    p_trace.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_trace"))
 
     # slice
     p_slice = sub.add_parser(
@@ -271,7 +251,7 @@ examples:
     )
     p_slice.add_argument("--path", default=".", help="Project root directory path")
     p_slice.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_slice.set_defaults(func=cmd_slice)
+    p_slice.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_slice"))
 
     # call-tree
     p_tree = sub.add_parser(
@@ -293,7 +273,7 @@ examples:
     )
     p_tree.add_argument("--path", default=".", help="Project root directory path")
     p_tree.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_tree.set_defaults(func=cmd_call_tree)
+    p_tree.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_call_tree"))
 
     # call-stack
     p_stack = sub.add_parser(
@@ -322,7 +302,7 @@ examples:
     )
     p_stack.add_argument("--path", default=".", help="Project root directory path")
     p_stack.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_stack.set_defaults(func=cmd_call_stack)
+    p_stack.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_call_stack"))
 
     # impact
     p_impact = sub.add_parser(
@@ -335,7 +315,7 @@ examples:
     )
     p_impact.add_argument("file_path", help="Relative or absolute file path to analyze")
     p_impact.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_impact.set_defaults(func=cmd_impact)
+    p_impact.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_impact"))
 
     # summary
     p_sum = sub.add_parser(
@@ -363,7 +343,7 @@ examples:
     )
     p_sum.add_argument("--offset", type=int, default=0, help="Pagination offset (default: 0)")
     p_sum.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_sum.set_defaults(func=cmd_summary)
+    p_sum.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_summary"))
 
     # references
     p_refs = sub.add_parser(
@@ -383,7 +363,7 @@ examples:
     )
     p_refs.add_argument("--path", default=".", help="Project root directory path")
     p_refs.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_refs.set_defaults(func=cmd_references)
+    p_refs.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_references"))
 
     # dependencies
     p_deps = sub.add_parser(
@@ -405,7 +385,7 @@ examples:
     )
     p_deps.add_argument("--path", default=".", help="Project root directory path")
     p_deps.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_deps.set_defaults(func=cmd_dependencies)
+    p_deps.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_dependencies"))
 
     # deps (transitive dependency resolution & root-cause visualization)
     p_transitive_deps = sub.add_parser(
@@ -454,7 +434,7 @@ examples:
     p_conflicts.add_argument("--path", default=".", help="Project root directory path (default: .)")
     p_conflicts.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
 
-    p_transitive_deps.set_defaults(func=cmd_deps)
+    p_transitive_deps.set_defaults(func=_lazy_cmd("vibetrace.cli_deps", "cmd_deps"))
 
     # serve
     p_serve = sub.add_parser(
@@ -470,7 +450,7 @@ examples:
     p_serve.add_argument(
         "--path", default=".", help="Project workspace path (default: current directory)"
     )
-    p_serve.set_defaults(func=cmd_serve)
+    p_serve.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_serve"))
 
     # hooks
     p_hooks = sub.add_parser(
@@ -502,7 +482,7 @@ examples:
     )
     p_hooks.add_argument("--path", default=".", help="Project root directory path")
     p_hooks.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_hooks.set_defaults(func=cmd_hooks)
+    p_hooks.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_hooks"))
 
     # init
     p_init = sub.add_parser(
@@ -612,7 +592,7 @@ examples:
         help="Skip auto-installing missing LSP servers during init",
     )
     p_init.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_init.set_defaults(func=cmd_init)
+    p_init.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_init"))
 
     # skill
     p_skill = sub.add_parser(
@@ -637,7 +617,7 @@ examples:
         help="Install into user global agent skills directory",
     )
     p_skill.add_argument("--json", action="store_true", default=False, help="Emit JSON output")
-    p_skill.set_defaults(func=cmd_skill)
+    p_skill.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_skill"))
 
     # mcp
     p_mcp = sub.add_parser(
@@ -648,7 +628,7 @@ examples:
     p_mcp.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_mcp.set_defaults(func=cmd_mcp)
+    p_mcp.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_mcp"))
 
     # docs
     p_docs = sub.add_parser(
@@ -772,7 +752,7 @@ examples:
         help="Emit JSON output",
     )
 
-    p_docs.set_defaults(func=cmd_docs)
+    p_docs.set_defaults(func=_lazy_cmd("vibetrace.cli_docs", "cmd_docs"))
 
     # guard
     p_guard = sub.add_parser(
@@ -803,7 +783,7 @@ examples:
     p_guard.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_guard.set_defaults(func=cmd_guard)
+    p_guard.set_defaults(func=_lazy_cmd("vibetrace.cli_vibe", "cmd_guard"))
 
     # bundle
     p_bundle = sub.add_parser(
@@ -841,7 +821,7 @@ examples:
     p_bundle.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_bundle.set_defaults(func=cmd_bundle)
+    p_bundle.set_defaults(func=_lazy_cmd("vibetrace.cli_vibe", "cmd_bundle"))
 
     # test (predictive test selection)
     p_test = sub.add_parser(
@@ -881,7 +861,7 @@ examples:
     p_test.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_test.set_defaults(func=cmd_test)
+    p_test.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_test"))
 
     # refactor (interactive AST auto-refactoring)
     p_refactor = sub.add_parser(
@@ -938,7 +918,7 @@ examples:
     p_refactor.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_refactor.set_defaults(func=cmd_refactor)
+    p_refactor.set_defaults(func=_lazy_cmd("vibetrace.cli_refactor", "cmd_refactor"))
 
     # audit (architectural pattern & split triage)
     p_audit = sub.add_parser(
@@ -994,7 +974,7 @@ examples:
         default=None,
         help="Override buffer margin lines above max-lines (default from .vibetrace.toml [splits])",
     )
-    p_splits.set_defaults(func=cmd_audit_splits)
+    p_splits.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_audit_splits"))
 
     p_security = p_audit_sub.add_parser(
         "security",
@@ -1111,7 +1091,7 @@ examples:
         action="store_true",
         help="Show the last saved security audit summary and category status",
     )
-    p_security.set_defaults(func=cmd_audit_security)
+    p_security.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_audit_security"))
 
     p_quality = p_audit_sub.add_parser(
         "quality",
@@ -1216,7 +1196,7 @@ examples:
         action="store_true",
         help="Show the last saved quality audit summary and category status",
     )
-    p_quality.set_defaults(func=cmd_audit_quality)
+    p_quality.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_audit_quality"))
 
     # audit fix-deps
     p_fix_deps = p_audit_sub.add_parser(
@@ -1254,7 +1234,7 @@ examples:
     p_fix_deps.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_fix_deps.set_defaults(func=cmd_audit_fix_deps)
+    p_fix_deps.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_audit_fix_deps"))
 
     # audit pr-taint
     p_pr_taint = p_audit_sub.add_parser(
@@ -1302,7 +1282,7 @@ examples:
     p_pr_taint.add_argument(
         "--path", default=".", help="Project root directory path (default: current directory)"
     )
-    p_pr_taint.set_defaults(func=cmd_audit_pr_taint)
+    p_pr_taint.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_audit_pr_taint"))
 
     # review (unified AI code review gate)
     p_review = sub.add_parser(
@@ -1356,7 +1336,7 @@ examples:
         action="store_true",
         help="Enable optional Tier-2 SonarLint Headless Java Engine during review",
     )
-    p_review.set_defaults(func=cmd_review)
+    p_review.set_defaults(func=_lazy_cmd("vibetrace.cli_audit", "cmd_review"))
 
     # diagnose
     p_diagnose = sub.add_parser(
@@ -1375,7 +1355,7 @@ examples:
     p_diagnose.add_argument(
         "--no-code", action="store_true", help="Exclude source code slice from output"
     )
-    p_diagnose.set_defaults(func=cmd_diagnose)
+    p_diagnose.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_diagnose"))
 
     # dead-code
     p_dead = sub.add_parser(
@@ -1401,7 +1381,7 @@ examples:
         action="store_true",
         help="Disable LSP verification (use AST graph only)",
     )
-    p_dead.set_defaults(func=cmd_dead_code)
+    p_dead.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_dead_code"))
 
     # tools (sub-engine health status and on-demand provisioning)
     p_tools = sub.add_parser(
@@ -1433,7 +1413,7 @@ examples:
         default=".",
         help="Target project path for local tool provisioning (default: .)",
     )
-    p_tools.set_defaults(func=cmd_tools)
+    p_tools.set_defaults(func=_lazy_cmd("vibetrace.cli_tools", "cmd_tools"))
 
     # config (sub-engine presets and settings)
     register_config_parser(sub)

@@ -6,9 +6,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from vibetrace.federation.project import ProjectWorkspace
+if TYPE_CHECKING:
+    from vibetrace.federation.project import ProjectWorkspace
+
+
+def _workspace_cls() -> type[ProjectWorkspace]:
+    from vibetrace.federation.project import ProjectWorkspace
+
+    return ProjectWorkspace
 
 
 def register_project_parser(sub: Any) -> None:
@@ -121,7 +128,7 @@ def cmd_project(args: argparse.Namespace) -> int:
 def _cmd_project_init(args: argparse.Namespace, root: Path, as_json: bool) -> int:
     auto_disc = not getattr(args, "no_auto_discover", False)
     name = getattr(args, "name", None)
-    ws = ProjectWorkspace.init(root, name=name, auto_discover=auto_disc)
+    ws = _workspace_cls().init(root, name=name, auto_discover=auto_disc)
 
     if as_json:
         print(json.dumps(ws.manifest.model_dump(), indent=2))
@@ -136,7 +143,7 @@ def _cmd_project_init(args: argparse.Namespace, root: Path, as_json: bool) -> in
 
 
 def _cmd_project_list(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     statuses = ws.list_members()
 
     if as_json:
@@ -153,7 +160,7 @@ def _cmd_project_list(args: argparse.Namespace, root: Path, as_json: bool) -> in
 
 
 def _cmd_project_add(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     member = ws.add_member(args.name, args.path, description=getattr(args, "description", ""))
 
     if as_json:
@@ -164,7 +171,7 @@ def _cmd_project_add(args: argparse.Namespace, root: Path, as_json: bool) -> int
 
 
 def _cmd_project_remove(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     ok = ws.remove_member(args.name)
     if not ok:
         print(f"Member repository '{args.name}' was not found in project.", file=sys.stderr)
@@ -178,7 +185,7 @@ def _cmd_project_remove(args: argparse.Namespace, root: Path, as_json: bool) -> 
 
 
 def _cmd_project_index(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     repo = getattr(args, "repo", None)
     force = getattr(args, "force", False)
     verbose = getattr(args, "verbose", False)
@@ -211,7 +218,7 @@ def _cmd_project_index(args: argparse.Namespace, root: Path, as_json: bool) -> i
 
 
 def _cmd_project_search(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     repo = getattr(args, "repo", None)
     limit = getattr(args, "limit", 20)
     results = ws.search(args.query, repo=repo, limit=limit)
@@ -228,7 +235,7 @@ def _cmd_project_search(args: argparse.Namespace, root: Path, as_json: bool) -> 
 
 
 def _cmd_project_guard(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     repo = getattr(args, "repo", None)
     report = ws.guard(args.symbol, target_repo=repo)
 
@@ -251,7 +258,7 @@ def _cmd_project_guard(args: argparse.Namespace, root: Path, as_json: bool) -> i
 
 
 def _cmd_project_links(args: argparse.Namespace, root: Path, as_json: bool) -> int:
-    ws = ProjectWorkspace.load(root)
+    ws = _workspace_cls().load(root)
     links = ws.discover_cross_repo_links()
 
     if as_json:

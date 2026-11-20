@@ -1443,3 +1443,24 @@ def test_lsp_parse_definition_monorepo_relative_path(tmp_path: Path) -> None:
         }
     )
     assert parsed == ("backend-go/internal/app/handlers_settings.go", 2)
+
+
+def test_cli_build_parser_defers_heavy_imports() -> None:
+    """Verify importing vibetrace.cli and calling build_parser defers heavy subcommand imports."""
+    import subprocess
+    import sys
+
+    code = (
+        "import json, sys, vibetrace.cli; "
+        "vibetrace.cli.build_parser(); "
+        "loaded = [m for m in ('vibetrace.quality.service', 'vibetrace.security.service', "
+        "'vibetrace.federation.project') if m in sys.modules]; "
+        "print(json.dumps(loaded))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert proc.stdout.strip() == "[]"

@@ -5,17 +5,17 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vibetrace.config import get_config_path, load_config, resolve_linter_mode, save_linter_mode
-from vibetrace.quality.adapters.biome import BiomeAdapter
-from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
-from vibetrace.quality.adapters.php_stan import PhpStanAdapter
-from vibetrace.quality.adapters.python_ruff import RuffAdapter
-from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
-from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
-
 
 def cmd_config_quality(args: argparse.Namespace) -> int:
     """Displays or updates quality sub-engine presets in .vibetrace.toml."""
+    from vibetrace.config import get_config_path, load_config, resolve_linter_mode, save_linter_mode
+    from vibetrace.quality.adapters.biome import BiomeAdapter
+    from vibetrace.quality.adapters.golang_lint import GolangLintAdapter
+    from vibetrace.quality.adapters.php_stan import PhpStanAdapter
+    from vibetrace.quality.adapters.python_ruff import RuffAdapter
+    from vibetrace.quality.adapters.rust_clippy import CargoClippyAdapter
+    from vibetrace.quality.adapters.typescript_tsc import TypeScriptAdapter
+
     path_hint = getattr(args, "path", ".")
     project_root = Path(path_hint).resolve()
     if project_root.is_file():
