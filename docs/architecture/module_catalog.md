@@ -83,10 +83,10 @@ flowchart TD
 
 Native PyO3 (`vibetrace._rust_core`) extension releasing the Python GIL across heavy scanning, embedding, and search paths:
 
-* [`lib.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/lib.rs): Exposes `py_scan_and_hash_workspace`, `py_extract_batch_parallel`, `py_embed_texts_parallel`, `py_embedding_runtime_info`, and `py_search_vectors_parallel`.
+* [`lib.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/lib.rs): Exposes `py_scan_and_hash_workspace`, `py_embed_texts_parallel`, `py_embedding_runtime_info`, and `py_search_vectors_parallel`.
 * [`walker.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/walker.rs): Parallel gitignore-aware file discovery and SHA-256 hashing (`ignore` + `rayon`), disabling parent ancestor `.gitignore` leaks (`parents(false)`).
 * [`vectors.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/vectors.rs): Native **EmbeddingGemma 2 Q8 ONNX** (`ort` DirectML/CPU) inference, HuggingFace weight auto-caching (`~/.vibetrace/models/embeddinggemma-2-onnx`), Matryoshka truncation + L2 normalization, and parallel cosine vector search.
-* [`parser/mod.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/parser/mod.rs) & [`models.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/models.rs): Optional parallel Tree-sitter batch extraction and shared PyO3 data types.
+* [`models.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/models.rs): Shared PyO3 data types (`RustFileDelta`, `RustWorkspaceScanResult`) bridging the workspace scanner to Python.
 
 ---
 

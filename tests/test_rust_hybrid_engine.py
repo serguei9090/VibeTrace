@@ -8,7 +8,6 @@ from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import index_file, reindex_all
 from vibetrace.indexer.resolver import ModuleResolver
 from vibetrace.indexer.rust_bridge import (
-    extract_batch_native,
     get_native_version,
     is_native_available,
     scan_workspace_native,
@@ -23,8 +22,8 @@ def test_rust_core_extension_loaded() -> None:
     assert len(ver) > 0
 
 
-def test_rust_workspace_scanner_and_parallel_ast(tmp_path: Path) -> None:
-    """Verify native Rust scanner filters .gitignore, computes SHA-256, and extracts AST."""
+def test_rust_workspace_scanner(tmp_path: Path) -> None:
+    """Verify native Rust scanner filters .gitignore and computes incremental SHA-256 deltas."""
     (tmp_path / ".gitignore").write_text("ignored_folder/\n*.skip.py\n", encoding="utf-8")
     (tmp_path / "ignored_folder").mkdir()
     (tmp_path / "ignored_folder" / "hidden.py").write_text("def secret(): pass\n", encoding="utf-8")
@@ -49,13 +48,6 @@ def test_rust_workspace_scanner_and_parallel_ast(tmp_path: Path) -> None:
     assert scan_res.total_seen == 2
     rel_paths = [d.rel_path for d in scan_res.dirty_files]
     assert rel_paths == ["src/api.ts", "src/calc.py"]
-
-    # Verify parallel Rust Tree-sitter AST extraction
-    extractions = extract_batch_native(scan_res.dirty_files)
-    assert len(extractions) == 2
-    calc_ext = next(e for e in extractions if e.rel_path == "src/calc.py")
-    qnames = {n.qualified_name for n in calc_ext.nodes}
-    assert {"calc", "Calculator", "Calculator.add"}.issubset(qnames)
 
     # Incremental second scan with known hashes should report 0 dirty and 2 unchanged
     known = {d.rel_path: d.content_hash for d in scan_res.dirty_files}

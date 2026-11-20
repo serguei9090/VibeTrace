@@ -42,7 +42,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/lsp_bridge.py:MultiLanguageLSPManager] / [src/vibetrace/indexer/lsp_bridge.py:LSPDaemonManager] - Pooled language-server lifecycle.
 - [src/vibetrace/indexer/rust_bridge.py:reindex_workspace_hybrid] - Workspace scan, SHA-256 diff, single-transaction commit.
 - [src/vibetrace/indexer/rust_bridge.py:PythonFileDelta] / [src/vibetrace/indexer/rust_bridge.py:PythonWorkspaceScan] - Per-file change record and workspace scan result returned by the pure-Python fallback scanner.
-- [src/vibetrace/indexer/rust_bridge.py:scan_workspace_native] / [src/vibetrace/indexer/rust_bridge.py:extract_batch_native] / [src/vibetrace/indexer/rust_bridge.py:is_native_available] / [src/vibetrace/indexer/rust_bridge.py:get_native_version] - Native Rust core access (`vibetrace._rust_core` required).
+- [src/vibetrace/indexer/rust_bridge.py:scan_workspace_native] / [src/vibetrace/indexer/rust_bridge.py:is_native_available] / [src/vibetrace/indexer/rust_bridge.py:get_native_version] - Native Rust core access (`vibetrace._rust_core` required).
 - [src/vibetrace/indexer/scip_importer.py:ScipImporter] / [src/vibetrace/indexer/scip_importer.py:parse_scip_symbol_name] - Import SCIP index data into the graph.
 - [src/vibetrace/indexer/schema.sql] - Tables: `indexed_files`, `nodes`, `edges`, `file_imports`, `edge_targets`, `nodes_fts`, `node_embeddings`, `meta`, `saved_traces`, `symbol_doc_links`, `function_taint_contracts`.
 - Child contract: [Parsers](./parsers/README.md) - Tree-sitter language extractors producing the node/edge records persisted here.

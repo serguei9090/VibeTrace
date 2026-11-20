@@ -80,17 +80,6 @@ def scan_workspace_native(
         return None
 
 
-def extract_batch_native(deltas: list[Any]) -> list[Any]:
-    """Invoke parallel Rust Tree-sitter AST extraction across dirty files."""
-    if not is_native_available() or _rust_core is None or not deltas:
-        return []
-    try:
-        return list(_rust_core.py_extract_batch_parallel(deltas))
-    except Exception as e:
-        logger.warning("Native batch extraction failed: %s", e)
-        return []
-
-
 def reindex_workspace_hybrid(
     db: IndexerDB,
     target_path: Path,
