@@ -3214,3 +3214,46 @@ def test_php_calls_traits_promoted_params_and_psr4_imports(tmp_path: Path):
             assert unres_strlen == 0
     finally:
         db.close()
+
+
+def test_c_header_and_source_keep_distinct_module_nodes_and_dependencies(tmp_path: Path) -> None:
+    """Verify matching .h and .c filenames keep distinct module IDs and outgoing imports."""
+    from vibetrace.services.graph_service import analyze_file_dependencies
+
+    (tmp_path / "net.h").write_text("void net_connect(void);\n", encoding="utf-8")
+    (tmp_path / "async.h").write_text("void async_init(void);\n", encoding="utf-8")
+    (tmp_path / "async.c").write_text(
+        '#include "async.h"\n#include "net.h"\nvoid async_init(void) {}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "hiredis.c").write_text(
+        '#include "async.h"\nvoid run_client(void) {}\n',
+        encoding="utf-8",
+    )
+
+    db = IndexerDB(str(tmp_path / "vt.db"))
+    try:
+        reindex_all(
+            db,
+            str(tmp_path),
+            project_root=tmp_path,
+            force=True,
+            use_lsp=False,
+            verbose=False,
+        )
+        with db._get_conn() as conn:
+            mod_rows = conn.execute(
+                "SELECT id, file_path FROM nodes "
+                "WHERE kind = 'module' AND file_path IN ('async.c', 'async.h')"
+            ).fetchall()
+            mods = {r["file_path"]: r["id"] for r in mod_rows}
+            assert "async.c" in mods
+            assert "async.h" in mods
+            assert mods["async.c"] != mods["async.h"]
+
+        deps = analyze_file_dependencies(db, "async.c")
+        assert len(deps["internal"]) > 0
+        dep_files = {d["file_path"] for d in deps["dependents"]}
+        assert "hiredis.c" in dep_files
+    finally:
+        db.close()

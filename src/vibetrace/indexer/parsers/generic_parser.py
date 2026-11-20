@@ -103,7 +103,10 @@ class GenericParser(LanguageParser):
             if canonical:
                 module_name = canonical
 
-        file_module_id = self._get_id(file_path, module_name, kind="module")
+        mod_id_key = (
+            f"{file_path}::{module_name}" if self.language_name in ("c", "cpp") else module_name
+        )
+        file_module_id = self._get_id(file_path, mod_id_key, kind="module")
         nodes.append(
             self._create_node(file_module_id, module_name, "module", file_path, tree.root_node)
         )
