@@ -122,24 +122,29 @@ vibetrace tools status --json
 vibetrace tools install php        # Downloads phpstan.phar into ~/.vibetrace/bin
 vibetrace tools install python     # Guides/executes uv tool install ruff pyright
 vibetrace tools install typescript # Guides/executes bun add -d @biomejs/biome
+vibetrace tools install-lsp        # Provisions primary & secondary LSPs (basedpyright, tsserver, gopls, rust-analyzer, intelephense, csharp-ls, ruby-lsp/solargraph; hints for clangd/jdtls)
 vibetrace tools install sonar      # Provisions sonarlint-ls.jar + JRE + analyzers into ~/.vibetrace/tools/sonar/
 ```
 
-### Running the Optional Tier-2 SonarLint Engine (`--sonar`)
+### Running the Optional Tier-2 SonarLint Engine (`--sonar` / `--sonar-all`)
 While Family 1 (Native AST + fast ecosystem linters) runs by default in `<100ms`, you can invoke the headless `SonarLintAdapter` (`src/vibetrace/quality/adapters/sonar_lint.py`) on demand:
 
 ```bash
-# Run quality audit combining Native AST + SonarLint Headless Java Engine
+# Run quality audit combining Native AST + SonarLint over git-changed files (default scope)
 vibetrace audit quality --sonar
+# Force SonarLint over every source file in the repository (12-file wave chunking)
+vibetrace audit quality --sonar --sonar-all
 vibetrace audit quality --file tests/fixtures/sample_quality.php --include-tests --sonar
 
 # Run security audit including SonarLint vulnerability & ReDoS analyzers
 vibetrace audit security --sonar
+vibetrace audit security --sonar --sonar-all
 
 # Run unified 1-call review with SonarLint enabled
 vibetrace review --sonar
 ```
 
+- **Git-Changed Default & 12-File Waves**: When `--sonar` is passed without `--file` or `--sonar-all`, `filter_sonar_targets` scopes analysis to uncommitted/changed workspace files (`git status`). Larger scans open documents in bounded waves of `_SONAR_WAVE_SIZE = 12` files (`didOpen` → diagnostics → `didClose`) with hardened stdout stream framing to avoid memory spikes and JVM stalls.
 - **H2 Database Lock Isolation**: `SonarLintAdapter` passes `-Duser.home=~/.vibetrace/tools/sonar/work` to the Java subprocess so its H2 database (`sq-ide.mv.db`) never collides with an active VS Code or Antigravity IDE instance.
 - **Canonical RSPEC Deduplication**: Findings reported by both VibeTrace's native AST engine and `sonarlint-ls.jar` on the same `(file_path, start_line, rspec_id)` are automatically deduplicated.
 

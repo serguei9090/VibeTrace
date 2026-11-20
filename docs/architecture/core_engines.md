@@ -8,27 +8,29 @@ This document details the architectural specifications, mathematical models, and
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion ["Multi-Language AST Ingestion"]
-        SRC["Source Code (.py, .ts, .go, .rs, .java, .cs)"] --> AST["Tree-sitter & AST Parsers"]
+    subgraph Ingestion ["Multi-Language AST & Rust Native Ingestion"]
+        WALK["Rust Core (crates/vibetrace-core: walker + SHA-256 + ONNX GPU/CPU)"] --> SRC["Source Code (.py, .ts, .go, .rs, .java, .c, .cpp, .cs, .rb, .php)"]
+        SRC --> AST["Tree-sitter & AST Parsers"]
         LOCK["Lockfiles (uv, bun, cargo, npm)"] --> DAG["Dependency Graph Builder"]
-        DOC["Markdown Specifications & Guides"] --> CHUNK["Document Chunker & Linker"]
+        DOC["Markdown Specifications & i18n Docs"] --> CHUNK["Document Chunker, ONNX Embedder & Linker"]
     end
 
-    subgraph RelationalDB ["SQLite Relational Storage (.vibetrace/index.db)"]
+    subgraph RelationalDB ["SQLite + LanceDB Storage (.vibetrace/)"]
         AST --> N["nodes table (symbols, locations, signatures)"]
         AST --> E["edges table (calls, inherits, imports with call_line)"]
+        WALK --> VEC["LanceDB (.vibetrace/vectors.lance, EmbeddingGemma 2 256d)"]
         DAG --> DEPS["transitive_deps table & memory DAG"]
-        CHUNK --> LINKS["symbol_doc_links table"]
+        CHUNK --> LINKS["symbol_doc_links & doc_chunks tables"]
     end
 
     subgraph IntelligenceEngines ["Deterministic Analysis Engines"]
         E --> TAINT["Inter-Procedural Taint & Secret Engine"]
-        E --> SPLITS["Split Execution Guard (SHA-256)"]
+        E --> SPLITS["Split Execution & File-Size Guard (SHA-256)"]
         E & LINKS --> DIAG["360° Symbol Diagnosis Engine"]
         N & E --> REFACTOR["AST Variable Lifetime Refactor Engine"]
         DEPS --> WHY["Transitive Causation & Diamond Resolver"]
-        AST --> QUALITY["Tree-sitter Quality Engine + Linter Bridges"]
-        AST --> TRIVY["Semgrep CLI & Trivy Container Adapters"]
+        AST --> QUALITY["Tree-sitter Quality Engine + Linter & SonarLint Bridges"]
+        AST --> TRIVY["Offline Semgrep Preset & Trivy Container Adapters"]
     end
 
     subgraph AgenticMeta ["Consolidated Agentic Meta-Endpoints"]
@@ -87,7 +89,7 @@ In addition to AST injection taint reachability, VibeTrace enforces a two-layer 
    - Evaluates lightweight declarative YAML/JSON patterns (`pattern`, `pattern-not`, `pattern-inside`) directly against Tree-sitter AST and source lines with zero external dependencies.
    - Ships with an offline-first bundled catalog (`src/vibetrace/resources/security_catalog.json`) and enforces pinned release tags + `SHA-256` cryptographic verification whenever syncing remote catalog updates.
 3. **Optional External Semgrep CLI & Trivy Adapters (`src/vibetrace/security/adapters/`):**
-   - **`SemgrepAdapter` (`semgrep.py`):** Automatically detects `semgrep` on `$PATH` (bypassed via `--skip-semgrep`), runs `semgrep scan --sarif --quiet`, and feeds results through `SarifIngestEngine` to enrich findings with VibeTrace's AST call-graph reachability.
+   - **`SemgrepAdapter` (`semgrep.py`):** Automatically detects `semgrep` on `$PATH` (bypassed via `--skip-semgrep`), runs `semgrep scan --sarif --quiet --metrics=off` against the bundled offline preset (`src/vibetrace/resources/presets/semgrep_security.yml`) by default (passing `--experimental` on Windows), extracts CWE IDs from SARIF tags via `SarifIngestEngine`, and deduplicates against native AST findings on `(file_path, start_line, cwe_id)`.
    - **`TrivyAdapter` (`trivy.py`):** Automatically detects `trivy` on `$PATH` (bypassed via `--skip-trivy`) whenever container artifacts (`Dockerfile`, `docker-compose.yml`, `k8s/`) are present, or via explicit image scans (`vibetrace audit security --image <tag>`).
    - Merges external SARIF findings into VibeTrace's universal Executive Findings Matrix and `.vibetrace/security.toml` baseline triage.
 
@@ -170,9 +172,10 @@ $$\text{Outputs} = \text{ModifiedInBlock}(B) \cap \text{ReadDownstream}(B)$$
 To detect cognitive complexity and code smells without requiring a SonarQube server, VibeTrace implements a transparent two-layer quality architecture:
 
 1. **Layer 1 — Zero-Config Native Tree-sitter AST Heuristics:**
-   - Computes RSPEC-inspired structural metrics — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), and Async Without Await (`S7503`) — in $<15\text{ms}$ across Python, JavaScript, TypeScript, Go, and Rust.
-2. **Layer 2 — Optional Native Ecosystem Linter Bridges:**
+   - Computes RSPEC-inspired structural metrics — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), and Async Without Await (`S7503`) — in $<15\text{ms}$ across Python, JavaScript, TypeScript, Go, Rust, Java, C/C++, C#, PHP, and Ruby.
+2. **Layer 2 — Optional Native Ecosystem Linter Bridges & Tier-2 SonarLint:**
    - Automatically invokes installed ecosystem linters (`Ruff`, `Pyright`, `Biome`, `Clippy`, `GolangCI-Lint`, `PHPStan`, `RuboCop`, `ShellCheck`, `SQLFluff`) and maps their diagnostics into unified rule IDs.
+   - Optional headless SonarLint (`--sonar`) defaults to git-changed files (`--sonar-all` for full workspace) and processes files in 12-file LSP waves (`_SONAR_WAVE_SIZE = 12`).
 3. **Two-Step "Target & Verify" Remediation Workflow:**
    - **Step 1: Executive Findings Matrix (`--summary`):** Emits a `< 1 KB` high-density matrix summarizing findings by severity, rule ID, unapproved counts, and top impacted files. Completely eliminates terminal truncation and AI context window overflow.
    - **Step 2: Surgical JSON Extraction (`--file <path> --json`):** Emits machine-readable JSON containing exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.
@@ -183,13 +186,17 @@ To detect cognitive complexity and code smells without requiring a SonarQube ser
 
 Documentation specifications drift silently over time as functions are refactored, renamed, or deleted.
 
-### Bi-Directional Inverted Indexing
+### Bi-Directional Inverted Indexing & i18n Search
 1. **Cold Indexing & Sync (`vibetrace docs sync-links`):**
-   - The engine parses markdown catalogs, extracting backticked symbols (e.g. `` `IndexerDB.upsert_node` ``) and linking them to AST nodes in SQLite (`symbol_doc_links` table).
+   - The engine parses markdown catalogs, extracting backticked symbols (e.g. `` `IndexerDB.upsert_node` ``) and matching them in $O(1)$ via `_build_node_lookup` to AST nodes in SQLite (`symbol_doc_links` table).
    - Filters out generic language keywords (`None`, `True`, `class`, `dict`, `error`) to eliminate noise.
-2. **Context Window Token Budgeting:**
+   - `vibetrace docs index` automatically computes native EmbeddingGemma 2 Q8 ONNX vectors and backfills chunks with `NULL` embeddings on subsequent runs.
+2. **i18n Auto-Detection & Locale Ranking:**
+   - `resolve_default_docs_dir` automatically selects localized roots (e.g., `docs/en`) according to `[docs] preferred_locale`.
+   - `DocSearchService.search` applies a `preferred_locale` RRF boost by default and supports strict filtering via `--locale <iso>`.
+3. **Context Window Token Budgeting:**
    When an agent slices a symbol via `vibetrace slice` or `vibetrace bundle`, the linker queries `symbol_doc_links`. It attaches the relevant markdown heading and specification text, capping documentation injection strictly to $\le 300$ tokens to protect the LLM context ceiling.
-3. **Drift Detection Gate (`vibetrace docs check`):**
+4. **Drift Detection Gate (`vibetrace docs check`):**
    Audits all documented symbols against the live AST index. If a markdown specification references a function that no longer exists in code, the gate alerts the agent with the exact markdown line and suggests closest matching symbols based on Levenshtein distance.
 
 ---
@@ -242,11 +249,12 @@ sequenceDiagram
 
 ---
 
-## 5. 🌐 Runtime Environment Variables
+## 7. 🌐 Runtime Environment Variables
 
 The VibeGraph / VibeTrace runtime observes the following environment variables:
 
 | Variable | Scope | Description | Default / Fallback |
 | :--- | :--- | :--- | :--- |
 | `VIBETRACE_PROJECT_ROOT` | Server API & Engineering | Explicitly overrides repository root directory resolution for multi-tenant deployments, test sandboxes, or remote containers. | Current working directory (`Path.cwd()`) |
+| `VIBETRACE_MODEL_DIR` | Rust ONNX Embeddings | Custom directory containing downloaded EmbeddingGemma 2 Q8 ONNX model and tokenizer files. | `~/.vibetrace/models/embeddinggemma-2-onnx` |
 | `GITHUB_TOKEN` | CLI PR Taint Review | GitHub API authentication token required when publishing inline PR review comments via `vibetrace audit pr-taint --post`. | None (prompted/required only for `--post`) |

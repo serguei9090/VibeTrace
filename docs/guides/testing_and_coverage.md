@@ -1,16 +1,13 @@
 # 🧪 VibeTrace Test Suite & Use Case Coverage Matrix
 
-> **Status:** 498 / 498 Automated Tests Passing (100% Pass Rate)  
-> **Last Verification:** 2026-10-30  
-> **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend)
+> **Status:** Automated Unit, Integration & 10-Language E2E CLI Suites  
+> **Test Harness:** `pytest` + `pytest-asyncio` + `FastAPI TestClient` + `bun` (Frontend) + Multi-Language E2E Benchmark Runner
 
 ---
 
 ## 1. Executive Summary
 
-The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 languages), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (FastMCP 23 tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
-
-All **470 automated tests** in `tests/` pass with zero failures.
+The VibeTrace test suite validates end-to-end functionality across AST tree-sitter extraction (10 indexed languages), native Rust ONNX embeddings (`crates/vibetrace-core`), SQLite recursive CTEs, hybrid RRF search, Model Context Protocol (33 FastMCP tools), REST and WebSocket servers, and the `@xyflow/react` Map Room 2.0 visualizer.
 
 ---
 
@@ -83,14 +80,31 @@ All **470 automated tests** in `tests/` pass with zero failures.
 
 | Module / System | Use Cases Tested | Verification Method | Status |
 | :--- | :--- | :--- | :--- |
-| **`ReindexService`** (`src/vibetrace/services/reindex_service.py`) | Decoupled business logic for single-file and workspace reindexing, vector embedding generation, and documentation synchronization. | `tests/test_audit_code_bugs_round60.py` | ✅ PASS |
+| **`ReindexService`** (`src/vibetrace/services/reindex_service.py`) | Decoupled business logic for single-file and workspace reindexing, vector embedding generation, and documentation synchronization. | `tests/test_regression_indexer_and_db_core.py` | ✅ PASS |
 | **`js_parser.py` AST Extraction** (`src/vibetrace/indexer/parsers/js_parser.py`) | Unwrapping React hooks (`useCallback`, `useMemo`) to associate variable declarator identifiers with arrow functions instead of anonymous labels. | `tests/test_multiparser.py` | ✅ PASS |
-| **File Watcher Decoupling** (`src/vibetrace/indexer/watcher.py`) | Clean transactional boundary for single-file and directory tree index removal without raw SQL leaks. | `tests/test_systems_deep.py` | ✅ PASS |
-| **Pre-Flight Caller Guard** (`src/vibetrace/services/caller_guard.py`) | AST incoming caller inspection, blast-radius calculation, and staged git change validation (`--staged`, `--strict`). | `tests/test_audit_code_bugs_round53.py` | ✅ PASS |
-| **Documentation RAG** (`src/vibetrace/docs/service.py`) | Multi-catalog ingestion (.md, .txt, .pdf), local vs global catalog isolation, hybrid BM25 + vector search. | `tests/test_docs_rag.py` | ✅ PASS |
+| **File Watcher & Graph Core** (`src/vibetrace/indexer/watcher.py`) | Clean transactional boundary for single-file and directory tree index removal without raw SQL leaks. | `tests/test_regression_indexer_and_graph_advanced.py` | ✅ PASS |
+| **Pre-Flight Caller Guard** (`src/vibetrace/services/caller_guard.py`) | AST incoming caller inspection, blast-radius calculation, and staged git change validation (`--staged`, `--strict`). | `tests/test_regression_services_trace_and_guard.py` | ✅ PASS |
+| **LSP Hybrid Bridge** (`src/vibetrace/indexer/lsp_bridge.py`) | Candidate resolution, glob workspace markers, `tsserver.js` discovery, and primary/secondary LSP provisioning (`tools_manager.py`). | `tests/test_lsp_bridge.py` | ✅ PASS |
+| **Documentation RAG & i18n** (`src/vibetrace/docs/service.py`) | Multi-catalog ingestion (.md, .txt, .pdf), local vs global isolation, locale boosting/filtering, hybrid BM25 + EmbeddingGemma 2 vector search. | `tests/test_docs_rag.py` | ✅ PASS |
 | **4-Stream Hybrid Search** (`src/vibetrace/indexer/db.py`) | Reciprocal Rank Fusion (RRF) across AST symbols, FTS5 BM25 lexical ranking, PageRank centrality, and 256d vector embeddings. | `tests/test_hybrid_search.py` | ✅ PASS |
 | **Polyglot AST Support** (`tests/test_multiparser.py`) | Extraction across Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, PHP, and Ruby. | `tests/test_multiparser.py` | ✅ PASS |
 | **Map Room 2.0 Frontend** (`src/web/`) | Macro clustered graph (Option 1), live Caller Guard drawer, Split Audit approval popovers, and 60 FPS Canvas rendering. | `bun run --cwd src/web build` | ✅ PASS |
+
+---
+
+### 2.4 10-Stack Multi-Language E2E CLI Benchmark Suite
+
+The end-to-end benchmark runner (`tests/benchmarks/e2e_suite/runner.py`) exercises real repositories across 5 primary stacks and 5 secondary stacks via live `vibetrace` subprocess invocations and writes detailed results and timings to `.benchmark_repos/e2e_cli_report.md`:
+
+- **Primary Stacks (`--stacks primary`):** `python` (`fastapi`), `typescript` (`zod`), `go` (`cobra`), `rust` (`ripgrep`), `java` (`gson`)
+- **Secondary Stacks (`--stacks secondary`):** `c` (`hiredis`), `cpp` (`fmt`), `csharp` (`automapper`), `ruby` (`rack`), `php` (`monolog`)
+
+```bash
+# Run primary or secondary stacks, or all 10 languages end-to-end
+uv run --no-sync python tests/benchmarks/e2e_suite/runner.py --stacks primary
+uv run --no-sync python tests/benchmarks/e2e_suite/runner.py --stacks secondary
+uv run --no-sync python tests/benchmarks/e2e_suite/runner.py --stacks all
+```
 
 ---
 
@@ -99,15 +113,16 @@ All **470 automated tests** in `tests/` pass with zero failures.
 ### 3.1 Python Backend Tests
 
 ```bash
-# 1. Run full 470-test suite
-uv run python -m pytest
+# 1. Run full pytest suite (use `python -m pytest` on Windows)
+uv run --no-sync python -m pytest tests -q
 
-# 2. Run targeted Split Audit and Trace Reachability suite
-uv run python -m pytest tests/test_split_audit.py tests/test_trace_reachability.py tests/test_api.py -v
+# 2. Run targeted Split Audit, Trace Reachability, and LSP suites
+uv run --no-sync python -m pytest tests/test_split_audit.py tests/test_trace_reachability.py tests/test_lsp_bridge.py -v
 
-# 3. Static analysis and formatting
-uv run ruff check .
-uv run ruff format --check .
+# 3. Static analysis, typechecking, and formatting
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync pyright
 ```
 
 ### 3.2 Frontend Build & Typecheck

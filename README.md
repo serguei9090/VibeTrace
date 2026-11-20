@@ -53,15 +53,15 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🔬 360° Symbol Diagnosis Meta-Endpoint (`vibetrace diagnose`)**: Deep single-round-trip investigation consolidating source slice, callee contracts, all incoming callers with exact `:L<line>` call sites, 2-hop transitive blast radius, linked architectural documentation, and sibling test reachability.
 - **🛡️ Pre-Flight Caller Guard (`vibetrace guard`)**: AST incoming caller inspection with exact call lines and blast-radius advisories to prevent breaking sibling callers before modifying function signatures.
 - **🚦 Git Pre-Commit Gate (`vibetrace guard --staged`)**: Validates modified symbol signatures in staged git changes against active callers to prevent breaking commits (`--strict`).
-- **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
-- **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with hybrid BM25 + vector RRF, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
+- **⚖️ Architectural Split Audit & Code Triage (`vibetrace audit splits`)**: Automated detection of multi-module execution bifurcations and configurable oversized-file monoliths (`--max-lines 600 --margin 100`, `[splits]` + `approved_files` in `.vibetrace.toml`) with deterministic SHA-256 code hashing and version-controlled Git baselines (`.vibetrace/splits.toml`). Includes interactive terminal triage and non-interactive CI verification (`--ci`, `--strict`).
+- **📚 Scoped Documentation RAG (`vibetrace docs`)**: Multi-catalog Markdown, PDF, and text ingestion with automatic native EmbeddingGemma 2 vector embedding/backfill, i18n `docs/en` auto-detection, `preferred_locale` RRF boost + `--locale` filtering, isolated local vs global scoping, and explicit provenance tags (`[LOCAL:cat]`, `[GLOBAL:cat]`).
 - **🗺️ Reachable Tracepaths & Multi-Route Analysis (`vibetrace trace`)**: Exhaustive reachability analysis via recursive SQLite CTE checks with boundary dead-end tracking (`GET /api/reachable`), multi-path BFS finding alternative simple paths (`Route 1` vs `Route 2`), and in-path bifurcation markers.
-- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, in-degree graph centrality (with optional PageRank), and optional 256d Matryoshka vectors (`EmbeddingGemma 2`, enabled via `vibetrace[embeddings]`). Cross-queries code + docs via `--with-docs`.
+- **🔍 4-Stream Hybrid Search (`vibetrace search`)**: Reciprocal Rank Fusion (RRF) combining deterministic AST symbol matching, SQLite FTS5 BM25 lexical ranking, in-degree graph centrality (with optional PageRank), and 256d Matryoshka vectors computed natively in Rust (`EmbeddingGemma 2 Q8 ONNX` via `ort` DirectML/CPU in `vibetrace._rust_core`, paired with LanceDB via `vibetrace[embeddings]`; zero `sentence-transformers`/PyTorch required). Cross-queries code + docs via `--with-docs`.
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving ~70–90% of LLM context window tokens compared to full-file dumps.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif`, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
-- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar`). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
+- **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif` with bundled offline `semgrep_security.yml` preset and SARIF CWE deduplication, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), optional Tier-2 **SonarLint** (`--sonar` / `--sonar-all`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar`, scoped to git-changed files by default with 12-file wave chunking, or `--sonar-all` for full repo). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
 - **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: Python AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
@@ -113,19 +113,19 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 
 VibeTrace provides first-class multi-language AST extraction:
 
-| Language | Extensions | AST Indexing | Quality & Linter Bridges |
-| :--- | :--- | :---: | :--- |
-| **Python** | `.py` | 🔥 Full | Native AST + Ruff + Pyright + Tree-sitter Cognitive Complexity (`S3776`) |
-| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | Biome + `tsc` + Tree-sitter Cognitive Complexity (`S3776`) |
-| **Go** | `.go` | ✅ Solid | `golangci-lint` (revive, unused, staticcheck) + Tree-sitter (`S3776`) |
-| **Rust** | `.rs` | ✅ Solid | `cargo clippy` + Tree-sitter Cognitive Complexity (`S3776`) |
-| **PHP** | `.php` | ✅ Solid | `PHPStan` 2.x + `Pint` + Tree-sitter Cognitive Complexity (`S3776`) |
-| **Ruby** | `.rb` | ✅ Solid | `RuboCop` 1.x + Tree-sitter Cognitive Complexity (`S3776`) |
-| **Shell** | `.sh`, `.bash`, `.zsh` | ✅ Solid | `ShellCheck` 0.10.x |
-| **SQL** | `.sql` | ✅ Solid | `SQLFluff` 4.5.x |
-| **Java** | `.java` | 🛠️ Structural | Packages, Classes, Interfaces, Call hierarchies, Tree-sitter (`S3776`) |
-| **C / C++** | `.c`, `.cpp`, `.h`, `.hpp` | 🛠️ Structural | Functions, Classes, Structs, Preprocessor includes, Tree-sitter (`S3776`) |
-| **C#** | `.cs` | 🛠️ Structural | Structural symbol extraction + Tree-sitter (`S3776`) |
+| Language | Extensions | AST Indexing | Quality & Linter Bridges | Optional LSP Bridge |
+| :--- | :--- | :---: | :--- | :--- |
+| **Python** | `.py` | 🔥 Full | Native AST + Ruff + Pyright + Tree-sitter Cognitive Complexity (`S3776`) | `basedpyright` / `pyright` / `pylsp` |
+| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | Biome + `tsc` + Tree-sitter Cognitive Complexity (`S3776`) | `typescript-language-server` / `vtsls` |
+| **Go** | `.go` | ✅ Solid | `golangci-lint` (revive, unused, staticcheck) + Tree-sitter (`S3776`) | `gopls` |
+| **Rust** | `.rs` | ✅ Solid | `cargo clippy` + Tree-sitter Cognitive Complexity (`S3776`) | `rust-analyzer` |
+| **PHP** | `.php`, `.phtml` | ✅ Solid | `PHPStan` 2.x + `Pint` + Tree-sitter Cognitive Complexity (`S3776`) | `intelephense` / `phpactor` |
+| **Ruby** | `.rb`, `.rake` | ✅ Solid | `RuboCop` 1.x + Tree-sitter Cognitive Complexity (`S3776`) | `ruby-lsp` / `solargraph` |
+| **Shell** | `.sh`, `.bash`, `.zsh` | ✅ Solid | `ShellCheck` 0.10.x | — |
+| **SQL** | `.sql` | ✅ Solid | `SQLFluff` 4.5.x | — |
+| **Java** | `.java` | 🛠️ Structural | Packages, Classes, Interfaces, Call hierarchies, Tree-sitter (`S3776`) | `jdtls` |
+| **C / C++** | `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx` | 🛠️ Structural | Functions, Classes, Structs, `#include` resolution, Tree-sitter (`S3776`) | `clangd` |
+| **C#** | `.cs` | 🛠️ Structural | Namespaces, `using`, generics, base lists, Tree-sitter (`S3776`) | `csharp-ls` / `OmniSharp` |
 
 ---
 
@@ -143,7 +143,8 @@ uv tool install vibetrace
 pip install vibetrace
 ```
 
-#### Optional: Local Vector Embeddings (EmbeddingGemma 2 + sqlite-vec)
+#### Optional: Vector Storage (`vibetrace[embeddings]` — LanceDB + `sqlite-vec`)
+EmbeddingGemma 2 Q8 ONNX inference runs natively inside the compiled Rust core (`vibetrace._rust_core` via `ort` DirectML GPU / CPU) and auto-caches weights under `~/.vibetrace/models/embeddinggemma-2-onnx`. Install the `embeddings` extra to enable persistent LanceDB / `sqlite-vec` vector storage:
 ```bash
 uv tool install "vibetrace[embeddings]"
 ```
@@ -195,10 +196,10 @@ vibetrace guard "upsert_node"
 # Pre-commit staged changes blast-radius gate
 vibetrace guard --staged --strict
 
-# 3. Documentation RAG (local vs global scoping)
+# 3. Documentation RAG (local vs global scoping, i18n locale filtering)
 vibetrace docs catalog add core docs/
 vibetrace docs index
-vibetrace docs search "rate limiting" --scope local
+vibetrace docs search "rate limiting" --scope local --locale en
 
 # 4. 4-Stream Hybrid Search (with optional docs cross-query)
 vibetrace search "authentication flow" --with-docs
@@ -209,8 +210,8 @@ vibetrace trace "GET /api/users" "queryUsersFromDB"
 vibetrace trace "handleLogin" "verifyPassword" --save-as "AuthFlow"
 vibetrace trace --saved "AuthFlow"
 
-# 6. Architectural Split Audit & Code Triage
-vibetrace audit splits
+# 6. Architectural Split & File-Size Monolith Audit
+vibetrace audit splits --max-lines 600 --margin 100
 # Interactive triage prompt to approve benign bifurcations into .vibetrace/splits.toml
 vibetrace audit splits --approve
 # CI/CD gate with deterministic hash tripwires (exits 1 if unapproved or modified)
@@ -239,8 +240,12 @@ vibetrace audit security --approve --tag no-alternative --rationale "Verified sa
 # 6c. Code Quality & Maintainability Audit (Native Tree-sitter Metrics + Fast Linter Presets)
 # Fast native audit (Cognitive Complexity, Deep Nesting, Unused Private Methods, etc.)
 vibetrace audit quality
-# Run with optional Tier-2 headless SonarLint Java engine
+# Run with optional Tier-2 headless SonarLint Java engine (git-changed files by default)
 vibetrace audit quality --sonar
+# Force SonarLint over every source file (12-file wave chunking)
+vibetrace audit quality --sonar --sonar-all
+# Provision primary & secondary language servers (Python, TS, Go, Rust, PHP, C#, Ruby; hints for C/C++, Java)
+vibetrace tools install-lsp
 # High-density summary matrix roadmap (<1 KB) to prevent terminal truncation
 vibetrace audit quality --summary
 # Surgical single-file JSON payload with line spans, code snippets, and compliant solutions
@@ -367,14 +372,24 @@ path = ".vibetrace/vibetrace.db"
 busy_timeout_seconds = 30.0
 
 [vectors]
-# Vector engine: "lancedb" (recommended), "sqlite-vec", or "none"
+# Vector engine: "lancedb" (recommended) or "none"
 engine = "lancedb"
 # Local directory or remote cloud URI (e.g. "s3://company-vectors/my-service")
 uri = ".vibetrace/vectors.lance"
-# Embedding model and Matryoshka dimension
+# Embedding model and Matryoshka dimension (native Rust EmbeddingGemma 2 Q8 ONNX)
 model_id = "google/embeddinggemma-2"
 dimensions = 256
 batch_size = 32
+
+[splits]
+# Target maximum lines per file and buffer margin (hard ceiling = max_lines + margin)
+max_lines = 600
+margin = 100
+approved_files = []
+
+[docs]
+# Preferred ISO locale code for multilingual docs auto-detection and RRF boosting
+preferred_locale = "en"
 
 [indexer]
 # Working-tree Git-SHA delta debounce window (<20ms check)
@@ -447,8 +462,8 @@ cd VibeTrace
 # Install Python dependencies using uv
 uv sync
 
-# Install git pre-commit hooks via lefthook
-lefthook install
+# Install git pre-commit hooks via project-managed Lefthook (v2, no_tty enabled)
+uv run lefthook install
 
 # (Optional) Install frontend UI dependencies
 cd src/web && bun install && cd ../..

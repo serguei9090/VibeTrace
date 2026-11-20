@@ -26,6 +26,7 @@ flowchart TD
     end
 
     subgraph Engines ["Specialized Engines"]
+        RustCore["Rust Native Core (`crates/vibetrace-core/`)"]
         Indexer["AST & Tree-Sitter Indexer (`vibetrace/indexer/`)"]
         Security["Security & Taint Engine (`vibetrace/security/`)"]
         Quality["Code Smells & Complexity (`vibetrace/quality/`)"]
@@ -35,7 +36,7 @@ flowchart TD
 
     subgraph Storage ["Storage & Persistence"]
         SQLite["SQLite Graph DB (`indexer/db.py`)"]
-        VectorDB["Vector Store / SQLite-Vec (`indexer/vector_store.py`)"]
+        VectorDB["LanceDB Vector Store (`.vibetrace/vectors.lance`)"]
         Postgres["Federation Postgres (`federation/storage_postgres.py`)"]
     end
 
@@ -49,6 +50,7 @@ flowchart TD
     CoreServices --> Docs
     CoreServices --> Federation
 
+    Indexer --> RustCore
     Indexer --> SQLite
     Indexer --> VectorDB
     Federation --> Postgres
@@ -60,8 +62,9 @@ flowchart TD
 
 | Subsystem / Directory | Path | Primary Purpose |
 | :--- | :--- | :--- |
+| **Rust Native Core** | [`crates/vibetrace-core/`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/) | PyO3 native extension (`vibetrace._rust_core`): parallel workspace walking/SHA-256, EmbeddingGemma 2 Q8 ONNX inference, and parallel cosine vector search. |
 | **CLI & Entrypoints** | [`src/vibetrace/cli*.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/) | CLI arguments parsing, command dispatchers, human-readable terminal formatters, and exit codes. |
-| **Server & REST APIs** | [`src/vibetrace/server_api*.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/) | Standalone lightweight HTTP server exposing REST endpoints for the Web UI and IDE plugins. |
+| **Server & REST APIs** | [`src/vibetrace/server_api*.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/) | FastAPI HTTP + WebSocket server exposing REST endpoints for the Web UI and IDE plugins. |
 | **Core Services** | [`src/vibetrace/services/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/) | Domain workflows: path tracing, graph queries, predictive testing, caller guarding, review scoring, and repo map generation. |
 | **Indexer Subsystem** | [`src/vibetrace/indexer/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/) | Multi-language Tree-sitter parsers, SQLite schema, cross-file symbol resolution, vector embeddings, and file system watchers. |
 | **Security & Taint Engine** | [`src/vibetrace/security/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/security/) | Static AST vulnerability checks, interprocedural Def-Use taint tracking, dependency auditing (OSV), IaC scanning, and secrets detection. |
@@ -76,7 +79,18 @@ flowchart TD
 
 ## 🔍 Detailed Module Breakdown
 
-### 1. Indexer Subsystem (`src/vibetrace/indexer/`)
+### 1. Rust Native Core (`crates/vibetrace-core/`)
+
+Native PyO3 (`vibetrace._rust_core`) extension releasing the Python GIL across heavy scanning, embedding, and search paths:
+
+* [`lib.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/lib.rs): Exposes `py_scan_and_hash_workspace`, `py_extract_batch_parallel`, `py_embed_texts_parallel`, `py_embedding_runtime_info`, and `py_search_vectors_parallel`.
+* [`walker.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/walker.rs): Parallel gitignore-aware file discovery and SHA-256 hashing (`ignore` + `rayon`), disabling parent ancestor `.gitignore` leaks (`parents(false)`).
+* [`vectors.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/vectors.rs): Native **EmbeddingGemma 2 Q8 ONNX** (`ort` DirectML/CPU) inference, HuggingFace weight auto-caching (`~/.vibetrace/models/embeddinggemma-2-onnx`), Matryoshka truncation + L2 normalization, and parallel cosine vector search.
+* [`parser/mod.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/parser/mod.rs) & [`models.rs`](file:///i:/01-Master_Code/Apps/VibeGraph/crates/vibetrace-core/src/models.rs): Optional parallel Tree-sitter batch extraction and shared PyO3 data types.
+
+---
+
+### 2. Indexer Subsystem (`src/vibetrace/indexer/`)
 
 Handles scanning project source trees, parsing code with Tree-sitter, persisting nodes and edges to SQLite, and generating vector embeddings.
 
@@ -85,24 +99,25 @@ Handles scanning project source trees, parsing code with Tree-sitter, persisting
 * [`db_retry.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/db_retry.py): Concurrency retry decorator (`@with_write_retry`) with exponential backoff and jitter for resilient multi-process database access.
 * [`schema.sql`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/schema.sql): DDL defining relational tables: `nodes`, `edges`, `indexed_files`, `file_imports`, `edge_targets`, `symbol_doc_links`, `function_taint_contracts`, and `meta`.
 * [`main.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/main.py): High-level workspace indexing orchestration: single-file vs. batch indexing, multi-threaded directory walking, and incremental content-hash checks.
-* [`resolver.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/resolver.py): Cross-file import path resolution for Python modules, JavaScript/TypeScript barrel files, and Go package directories.
-* [`lsp_bridge.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/lsp_bridge.py): Hybrid LSP bridge connecting to local language servers (`basedpyright`, `gopls`, `rust-analyzer`) to rewire polymorphic and re-exported call targets that static AST cannot resolve alone.
-* [`embeddings.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/embeddings.py) & [`vector_store.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/vector_store.py): 256-dimensional Matryoshka vector embeddings generation and similarity search via `sqlite-vec` or raw SQLite fallback.
+* [`resolver.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/resolver.py): Cross-file import path resolution for Python modules, JavaScript/TypeScript barrel files, Rust workspaces, and Go package directories.
+* [`lsp_bridge.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/lsp_bridge.py): Hybrid LSP bridge connecting to local language servers (`basedpyright`/`pyright`, `typescript-language-server`/`vtsls`, `gopls`, `rust-analyzer`, `intelephense`/`phpactor`, `clangd`, `csharp-ls`/`OmniSharp`, `ruby-lsp`/`solargraph`, `jdtls`) to rewire polymorphic and re-exported call targets that static AST cannot resolve alone.
+* [`embeddings.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/embeddings.py) & [`vector_store.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/vector_store.py): Super-batched 256-dimensional Matryoshka EmbeddingGemma 2 Q8 ONNX vector generation via `vibetrace._rust_core` and coalesced ANN storage in `LanceDBVectorStore` (`.vibetrace/vectors.lance`).
 * [`watcher.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/watcher.py): Background file system watcher (`watchdog`) for instant incremental index synchronization on file change or deletion.
 * [`git_utils.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/git_utils.py): Git repository interrogation: discovering root directories, changed files in working tree, and commit diffs.
 * [`scip_importer.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/scip_importer.py): Ingestion of SCIP index protobufs for language-server-grade indexing accuracy.
 * **Language Parsers** ([`parsers/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/)):
-  * [`base.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/base.py): Base `TreeSitterParser` defining symbol scoping, AST traversal, call resolution, and builtin filtering.
+  * [`base.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/base.py): Base `LanguageParser` defining symbol scoping, AST traversal, call resolution, and builtin filtering.
+  * [`builtins.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/builtins.py): Per-language builtin and global name sets filtered from call edges.
   * [`python_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/python_parser.py): Python AST and Tree-sitter extractor for functions, classes, decorators, calls, and imports.
   * [`js_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/js_parser.py): JavaScript, TypeScript, and TSX/JSX parser for ES modules, React components, and arrow functions.
   * [`go_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/go_parser.py): Go language parser supporting struct embedding, interface definitions, receiver methods, and package-level sibling functions.
   * [`rust_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/rust_parser.py): Rust parser extracting structs, enums, traits, `impl` blocks, and macro invocations.
-  * [`generic_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/generic_parser.py): Universal grammar fallback parser supporting Java, C#, C, C++, and PHP.
-  * [`route_extractor.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/route_extractor.py): Web framework HTTP route extractor (FastAPI, Flask, Express, NestJS, Gin, Echo, Actix, Spring Boot).
+  * [`generic_parser.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/generic_parser.py): Universal grammar parser supporting Java, C, C++, C#, Ruby, and PHP.
+  * [`route_extractor.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/indexer/parsers/route_extractor.py): Web framework HTTP route extractor (FastAPI, Flask, Express, NestJS, Gin, Echo, Actix, Spring Boot, ASP.NET Core).
 
 ---
 
-### 2. Core Services (`src/vibetrace/services/`)
+### 3. Core Services (`src/vibetrace/services/`)
 
 Exposes high-level business capabilities consumed by both CLI commands and MCP agent tools.
 
@@ -113,11 +128,11 @@ Exposes high-level business capabilities consumed by both CLI commands and MCP a
 * [`predictive_test_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/predictive_test_service.py): Intelligent test selection based on Git diffs. Discovers which unit tests must run to validate changed functions without executing the full test suite.
 * [`review_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/review_service.py): Orchestrates unified PR and commit code reviews, combining security findings, code smells, test gaps, and coverage quality gates into an action-oriented Markdown report.
 * [`repo_map_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/repo_map_service.py): Generates compact, token-budgeted repository maps with centrality-weighted symbols, ideal for seeding AI agent context windows.
-* [`split_audit_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/split_audit_service.py): Audits branching logic, identifying conditional divergence, exception branches, and untraced error flows.
+* [`split_audit_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/split_audit_service.py): Audits cross-module branching splits and configurable oversized-file monoliths (`max_lines + margin`, default `600 + 100`) against `.vibetrace/splits.toml` and `[splits] approved_files`.
 * [`vibe_bundle.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/vibe_bundle.py): Context bundling utility that aggregates target symbols, their direct dependencies, docstrings, and tests into a self-contained token-optimized context pack.
 * [`call_tree_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/call_tree_service.py): Constructs hierarchical caller/callee trees up to configurable depth limits.
-* [`diagnose_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/diagnose_service.py): Diagnostic health check (`vibetrace doctor`) verifying database integrity, tree-sitter binaries, and index completeness.
-* [`reindex_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/reindex_service.py): Executes workspace or single-file reindexing, embedding generation, documentation sync, and edge pruning.
+* [`diagnose_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/diagnose_service.py): 360° symbol diagnosis engine (`DiagnoseService.diagnose_symbol`) consolidating slice, callee contracts, callers with call-site lines, blast radius, linked docs, and sibling test coverage.
+* [`reindex_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/reindex_service.py): Executes workspace or single-file reindexing, EmbeddingGemma 2 ONNX embedding generation, documentation sync, and edge pruning.
 * [`hybrid_search.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/hybrid_search.py): Blended search combining exact lexical name matching, FTS5 documentation search, and Matryoshka vector cosine similarity.
 * [`saved_traces_service.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/services/saved_traces_service.py): Manages persistent trace bookmarks and named execution flows in SQLite.
 
@@ -199,4 +214,4 @@ Terminal and Web API dispatchers.
 * [`cli.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/cli.py): Main argparse CLI entry point (`vibetrace index`, `trace`, `audit`, `review`, `doctor`, `mcp`, `serve`).
 * [`cli_commands.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/cli_commands.py): Command execution handlers for indexing, tracing, and symbol lookup.
 * [`cli_audit.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/cli_audit.py): Handlers for security, quality, and comprehensive code review commands.
-* [`server_api.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/server_api.py): Python `http.server` backend powering the interactive web Map Room and REST client.
+* [`server_api.py`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/server_api.py): FastAPI + WebSocket backend powering the interactive web Map Room and REST client.
