@@ -176,8 +176,11 @@ IDs through the alias index built from that catalog.
   [src/vibetrace/quality/service.py:QualityService].
 - `QualityService.audit_project` runs the TypeScript engine only when
   `typecheck` is requested, and runs the SonarLint engine only when
-  `enable_sonar` is set or `config.quality.enable_sonar` is true
-  [src/vibetrace/quality/service.py:QualityService].
+  `enable_sonar` is set or `config.quality.enable_sonar` is true; when enabled
+  without explicit `file_filter`/`file_list` or `sonar_all=True` (`--sonar-all`),
+  SonarLint targets git-changed files via `filter_sonar_targets`
+  [src/vibetrace/quality/service.py:QualityService],
+  [src/vibetrace/quality/adapters/sonar_lint.py:filter_sonar_targets].
 
 ## Side Effects
 - Reads project source files from disk during audits and inline suppression

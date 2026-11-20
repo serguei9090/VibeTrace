@@ -24,7 +24,7 @@ used to suppress unresolvable language builtins.
 - [src/vibetrace/indexer/parsers/ts_parser.py:TypeScriptParser] - TypeScript and TSX parser built on `JavaScriptParser`.
 - [src/vibetrace/indexer/parsers/go_parser.py:GoParser] - Go extraction with type-directed call resolution and struct field tracking.
 - [src/vibetrace/indexer/parsers/rust_parser.py:RustParser] - Rust extraction with module, struct, trait (`#[trait_impl]`), `pub use` re-exports, and impl scope handling.
-- [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser] - Shared parser for Java (with annotation `decorators`), C, C++, C#, Ruby, and PHP.
+- [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser] - Shared parser for Java (with annotation `decorators`), C, C++, C#, Ruby, and PHP, covering `#include` / `using` / `require` / `use` imports and helpers `_strip_generic_args`, `_clean_type_name`, and `_clean_php_member_chain`.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_python_routes] - FastAPI and Flask decorator routes to endpoint nodes.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_python_router_prefixes] - `APIRouter` and `Blueprint` prefix extraction.
 - [src/vibetrace/indexer/parsers/route_extractor.py:extract_js_endpoint_route] - JS/TS client and backend route extraction.
@@ -37,7 +37,8 @@ used to suppress unresolvable language builtins.
 - `ParserFactory.get_parser` returns `None` for extensions outside `SUPPORTED_EXTENSIONS`; callers treat that as "unsupported language" and skip the file [src/vibetrace/indexer/parsers/__init__.py:ParserFactory.get_parser].
 - Blank or whitespace-only source yields no nodes and no edges [src/vibetrace/indexer/parsers/python_parser.py:PythonParser.extract], [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser.extract], [src/vibetrace/indexer/parsers/rust_parser.py:RustParser.extract].
 - Every parsed file emits exactly one module node whose ID is derived from the `module` kind hash [src/vibetrace/indexer/parsers/base.py:LanguageParser._get_id].
-- Node IDs are deterministic: MD5 of `file_path::qualified_name`, with module nodes keyed by `module::qualified_name` [src/vibetrace/indexer/parsers/base.py:LanguageParser._get_id].
+- Node IDs are deterministic: MD5 of `file_path::qualified_name`, with module nodes keyed by `module::qualified_name` except for C/C++, where `GenericParser.extract` keys module IDs by `file_path::module_name` so companion `.h` and `.c`/`.cpp` files retain distinct module nodes and outgoing `#include` edges [src/vibetrace/indexer/parsers/base.py:LanguageParser._get_id], [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser.extract].
+- Local variable declarations skip emitting spurious self/local reference edges in JS/TS and generic extractors [src/vibetrace/indexer/parsers/js_parser.py:JavaScriptParser], [src/vibetrace/indexer/parsers/generic_parser.py:GenericParser].
 - A bare call to a language builtin produces no edge; builtins are excluded unless the name is also defined or imported in the file [src/vibetrace/indexer/parsers/base.py:LanguageParser._is_builtin].
 - Import edges are `confidence = "exact"` when the module resolves to a project file and `confidence = "inferred"` when it falls back to `external` [src/vibetrace/indexer/parsers/base.py:LanguageParser._register_imported_module].
 - Route decorators yield synthetic nodes with kind `endpoint` plus a `routes` edge to the handler node [src/vibetrace/indexer/parsers/route_extractor.py:extract_python_routes], [src/vibetrace/indexer/parsers/route_extractor.py:extract_js_endpoint_route].

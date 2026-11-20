@@ -24,20 +24,21 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/main.py:is_ignored_path] - Shared ignore rule for walk, git delta, and watcher.
 - [src/vibetrace/indexer/main.py:load_ignore_spec] / [src/vibetrace/indexer/main.py:load_gitignore] - Build ignore spec from `.gitignore` plus configured excludes.
 - [src/vibetrace/indexer/resolver.py:ModuleResolver] - Resolve module names (including Cargo workspace packages with hyphen-to-underscore normalization) to project-relative file paths.
-- [src/vibetrace/indexer/embeddings.py:EmbeddingEngine] - Local embedding encode, index, and semantic search.
+- [src/vibetrace/indexer/embeddings.py:EmbeddingEngine] - Native Rust EmbeddingGemma 2 Q8 ONNX encode, index, query/document formatting, and semantic search (`_NATIVE_EMBED_SUPER_BATCH = 256`, `_LANCE_FLUSH_BATCH = 512`).
 - [src/vibetrace/indexer/embeddings.py:EmbeddingConfig] - Embedding pipeline configuration contract.
-- [src/vibetrace/indexer/embeddings.py:build_symbol_document] / [src/vibetrace/indexer/embeddings.py:truncate_and_normalize] / [src/vibetrace/indexer/embeddings.py:pack_vector] / [src/vibetrace/indexer/embeddings.py:unpack_vector] / [src/vibetrace/indexer/embeddings.py:cosine_similarity] - Symbol text build, Matryoshka truncation, blob serialization, similarity.
-- [src/vibetrace/indexer/vector_store.py:VectorStore] - Protocol for embedding storage and ANN search.
-- [src/vibetrace/indexer/vector_store.py:LanceDBVectorStore] - Disk-backed LanceDB implementation.
+- [src/vibetrace/indexer/embeddings.py:build_symbol_document] / [src/vibetrace/indexer/embeddings.py:format_embedding_query] / [src/vibetrace/indexer/embeddings.py:format_embedding_document] / [src/vibetrace/indexer/embeddings.py:EmbeddingEngine.embed_query] / [src/vibetrace/indexer/embeddings.py:EmbeddingEngine.embed_documents] / [src/vibetrace/indexer/embeddings.py:truncate_and_normalize] / [src/vibetrace/indexer/embeddings.py:pack_vector] / [src/vibetrace/indexer/embeddings.py:unpack_vector] / [src/vibetrace/indexer/embeddings.py:cosine_similarity] - Symbol/query prompt builders, Matryoshka truncation, blob serialization, similarity.
+- [src/vibetrace/indexer/vector_store.py:VectorStore] - Protocol for embedding storage, batch delete (`delete_files_embeddings`), and ANN search.
+- [src/vibetrace/indexer/vector_store.py:LanceDBVectorStore] - Disk-backed LanceDB implementation (`_get_table(create=True)` avoids creating empty tables on read-only lookups).
 - [src/vibetrace/indexer/vector_store.py:get_vector_store] - Factory selecting vector engine from configuration.
 - [src/vibetrace/indexer/git_utils.py:get_git_sha] / [src/vibetrace/indexer/git_utils.py:get_git_delta] - Git SHA read and incremental changed/deleted file diff.
 - [src/vibetrace/indexer/hooks.py:detect_hook_provider] / [src/vibetrace/indexer/hooks.py:get_hooks_status] / [src/vibetrace/indexer/hooks.py:install_hooks] / [src/vibetrace/indexer/hooks.py:install_git_hooks] / [src/vibetrace/indexer/hooks.py:install_lefthook_config] / [src/vibetrace/indexer/hooks.py:uninstall_hooks] - Automated post-commit/post-merge index hook management.
 - [src/vibetrace/indexer/hooks.py:HOOK_SCRIPT_BLOCK] - Hook script body written into the installed git hook.
 - [src/vibetrace/indexer/watcher.py:CodeChangeHandler] / [src/vibetrace/indexer/watcher.py:start_observer] / [src/vibetrace/indexer/watcher.py:stop_observer] / [src/vibetrace/indexer/watcher.py:start_watcher_blocking] - Filesystem watcher driving incremental reindex.
-- [src/vibetrace/indexer/lsp_bridge.py:LSPClient] - Stdio JSON-RPC language-server client.
+- [src/vibetrace/indexer/lsp_bridge.py:LSPClient] - Stdio JSON-RPC language-server client with guarded stream reader (`_reader_loop`) and per-language `didOpen` mapping (`ensure_document_opened`).
 - [src/vibetrace/indexer/lsp_bridge.py:resolve_unresolved_edges] / [src/vibetrace/indexer/lsp_bridge.py:resolve_unresolved_edges_polyglot] - Rewire unresolved call edges using LSP definitions.
 - [src/vibetrace/indexer/lsp_bridge.py:get_lsp_command_for_language] / [src/vibetrace/indexer/lsp_bridge.py:get_default_lsp_command] - Detect installed language servers.
-- [src/vibetrace/indexer/lsp_bridge.py:LSP_SERVER_CANDIDATES] / [src/vibetrace/indexer/lsp_bridge.py:EXT_TO_LANGUAGE] - Per-language server command candidates and file-extension to language mapping.
+- [src/vibetrace/indexer/lsp_bridge.py:_discover_tsserver_path] / [src/vibetrace/indexer/lsp_bridge.py:_resolve_lsp_binary] / [src/vibetrace/indexer/lsp_bridge.py:_resolve_lsp_root] - Locate `tsserver.js`, probe PATH / `~/go/bin` / `~/.dotnet/tools` / Ruby bin dirs, and match literal/wildcard workspace markers (`*.sln`, `*.csproj`, `*.gemspec`).
+- [src/vibetrace/indexer/lsp_bridge.py:LSP_SERVER_CANDIDATES] / [src/vibetrace/indexer/lsp_bridge.py:EXT_TO_LANGUAGE] - Per-language server command candidates and extension mappings across 10 languages (`python`, `typescript`, `rust`, `go`, `php`, `c`, `cpp`, `csharp`, `ruby`, `java`).
 - [src/vibetrace/indexer/lsp_bridge.py:MultiLanguageLSPManager] / [src/vibetrace/indexer/lsp_bridge.py:LSPDaemonManager] - Pooled language-server lifecycle.
 - [src/vibetrace/indexer/rust_bridge.py:reindex_workspace_hybrid] - Workspace scan, SHA-256 diff, single-transaction commit.
 - [src/vibetrace/indexer/rust_bridge.py:PythonFileDelta] / [src/vibetrace/indexer/rust_bridge.py:PythonWorkspaceScan] - Per-file change record and workspace scan result returned by the pure-Python fallback scanner.
@@ -45,6 +46,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - [src/vibetrace/indexer/scip_importer.py:ScipImporter] / [src/vibetrace/indexer/scip_importer.py:parse_scip_symbol_name] - Import SCIP index data into the graph.
 - [src/vibetrace/indexer/schema.sql] - Tables: `indexed_files`, `nodes`, `edges`, `file_imports`, `edge_targets`, `nodes_fts`, `node_embeddings`, `meta`, `saved_traces`, `symbol_doc_links`, `function_taint_contracts`.
 - Child contract: [Parsers](./parsers/README.md) - Tree-sitter language extractors producing the node/edge records persisted here.
+- Companion native crate: [crates/vibetrace-core](../../../crates/vibetrace-core/README.md) - PyO3 extension powering workspace scanning, ONNX embeddings, and parallel vector search.
 
 ## Invariants
 
@@ -62,7 +64,9 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - `get_git_delta` returns `None` unless the base SHA is 40 or 64 hex characters, and `get_git_sha` validates SHA shape before use [src/vibetrace/indexer/git_utils.py:get_git_delta], [src/vibetrace/indexer/git_utils.py:get_git_sha].
 - `with_write_retry` raises `ValueError` when `max_attempts < 1` [src/vibetrace/indexer/db_retry.py:with_write_retry].
 - `EmbeddingConfig.dimensions` is constrained to 64-768 [src/vibetrace/indexer/embeddings.py:EmbeddingConfig].
+- `EmbeddingEngine` delegates inference and parallel cosine search to `vibetrace._rust_core` (EmbeddingGemma 2 Q8 ONNX, no `sentence-transformers`), formatting queries/documents via `format_embedding_query`/`format_embedding_document`, super-batching at `_NATIVE_EMBED_SUPER_BATCH` (256), and coalescing LanceDB deletes/upserts at `_LANCE_FLUSH_BATCH` (512) [src/vibetrace/indexer/embeddings.py:EmbeddingEngine].
 - `get_vector_store` raises `ValueError` for any unsupported engine (supports `'lancedb'` or `'none'`) [src/vibetrace/indexer/vector_store.py:get_vector_store].
+- `LSPClient._reader_loop` rejects non-bytes stdout frames (`isinstance(raw_line, (bytes, bytearray))`) and enforces bounded header/body reads; `LSPClient.ensure_document_opened` sends per-language `languageId` values across all 10 supported ecosystems; `_resolve_lsp_root` accepts literal and glob root markers (`*.sln`, `*.csproj`, `*.gemspec`) and `_resolve_lsp_binary` probes `<project>/.vibetrace/bin`, `PATH`, `~/go/bin`, `~/.dotnet/tools`, and Ruby's bin directory [src/vibetrace/indexer/lsp_bridge.py:LSPClient].
 
 ## Side Effects
 
@@ -74,7 +78,7 @@ language extractors live in the child package [Parsers](./parsers/README.md).
 - Writes and removes hook content in `.git/hooks/post-commit`, `.git/hooks/post-merge`, `lefthook.yml`, and `.lefthook.yml` [src/vibetrace/indexer/hooks.py:install_git_hooks], [src/vibetrace/indexer/hooks.py:install_lefthook_config], [src/vibetrace/indexer/hooks.py:uninstall_hooks].
 - Launches language-server subprocesses and exchanges JSON-RPC over stdio [src/vibetrace/indexer/lsp_bridge.py:LSPClient.start].
 - Starts a recursive watchdog observer that reindexes changed, created, moved, and deleted files [src/vibetrace/indexer/watcher.py:start_observer].
-- Computes 256d feature-hashing embeddings and cosine similarity in parallel via `vibetrace._rust_core` [src/vibetrace/indexer/embeddings.py:EmbeddingEngine.embed_texts].
+- Computes 256d EmbeddingGemma 2 Q8 ONNX embeddings and parallel cosine similarity via `vibetrace._rust_core` (downloading ONNX weights to `~/.vibetrace/models/embeddinggemma-2-onnx` on first run if not cached) [src/vibetrace/indexer/embeddings.py:EmbeddingEngine.embed_texts].
 - Requires the compiled `vibetrace._rust_core` extension for workspace scanning [src/vibetrace/indexer/rust_bridge.py:is_native_available].
 - Prints indexing progress and throughput telemetry to stdout [src/vibetrace/indexer/main.py:reindex_all].
 

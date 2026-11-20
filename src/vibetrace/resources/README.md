@@ -10,19 +10,21 @@ Static package resources shipped with the VibeTrace Python distribution. Holds t
 - [`__init__.py`](./__init__.py) — package marker with docstring `VibeTrace package resources.`; exports no symbols.
 - [`cwe_catalog.json`](./cwe_catalog.json) — JSON object keyed by canonical CWE id (e.g. `CWE-5`); each entry carries `id`, `name`, `description`, and `owasp`. Loaded by `vibetrace.taxonomy.CweTaxonomyManager` through `vibetrace.taxonomy.CWE_CATALOG_PATH`.
 - [`security_catalog.json`](./security_catalog.json) — JSON object with `version` and a `rules` array; each rule carries `id`, `cwe_id`, `severity`, `title`, `message`, `pattern`, `languages`, and `compliant_snippet`. Loaded by `vibetrace.security.rule_sync.RuleCatalogManager` through `vibetrace.security.rule_sync.BUNDLED_SECURITY_CATALOG_PATH`.
-- Preset files consumed by the quality adapters (referenced by path, not imported):
+- Preset files consumed by the quality and security adapters (referenced by path, not imported):
   - `presets/biome_sonar.json` — Biome lint preset loaded by `vibetrace.quality.adapters.biome`.
   - `presets/pyright_sonar.json` — Pyright type-checker preset loaded by `vibetrace.quality.adapters.python_pyright`.
   - `presets/ruff_sonar.toml` — Ruff lint preset loaded by `vibetrace.quality.adapters.python_ruff`.
+  - `presets/semgrep_security.yml` — Offline Semgrep SAST preset loaded by `vibetrace.security.adapters.semgrep` (`BUNDLED_SEMGREP_PRESET_PATH`).
 
 ## Invariants
 
 - `cwe_catalog.json` is a flat mapping of CWE ids to objects; the taxonomy loader normalizes any id spelling (`89`, `cwe-89`, `CWE_89`) to the canonical `CWE-<n>` form before lookup [src/vibetrace/taxonomy.py:normalize_cwe_id].
-- `CweTaxonomyManager` only loads the catalog when `CWE_CATALOG_PATH` is a file and logs a warning when the file cannot be parsed; a missing catalog leaves the manager without entries [src/vibetrace/taxonomy.py:CweTaxonomyManager].
+- `CweTaxonomyManager` only loads the catalog when `CWE_CATALOG_PATH` is a readable file and logs a warning when the file cannot be parsed; a missing catalog leaves the manager without entries [src/vibetrace/taxonomy.py:CweTaxonomyManager].
 - `security_catalog.json` carries a `version` field and a `rules` array; rule ids follow the `<ecosystem>:<CWE>-<slug>` shape (e.g. `web:CWE-79-xss`) [src/vibetrace/resources/security_catalog.json].
 - `RuleCatalogManager` only loads the bundled catalog when `BUNDLED_SECURITY_CATALOG_PATH` is a file [src/vibetrace/security/rule_sync.py:RuleCatalogManager].
 - `presets/ruff_sonar.toml` pins `target-version = "py310"` and `line-length = 100`; `presets/biome_sonar.json` caps `noExcessiveCognitiveComplexity` at `maxAllowedComplexity: 15` and `useMaxParams` at `max: 7` [src/vibetrace/resources/presets/ruff_sonar.toml].
 - `presets/pyright_sonar.json` sets `typeCheckingMode: "standard"` and reports optional-member access and general type issues as warnings [src/vibetrace/resources/presets/pyright_sonar.json].
+- `presets/semgrep_security.yml` provides the offline-first security ruleset referenced by `BUNDLED_SEMGREP_PRESET_PATH` so `SemgrepAdapter` avoids network lookups when `config == "auto"` [src/vibetrace/resources/presets/semgrep_security.yml], [src/vibetrace/security/adapters/semgrep.py:BUNDLED_SEMGREP_PRESET_PATH].
 - The security git-secret scanner excludes `security_catalog.json` from secret scanning so the bundled rule file is never reported as a finding [src/vibetrace/security/git_secret_scanner.py].
 
 ## Side Effects

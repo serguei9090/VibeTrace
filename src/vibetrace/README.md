@@ -103,10 +103,15 @@ these modules call into.
   `RefactorSplitRequest`
   (`[src/vibetrace/server_api_engineering.py:PatchDepsRequest]`).
 - Configuration models: `ProjectConfig`, `DatabaseConfig`, `VectorConfig`,
-  `IndexerConfig`, `LinterConfigs`, `QualityConfig`, `SecurityConfig`,
-  `VibeTraceConfig` (`[src/vibetrace/config.py:VibeTraceConfig]`), with
-  `load_config`, `save_default_config`, `resolve_linter_mode`, and
-  `save_linter_mode` (`[src/vibetrace/config.py:load_config]`).
+  `DocsConfig`, `DeadCodeConfig`, `SplitsConfig`, `IndexerConfig`, `LinterConfigs`,
+  `QualityConfig`, `SecurityConfig`, `VibeTraceConfig`
+  (`[src/vibetrace/config.py:VibeTraceConfig]`, `[src/vibetrace/config.py:SplitsConfig]`,
+  `[src/vibetrace/config.py:DocsConfig]`), with `load_config`, `save_default_config`,
+  `resolve_linter_mode`, and `save_linter_mode` (`[src/vibetrace/config.py:load_config]`).
+- Additional CLI flags across audit and docs subcommands include
+  `docs search --locale`, `audit splits --max-lines` / `--margin`,
+  `audit quality --sonar-all`, and `audit security --sonar-all`
+  (`[src/vibetrace/cli.py:build_parser]`).
 - Shared limits: `CHARS_PER_TOKEN`, `DEFAULT_VIBE_BUNDLE_BUDGET`,
   `DEFAULT_REPO_MAP_BUDGET`, `DEFAULT_MAX_DEPTH`, `MAX_TRAVERSAL_DEPTH`, and
   `DEFAULT_SAVED_TRACE_DEPTH` (`[src/vibetrace/constants.py:CHARS_PER_TOKEN]`).
@@ -150,8 +155,10 @@ these modules call into.
   `[pyproject.toml:[tool.hatch.build.targets.wheel]]`).
 - The `vibetrace` console script must resolve to `vibetrace.cli:main`
   (`[pyproject.toml:[project.scripts]]`).
-- The default configuration writes the index database to `.vibetrace/vibetrace.db`
-  and the vector store to `.vibetrace/vectors.lance` with 256 dimensions
+- The default configuration writes the index database to `.vibetrace/vibetrace.db`,
+  the vector store to `.vibetrace/vectors.lance` with 256 dimensions, `[splits]`
+  (`max_lines = 600`, `margin = 100`, `approved_files = []`), and `[docs]`
+  (`preferred_locale = "en"`)
   (`[src/vibetrace/config.py:generate_default_config_toml]`).
 - `load_config` returns the default configuration when no `.vibetrace.toml` is
   present (`[src/vibetrace/config.py:load_config]`).
@@ -176,8 +183,10 @@ these modules call into.
   the configured port (`[src/vibetrace/server_api.py:app]`).
 - `ToolsManager` downloads optional external tools such as the PHPStan PHAR from
   `https://github.com/phpstan/phpstan/releases/latest/download/phpstan.phar` and
-  installs them under the VibeTrace tool directory
-  (`[src/vibetrace/tools_manager.py:PHPSTAN_PHAR_URL]`).
+  installs them under the VibeTrace tool directory, and `ToolsManager.install("lsp", ...)`
+  provisions primary and secondary language servers (including `dotnet tool install -g csharp-ls`
+  and `gem install --no-document ruby-lsp` / `solargraph`, plus OS package hints for `clangd` and `jdtls`)
+  (`[src/vibetrace/tools_manager.py:PHPSTAN_PHAR_URL]`, `[src/vibetrace/tools_manager.py:ToolsManager]`).
 - `get_bundled_skill_content` reads the packaged skill definition from
   `resources/SKILL.md` (`[src/vibetrace/skill_installer.py:get_bundled_skill_content]`).
 

@@ -41,6 +41,8 @@ core model and service symbols.
 - OSV cache entries are only reused within `CACHE_TTL_SECONDS` (24 h) — `[src/vibetrace/security/osv_client.py:CACHE_TTL_SECONDS]`
 - Rule-catalog sync TTL is read from `.vibetrace/security.toml` `[sync]`, default `DEFAULT_RULES_TTL_DAYS` (7) — `[src/vibetrace/security/rule_sync.py:DEFAULT_RULES_TTL_DAYS]`
 - SARIF findings with 0 incoming callers and no entry-point path are silenced as `unreachable_dead_code` — `[src/vibetrace/security/sarif_ingest.py:SarifIngestEngine._enrich_with_reachability]`
+- `SarifIngestEngine._extract_cwe_id` extracts CWE identifiers from SARIF rule tags/properties in addition to rule IDs, and `SecurityService.audit_project` deduplicates Semgrep findings against native AST findings on `(file_path, start_line, cwe_id)` — `[src/vibetrace/security/sarif_ingest.py:_extract_cwe_id]`, `[src/vibetrace/security/service.py:SecurityService.audit_project]`
+- When `enable_sonar=True` is passed to `SecurityService.audit_project`, target scoping honors `sonar_all` (git-changed files by default) — `[src/vibetrace/security/service.py:SecurityService.audit_project]`
 
 ## Side Effects
 - Writes `.vibetrace/security.toml` baseline exceptions — `[src/vibetrace/security/baseline.py:SecurityBaselineManager.record_exception]`

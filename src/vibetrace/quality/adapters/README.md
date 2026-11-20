@@ -47,7 +47,11 @@ than reported under an invented identifier.
   `SUPPORTED_EXTENSIONS`, `parse_shellcheck_output`, `audit_file`,
   `audit_project`; no fix mode.
 - `SonarLintAdapter` - Optional Tier-2 SonarLint Language Server session.
-  Exposes `audit_file`, `audit_project`, `scan_security_findings`.
+  Exposes `audit_file`, `audit_project`, `scan_security_findings`; companion
+  `filter_sonar_targets` scopes default scans to git-changed files unless
+  `sonar_all` is requested, and `_SONAR_WAVE_SIZE = 12` caps concurrent LSP
+  document waves (`_open_wave_documents`, `_await_wave_diagnostics`,
+  `_close_wave_documents`).
 - `SqlFluffAdapter` - SQL via SQLFluff JSON output. Exposes
   `SUPPORTED_EXTENSIONS`, `parse_sqlfluff_output`, `audit_file`,
   `audit_project`, `fix_files`.
@@ -97,6 +101,13 @@ than reported under an invented identifier.
   Java binary are both resolvable
   [src/vibetrace/quality/adapters/sonar_lint.py:SonarLintAdapter],
   [src/vibetrace/quality/adapters/sonar_lint.py:resolve_sonar_runtime].
+- Large SonarLint audits chunk documents into waves of `_SONAR_WAVE_SIZE` (12)
+  files (`_open_wave_documents`, `_await_wave_diagnostics`,
+  `_close_wave_documents`), while `_read_lsp_headers` and `_read_exact_bytes`
+  guard against non-bytes streams and check `_is_closed` so background reader
+  threads exit cleanly without spinning
+  [src/vibetrace/quality/adapters/sonar_lint.py:_SONAR_WAVE_SIZE],
+  [src/vibetrace/quality/adapters/sonar_lint.py:_read_lsp_headers].
 - The SonarLint JSON-RPC session is confined to stdio and answers only
   `sonarlint/listFilesInFolder`, `workspace/configuration`,
   `sonarlint/isOpenInEditor`, `sonarlint/shouldAnalyseFile`, and

@@ -2,13 +2,15 @@
 
 ## System Overview
 
-This subtree holds the two runnable halves of VibeTrace:
+This subtree holds the two runnable halves of VibeTrace, backed by the companion
+native Rust PyO3 crate in [crates/vibetrace-core](../crates/vibetrace-core/README.md):
 
 - `vibetrace` - the Python package. It owns the command line interface, the FastAPI
   HTTP server, the FastMCP server, and the analysis subsystems (indexing, security,
-  quality, documentation RAG, federation). The CLI and the API server are two
-  front ends over one service layer, and both read and write one local index
-  database.
+  quality, documentation RAG, federation), calling into `vibetrace._rust_core`
+  for parallel workspace scanning, EmbeddingGemma 2 Q8 ONNX embeddings, and vector search.
+  The CLI and the API server are two front ends over one service layer, and both read
+  and write one local index database.
 - `web` - the React client. It renders the architecture map, the unified review
   dashboard, and the documentation workspace. It holds no analysis logic; it reads
   the same data through the HTTP API exposed by `vibetrace/server_api.py` and
@@ -62,11 +64,12 @@ flowchart TD
 - The shared index database is created and migrated under `.vibetrace/`
   (`[src/vibetrace/indexer/db.py:IndexerDB]`).
 - Network access happens in the OSV vulnerability lookup, the remote rule catalog
-  sync, the pull request review bot, and the first run embedding model download
+  sync, the pull request review bot, and the first-run download of EmbeddingGemma 2
+  ONNX weights to `~/.vibetrace/models/embeddinggemma-2-onnx`
   (`[src/vibetrace/security/osv_client.py:OsvClient]`,
   `[src/vibetrace/security/rule_sync.py:RuleCatalogManager]`,
   `[src/vibetrace/security/pr_bot.py:PRTaintBot]`,
-  `[src/vibetrace/indexer/embeddings.py:EmbeddingEngine]`).
+  `[crates/vibetrace-core/src/vectors.rs:resolve_model_dir]`).
 - Git is invoked as a subprocess for staged diffs, changed file detection, and hook
   installation (`[src/vibetrace/services/caller_guard.py:CallerGuardService]`,
   `[src/vibetrace/indexer/git_utils.py:get_git_sha]`).
