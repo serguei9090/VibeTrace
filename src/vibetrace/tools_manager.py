@@ -498,6 +498,7 @@ class ToolsManager:
             return False, "Package manager (winget/brew) not found to install Trivy."
 
         if lang in ("lsp", "install-lsp", "lsp-server"):
+            from vibetrace.indexer.lsp_bridge import _resolve_lsp_binary
             from vibetrace.skill_installer import detect_project_ecosystems
 
             ecosystems = detect_project_ecosystems(root)
@@ -519,14 +520,48 @@ class ToolsManager:
             )
             has_rs = any("Rust" in e for e in ecosystems) or any(root.glob("*.rs"))
             has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
+            has_c_cpp = (
+                any(root.glob("*.c"))
+                or any(root.glob("*.cpp"))
+                or any(root.glob("*.cc"))
+                or any(root.glob("*/*.c"))
+                or any(root.glob("*/*.cpp"))
+                or any(root.glob("*/*.cc"))
+                or (root / "CMakeLists.txt").exists()
+                or (root / "compile_commands.json").exists()
+            )
+            has_cs = (
+                any(root.glob("*.cs"))
+                or any(root.glob("*.sln"))
+                or any(root.glob("*.csproj"))
+                or any(root.glob("*/*.cs"))
+                or any(root.glob("*/*.csproj"))
+                or any(root.glob("src/*/*.csproj"))
+            )
+            has_rb = (
+                any(root.glob("*.rb"))
+                or any(root.glob("*/*.rb"))
+                or (root / "Gemfile").exists()
+                or any(root.glob("*.gemspec"))
+            )
+            has_java = (
+                any(root.glob("*.java"))
+                or any(root.glob("*/*.java"))
+                or (root / "pom.xml").exists()
+                or (root / "build.gradle").exists()
+                or (root / "build.gradle.kts").exists()
+            )
 
             results: list[str] = []
+            hints: list[str] = []
             which_uv = shutil.which("uv")
             which_npm = shutil.which("npm")
             which_bun = shutil.which("bun")
 
             # Python LSP (basedpyright or pyright)
-            if has_py or (not has_ts and not has_go and not has_rs and not has_php):
+            if has_py or not any(
+                (has_ts, has_go, has_rs, has_php, has_c_cpp, has_cs, has_rb, has_java)
+            ):
                 if which_uv:
                     res = subprocess.run([which_uv, "tool", "install", "basedpyright"], check=False)
                     if res.returncode == 0:
@@ -608,9 +643,94 @@ class ToolsManager:
                     if res.returncode == 0:
                         results.append("intelephense (PHP)")
 
+            # C# LSP (csharp-ls)
+            if has_cs:
+                if _resolve_lsp_binary("csharp-ls", root) or _resolve_lsp_binary("OmniSharp", root):
+                    results.append("csharp-ls (C#)")
+                else:
+                    which_dotnet = shutil.which("dotnet")
+                    if which_dotnet:
+                        res = subprocess.run(
+                            [which_dotnet, "tool", "install", "-g", "csharp-ls"],
+                            check=False,
+                        )
+                        if res.returncode != 0:
+                            res = subprocess.run(
+                                [which_dotnet, "tool", "update", "-g", "csharp-ls"],
+                                check=False,
+                            )
+                        if res.returncode == 0:
+                            results.append("csharp-ls (C#)")
+                    else:
+                        msg = (
+                            "C#/.NET project detected: install .NET SDK and run "
+                            "'dotnet tool install -g csharp-ls'."
+                        )
+                        print(f"⚠️  {msg}")
+                        hints.append(msg)
+
+            # Ruby LSP (ruby-lsp, with solargraph fallback for older Ruby)
+            if has_rb:
+                if _resolve_lsp_binary("ruby-lsp", root):
+                    results.append("ruby-lsp (Ruby)")
+                elif _resolve_lsp_binary("solargraph", root):
+                    results.append("solargraph (Ruby)")
+                else:
+                    which_gem = shutil.which("gem")
+                    if which_gem:
+                        res = subprocess.run(
+                            [which_gem, "install", "--no-document", "ruby-lsp"],
+                            check=False,
+                        )
+                        if res.returncode == 0:
+                            results.append("ruby-lsp (Ruby)")
+                        else:
+                            res2 = subprocess.run(
+                                [which_gem, "install", "--no-document", "solargraph"],
+                                check=False,
+                            )
+                            if res2.returncode == 0:
+                                results.append("solargraph (Ruby)")
+                    else:
+                        msg = "Ruby project detected: run 'gem install ruby-lsp' (or 'solargraph')."
+                        print(f"⚠️  {msg}")
+                        hints.append(msg)
+
+            # C/C++ LSP (clangd — OS/LLVM toolchain package)
+            if has_c_cpp:
+                if _resolve_lsp_binary("clangd", root):
+                    results.append("clangd (C/C++)")
+                else:
+                    msg = (
+                        "C/C++ project detected: install 'clangd' "
+                        "(Windows: 'winget install LLVM.LLVM', macOS: 'brew install llvm', "
+                        "Linux: 'apt install clangd') and ensure compile_commands.json exists."
+                    )
+                    print(f"⚠️  {msg}")
+                    hints.append(msg)
+
+            # Java LSP (jdtls — Eclipse JDT.LS)
+            if has_java:
+                if _resolve_lsp_binary("jdtls", root):
+                    results.append("jdtls (Java)")
+                else:
+                    msg = (
+                        "Java project detected: install Eclipse 'jdtls' "
+                        "(macOS: 'brew install jdtls', Windows: 'scoop install jdtls')."
+                    )
+                    print(f"⚠️  {msg}")
+                    hints.append(msg)
+
             if results:
                 return True, f"Successfully installed LSP servers: {', '.join(results)}."
-            hint = "Run 'uv tool install pyright' or 'npm i -g typescript-language-server'."
+            hint = (
+                "; ".join(hints)
+                if hints
+                else (
+                    "Run 'uv tool install pyright', 'npm i -g typescript-language-server', "
+                    "'dotnet tool install -g csharp-ls', or 'gem install ruby-lsp'."
+                )
+            )
             return False, f"Could not automatically install LSP. {hint}"
 
         if lang in ("sonar", "sonarlint", "sonarqube"):

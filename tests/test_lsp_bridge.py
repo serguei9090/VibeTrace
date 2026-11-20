@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from vibetrace.indexer.db import Edge, IndexerDB, Node
 from vibetrace.indexer.lsp_bridge import (
+    EXT_TO_LANGUAGE,
+    LSP_SERVER_CANDIDATES,
     LSPClient,
     _discover_tsserver_path,
+    _resolve_lsp_binary,
+    _resolve_lsp_root,
     get_default_lsp_command,
+    get_lsp_command_for_language,
     resolve_unresolved_edges,
 )
+from vibetrace.tools_manager import ToolsManager
 
 
 def test_get_default_lsp_command() -> None:
@@ -385,3 +392,133 @@ def test_discover_tsserver_path_prefers_workspace_local(tmp_path: Path) -> None:
 
     discovered = _discover_tsserver_path(tmp_path, tmp_path)
     assert discovered == str(tsserver_js)
+
+
+def test_secondary_languages_registered_in_lsp_candidates() -> None:
+    """Verify C, C++, C#, Ruby, and Java LSP servers and extensions are registered."""
+    for lang in ("c", "cpp", "csharp", "ruby", "java"):
+        candidates = LSP_SERVER_CANDIDATES.get(lang)
+        assert candidates, f"Missing LSP candidates for {lang}"
+        for binary, cmd in candidates:
+            assert binary
+            assert cmd
+            assert cmd[0] == binary
+
+    expected_ext = {
+        ".c": "c",
+        ".h": "c",
+        ".cpp": "cpp",
+        ".cc": "cpp",
+        ".cxx": "cpp",
+        ".hpp": "cpp",
+        ".cs": "csharp",
+        ".rb": "ruby",
+        ".rake": "ruby",
+        ".java": "java",
+    }
+    for ext, lang in expected_ext.items():
+        assert EXT_TO_LANGUAGE.get(ext) == lang
+
+
+def test_resolve_lsp_root_glob_and_literal_markers(tmp_path: Path) -> None:
+    """Verify _resolve_lsp_root supports wildcard (.sln/.csproj/.gemspec) and nested markers."""
+    cs_root = tmp_path / "cs_root"
+    cs_root.mkdir()
+    (cs_root / "Solution.sln").write_text("", encoding="utf-8")
+    assert _resolve_lsp_root(cs_root, "csharp") == cs_root
+
+    cs_nested = tmp_path / "cs_nested"
+    (cs_nested / "App").mkdir(parents=True)
+    (cs_nested / "App" / "App.csproj").write_text("<Project />", encoding="utf-8")
+    assert _resolve_lsp_root(cs_nested, "csharp") == cs_nested / "App"
+
+    rb_nested = tmp_path / "rb_nested"
+    (rb_nested / "gem").mkdir(parents=True)
+    (rb_nested / "gem" / "demo.gemspec").write_text("", encoding="utf-8")
+    assert _resolve_lsp_root(rb_nested, "ruby") == rb_nested / "gem"
+
+    cpp_nested = tmp_path / "cpp_nested"
+    (cpp_nested / "native").mkdir(parents=True)
+    (cpp_nested / "native" / "CMakeLists.txt").write_text("", encoding="utf-8")
+    assert _resolve_lsp_root(cpp_nested, "cpp") == cpp_nested / "native"
+
+    java_root = tmp_path / "java_root"
+    java_root.mkdir()
+    (java_root / "pom.xml").write_text("<project />", encoding="utf-8")
+    assert _resolve_lsp_root(java_root, "java") == java_root
+
+
+def test_resolve_lsp_binary_discovers_dotnet_and_ruby_tool_dirs(tmp_path: Path) -> None:
+    """Verify _resolve_lsp_binary finds csharp-ls in ~/.dotnet/tools and ruby-lsp alongside ruby."""
+    fake_home = tmp_path / "home"
+    dotnet_tools = fake_home / ".dotnet" / "tools"
+    dotnet_tools.mkdir(parents=True)
+    csharp_name = "csharp-ls.exe" if os.name == "nt" else "csharp-ls"
+    csharp_bin = dotnet_tools / csharp_name
+    csharp_bin.write_text("", encoding="utf-8")
+
+    ruby_dir = tmp_path / "ruby" / "bin"
+    ruby_dir.mkdir(parents=True)
+    ruby_exe = ruby_dir / ("ruby.exe" if os.name == "nt" else "ruby")
+    ruby_exe.write_text("", encoding="utf-8")
+    ruby_lsp_name = "ruby-lsp.bat" if os.name == "nt" else "ruby-lsp"
+    ruby_lsp_bin = ruby_dir / ruby_lsp_name
+    ruby_lsp_bin.write_text("", encoding="utf-8")
+
+    def fake_which(name: str) -> str | None:
+        if name == "ruby":
+            return str(ruby_exe)
+        return None
+
+    with (
+        patch("vibetrace.indexer.lsp_bridge.Path.home", return_value=fake_home),
+        patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which),
+    ):
+        assert _resolve_lsp_binary("csharp-ls") == str(csharp_bin)
+        assert get_lsp_command_for_language("csharp") == [str(csharp_bin)]
+        assert _resolve_lsp_binary("ruby-lsp") == str(ruby_lsp_bin)
+        assert get_lsp_command_for_language("ruby") == [str(ruby_lsp_bin)]
+
+
+def test_tools_manager_install_lsp_secondary_ecosystems(tmp_path: Path) -> None:
+    """Verify ToolsManager installs csharp-ls/ruby-lsp and emits clear hints for clangd/jdtls."""
+    cs_rb = tmp_path / "cs_rb"
+    cs_rb.mkdir()
+    (cs_rb / "Demo.csproj").write_text("<Project />", encoding="utf-8")
+    (cs_rb / "Gemfile").write_text('source "https://rubygems.org"\n', encoding="utf-8")
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> MagicMock:
+        calls.append(cmd)
+        return MagicMock(returncode=0)
+
+    def fake_which(name: str) -> str | None:
+        if name in ("dotnet", "gem"):
+            return f"/usr/bin/{name}"
+        return None
+
+    with (
+        patch("vibetrace.indexer.lsp_bridge._resolve_lsp_binary", return_value=None),
+        patch("vibetrace.tools_manager.shutil.which", side_effect=fake_which),
+        patch("vibetrace.tools_manager.subprocess.run", side_effect=fake_run),
+    ):
+        ok, msg = ToolsManager.install("lsp", cs_rb)
+
+    assert ok is True
+    assert "csharp-ls (C#)" in msg
+    assert "ruby-lsp (Ruby)" in msg
+    assert ["/usr/bin/dotnet", "tool", "install", "-g", "csharp-ls"] in calls
+    assert ["/usr/bin/gem", "install", "--no-document", "ruby-lsp"] in calls
+
+    cpp_only = tmp_path / "cpp_only"
+    cpp_only.mkdir()
+    (cpp_only / "CMakeLists.txt").write_text("", encoding="utf-8")
+    with (
+        patch("vibetrace.indexer.lsp_bridge._resolve_lsp_binary", return_value=None),
+        patch("vibetrace.tools_manager.shutil.which", return_value=None),
+    ):
+        ok_cpp, msg_cpp = ToolsManager.install("lsp", cpp_only)
+
+    assert ok_cpp is False
+    assert "clangd" in msg_cpp

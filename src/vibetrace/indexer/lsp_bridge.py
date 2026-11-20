@@ -209,9 +209,25 @@ class LSPClient:
             lang_id = {
                 ".py": "python",
                 ".ts": "typescript",
+                ".tsx": "typescriptreact",
                 ".js": "javascript",
+                ".jsx": "javascriptreact",
                 ".rs": "rust",
                 ".go": "go",
+                ".php": "php",
+                ".phtml": "php",
+                ".c": "c",
+                ".h": "c",
+                ".cpp": "cpp",
+                ".cc": "cpp",
+                ".cxx": "cpp",
+                ".hpp": "cpp",
+                ".hh": "cpp",
+                ".hxx": "cpp",
+                ".cs": "csharp",
+                ".rb": "ruby",
+                ".rake": "ruby",
+                ".java": "java",
             }.get(ext, "plaintext")
             self.send_notification(
                 "textDocument/didOpen",
@@ -444,6 +460,24 @@ LSP_SERVER_CANDIDATES: dict[str, list[tuple[str, list[str]]]] = {
         ("intelephense", ["intelephense", "--stdio"]),
         ("phpactor", ["phpactor", "language-server"]),
     ],
+    "c": [
+        ("clangd", ["clangd"]),
+    ],
+    "cpp": [
+        ("clangd", ["clangd"]),
+    ],
+    "csharp": [
+        ("csharp-ls", ["csharp-ls"]),
+        ("OmniSharp", ["OmniSharp", "-lsp"]),
+        ("omnisharp", ["omnisharp", "-lsp"]),
+    ],
+    "ruby": [
+        ("ruby-lsp", ["ruby-lsp"]),
+        ("solargraph", ["solargraph", "stdio"]),
+    ],
+    "java": [
+        ("jdtls", ["jdtls"]),
+    ],
 }
 
 EXT_TO_LANGUAGE: dict[str, str] = {
@@ -456,6 +490,18 @@ EXT_TO_LANGUAGE: dict[str, str] = {
     ".go": "go",
     ".php": "php",
     ".phtml": "php",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".hxx": "cpp",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".rake": "ruby",
+    ".java": "java",
 }
 
 
@@ -498,8 +544,10 @@ def _discover_tsserver_path(root_path: Path, project_root: Path) -> str | None:
 
 
 def _resolve_lsp_binary(binary: str, project_root: Path | None = None) -> str | None:
-    """Resolve an LSP binary from <project>/.vibetrace/bin, PATH, or ~/go/bin."""
-    exe_names = [f"{binary}.exe", binary] if os.name == "nt" else [binary]
+    """Resolve an LSP binary from <project>/.vibetrace/bin, PATH, or user tool dirs."""
+    exe_names = (
+        [f"{binary}.exe", f"{binary}.cmd", f"{binary}.bat", binary] if os.name == "nt" else [binary]
+    )
     if project_root is not None:
         local_bin = project_root / ".vibetrace" / "bin"
         for name in exe_names:
@@ -509,10 +557,18 @@ def _resolve_lsp_binary(binary: str, project_root: Path | None = None) -> str | 
     found = shutil.which(binary)
     if found:
         return found
+    extra_dirs: list[Path] = []
     if binary == "gopls":
-        go_bin = Path.home() / "go" / "bin"
+        extra_dirs.append(Path.home() / "go" / "bin")
+    elif binary in ("csharp-ls", "OmniSharp", "omnisharp"):
+        extra_dirs.append(Path.home() / ".dotnet" / "tools")
+    elif binary in ("ruby-lsp", "solargraph"):
+        ruby_bin = shutil.which("ruby")
+        if ruby_bin:
+            extra_dirs.append(Path(ruby_bin).resolve().parent)
+    for extra_dir in extra_dirs:
         for name in exe_names:
-            candidate = go_bin / name
+            candidate = extra_dir / name
             if candidate.is_file():
                 return str(candidate)
     return None
@@ -532,8 +588,19 @@ def get_lsp_command_for_language(
 
 def get_default_lsp_command(project_root: Path | None = None) -> list[str] | None:
     """Detect available LSP language servers installed on the host machine."""
-    # Look for Python first, then TypeScript, Rust, Go, PHP
-    for lang in ("python", "typescript", "rust", "go", "php"):
+    # Look for primary servers first, then secondary ecosystems
+    for lang in (
+        "python",
+        "typescript",
+        "rust",
+        "go",
+        "php",
+        "c",
+        "cpp",
+        "csharp",
+        "ruby",
+        "java",
+    ):
         cmd = get_lsp_command_for_language(lang, project_root=project_root)
         if cmd:
             return cmd
@@ -795,13 +862,18 @@ _LANGUAGE_ROOT_MARKERS: dict[str, tuple[str, ...]] = {
     "python": ("pyproject.toml", "requirements.txt"),
     "typescript": ("tsconfig.json", "package.json"),
     "php": ("composer.json",),
+    "c": ("compile_commands.json", "CMakeLists.txt", "Makefile"),
+    "cpp": ("compile_commands.json", "CMakeLists.txt", "Makefile"),
+    "csharp": ("*.sln", "*.csproj"),
+    "ruby": ("Gemfile", "*.gemspec"),
+    "java": ("pom.xml", "build.gradle", "build.gradle.kts"),
 }
 
 
 def _resolve_lsp_root(project_root: Path, language: str) -> Path:
     """Return project_root or the 1-level subdirectory containing the language's root marker."""
     markers = _LANGUAGE_ROOT_MARKERS.get(language.lower(), ())
-    if not markers or any((project_root / m).exists() for m in markers):
+    if not markers or any(any(project_root.glob(m)) for m in markers):
         return project_root
     for m in markers:
         sub = sorted(project_root.glob(f"*/{m}"))
