@@ -107,6 +107,7 @@ def cmd_index(args: argparse.Namespace) -> int:
         use_lsp=args.lsp,
         verbose=not args.json or getattr(args, "verbose", False),
         is_json=args.json,
+        device=getattr(args, "device", None),
     )
 
     if args.json:
@@ -500,7 +501,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     include_tests = getattr(args, "include_tests", None) or False
     codebase_embeddings = getattr(args, "codebase_embeddings", None)
-    compute_device = getattr(args, "device", None) or "auto"
+    compute_device = getattr(args, "device", None) or "gpu"
     enable_sonar = getattr(args, "enable_sonar", None)
     enable_semgrep = True
     enable_trivy = True
@@ -539,14 +540,15 @@ def cmd_init(args: argparse.Namespace) -> int:
                 if ans_emb in ("y", "yes"):
                     codebase_embeddings = True
                     if getattr(args, "device", None) is None:
-                        prompt_msg = "Target compute device for embeddings? (auto/gpu/cpu) [auto]: "
+                        prompt_msg = "Target compute device for embeddings? (gpu/cpu) [gpu]: "
                         ans_dev = input(prompt_msg).strip().lower()
-                        if ans_dev in ("gpu", "cuda"):
-                            compute_device = "gpu"
-                        elif ans_dev == "cpu":
+                        if ans_dev == "cpu":
                             compute_device = "cpu"
+                        elif ans_dev in ("", "gpu", "cuda", "directml", "dml"):
+                            compute_device = "gpu"
                         else:
-                            compute_device = "auto"
+                            print("Invalid compute device; defaulting to 'gpu'.")
+                            compute_device = "gpu"
 
             if getattr(args, "enable_sonar", None) is None:
                 ans_sonar = (

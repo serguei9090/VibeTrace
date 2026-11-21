@@ -12,7 +12,19 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def normalize_embedding_device(device: str | None) -> str:
+    """Validate and normalize the vector compute device ('gpu' default, or 'cpu')."""
+    raw = (device if device is not None else "gpu").strip().lower()
+    if raw in ("", "gpu", "cuda", "directml", "dml"):
+        return "gpu"
+    if raw == "cpu":
+        return "cpu"
+    raise ValueError(
+        f"Invalid compute device '{device}'. Allowed values: 'gpu' (default) or 'cpu'."
+    )
 
 
 class ProjectConfig(BaseModel):
@@ -51,9 +63,15 @@ class VectorConfig(BaseModel):
         description="Whether to automatically compute embeddings for codebase symbols",
     )
     device: str = Field(
-        default="auto",
-        description="Target compute device: 'auto' (CUDA with CPU fallback), 'gpu', or 'cpu'",
+        default="gpu",
+        description="Target compute device: 'gpu' (default, DirectML) or 'cpu'",
     )
+
+    @field_validator("device", mode="before")
+    @classmethod
+    def _validate_device(cls, value: str | None) -> str:
+        return normalize_embedding_device(value)
+
     engine: str = Field(
         default="lancedb",
         description="Vector engine: 'lancedb' (embedded/cloud) or 'none'",
@@ -262,7 +280,7 @@ def generate_default_config_toml(
     project_name: str = "project",
     include_tests: bool = False,
     codebase_embeddings: bool = False,
-    compute_device: str = "auto",
+    compute_device: str = "gpu",
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
@@ -280,11 +298,7 @@ def generate_default_config_toml(
     sonar_str = "true" if enable_sonar else "false"
     semgrep_str = "true" if enable_semgrep else "false"
     trivy_str = "true" if enable_trivy else "false"
-    if compute_device not in ("auto", "gpu", "cpu"):
-        raise ValueError(
-            f"Invalid compute_device '{compute_device}'. Allowed values: 'auto', 'gpu', 'cpu'"
-        )
-    dev_str = compute_device
+    dev_str = normalize_embedding_device(compute_device)
     return f"""# VibeTrace Configuration Contract
 # Resides at project root for easy discovery and team version-control.
 
@@ -303,7 +317,7 @@ busy_timeout_seconds = 30.0
 [vectors]
 # Automatically compute embeddings for codebase symbols (default: false)
 codebase = {emb_str}
-# Target compute device: "auto" (CUDA with CPU fallback), "gpu", or "cpu"
+# Target compute device: "gpu" (default, DirectML) or "cpu"
 device = "{dev_str}"
 # Vector engine: "lancedb" (recommended) or "none"
 engine = "lancedb"
@@ -418,7 +432,7 @@ def save_default_config(
     project_name: str | None = None,
     include_tests: bool = False,
     codebase_embeddings: bool = False,
-    compute_device: str = "auto",
+    compute_device: str = "gpu",
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,

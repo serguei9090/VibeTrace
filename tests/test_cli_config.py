@@ -113,3 +113,21 @@ def test_cmd_config_quality_invalid_inputs(tmp_path: Path, capsys) -> None:
     code = cmd_config_quality(argparse.Namespace(path=str(tmp_path), set_opt="ruff=invalid"))
     assert code == 1
     assert "Invalid mode" in capsys.readouterr().out
+
+
+def test_cli_device_flag_parsing() -> None:
+    """Verify index and init --device only accept 'gpu' or 'cpu' (not 'auto')."""
+    import pytest
+
+    from vibetrace.cli import build_parser
+
+    parser = build_parser()
+    idx_cpu = parser.parse_args(["index", "--device", "cpu"])
+    assert idx_cpu.device == "cpu"
+    idx_gpu = parser.parse_args(["index", "--device", "gpu"])
+    assert idx_gpu.device == "gpu"
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["index", "--device", "auto"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--device", "auto"])

@@ -45,7 +45,7 @@ pub fn py_scan_and_hash_workspace(
 
 /// Compute EmbeddingGemma 2 Q8 L2-normalized embeddings natively in Rust without the Python GIL.
 #[pyfunction]
-#[pyo3(signature = (texts, dimensions=256, device="auto", model_dir=None))]
+#[pyo3(signature = (texts, dimensions=256, device="gpu", model_dir=None))]
 pub fn py_embed_texts_parallel(
     py: Python<'_>,
     texts: Vec<String>,

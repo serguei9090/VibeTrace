@@ -98,6 +98,12 @@ examples:
         help="Disable vector embedding calculation regardless of configuration",
     )
     p_idx.add_argument(
+        "--device",
+        choices=["gpu", "cpu"],
+        default=None,
+        help="Compute device for vector embeddings (gpu or cpu; overrides .vibetrace.toml)",
+    )
+    p_idx.add_argument(
         "--force",
         action="store_true",
         help="Force re-indexing all files (bypass Git-SHA delta cache)",
@@ -555,9 +561,9 @@ examples:
     )
     p_init.add_argument(
         "--device",
-        choices=["auto", "gpu", "cpu"],
+        choices=["gpu", "cpu"],
         default=None,
-        help="Compute device for vector embeddings (auto, gpu, cpu)",
+        help="Compute device for vector embeddings (gpu or cpu)",
     )
     p_init.add_argument(
         "--include-tests",

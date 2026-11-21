@@ -20,6 +20,7 @@ def test_default_config_fallback(tmp_path: Path):
     assert cfg.database.backend == "sqlite"
     assert cfg.database.path == ".vibetrace/vibetrace.db"
     assert cfg.vectors.engine == "lancedb"
+    assert cfg.vectors.device == "gpu"
     assert cfg.vectors.dimensions == 256
     assert cfg.indexer.auto_sync is True
     assert cfg.indexer.debounce_seconds == 2.0
@@ -108,3 +109,11 @@ def test_initialize_workspace_creates_config(tmp_path: Path):
 
     cfg = load_config(tmp_path)
     assert cfg.project.name == tmp_path.name
+    assert cfg.vectors.device == "gpu"
+
+    import pytest
+
+    from vibetrace.config import generate_default_config_toml
+
+    with pytest.raises(ValueError, match="Invalid compute device"):
+        generate_default_config_toml(compute_device="auto")

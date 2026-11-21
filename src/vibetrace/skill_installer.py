@@ -218,7 +218,7 @@ def initialize_workspace(
     configure_hooks: bool = False,
     include_tests: bool = False,
     codebase_embeddings: bool = False,
-    compute_device: str = "auto",
+    compute_device: str = "gpu",
     enable_sonar: bool = False,
     enable_semgrep: bool = True,
     enable_trivy: bool = True,

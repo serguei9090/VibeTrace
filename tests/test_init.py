@@ -152,3 +152,9 @@ def test_cli_init_default_automatic_on_tty(tmp_path: Path, monkeypatch) -> None:
 
     assert (tmp_path / ".agents" / "skills" / "vibetrace-navigator" / "SKILL.md").is_file()
     assert (tmp_path / ".vibetrace.toml").is_file()
+
+    import tomllib
+
+    with (tmp_path / ".vibetrace.toml").open("rb") as f:
+        data = tomllib.load(f)
+    assert data["vectors"]["device"] == "gpu"

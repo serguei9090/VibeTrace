@@ -87,11 +87,13 @@ pub fn resolve_model_dir(model_dir: Option<&Path>) -> PathBuf {
         .join("embeddinggemma-2-onnx")
 }
 
-fn normalize_device_request(device: &str) -> &'static str {
+fn normalize_device_request(device: &str) -> Result<&'static str, String> {
     match device.trim().to_ascii_lowercase().as_str() {
-        "gpu" | "cuda" | "directml" | "dml" => "gpu",
-        "cpu" => "cpu",
-        _ => "auto",
+        "" | "gpu" | "cuda" | "directml" | "dml" => Ok("gpu"),
+        "cpu" => Ok("cpu"),
+        other => Err(format!(
+            "Invalid compute device '{other}'. Only 'gpu' (default) or 'cpu' are supported."
+        )),
     }
 }
 
@@ -231,37 +233,54 @@ fn build_cpu_session(model_path: &Path) -> Result<Session, String> {
         .map_err(|e| format!("Failed loading ONNX model {}: {e}", model_path.display()))
 }
 
+fn gpu_unavailable_error(detail: &str) -> String {
+    format!(
+        "GPU execution provider is not available ({detail}). Please switch to CPU (pass --device cpu or set device = \"cpu\" in .vibetrace.toml)."
+    )
+}
+
 fn build_session(model_path: &Path, requested_device: &str) -> Result<(Session, String), String> {
+    if requested_device == "cpu" {
+        let sess = build_cpu_session(model_path)?;
+        return Ok((sess, "cpu".to_string()));
+    }
+
     #[cfg(target_os = "windows")]
-    if requested_device == "gpu" && DirectML::is_available().unwrap_or(false) {
-        if let Ok(env) = ort_env() {
-            let dml_attempt: Result<Session, String> = (|| {
-                Session::builder(env)
-                    .map_err(|e| format!("{e}"))?
-                    .with_optimization_level(GraphOptimizationLevel::Level3)
-                    .map_err(|e| format!("{e}"))?
-                    .with_memory_pattern(false)
-                    .map_err(|e| format!("{e}"))?
-                    .with_execution_providers([
-                        DirectML::default()
-                            .with_device_id(0)
-                            .build()
-                            .error_on_failure(),
-                        CPU::default().build(),
-                    ])
-                    .map_err(|e| format!("{e}"))?
-                    .commit_from_file(model_path)
-                    .map_err(|e| format!("{e}"))
-            })();
-            if let Ok(sess) = dml_attempt {
-                return Ok((sess, "directml".to_string()));
-            }
+    {
+        if !DirectML::is_available().unwrap_or(false) {
+            return Err(gpu_unavailable_error(
+                "DirectML execution provider is unavailable",
+            ));
+        }
+        let env = ort_env().map_err(|e| gpu_unavailable_error(&e))?;
+        let dml_attempt: Result<Session, String> = (|| {
+            Session::builder(env)
+                .map_err(|e| format!("{e}"))?
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| format!("{e}"))?
+                .with_memory_pattern(false)
+                .map_err(|e| format!("{e}"))?
+                .with_execution_providers([DirectML::default()
+                    .with_device_id(0)
+                    .build()
+                    .error_on_failure()])
+                .map_err(|e| format!("{e}"))?
+                .commit_from_file(model_path)
+                .map_err(|e| format!("{e}"))
+        })();
+        match dml_attempt {
+            Ok(sess) => Ok((sess, "directml".to_string())),
+            Err(detail) => Err(gpu_unavailable_error(&detail)),
         }
     }
 
-    let _ = requested_device;
-    let sess = build_cpu_session(model_path)?;
-    Ok((sess, "cpu".to_string()))
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = model_path;
+        Err(gpu_unavailable_error(
+            "DirectML GPU acceleration is only supported on Windows in this build",
+        ))
+    }
 }
 
 impl EmbeddingGemma2Engine {
@@ -541,13 +560,13 @@ pub fn embed_texts_parallel(
     device: &str,
     model_dir: Option<&Path>,
 ) -> Result<Vec<Vec<f32>>, String> {
+    let dev_key = normalize_device_request(device)?.to_string();
     if texts.is_empty() || dimensions == 0 {
         return Ok(Vec::new());
     }
 
     let resolved_dir = resolve_model_dir(model_dir);
     let canonical_dir = fs::canonicalize(&resolved_dir).unwrap_or_else(|_| resolved_dir.clone());
-    let dev_key = normalize_device_request(device).to_string();
     let cache_key = (canonical_dir.clone(), dev_key.clone());
 
     let mut guard = engine_cache()
@@ -562,11 +581,10 @@ pub fn embed_texts_parallel(
     let engine = guard
         .get_mut(&cache_key)
         .ok_or_else(|| "EmbeddingGemma 2 engine missing from cache".to_string())?;
-    let res = engine.embed_batch(texts, dimensions);
     if let Ok(mut prov_map) = last_active_provider_map().lock() {
         prov_map.insert(canonical_dir, engine.active_provider.clone());
     }
-    res
+    engine.embed_batch(texts, dimensions)
 }
 
 /// Report EmbeddingGemma 2 cache status and active ONNX Runtime execution provider.
@@ -684,5 +702,17 @@ mod tests {
         assert!(err.contains(URL_ONNX_MODEL));
         assert!(err.contains(URL_ONNX_DATA));
         assert!(err.contains(&tmp.path().to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn test_normalize_device_request_rejects_auto() {
+        assert_eq!(normalize_device_request("gpu").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("directml").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("cpu").unwrap(), "cpu");
+
+        let err = normalize_device_request("auto").expect_err("auto must be rejected");
+        assert!(err.contains("Invalid compute device"));
+        assert!(normalize_device_request("tpu").is_err());
     }
 }

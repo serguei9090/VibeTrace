@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from vibetrace.config import VectorConfig
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.embeddings import EmbeddingConfig, EmbeddingEngine
@@ -267,6 +269,9 @@ def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
     from vibetrace.services.reindex_service import ReindexService
 
     # 1. Config contract
+    assert VectorConfig().device == "gpu"
+    assert EmbeddingConfig().device == "gpu"
+
     vcfg = VectorConfig(codebase=True, device="gpu")
     assert vcfg.codebase is True
     assert vcfg.device == "gpu"
@@ -278,8 +283,11 @@ def test_embeddings_config_and_purge_orphaned(tmp_path: Path):
     eng_cpu = EmbeddingEngine(config=EmbeddingConfig(device="cpu"))
     assert eng_cpu._resolve_device() == "cpu"
 
-    eng_auto = EmbeddingEngine(config=EmbeddingConfig(device="auto"))
-    assert eng_auto._resolve_device() in ("auto", "cpu", "directml")
+    with pytest.raises(ValueError, match="Invalid compute device"):
+        VectorConfig(device="auto")
+
+    with pytest.raises(ValueError, match="Invalid compute device"):
+        EmbeddingConfig(device="auto")
 
     # 3. Purge orphaned embeddings in SQLite DB
     db = IndexerDB(str(tmp_path / "test_purge.db"))
@@ -436,3 +444,55 @@ def test_index_missing_embeddings_coalesces_lancedb_flushes(tmp_path: Path) -> N
     assert spy_upsert.call_count == 1
     assert store.count("mock-coalesce") == 5
     assert len(db.get_all_embeddings("mock-coalesce")) == 5
+
+
+def test_embedding_provider_logging_and_gpu_error(caplog) -> None:
+    """Verify explicit GPU failure raises without silent CPU fallback and active provider logs."""
+    import logging
+    from unittest.mock import patch
+
+    gpu_err = (
+        "GPU execution provider is not available (no DirectML device). "
+        'Please switch to CPU (pass --device cpu or set device = "cpu" in .vibetrace.toml).'
+    )
+    eng_fail = EmbeddingEngine(config=EmbeddingConfig(device="gpu"))
+    with patch(
+        "vibetrace.indexer.rust_bridge._rust_core.py_embed_texts_parallel",
+        side_effect=RuntimeError(gpu_err),
+    ):
+        with pytest.raises(RuntimeError, match="--device cpu"):
+            eng_fail.embed_texts(["hello world"])
+
+    # DirectML active provider logs INFO once without CPU warning
+    caplog.set_level(logging.INFO, logger="vibetrace.indexer.embeddings")
+    eng_dml = EmbeddingEngine(config=EmbeddingConfig(device="gpu"))
+    with (
+        patch(
+            "vibetrace.indexer.rust_bridge._rust_core.py_embed_texts_parallel",
+            return_value=[[1.0] + [0.0] * 255],
+        ),
+        patch(
+            "vibetrace.indexer.rust_bridge._rust_core.py_embedding_runtime_info",
+            return_value={"active_provider": "directml"},
+        ),
+    ):
+        eng_dml.embed_texts(["hello world"])
+    assert "[Embeddings] Provider: directml (requested=gpu)" in caplog.text
+    assert "Running on CPU" not in caplog.text
+
+    # Explicit CPU logs INFO provider + WARNING notice
+    caplog.clear()
+    eng_cpu = EmbeddingEngine(config=EmbeddingConfig(device="cpu"))
+    with (
+        patch(
+            "vibetrace.indexer.rust_bridge._rust_core.py_embed_texts_parallel",
+            return_value=[[1.0] + [0.0] * 255],
+        ),
+        patch(
+            "vibetrace.indexer.rust_bridge._rust_core.py_embedding_runtime_info",
+            return_value={"active_provider": "cpu"},
+        ),
+    ):
+        eng_cpu.embed_texts(["hello world"])
+    assert "[Embeddings] Provider: cpu (requested=cpu)" in caplog.text
+    assert "Running on CPU" in caplog.text

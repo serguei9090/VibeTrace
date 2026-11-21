@@ -10,8 +10,9 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from vibetrace.config import normalize_embedding_device
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.vector_store import VectorStore
 
@@ -29,9 +30,15 @@ class EmbeddingConfig(BaseModel):
         description="Whether to automatically compute embeddings for codebase symbols.",
     )
     device: str = Field(
-        default="auto",
-        description="Target compute device: 'auto' (CUDA with CPU fallback), 'gpu', or 'cpu'.",
+        default="gpu",
+        description="Target compute device: 'gpu' (default, DirectML) or 'cpu'.",
     )
+
+    @field_validator("device", mode="before")
+    @classmethod
+    def _validate_device(cls, value: str | None) -> str:
+        return normalize_embedding_device(value)
+
     model_id: str = Field(
         default="google/embeddinggemma-2",
         description="Primary HuggingFace/SentenceTransformers model identifier.",
@@ -108,7 +115,7 @@ def format_embedding_document(text: str, title: str | None = None) -> str:
 def _embed_texts_native(
     texts: list[str],
     dimensions: int,
-    device: str = "auto",
+    device: str = "gpu",
     model_dir: str | None = None,
 ) -> list[list[float]]:
     """Compute L2-normalized EmbeddingGemma 2 ONNX vectors via Rust `_rust_core`."""
@@ -120,8 +127,9 @@ def _embed_texts_native(
             "Native Rust vector engine (vibetrace._rust_core.py_embed_texts_parallel) "
             "is required but not built."
         )
+    norm_device = normalize_embedding_device(device)
     resolved_dir = model_dir if model_dir is not None else os.environ.get("VIBETRACE_MODEL_DIR")
-    return [list(v) for v in fn(texts, dimensions, device, resolved_dir)]
+    return [list(v) for v in fn(texts, dimensions, norm_device, resolved_dir)]
 
 
 class EmbeddingEngine:
@@ -134,6 +142,7 @@ class EmbeddingEngine:
         vector_store: VectorStore | None = None,
         project_root: Path | None = None,
         model_dir: str | None = None,
+        device: str | None = None,
     ):
         if config is None and project_root is not None:
             try:
@@ -147,14 +156,20 @@ class EmbeddingEngine:
                     dimensions=cfg.vectors.dimensions,
                     batch_size=cfg.vectors.batch_size,
                 )
+            except ValueError:
+                raise
             except Exception:
                 self.config = EmbeddingConfig()
         else:
             self.config = config or EmbeddingConfig()
+        if device is not None:
+            self.config.device = normalize_embedding_device(device)
         self._encoder = encoder
         self.vector_store = vector_store
         self.project_root = project_root
         self.model_dir = model_dir
+        self._provider_logged = False
+        self._active_provider: str | None = None
         if self.vector_store is None and project_root is not None:
             self._init_vector_store(project_root)
 
@@ -204,25 +219,35 @@ class EmbeddingEngine:
             return False
 
     def _resolve_device(self) -> str:
-        """Resolve target device string for ONNX Runtime without touching PyTorch."""
-        dev = (self.config.device or "auto").strip().lower()
-        if dev in ("cuda", "gpu", "directml", "dml"):
-            return "gpu"
-        if dev == "cpu":
-            return "cpu"
+        """Resolve validated target device ('gpu' default, or 'cpu') for ONNX Runtime."""
+        return normalize_embedding_device(self.config.device)
 
+    def _log_active_provider(self, requested_device: str) -> None:
+        """Query and log the active ONNX Runtime execution provider once per engine."""
+        if self._provider_logged:
+            return
+        active = requested_device
         try:
             from vibetrace.indexer.rust_bridge import _rust_core
 
             info_fn = getattr(_rust_core, "py_embedding_runtime_info", None)
             if info_fn is not None:
-                info = info_fn(self.model_dir)
-                active = str(info.get("active_provider", "")).lower()
-                if active and active != "uninitialized":
-                    return active
+                resolved_dir = (
+                    self.model_dir
+                    if self.model_dir is not None
+                    else os.environ.get("VIBETRACE_MODEL_DIR")
+                )
+                info = info_fn(resolved_dir)
+                reported = str(info.get("active_provider", "")).strip().lower()
+                if reported and reported != "uninitialized":
+                    active = reported
         except Exception:
             pass
-        return "auto"
+        self._active_provider = active
+        self._provider_logged = True
+        logger.info("[Embeddings] Provider: %s (requested=%s)", active, requested_device)
+        if active == "cpu":
+            logger.warning("[Embeddings] Running on CPU (slower than GPU DirectML).")
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Encode a batch of texts via custom encoder or EmbeddingGemma 2 Rust engine."""
@@ -236,12 +261,15 @@ class EmbeddingEngine:
                 for vec in raw_vectors
             ]
 
-        return _embed_texts_native(
+        requested_device = self._resolve_device()
+        vectors = _embed_texts_native(
             texts,
             self.config.dimensions,
-            device=self._resolve_device(),
+            device=requested_device,
             model_dir=self.model_dir,
         )
+        self._log_active_provider(requested_device)
+        return vectors
 
     def embed_query(self, query: str, task: Literal["code", "docs"] = "code") -> list[float]:
         """Encode a single search query with task-specific EmbeddingGemma 2 prefix."""
@@ -297,6 +325,14 @@ class EmbeddingEngine:
                 (n.get("qualified_name") or n.get("name"), build_symbol_document(n)) for n in batch
             ]
             vectors = self.embed_documents(doc_items)
+            if batch_idx == 1 and verbose:
+                active = self._active_provider or dev
+                print(f"  [Embeddings] Provider: {active} (requested={dev})", flush=True)
+                if active == "cpu":
+                    print(
+                        "  [Embeddings] Warning: Running on CPU (slower than GPU DirectML).",
+                        flush=True,
+                    )
 
             if has_vector_store:
                 lance_buffer.extend(
@@ -340,9 +376,10 @@ class EmbeddingEngine:
                 pct = int((total_indexed / total_nodes) * 100.0)
                 if pct >= last_pct_logged + 10 or total_indexed == total_nodes:
                     last_pct_logged = pct
+                    active_label = (self._active_provider or dev).upper()
                     print(
                         f"  [Embeddings] {pct:3d}% ({total_indexed}/{total_nodes} symbols) "
-                        f"on {dev.upper()}...",
+                        f"on {active_label}...",
                         flush=True,
                     )
 

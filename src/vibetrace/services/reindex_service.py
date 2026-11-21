@@ -31,6 +31,7 @@ class ReindexService:
         use_lsp: bool = True,
         verbose: bool = False,
         is_json: bool = False,
+        device: str | None = None,
     ) -> dict[str, Any]:
         """Atomically coordinates AST parsing, vector encoding, and doc catalog syncing."""
         active_root = project_root.resolve()
@@ -132,7 +133,7 @@ class ReindexService:
         emb_executor: ThreadPoolExecutor | None = None
         emb_future: Future[int] | None = None
         if should_embed:
-            engine = EmbeddingEngine(project_root=active_root)
+            engine = EmbeddingEngine(project_root=active_root, device=device)
             if not engine.is_available():
                 embeddings_error = (
                     "Optional [embeddings] extra not installed. "
