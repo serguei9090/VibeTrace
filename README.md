@@ -133,6 +133,8 @@ VibeTrace provides first-class multi-language AST extraction:
 
 ### Installation
 
+Prebuilt `abi3-py310` PyPI wheels (including the compiled Rust core `vibetrace._rust_core`) are published for **Windows**, **Linux**, and **macOS** — normal `uv tool install vibetrace` and `pip install vibetrace` installs require no Rust toolchain (`cargo` / `maturin` is only needed when building from source).
+
 #### Global Tool via `uv` (Recommended)
 ```bash
 uv tool install vibetrace
