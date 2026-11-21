@@ -198,4 +198,29 @@ def get_engineering_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
             raise HTTPException(status_code=404, detail=report.safety_advisory)
         return report.model_dump()
 
+    @router.get("/api/dead-code")
+    def get_dead_code(
+        limit: int = Query(default=100, ge=1, le=500),
+        include_tests: bool = Query(default=False),
+        exclude_exported: bool | None = Query(default=None),
+    ) -> dict[str, Any]:
+        """List unreferenced functions, methods, and classes in the indexed codebase."""
+        from vibetrace.config import load_config
+        from vibetrace.services.graph_service import find_dead_symbols
+
+        root = _get_project_root()
+        db = get_db()
+        cfg = load_config(root)
+        exclude_exp = (
+            cfg.deadcode.exclude_exported if exclude_exported is None else exclude_exported
+        )
+        results = find_dead_symbols(
+            db=db,
+            limit=limit,
+            include_tests=include_tests,
+            ignore_symbols=cfg.deadcode.ignore_symbols,
+            exclude_exported=bool(exclude_exp),
+        )
+        return {"total": len(results), "symbols": results}
+
     return router

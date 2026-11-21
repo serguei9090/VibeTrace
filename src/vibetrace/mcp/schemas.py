@@ -139,6 +139,10 @@ class ReindexInput(BaseModel):
         default=False,
         description="Compute and store 256d Matryoshka vector embeddings after indexing",
     )
+    device: Literal["gpu", "cpu"] | None = Field(
+        default=None,
+        description="Embedding compute device override: 'gpu' (DirectML default) or 'cpu'",
+    )
     verbose: bool = Field(
         default=False,
         description="Include verbose step-by-step diagnostics and tracebacks on error",
@@ -433,6 +437,10 @@ class DocSearchInput(BaseModel):
         le=50,
         description="Maximum number of documentation chunks to return",
     )
+    locale: str | None = Field(
+        default=None,
+        description="Optional strict locale filter (e.g. 'en', 'es')",
+    )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' or 'json'",
@@ -647,6 +655,26 @@ class AuditSecurityInput(BaseModel):
         default=False,
         description="Scan all project files instead of only changed/untracked Git files",
     )
+    include_tests: bool = Field(
+        default=False,
+        description="Include test files in security scan",
+    )
+    skip_semgrep: bool = Field(
+        default=False,
+        description="Skip optional Semgrep CLI scanner",
+    )
+    skip_trivy: bool = Field(
+        default=False,
+        description="Skip optional Trivy scanner",
+    )
+    enable_sonar: bool = Field(
+        default=False,
+        description="Run optional Tier-2 headless SonarLint analyzer",
+    )
+    image_tag: str | None = Field(
+        default=None,
+        description="Optional container image tag to scan via Trivy",
+    )
     scope_path: str = Field(default=".", description="Project root path")
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
@@ -844,6 +872,132 @@ class DiagnoseSymbolInput(BaseModel):
     include_code: bool = Field(
         default=True,
         description="Include exact source code slice in the diagnostic report",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class AuditQualityInput(BaseModel):
+    """Input model for auditing code quality, cognitive complexity, and smells."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    file_path: str | None = Field(
+        default=None,
+        description="Optional specific file or directory to audit",
+    )
+    threshold: int = Field(
+        default=15,
+        ge=1,
+        le=200,
+        description="Cognitive complexity threshold for S3776 violations",
+    )
+    include_tests: bool = Field(
+        default=False,
+        description="Include test files in the quality audit",
+    )
+    typecheck: bool = Field(
+        default=False,
+        description="Run static typecheck analyzers when available",
+    )
+    enable_sonar: bool = Field(
+        default=False,
+        description="Run optional Tier-2 headless SonarLint analyzer",
+    )
+    scan_all: bool = Field(
+        default=False,
+        description="Audit all project files instead of only changed/untracked Git files",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class ApproveQualityExceptionInput(BaseModel):
+    """Input model for recording a quality finding exception into .vibetrace/quality.toml."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    finding_id: str = Field(..., description="Unique ID of the quality finding")
+    rule_id: str = Field(..., description="Standardized rule identifier (e.g. 'python:S3776')")
+    file_path: str = Field(..., description="Path to the file containing the finding")
+    code_hash: str = Field(..., description="SHA-256 hash of the symbol or code slice")
+    rationale: str = Field(
+        ..., description="Explanation or justification for accepting this finding"
+    )
+    severity: str = Field(default="MEDIUM", description="Severity tier: HIGH, MEDIUM, LOW, INFO")
+    status: str = Field(default="APPROVED", description="Status: APPROVED or RISK")
+    tag: str = Field(
+        default="risk-accepted",
+        description="Acceptance tag: intentional | legacy | perf-critical | risk-accepted",
+    )
+    reviewed_by: str = Field(default="agent", description="Reviewer identifier or agent name")
+    category: str = Field(
+        default="maintainability",
+        description="Quality category (e.g. complexity, maintainability, code_smell)",
+    )
+    symbol_name: str | None = Field(
+        default=None,
+        description="Optional enclosing symbol name for function-scoped rules",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class DeadCodeInput(BaseModel):
+    """Input model for finding unreferenced functions, methods, and classes."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    limit: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+        description="Maximum number of unreferenced symbols to return",
+    )
+    include_tests: bool = Field(
+        default=False,
+        description="Include symbols inside test files",
+    )
+    exclude_exported: bool | None = Field(
+        default=None,
+        description="Exclude exported symbols (defaults to config [deadcode].exclude_exported)",
+    )
+    scope_path: str = Field(default=".", description="Project root path")
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class AuditPRTaintInput(BaseModel):
+    """Input model for PR-scoped taint review and inline remediations."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    base_ref: str = Field(
+        default="main",
+        description="Base Git ref or branch for diff comparison",
+    )
+    staged: bool = Field(
+        default=False,
+        description="Inspect staged Git changes instead of base_ref...HEAD diff",
+    )
+    pr_number: int | None = Field(
+        default=None,
+        description="Optional pull request number metadata",
+    )
+    apply: bool = Field(
+        default=False,
+        description="Apply synthesized inline remediations to disk",
     )
     scope_path: str = Field(default=".", description="Project root path")
     response_format: ResponseFormat = Field(

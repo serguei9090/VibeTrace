@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING
 from vibetrace.docs.symbol_linker import SymbolDocLinker
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.mcp.schemas import (
+    AuditPRTaintInput,
     CheckDocsDriftInput,
+    DeadCodeInput,
     DiagnoseSymbolInput,
     ExplainDependencyInput,
     PatchDependencyInput,
@@ -21,12 +23,13 @@ from vibetrace.security.dep_graph import (
     DependencyGraphBuilder,
     normalize_package_name,
 )
+from vibetrace.security.pr_bot import PRTaintBot
 from vibetrace.security.service import SecurityService
 from vibetrace.services.diagnose_service import (
     DiagnoseService,
     format_diagnosis_md,
 )
-from vibetrace.services.graph_service import handle_error
+from vibetrace.services.graph_service import find_dead_symbols, handle_error
 from vibetrace.services.refactor_service import RefactorService
 
 if TYPE_CHECKING:
@@ -315,6 +318,71 @@ def vibetrace_diagnose_symbol(params: DiagnoseSymbolInput) -> str:
         return handle_error(e, f"diagnosing symbol '{params.symbol_name}'")
 
 
+def vibetrace_dead_code(params: DeadCodeInput) -> str:
+    """List unreferenced functions, methods, and classes across the indexed codebase."""
+    try:
+        from vibetrace.config import load_config
+
+        root = _resolve_project_root(params.scope_path)
+        db_path = root / VIBETRACE_DIR / INDEX_DB_NAME
+        if not db_path.is_file():
+            return INDEX_NOT_FOUND_MSG
+        db = IndexerDB(db_path)
+
+        cfg = load_config(root)
+        exclude_exp = (
+            cfg.deadcode.exclude_exported
+            if params.exclude_exported is None
+            else params.exclude_exported
+        )
+        results = find_dead_symbols(
+            db=db,
+            limit=params.limit,
+            include_tests=params.include_tests,
+            ignore_symbols=cfg.deadcode.ignore_symbols,
+            exclude_exported=bool(exclude_exp),
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps({"total": len(results), "symbols": results}, indent=2)
+        if not results:
+            return "✅ No unreferenced symbols found."
+        lines = [f"# Dead Code Report ({len(results)} unreferenced symbol(s))\n"]
+        for it in results:
+            lines.append(
+                f"- `[{it['kind']}]` `{it['qualified_name']}` "
+                f"({it['file_path']}:{it['start_line']})"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        return handle_error(e, "detecting dead code")
+
+
+def vibetrace_audit_pr_taint(params: AuditPRTaintInput) -> str:
+    """Analyze Git PR diffs for inter-procedural taint findings and optional remediations."""
+    try:
+        root = _resolve_project_root(params.scope_path)
+        db_path = root / VIBETRACE_DIR / INDEX_DB_NAME
+        if not db_path.is_file():
+            return INDEX_NOT_FOUND_MSG
+        db = IndexerDB(db_path)
+
+        report = PRTaintBot.analyze_pr_diff(
+            project_root=root,
+            db=db,
+            base_ref=params.base_ref,
+            staged=params.staged,
+            pr_number=params.pr_number,
+        )
+        if params.apply and report.comments:
+            PRTaintBot.apply_remediations(root, report)
+
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+        return report.markdown_summary or "✅ Zero PR taint findings detected."
+    except Exception as e:
+        return handle_error(e, "auditing PR taint diff")
+
+
 def register_engineering_tools(mcp: FastMCP) -> None:
     """Register engineering, refactoring, and dependency tools onto the FastMCP server."""
     mcp.tool()(vibetrace_explain_dependency)
@@ -322,3 +390,5 @@ def register_engineering_tools(mcp: FastMCP) -> None:
     mcp.tool()(vibetrace_patch_dependency)
     mcp.tool()(vibetrace_check_docs_drift)
     mcp.tool()(vibetrace_diagnose_symbol)
+    mcp.tool()(vibetrace_dead_code)
+    mcp.tool()(vibetrace_audit_pr_taint)

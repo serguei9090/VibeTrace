@@ -8,12 +8,24 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
+from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.schemas import (
+    ApproveQualityExceptionInput,
+    AuditPRTaintInput,
+    AuditQualityInput,
+    DeadCodeInput,
     ExplainDependencyInput,
     RefactorMethodInput,
     ResponseFormat,
 )
+from vibetrace.mcp.server import (
+    vibetrace_approve_quality_exception,
+    vibetrace_audit_quality,
+)
 from vibetrace.mcp.tools_engineering import (
+    vibetrace_audit_pr_taint,
+    vibetrace_dead_code,
     vibetrace_explain_dependency,
     vibetrace_refactor_method,
 )
@@ -102,3 +114,135 @@ def test_mcp_refactor_method_candidates(tmp_path: Path) -> None:
     )
     candidates = json.loads(res)
     assert isinstance(candidates, list)
+
+
+async def test_mcp_quality_audit_and_approve(tmp_path: Path) -> None:
+    (tmp_path / "complex.py").write_text(
+        "def nested_work(items: list[int]) -> int:\n"
+        "    total = 0\n"
+        "    for x in items:\n"
+        "        if x > 0:\n"
+        "            if x % 2 == 0:\n"
+        "                total += x\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+    vt_dir = tmp_path / ".vibetrace"
+    vt_dir.mkdir(exist_ok=True)
+    db = IndexerDB(str(vt_dir / "vibetrace.db"))
+    try:
+        reindex_all(db, str(tmp_path), project_root=tmp_path)
+    finally:
+        db.close()
+
+    res = await vibetrace_audit_quality(
+        AuditQualityInput(
+            threshold=1,
+            scan_all=True,
+            scope_path=str(tmp_path),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    report = json.loads(res)
+    assert report["total_findings"] >= 1
+    first = report["findings"][0]
+
+    approve_res = await vibetrace_approve_quality_exception(
+        ApproveQualityExceptionInput(
+            finding_id=first["id"],
+            rule_id=first["rule_id"],
+            file_path=first["file_path"],
+            code_hash=first["code_hash"],
+            rationale="Verified acceptable",
+            symbol_name=first.get("symbol_name"),
+            scope_path=str(tmp_path),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    approve_data = json.loads(approve_res)
+    assert approve_data["status"] == "ok"
+    assert (vt_dir / "quality.toml").is_file()
+
+
+def test_mcp_and_rest_dead_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "app.py").write_text(
+        "def _used_helper() -> int:\n    return 1\n\n"
+        "def _unused_helper() -> int:\n    return 2\n\n"
+        "def main() -> int:\n    return _used_helper()\n",
+        encoding="utf-8",
+    )
+    vt_dir = tmp_path / ".vibetrace"
+    vt_dir.mkdir(exist_ok=True)
+    db = IndexerDB(str(vt_dir / "vibetrace.db"))
+    try:
+        reindex_all(db, str(tmp_path), project_root=tmp_path)
+
+        mcp_res = vibetrace_dead_code(
+            DeadCodeInput(
+                scope_path=str(tmp_path),
+                response_format=ResponseFormat.JSON,
+            )
+        )
+        mcp_data = json.loads(mcp_res)
+        assert mcp_data["total"] >= 1
+        assert any(sym["name"] == "_unused_helper" for sym in mcp_data["symbols"])
+
+        monkeypatch.setattr("vibetrace.server_api.db", db)
+        monkeypatch.setenv("VIBETRACE_PROJECT_ROOT", str(tmp_path))
+        rest_client = TestClient(app)
+        resp = rest_client.get("/api/dead-code")
+        assert resp.status_code == 200
+        rest_data = resp.json()
+        assert any(sym["name"] == "_unused_helper" for sym in rest_data["symbols"])
+    finally:
+        db.close()
+
+
+def test_mcp_audit_pr_taint(tmp_path: Path) -> None:
+    (tmp_path / "app.py").write_text("def ok() -> int:\n    return 1\n", encoding="utf-8")
+    vt_dir = tmp_path / ".vibetrace"
+    vt_dir.mkdir(exist_ok=True)
+    db = IndexerDB(str(vt_dir / "vibetrace.db"))
+    try:
+        reindex_all(db, str(tmp_path), project_root=tmp_path)
+    finally:
+        db.close()
+
+    res = vibetrace_audit_pr_taint(
+        AuditPRTaintInput(
+            staged=True,
+            scope_path=str(tmp_path),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    data = json.loads(res)
+    assert "passed_gate" in data
+    assert "total_findings" in data
+
+
+def test_rest_security_audit_writes_security_report_domain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "vuln.py").write_text(
+        "import subprocess\n\ndef run_cmd(user_arg: str) -> None:\n"
+        "    subprocess.run(user_arg, shell=True)\n",
+        encoding="utf-8",
+    )
+    vt_dir = tmp_path / ".vibetrace"
+    vt_dir.mkdir(exist_ok=True)
+    db = IndexerDB(str(vt_dir / "vibetrace.db"))
+    try:
+        reindex_all(db, str(tmp_path), project_root=tmp_path)
+        monkeypatch.setattr("vibetrace.server_api.db", db)
+        monkeypatch.setattr("vibetrace.server_api.project_root", str(tmp_path))
+        monkeypatch.setenv("VIBETRACE_PROJECT_ROOT", str(tmp_path))
+
+        rest_client = TestClient(app)
+        resp = rest_client.get(
+            "/api/security/audit?skip_deps=true&skip_semgrep=true&skip_trivy=true&scan_all=true"
+        )
+        assert resp.status_code == 200
+        assert (vt_dir / "reports" / "security").exists()
+        assert not (vt_dir / "reports" / "quality").exists()
+    finally:
+        db.close()

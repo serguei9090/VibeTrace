@@ -387,6 +387,11 @@ def get_security_audit_endpoint(
     update: bool = Query(default=False),
     no_taint: bool = Query(default=False),
     scan_all: bool = Query(default=False),
+    include_tests: bool = Query(default=False),
+    skip_trivy: bool = Query(default=False),
+    skip_semgrep: bool = Query(default=False),
+    enable_sonar: bool = Query(default=False),
+    image_tag: str | None = Query(default=None),
 ):
     """Audits codebase and dependencies for security flaws against .vibetrace/security.toml."""
     from vibetrace.security.service import SecurityService
@@ -398,15 +403,20 @@ def get_security_audit_endpoint(
         check_dependencies=not skip_deps,
         force_update_cves=update,
         analyze_taint=not no_taint,
+        include_tests=include_tests,
+        enable_trivy=not skip_trivy,
+        enable_semgrep=not skip_semgrep,
+        enable_sonar=enable_sonar,
         scan_all=scan_all,
+        image_tag=image_tag,
     )
     from vibetrace.services.report_store import ReportStore
 
     ReportStore.save_split_report(
         project_root=Path(project_root),
-        domain="quality",
+        domain="security",
         findings=report.findings,
-        approve_hint="vibetrace audit quality approve",
+        approve_hint="vibetrace audit security approve",
     )
     return report.model_dump()
 
@@ -451,6 +461,8 @@ def get_quality_audit_endpoint(
     file_path: str | None = Query(default=None),
     threshold: int = Query(default=15),
     include_tests: bool = Query(default=False),
+    typecheck: bool = Query(default=False),
+    enable_sonar: bool = Query(default=False),
     scan_all: bool = Query(default=False),
 ):
     """Audits codebase for complexity and smells against .vibetrace/quality.toml."""
@@ -462,6 +474,8 @@ def get_quality_audit_endpoint(
         file_filter=file_path,
         complexity_threshold=threshold,
         include_tests=include_tests,
+        typecheck=typecheck,
+        enable_sonar=enable_sonar,
         scan_all=scan_all,
     )
     from vibetrace.services.report_store import ReportStore

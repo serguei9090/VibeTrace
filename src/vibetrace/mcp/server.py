@@ -31,8 +31,10 @@ from vibetrace.mcp.formatters import (
     format_vibe_bundle_markdown,
 )
 from vibetrace.mcp.schemas import (
+    ApproveQualityExceptionInput,
     ApproveSecurityExceptionInput,
     ApproveSplitInput,
+    AuditQualityInput,
     AuditSecurityInput,
     AuditSplitsInput,
     CallerGuardInput,
@@ -544,7 +546,7 @@ async def vibetrace_reindex_project(params: ReindexInput) -> str:
         if params.embed:
             from vibetrace.indexer.embeddings import EmbeddingEngine
 
-            engine = EmbeddingEngine(project_root=root)
+            engine = EmbeddingEngine(project_root=root, device=params.device)
             indexed_count = engine.index_missing_embeddings(db)
             msg += f" (generated {indexed_count} vector embeddings)"
         if params.verbose and isinstance(telemetry, dict):
@@ -574,6 +576,7 @@ async def vibetrace_search_docs(params: DocSearchInput) -> str:
             scope=params.scope,
             project_root=root,
             limit=params.limit,
+            locale=params.locale,
         )
         if params.response_format == ResponseFormat.JSON:
             return json.dumps([it.model_dump() for it in items], indent=2)
@@ -727,7 +730,12 @@ async def vibetrace_audit_security(params: AuditSecurityInput) -> str:
             check_dependencies=not params.skip_deps,
             force_update_cves=params.update,
             analyze_taint=not params.no_taint,
+            include_tests=params.include_tests,
+            enable_trivy=not params.skip_trivy,
+            enable_semgrep=not params.skip_semgrep,
+            enable_sonar=params.enable_sonar,
             scan_all=params.scan_all,
+            image_tag=params.image_tag,
         )
 
         if params.response_format == ResponseFormat.JSON:
@@ -805,6 +813,77 @@ async def vibetrace_remediate_vulnerability(params: RemediateVulnerabilityInput)
         return "\n\n---\n\n".join(str(it["ai_fix_prompt"]) for it in items if isinstance(it, dict))
     except Exception as e:
         return handle_error(e, "remediating security vulnerability")
+
+
+@mcp.tool(name="vibetrace_audit_quality", annotations=_READ_ONLY)
+async def vibetrace_audit_quality(params: AuditQualityInput) -> str:
+    """Audit codebase for cognitive complexity, smells, and optional linter/SonarLint rules."""
+    try:
+        from vibetrace.quality.service import QualityService
+
+        db, root = get_context_for_path(params.scope_path)
+        report = QualityService.audit_project(
+            db=db,
+            project_root=Path(root),
+            file_filter=params.file_path,
+            complexity_threshold=params.threshold,
+            include_tests=params.include_tests,
+            typecheck=params.typecheck,
+            enable_sonar=params.enable_sonar,
+            scan_all=params.scan_all,
+        )
+        if params.response_format == ResponseFormat.JSON:
+            return report.model_dump_json(indent=2)
+
+        from vibetrace.services.report_store import ReportStore
+
+        return ReportStore.save_split_report(
+            project_root=root,
+            domain="quality",
+            findings=report.findings,
+            approve_hint="vibetrace audit quality approve",
+        )
+    except Exception as e:
+        return handle_error(e, "auditing code quality")
+
+
+@mcp.tool(name="vibetrace_approve_quality_exception", annotations=_MUTATION)
+async def vibetrace_approve_quality_exception(params: ApproveQualityExceptionInput) -> str:
+    """Record an approved quality exception into .vibetrace/quality.toml baseline."""
+    try:
+        from vibetrace.quality.service import QualityService
+
+        _, root = get_context_for_path(params.scope_path)
+        QualityService.record_exception(
+            project_root=Path(root),
+            finding_id=params.finding_id,
+            rule_id=params.rule_id,
+            file_path=params.file_path,
+            code_hash=params.code_hash,
+            rationale=params.rationale,
+            severity=params.severity,
+            status=params.status,
+            reviewed_by=params.reviewed_by,
+            category=params.category,
+            symbol_name=params.symbol_name,
+            tag=params.tag,
+        )
+        msg = {
+            "status": "ok",
+            "finding_id": params.finding_id,
+            "rule_id": params.rule_id,
+            "file_path": params.file_path,
+            "review_status": params.status,
+            "baseline_file": ".vibetrace/quality.toml",
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(msg, indent=2)
+        return (
+            f"✅ Successfully approved quality exception `{params.finding_id}`.\n"
+            f"File: `{params.file_path}` | Recorded in `.vibetrace/quality.toml`."
+        )
+    except Exception as e:
+        return handle_error(e, f"approving quality exception '{params.finding_id}'")
 
 
 @mcp.tool(name="vibetrace_review_changes", annotations=_READ_ONLY)

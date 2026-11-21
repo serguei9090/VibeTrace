@@ -105,6 +105,7 @@ def search_documentation(
     catalog: str | None = Query(None, description="Scope search to specific catalog"),
     scope: Literal["all", "local", "global"] = Query("local", description="Search scope"),
     limit: int = Query(5, ge=1, le=50, description="Maximum chunks to return"),
+    locale: str | None = Query(None, description="Strict locale code filter (e.g. 'en', 'es')"),
 ) -> list[DocChunkItem]:
     """Execute hybrid RRF search over documentation chunks."""
     root = _get_project_root()
@@ -114,6 +115,7 @@ def search_documentation(
         scope=scope,
         project_root=root,
         limit=limit,
+        locale=locale,
     )
 
 
