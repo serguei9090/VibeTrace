@@ -114,11 +114,6 @@ SHARED_CAPABILITIES: dict[str, CapabilitySpec] = {
         mcp=("vibetrace_get_vibe_bundle",),
         rest=("GET /api/vibe/bundle",),
     ),
-    "refactor": CapabilitySpec(
-        cli=("refactor",),
-        mcp=("vibetrace_refactor_method",),
-        rest=("GET /api/refactor/candidates", "POST /api/refactor/split"),
-    ),
     "audit_splits": CapabilitySpec(
         cli=("audit splits",),
         mcp=("vibetrace_audit_splits", "vibetrace_approve_split"),

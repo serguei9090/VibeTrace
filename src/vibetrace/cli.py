@@ -869,63 +869,6 @@ examples:
     )
     p_test.set_defaults(func=_lazy_cmd("vibetrace.cli_commands", "cmd_test"))
 
-    # refactor (interactive AST auto-refactoring)
-    p_refactor = sub.add_parser(
-        "refactor",
-        help="Interactive AST auto-refactoring and method extraction",
-        description=(
-            "Extract complex statement blocks into decoupled helper functions "
-            "with mathematical variable lifetime guarantees."
-        ),
-    )
-    p_refactor.add_argument("file", help="Path to source file containing the target function")
-    p_refactor.add_argument("function", help="Target function name to refactor")
-    p_refactor.add_argument(
-        "--suggest",
-        action="store_true",
-        help="Suggest candidate statement blocks ranked by complexity reduction",
-    )
-    p_refactor.add_argument(
-        "--split-method",
-        action="store_true",
-        default=True,
-        help="Perform split-method extraction (default: True)",
-    )
-    p_refactor.add_argument(
-        "--start-line",
-        type=int,
-        default=None,
-        help="Start line of statement block to extract",
-    )
-    p_refactor.add_argument(
-        "--end-line",
-        type=int,
-        default=None,
-        help="End line of statement block to extract",
-    )
-    p_refactor.add_argument(
-        "--helper-name",
-        type=str,
-        default=None,
-        help="Name of extracted helper function (default: _<func>_helper)",
-    )
-    p_refactor.add_argument(
-        "--apply",
-        action="store_true",
-        default=False,
-        help="Apply refactoring changes in-place to disk",
-    )
-    p_refactor.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="Preview diff and generated code without writing to disk (default: True)",
-    )
-    p_refactor.add_argument(
-        "--path", default=".", help="Project root directory path (default: current directory)"
-    )
-    p_refactor.set_defaults(func=_lazy_cmd("vibetrace.cli_refactor", "cmd_refactor"))
-
     # audit (architectural pattern & split triage)
     p_audit = sub.add_parser(
         "audit",

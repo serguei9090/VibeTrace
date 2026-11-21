@@ -16,7 +16,6 @@ from vibetrace.mcp.schemas import (
     AuditQualityInput,
     DeadCodeInput,
     ExplainDependencyInput,
-    RefactorMethodInput,
     ResponseFormat,
 )
 from vibetrace.mcp.server import (
@@ -27,7 +26,6 @@ from vibetrace.mcp.tools_engineering import (
     vibetrace_audit_pr_taint,
     vibetrace_dead_code,
     vibetrace_explain_dependency,
-    vibetrace_refactor_method,
 )
 from vibetrace.server_api import app
 
@@ -90,30 +88,6 @@ def test_mcp_explain_dependency() -> None:
         ExplainDependencyInput(action="tree", max_depth=2, response_format=ResponseFormat.MARKDOWN)
     )
     assert "Transitive Dependency Tree" in res_tree
-
-
-def test_mcp_refactor_method_candidates(tmp_path: Path) -> None:
-    test_file = tmp_path / "sample.py"
-    test_file.write_text(
-        "def compute(x):\n"
-        "    a = x * 2\n"
-        "    b = a + 5\n"
-        "    if b > 10:\n"
-        "        print('high')\n"
-        "    return b\n",
-        encoding="utf-8",
-    )
-
-    res = vibetrace_refactor_method(
-        RefactorMethodInput(
-            file_path=str(test_file),
-            symbol_name="compute",
-            scope_path=str(tmp_path),
-            response_format=ResponseFormat.JSON,
-        )
-    )
-    candidates = json.loads(res)
-    assert isinstance(candidates, list)
 
 
 async def test_mcp_quality_audit_and_approve(tmp_path: Path) -> None:

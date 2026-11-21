@@ -1,4 +1,4 @@
-"""FastMCP tools for transitive dependencies, AST refactoring, auto-patching, and docs audit."""
+"""FastMCP tools for transitive dependencies, auto-patching, PR taint, dead code, and docs audit."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from vibetrace.mcp.schemas import (
     DiagnoseSymbolInput,
     ExplainDependencyInput,
     PatchDependencyInput,
-    RefactorMethodInput,
     ResponseFormat,
 )
 from vibetrace.security.auto_patcher import DependencyAutoPatcher
@@ -30,7 +29,6 @@ from vibetrace.services.diagnose_service import (
     format_diagnosis_md,
 )
 from vibetrace.services.graph_service import find_dead_symbols, handle_error
-from vibetrace.services.refactor_service import RefactorService
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -126,75 +124,6 @@ def vibetrace_explain_dependency(params: ExplainDependencyInput) -> str:
         return graph.render_ascii_chains(params.package_name, chains)
     except Exception as e:
         return handle_error(e, "analyzing transitive dependencies")
-
-
-def vibetrace_refactor_method(params: RefactorMethodInput) -> str:
-    """Analyze AST variable lifetimes and execute surgical helper method extraction."""
-    try:
-        root = _resolve_project_root(params.scope_path)
-
-        # 1. Suggest split candidates if line range is not specified
-        if params.start_line is None or params.end_line is None:
-            candidates = RefactorService.suggest_split_candidates(
-                project_root=root,
-                file_path=params.file_path,
-                func_name=params.symbol_name,
-            )
-            if params.response_format == ResponseFormat.JSON:
-                return json.dumps([c.to_dict() for c in candidates], indent=2)
-            if not candidates:
-                return f"[INFO] No candidate split blocks found for `{params.symbol_name}`."
-            lines = [
-                f"# Candidate Split Blocks for `{params.symbol_name}` in `{params.file_path}`\n"
-            ]
-            for c in candidates:
-                lines.append(
-                    f"- **Lines {c.start_line}..{c.end_line}**: {c.summary} "
-                    f"(Complexity: {c.complexity_score}, Reduction: -{c.complexity_reduction})\n"
-                    f"  - Inputs: `{', '.join(c.inputs) or 'none'}`\n"
-                    f"  - Outputs: `{', '.join(c.outputs) or 'none'}`"
-                )
-            return "\n".join(lines)
-
-        # 2. Build refactoring plan
-        plan = RefactorService.build_refactor_plan(
-            project_root=root,
-            file_path=params.file_path,
-            func_name=params.symbol_name,
-            start_line=params.start_line,
-            end_line=params.end_line,
-            helper_name=params.helper_name,
-        )
-
-        if params.apply:
-            if not plan.can_auto_apply:
-                return (
-                    f"❌ Cannot apply refactor automatically: {plan.rejection_reason}\n\n"
-                    "Suggested Helper Code:\n```python\n"
-                    f"{plan.helper_code}\n```"
-                )
-            RefactorService.apply_refactor_plan(root, plan)
-
-        if params.response_format == ResponseFormat.JSON:
-            return json.dumps(plan.to_dict(), indent=2)
-
-        status_msg = (
-            "✅ Refactoring applied successfully to disk."
-            if params.apply
-            else "[PREVIEW] Refactoring plan preview (dry-run):"
-        )
-        return (
-            f"# AST Method Extraction Plan for `{params.symbol_name}`\n"
-            f"{status_msg}\n\n"
-            f"- **Target:** `{params.file_path}:{params.start_line}..{params.end_line}`\n"
-            f"- **Extracted Helper:** `{plan.helper_name}`\n"
-            f"- **Inputs / Args:** `{', '.join(plan.inputs) or 'none'}`\n"
-            f"- **Outputs / Returns:** `{', '.join(plan.outputs) or 'none'}`\n\n"
-            f"### Extracted Helper Definition\n```python\n{plan.helper_code}\n```\n\n"
-            f"### Replacement Call Site\n```python\n{plan.call_replacement}\n```"
-        )
-    except Exception as e:
-        return handle_error(e, "executing AST refactoring")
 
 
 def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
@@ -384,9 +313,8 @@ def vibetrace_audit_pr_taint(params: AuditPRTaintInput) -> str:
 
 
 def register_engineering_tools(mcp: FastMCP) -> None:
-    """Register engineering, refactoring, and dependency tools onto the FastMCP server."""
+    """Register engineering, dependency, PR taint, and dead-code tools onto FastMCP."""
     mcp.tool()(vibetrace_explain_dependency)
-    mcp.tool()(vibetrace_refactor_method)
     mcp.tool()(vibetrace_patch_dependency)
     mcp.tool()(vibetrace_check_docs_drift)
     mcp.tool()(vibetrace_diagnose_symbol)

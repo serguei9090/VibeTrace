@@ -1,4 +1,4 @@
-"""REST API endpoints for transitive dependencies, AST refactoring, and auto-patching."""
+"""REST API endpoints for transitive dependencies, auto-patching, PR taint, and dead code."""
 
 from __future__ import annotations
 
@@ -8,10 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from vibetrace.indexer.db import IndexerDB
-from vibetrace.refactor.models import CandidateSplitBlock
 from vibetrace.security.auto_patcher import DependencyAutoPatcher
 from vibetrace.security.dep_graph import (
     DependencyGraphBuilder,
@@ -20,7 +19,6 @@ from vibetrace.security.dep_graph import (
 from vibetrace.security.pr_bot import PRTaintBot
 from vibetrace.security.service import SecurityService
 from vibetrace.services.diagnose_service import DiagnoseService
-from vibetrace.services.refactor_service import RefactorService
 
 
 def _get_project_root() -> Path:
@@ -28,15 +26,6 @@ def _get_project_root() -> Path:
     if env_root and Path(env_root).is_dir():
         return Path(env_root).resolve()
     return Path.cwd().resolve()
-
-
-class RefactorSplitRequest(BaseModel):
-    file_path: str = Field(..., min_length=1)
-    symbol_name: str = Field(..., min_length=1)
-    start_line: int | None = None
-    end_line: int | None = None
-    helper_name: str | None = None
-    apply: bool = False
 
 
 class PatchDepsRequest(BaseModel):
@@ -88,50 +77,6 @@ def get_engineering_router(get_db: Callable[[], IndexerDB]) -> APIRouter:
             "total_conflicts": len(conflicts),
             "conflicts": [c.model_dump() for c in conflicts],
         }
-
-    @router.get("/api/refactor/candidates", response_model=list[CandidateSplitBlock])
-    def get_refactor_candidates(
-        file_path: str = Query(..., min_length=1),
-        symbol_name: str = Query(..., min_length=1),
-    ) -> list[CandidateSplitBlock]:
-        """Suggest candidate contiguous AST blocks suitable for method extraction."""
-        root = _get_project_root()
-        target_p = (root / file_path).resolve()
-        if not target_p.is_relative_to(root.resolve()):
-            raise HTTPException(status_code=400, detail="file_path escapes project root boundary")
-        try:
-            return RefactorService.suggest_split_candidates(root, file_path, symbol_name)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-
-    @router.post("/api/refactor/split")
-    def post_refactor_split(body: RefactorSplitRequest) -> dict[str, Any]:
-        """Construct or execute an AST-based helper method extraction refactoring."""
-        root = _get_project_root()
-        target_p = (root / body.file_path).resolve()
-        if not target_p.is_relative_to(root.resolve()):
-            raise HTTPException(status_code=400, detail="file_path escapes project root boundary")
-        try:
-            plan = RefactorService.build_refactor_plan(
-                project_root=root,
-                file_path=body.file_path,
-                func_name=body.symbol_name,
-                start_line=body.start_line,
-                end_line=body.end_line,
-                helper_name=body.helper_name,
-            )
-            if body.apply:
-                if not plan.can_auto_apply:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Cannot auto-apply refactor: {plan.rejection_reason}",
-                    )
-                RefactorService.apply_refactor_plan(root, plan)
-            return plan.to_dict()
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.post("/api/security/patch-deps")
     def post_patch_deps(body: PatchDepsRequest) -> dict[str, Any]:

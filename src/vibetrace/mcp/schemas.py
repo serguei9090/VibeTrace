@@ -785,38 +785,6 @@ class ExplainDependencyInput(BaseModel):
     )
 
 
-class RefactorMethodInput(BaseModel):
-    """Input model for AST method extraction and cognitive complexity refactoring."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
-
-    file_path: str = Field(
-        ..., description="Relative path to source file containing target function"
-    )
-    symbol_name: str = Field(..., description="Target function or method name to refactor")
-    start_line: int | None = Field(
-        default=None,
-        description="1-indexed starting line to extract (omit to get split suggestions)",
-    )
-    end_line: int | None = Field(
-        default=None,
-        description="1-indexed ending line to extract (omit to get split suggestions)",
-    )
-    helper_name: str | None = Field(
-        default=None,
-        description="Name of the extracted helper function (e.g. '_process_row')",
-    )
-    apply: bool = Field(
-        default=False,
-        description="Apply refactoring diff directly to disk if pre-flight checks pass",
-    )
-    scope_path: str = Field(default=".", description="Project root path")
-    response_format: ResponseFormat = Field(
-        default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' or 'json'",
-    )
-
-
 class PatchDependencyInput(BaseModel):
     """Input model for automated dependency patching and unpatched CVE suppression."""
 
