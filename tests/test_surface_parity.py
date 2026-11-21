@@ -94,6 +94,21 @@ SHARED_CAPABILITIES: dict[str, CapabilitySpec] = {
         mcp=("vibetrace_list_doc_catalogs",),
         rest=("GET /api/docs/catalogs",),
     ),
+    "docs_catalog_add": CapabilitySpec(
+        cli=("docs catalog add",),
+        mcp=("vibetrace_add_doc_catalog",),
+        rest=("POST /api/docs/catalogs",),
+    ),
+    "docs_catalog_remove": CapabilitySpec(
+        cli=("docs catalog remove",),
+        mcp=("vibetrace_remove_doc_catalog",),
+        rest=("DELETE /api/docs/catalogs/{name}",),
+    ),
+    "docs_index": CapabilitySpec(
+        cli=("docs index",),
+        mcp=("vibetrace_index_docs",),
+        rest=("POST /api/docs/index",),
+    ),
     "docs_search": CapabilitySpec(
         cli=("docs search",),
         mcp=("vibetrace_search_docs",),
@@ -186,9 +201,6 @@ SHARED_CAPABILITIES: dict[str, CapabilitySpec] = {
 
 CLI_ONLY_COMMANDS: set[str] = {
     "config quality",
-    "docs catalog add",
-    "docs catalog remove",
-    "docs index",
     "docs sync-links",
     "hooks",
     "init",
@@ -204,12 +216,6 @@ CLI_ONLY_COMMANDS: set[str] = {
 }
 
 REST_ONLY_ROUTES: set[str] = {
-    # Legacy unprefixed aliases
-    "GET /call-stack",
-    "GET /call-tree",
-    "GET /graph",
-    "GET /source",
-    "GET /trace",
     # Map Room Web UI & WebSocket routes
     "GET /api/graph",
     "GET /api/node/{node_id}/neighbors",
@@ -218,9 +224,6 @@ REST_ONLY_ROUTES: set[str] = {
     "POST /api/agent-focus",
     "WS /ws",
     # REST-only management & saved-trace helper endpoints
-    "DELETE /api/docs/catalogs/{name}",
-    "POST /api/docs/catalogs",
-    "POST /api/docs/index",
     "POST /api/docs/sync-links",
     "GET /api/hooks",
     "POST /api/hooks",

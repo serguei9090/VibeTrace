@@ -55,7 +55,7 @@ def mock_db(monkeypatch, tmp_path):
 
 
 def test_get_graph(mock_db):
-    response = client.get("/graph")
+    response = client.get("/api/graph")
     assert response.status_code == 200
     data = response.json()
     assert "nodes" in data
@@ -65,17 +65,17 @@ def test_get_graph(mock_db):
 
 
 def test_get_graph_filtered(mock_db):
-    response = client.get("/graph?file_path=a.py")
+    response = client.get("/api/graph?file_path=a.py")
     assert response.status_code == 200
     data = response.json()
     assert len(data["nodes"]) == 2
 
-    response_empty = client.get("/graph?file_path=missing.py")
+    response_empty = client.get("/api/graph?file_path=missing.py")
     assert len(response_empty.json()["nodes"]) == 0
 
 
 def test_get_trace(mock_db):
-    response = client.get("/trace?from_symbol=NodeA&to_symbol=NodeA.run&max_depth=4")
+    response = client.get("/api/trace?from_symbol=NodeA&to_symbol=NodeA.run&max_depth=4")
     assert response.status_code == 200
     data = response.json()
     assert data["found"] is True
@@ -84,17 +84,17 @@ def test_get_trace(mock_db):
 
 
 def test_get_source_and_security(mock_db):
-    response = client.get("/source?file_path=a.py&start_line=1&end_line=2")
+    response = client.get("/api/source?file_path=a.py&start_line=1&end_line=2")
     assert response.status_code == 200
     data = response.json()
     assert "1: class NodeA:" in data["source_code"]
 
     # Path traversal blocked (never indexed -> 404 before any disk read)
-    bad = client.get("/source?file_path=../../etc/passwd")
+    bad = client.get("/api/source?file_path=../../etc/passwd")
     assert bad.status_code in (400, 404)
 
     # Missing file
-    missing = client.get("/source?file_path=nonexistent.py")
+    missing = client.get("/api/source?file_path=nonexistent.py")
     assert missing.status_code == 404
 
 
@@ -139,7 +139,7 @@ def test_search_nodes_endpoint(mock_db):
 
 def test_source_endpoint_empty_file(mock_db, tmp_path):
     (tmp_path / "empty_mod.py").write_text("", encoding="utf-8")
-    res = client.get("/source?file_path=empty_mod.py&start_line=1&end_line=5")
+    res = client.get("/api/source?file_path=empty_mod.py&start_line=1&end_line=5")
     assert res.status_code == 200
     data = res.json()
     assert data["source_code"] == ""

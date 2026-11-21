@@ -2473,7 +2473,7 @@ def test_server_api_call_tree_normalizes_file_path(tmp_path: Path, monkeypatch):
 
     client = TestClient(app)
     # Pass Windows-style relative path with leading ./ and backslash
-    res = client.get("/call-tree?symbol=worker&file_path=.\\src\\worker.py")
+    res = client.get("/api/call-tree?symbol=worker&file_path=.\\src\\worker.py")
     assert res.status_code == 200
     assert len(captured_file_path) == 1
     assert captured_file_path[0] == "src/worker.py"

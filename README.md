@@ -335,8 +335,8 @@ The agent gains access to surgical FastMCP code intelligence tools:
 - `vibetrace_explain_dependency` (Transitive dependency root causation, dependency tree, and diamond conflicts)
 - `vibetrace_patch_dependency` (Automated dependency upgrade plan and dormant CVE suppression)
 - `vibetrace_check_docs_drift` (Audit documentation for broken symbol references and sync live AST links)
-- `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope)
-- `vibetrace_list_doc_catalogs` (List configured documentation catalogs)
+- `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope and `--locale` filter)
+- `vibetrace_list_doc_catalogs` / `vibetrace_add_doc_catalog` / `vibetrace_remove_doc_catalog` / `vibetrace_index_docs` (Documentation catalog management and indexing)
 - `vibetrace_semantic_search` (4-stream hybrid AST + BM25 + Vector + PageRank)
 - `vibetrace_trace_path` (Bidirectional reachable execution pathfinding with exact call lines)
 - `vibetrace_get_code_slice` (Surgical source lines with outgoing callee contracts and linked docs)
@@ -429,7 +429,7 @@ VibeTrace uses a **Storage Adapter Interface** decoupling application logic, AST
 ### 1. Current Phase: Serverless In-Process (SQLite + LanceDB)
 - **Zero background services**: In-process SQLite (`.vibetrace/vibetrace.db`) for the AST call graph, symbol references, and FTS5 BM25 search.
 - **Embedded LanceDB**: Disk-backed 256d Matryoshka vector ANN search with $<50$MB RAM overhead and sub-millisecond cosine retrieval.
-- **Federated Multi-Repo (`vibetrace project`)**: Provides optional PostgreSQL metadata persistence for cross-repository project workspaces (`vibetrace/federation/storage_postgres.py`).
+- **Federated Multi-Repo (`vibetrace project`)**: Production-ready in-process SQLite `ATTACH` federation (`FederatedSQLiteEngine`) with CLI member management (`init`/`add`/`remove`/`index`). Also includes a **Beta** PostgreSQL read-only query backend (`vibetrace/federation/storage_postgres.py`; requires external sync and manual schema init — see [federation README](src/vibetrace/federation/README.md)).
 
 ### 2. Enterprise Roadmap: Pluggable Core PostgreSQL Storage (Design Proposed)
 For centralized team servers, monorepos, and cloud multi-tenancy:

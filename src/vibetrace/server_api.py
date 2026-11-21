@@ -224,7 +224,6 @@ def post_hooks_endpoint(
     return {"status": "ok", "action": action, "message": msg}
 
 
-@app.get("/graph")
 @app.get("/api/graph")
 def get_graph(file_path: str | None = None):
     """
@@ -324,7 +323,6 @@ def get_node_neighbors(
     }
 
 
-@app.get("/trace")
 @app.get("/api/trace")
 def get_trace(
     from_symbol: str = Query(..., min_length=1),
@@ -511,7 +509,6 @@ def approve_quality_exception_endpoint(payload: QualityApprovePayload):
     return {"status": "ok", "baseline_file": ".vibetrace/quality.toml"}
 
 
-@app.get("/call-tree")
 @app.get("/api/call-tree")
 def get_call_tree(
     symbol: str = Query(..., min_length=1),
@@ -524,7 +521,6 @@ def get_call_tree(
     return res.model_dump()
 
 
-@app.get("/call-stack")
 @app.get("/api/call-stack")
 def get_call_stack_endpoint(
     symbol: str = Query(..., min_length=1),
@@ -556,7 +552,6 @@ def get_call_stack_endpoint(
     }
 
 
-@app.get("/source")
 @app.get("/api/source")
 def get_source(
     file_path: str = Query(..., min_length=1),

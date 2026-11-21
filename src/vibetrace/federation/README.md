@@ -2,7 +2,9 @@
 
 ## Overview
 
-Multi-repository project workspace federation for VibeTrace. Loads a `.vibetrace-project.toml` manifest describing member repositories, indexes each member into its own SQLite database, attaches those databases into one in-memory SQLite session (or a centralized PostgreSQL schema), and answers cross-repository symbol search, blast-radius guard, and HTTP contract correlation queries.
+Multi-repository project workspace federation for VibeTrace. Loads a `.vibetrace-project.toml` manifest describing member repositories, indexes each member into its own SQLite database, and attaches those databases into one in-memory SQLite session (`FederatedSQLiteEngine`, production-ready) to answer cross-repository symbol search, blast-radius guard, and HTTP contract correlation queries. Member CRUD and indexing (`init`/`add`/`remove`/`index`) are CLI-only (`vibetrace project ...`), while query endpoints (`status`/`search`/`guard`/`links`) are exposed across CLI, MCP, and REST.
+
+> **Beta Feature — PostgreSQL Backend (`storage_postgres.py`):** `PostgresStorageBackend` is wired into `ProjectWorkspace.engine` when `storage_backend = "postgres"`, but is currently **Beta** (read-only query adapter with no automated `index_member` write/sync path, no live-Postgres CI suite, and no `CrossRepoLinker` correlation). Use the default `"sqlite"` backend for production workspaces.
 
 ## Interface
 

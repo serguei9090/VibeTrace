@@ -190,12 +190,12 @@ def test_source_rejects_unindexed_files_and_foreign_origins(monkeypatch, tmp_pat
     monkeypatch.setattr(server_api, "project_root", tmp_path)
     client = TestClient(server_api.app)
 
-    assert client.get("/source?file_path=.env").status_code == 404
-    assert client.get("/source?file_path=app.py").status_code == 200
+    assert client.get("/api/source?file_path=.env").status_code == 404
+    assert client.get("/api/source?file_path=app.py").status_code == 200
 
-    evil = client.get("/source?file_path=app.py", headers={"Origin": "https://evil.example"})
+    evil = client.get("/api/source?file_path=app.py", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in evil.headers
-    local = client.get("/source?file_path=app.py", headers={"Origin": "http://localhost:5173"})
+    local = client.get("/api/source?file_path=app.py", headers={"Origin": "http://localhost:5173"})
     assert local.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
@@ -317,19 +317,19 @@ def test_server_api_source_with_absolute_and_unnormalized_path(tmp_path: Path):
         client = TestClient(app)
 
         # 1. Relative path query
-        res_rel = client.get("/source", params={"file_path": "./sample.py"})
+        res_rel = client.get("/api/source", params={"file_path": "./sample.py"})
         assert res_rel.status_code == 200
         assert res_rel.json()["file_path"] == "sample.py"
         assert "def hello():" in res_rel.json()["source_code"]
 
         # 2. Absolute path query
-        res_abs = client.get("/source", params={"file_path": str(test_file)})
+        res_abs = client.get("/api/source", params={"file_path": str(test_file)})
         assert res_abs.status_code == 200
         assert res_abs.json()["file_path"] == "sample.py"
         assert "def hello():" in res_abs.json()["source_code"]
 
         # 3. Graph query with absolute path
-        res_graph = client.get("/graph", params={"file_path": str(test_file)})
+        res_graph = client.get("/api/graph", params={"file_path": str(test_file)})
         assert res_graph.status_code == 200
         assert "nodes" in res_graph.json()
     finally:
@@ -565,7 +565,7 @@ def test_api_call_stack_endpoint():
 
     # Test valid symbol call stack (both directions)
     res = client.get(
-        "/call-stack", params={"symbol": "upsert_node", "direction": "both", "depth": 2}
+        "/api/call-stack", params={"symbol": "upsert_node", "direction": "both", "depth": 2}
     )
     assert res.status_code == 200
     payload = res.json()
@@ -573,15 +573,15 @@ def test_api_call_stack_endpoint():
     assert payload["symbol"] == "upsert_node"
     assert len(payload["call_stack"]) > 0
 
-    # Test call-stack via /api/call-stack alias
-    res_alias = client.get(
+    # Test upward call-stack direction
+    res_up = client.get(
         "/api/call-stack", params={"symbol": "upsert_node", "direction": "up", "depth": 1}
     )
-    assert res_alias.status_code == 200
-    assert res_alias.json()["direction"] == "up"
+    assert res_up.status_code == 200
+    assert res_up.json()["direction"] == "up"
 
     # Test missing symbol returns 404
-    res_404 = client.get("/call-stack", params={"symbol": "completely_ghost_node"})
+    res_404 = client.get("/api/call-stack", params={"symbol": "completely_ghost_node"})
     assert res_404.status_code == 404
 
 
