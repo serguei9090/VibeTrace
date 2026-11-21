@@ -52,6 +52,23 @@ class LSPClient:
         if not executable:
             return False
         cmd = [executable, *self.command[1:]]
+        proc_env: dict[str, str] | None = None
+        vt_dir = self.project_root / ".vibetrace"
+        try:
+            in_local_vt = Path(executable).resolve().is_relative_to(vt_dir.resolve())
+        except (OSError, ValueError):
+            in_local_vt = False
+        if in_local_vt:
+            proc_env = os.environ.copy()
+            local_bin = str(vt_dir / "bin")
+            proc_env["PATH"] = f"{local_bin}{os.pathsep}{proc_env.get('PATH', '')}"
+            exe_lower = Path(executable).name.lower()
+            if "ruby-lsp" in exe_lower or "solargraph" in exe_lower:
+                ruby_gems = str(vt_dir / "tools" / "ruby")
+                existing_gem = proc_env.get("GEM_PATH", "")
+                proc_env["GEM_PATH"] = (
+                    f"{ruby_gems}{os.pathsep}{existing_gem}" if existing_gem else ruby_gems
+                )
         try:
             self.process = subprocess.Popen(
                 cmd,
@@ -59,6 +76,7 @@ class LSPClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 cwd=str(self.root_path),
+                env=proc_env,
             )
             self._running = True
             self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
@@ -506,54 +524,142 @@ EXT_TO_LANGUAGE: dict[str, str] = {
 
 
 def _discover_tsserver_path(root_path: Path, project_root: Path) -> str | None:
-    """Locate `tsserver.js` from workspace node_modules, PATH `tsserver`, or global installs."""
+    """Locate `tsserver.js` from `.vibetrace/tools/node`, workspace node_modules, or global."""
+    from vibetrace.config import load_config
+
     candidates: list[Path] = [
+        project_root
+        / ".vibetrace"
+        / "tools"
+        / "node"
+        / "node_modules"
+        / "typescript"
+        / "lib"
+        / "tsserver.js",
+        root_path
+        / ".vibetrace"
+        / "tools"
+        / "node"
+        / "node_modules"
+        / "typescript"
+        / "lib"
+        / "tsserver.js",
         root_path / "node_modules" / "typescript" / "lib" / "tsserver.js",
         project_root / "node_modules" / "typescript" / "lib" / "tsserver.js",
     ]
-    if tsserver_bin := shutil.which("tsserver"):
-        bin_path = Path(tsserver_bin)
+    ts_cfg = _resolve_server_config(load_config(project_root).lsp, "typescript")
+    if ts_cfg.mode == "global":
+        if tsserver_bin := shutil.which("tsserver"):
+            bin_path = Path(tsserver_bin)
+            candidates.extend(
+                [
+                    bin_path.parent / "node_modules" / "typescript" / "lib" / "tsserver.js",
+                    bin_path.resolve().parent.parent / "lib" / "tsserver.js",
+                ]
+            )
+        if appdata := os.environ.get("APPDATA"):
+            candidates.append(
+                Path(appdata) / "npm" / "node_modules" / "typescript" / "lib" / "tsserver.js"
+            )
         candidates.extend(
             [
-                bin_path.parent / "node_modules" / "typescript" / "lib" / "tsserver.js",
-                bin_path.resolve().parent.parent / "lib" / "tsserver.js",
+                Path.home()
+                / ".bun"
+                / "install"
+                / "global"
+                / "node_modules"
+                / "typescript"
+                / "lib"
+                / "tsserver.js",
+                Path("/usr/local/lib/node_modules/typescript/lib/tsserver.js"),
+                Path("/usr/lib/node_modules/typescript/lib/tsserver.js"),
             ]
         )
-    if appdata := os.environ.get("APPDATA"):
-        candidates.append(
-            Path(appdata) / "npm" / "node_modules" / "typescript" / "lib" / "tsserver.js"
-        )
-    candidates.extend(
-        [
-            Path.home()
-            / ".bun"
-            / "install"
-            / "global"
-            / "node_modules"
-            / "typescript"
-            / "lib"
-            / "tsserver.js",
-            Path("/usr/local/lib/node_modules/typescript/lib/tsserver.js"),
-            Path("/usr/lib/node_modules/typescript/lib/tsserver.js"),
-        ]
-    )
     for cand in candidates:
         if cand.is_file():
             return str(cand)
     return None
 
 
-def _resolve_lsp_binary(binary: str, project_root: Path | None = None) -> str | None:
-    """Resolve an LSP binary from <project>/.vibetrace/bin, PATH, or user tool dirs."""
+def _infer_language_for_binary(binary: str) -> str | None:
+    """Infer canonical LSP language key from an executable name."""
+    stem = Path(binary).name.lower()
+    for ext in (".exe", ".cmd", ".bat"):
+        if stem.endswith(ext):
+            stem = stem[: -len(ext)]
+            break
+    for lang, cands in LSP_SERVER_CANDIDATES.items():
+        for cand_bin, _ in cands:
+            if cand_bin.lower() == stem:
+                return lang
+    return None
+
+
+def _resolve_server_config(cfg: Any, language: str | None) -> Any:
+    """Lookup per-language LSP mode/path with javascript/cpp fallback inheritance."""
+    from vibetrace.config import LspServerConfig
+
+    if language:
+        key = language.strip().lower()
+        if key in cfg.servers:
+            return cfg.servers[key]
+        if key == "javascript" and "typescript" in cfg.servers:
+            return cfg.servers["typescript"]
+        if key == "cpp" and "c" in cfg.servers:
+            return cfg.servers["c"]
+    return LspServerConfig(mode="local", path="")
+
+
+def _resolve_lsp_binary(
+    binary: str, project_root: Path | None = None, language: str | None = None
+) -> str | None:
+    """Resolve an LSP binary honoring [lsp] mode ('local' vs 'global') and explicit 'path'."""
+    if ("/" in binary or "\\" in binary or Path(binary).is_absolute()) and Path(binary).is_file():
+        return str(Path(binary))
+
+    from vibetrace.config import LspConfig, load_config
+
     exe_names = (
         [f"{binary}.exe", f"{binary}.cmd", f"{binary}.bat", binary] if os.name == "nt" else [binary]
     )
-    if project_root is not None:
-        local_bin = project_root / ".vibetrace" / "bin"
-        for name in exe_names:
-            candidate = local_bin / name
-            if candidate.is_file():
-                return str(candidate)
+    cfg = load_config(project_root).lsp if project_root is not None else LspConfig()
+    eff_lang = language or _infer_language_for_binary(binary)
+    srv_cfg = _resolve_server_config(cfg, eff_lang)
+
+    if srv_cfg.mode == "local":
+        if project_root is None:
+            return None
+        bin_path = Path(cfg.bin_dir)
+        local_bin = bin_path if bin_path.is_absolute() else (project_root / bin_path)
+        local_dirs = [
+            local_bin,
+            project_root / ".vibetrace" / "tools" / "node" / "node_modules" / ".bin",
+            project_root / ".vibetrace" / "tools" / "ruby" / "bin",
+            project_root / ".venv" / ("Scripts" if os.name == "nt" else "bin"),
+            project_root / "node_modules" / ".bin",
+        ]
+        for local_dir in local_dirs:
+            for name in exe_names:
+                candidate = local_dir / name
+                if candidate.is_file():
+                    return str(candidate)
+        return None
+
+    # mode == "global": check explicit path override first, otherwise PATH & global user tool dirs
+    explicit = (srv_cfg.path or "").strip()
+    if explicit:
+        explicit_p = Path(explicit)
+        if not explicit_p.is_absolute() and project_root is not None:
+            explicit_p = project_root / explicit_p
+        if explicit_p.is_file():
+            return str(explicit_p)
+        if os.name == "nt" and not explicit_p.suffix:
+            for ext in (".exe", ".cmd", ".bat"):
+                win_p = explicit_p.with_suffix(ext)
+                if win_p.is_file():
+                    return str(win_p)
+        return None
+
     found = shutil.which(binary)
     if found:
         return found
@@ -580,7 +686,7 @@ def get_lsp_command_for_language(
     """Finds an available LSP binary for a specific language."""
     candidates = LSP_SERVER_CANDIDATES.get(language, [])
     for binary, cmd in candidates:
-        resolved = _resolve_lsp_binary(binary, project_root)
+        resolved = _resolve_lsp_binary(binary, project_root, language=language)
         if resolved:
             return [resolved, *cmd[1:]]
     return None

@@ -22,6 +22,8 @@ def test_default_config_fallback(tmp_path: Path):
     assert cfg.vectors.engine == "lancedb"
     assert cfg.vectors.device == "gpu"
     assert cfg.vectors.dimensions == 256
+    assert cfg.lsp.bin_dir == ".vibetrace/bin"
+    assert cfg.lsp.servers == {}
     assert cfg.indexer.auto_sync is True
     assert cfg.indexer.debounce_seconds == 2.0
 

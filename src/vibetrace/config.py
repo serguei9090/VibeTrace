@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -248,6 +248,35 @@ class DocsConfig(BaseModel):
     )
 
 
+class LspServerConfig(BaseModel):
+    """Per-language LSP resolution configuration."""
+
+    mode: Literal["local", "global"] = Field(
+        default="local",
+        description=(
+            "'local' (default): strictly resolve in project .vibetrace/bin or .vibetrace/tools; "
+            "'global': resolve from system PATH (path = '') or explicit 'path' override"
+        ),
+    )
+    path: str = Field(
+        default="",
+        description="Optional explicit LSP binary path when mode = 'global' (empty = PATH)",
+    )
+
+
+class LspConfig(BaseModel):
+    """Project-local and hybrid per-language LSP resolution settings."""
+
+    bin_dir: str = Field(
+        default=".vibetrace/bin",
+        description="Project-relative directory for local pinned LSP binaries",
+    )
+    servers: dict[str, LspServerConfig] = Field(
+        default_factory=dict,
+        description="Per-language LSP mode/path overrides (keyed by canonical language name)",
+    )
+
+
 class VibeTraceConfig(BaseModel):
     """Unified configuration contract for VibeTrace."""
 
@@ -255,6 +284,7 @@ class VibeTraceConfig(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     vectors: VectorConfig = Field(default_factory=VectorConfig)
     docs: DocsConfig = Field(default_factory=DocsConfig)
+    lsp: LspConfig = Field(default_factory=LspConfig)
     deadcode: DeadCodeConfig = Field(default_factory=DeadCodeConfig)
     splits: SplitsConfig = Field(default_factory=SplitsConfig)
     indexer: IndexerConfig = Field(default_factory=IndexerConfig)
@@ -276,6 +306,47 @@ def get_config_path(project_root: Path) -> Path | None:
     return None
 
 
+_SYSTEM_TOOLCHAIN_LSP_LANGUAGES = frozenset({"rust", "c", "cpp", "java"})
+
+
+def _render_lsp_toml_section(detected_languages: list[str] | None = None) -> str:
+    """Render documented [lsp] and detected [lsp.servers.<lang>] configuration blocks."""
+    lines = [
+        "[lsp]",
+        '# Project-local directory for pinned LSP binaries (default: ".vibetrace/bin")',
+        "# Modes per language:",
+        '#   "local"  -> strictly resolve inside <project>/.vibetrace/bin or .vibetrace/tools',
+        '#   "global" -> resolve from PATH (when path = "") or explicit executable path',
+        'bin_dir = ".vibetrace/bin"',
+    ]
+    seen: set[str] = set()
+    for lang in detected_languages or []:
+        norm = lang.strip().lower()
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        lines.append("")
+        if norm in _SYSTEM_TOOLCHAIN_LSP_LANGUAGES:
+            lines.append(
+                f'# System toolchain LSP ({norm}); path = "" uses PATH or set explicit binary'
+            )
+            mode = "global"
+        else:
+            mode = "local"
+        lines.extend([f"[lsp.servers.{norm}]", f'mode = "{mode}"', 'path = ""'])
+    if not seen:
+        lines.extend(
+            [
+                "",
+                "# Per-language overrides example:",
+                "# [lsp.servers.python]",
+                '# mode = "global" # or "local" (default)',
+                '# path = ""       # empty uses PATH, or set explicit path to binary',
+            ]
+        )
+    return "\n".join(lines)
+
+
 def generate_default_config_toml(
     project_name: str = "project",
     include_tests: bool = False,
@@ -285,6 +356,7 @@ def generate_default_config_toml(
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
     lsp_mode: str = "auto",
+    detected_languages: list[str] | None = None,
 ) -> str:
     """Generate documented default TOML configuration."""
     # Sanitize project name against invalid characters / multiline injections
@@ -387,6 +459,8 @@ enable_trivy = {trivy_str}
 [docs]
 # Preferred ISO locale code for multilingual docs auto-detection and RRF boosting
 preferred_locale = "en"
+
+{_render_lsp_toml_section(detected_languages)}
 """
 
 
@@ -437,6 +511,7 @@ def save_default_config(
     enable_semgrep: bool = True,
     enable_trivy: bool = True,
     lsp_mode: str = "auto",
+    detected_languages: list[str] | None = None,
 ) -> Path:
     """Create default .vibetrace.toml at project root if not already present."""
     root = Path(project_root).resolve()
@@ -454,6 +529,7 @@ def save_default_config(
             enable_semgrep=enable_semgrep,
             enable_trivy=enable_trivy,
             lsp_mode=lsp_mode,
+            detected_languages=detected_languages,
         )
         target.write_text(content, encoding="utf-8")
     return target

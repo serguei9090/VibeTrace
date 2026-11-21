@@ -305,17 +305,22 @@ def test_lsp_daemon_manager_lifecycle(tmp_path: Path) -> None:
     # Stop any leftover daemons
     LSPDaemonManager.stop_all()
 
-    with patch("vibetrace.indexer.lsp_bridge.get_default_lsp_command", return_value=["mock-lsp"]):
-        with patch.object(LSPClient, "start", return_value=True):
-            client1 = LSPDaemonManager.get_client(tmp_path)
-            assert client1 is not None
-            # Retrieve again: must return the identical cached instance
-            client2 = LSPDaemonManager.get_client(tmp_path)
-            assert client1 is client2
+    with (
+        patch("vibetrace.indexer.lsp_bridge.get_default_lsp_command", return_value=["mock-lsp"]),
+        patch(
+            "vibetrace.indexer.lsp_bridge.get_lsp_command_for_language", return_value=["mock-lsp"]
+        ),
+        patch.object(LSPClient, "start", return_value=True),
+    ):
+        client1 = LSPDaemonManager.get_client(tmp_path)
+        assert client1 is not None
+        # Retrieve again: must return the identical cached instance
+        client2 = LSPDaemonManager.get_client(tmp_path)
+        assert client1 is client2
 
-            # Clean up single client
-            LSPDaemonManager.stop_client(tmp_path)
-            assert len(LSPDaemonManager._instances) == 0
+        # Clean up single client
+        LSPDaemonManager.stop_client(tmp_path)
+        assert len(LSPDaemonManager._instances) == 0
 
 
 def test_lsp_client_definitions_batch_pipelined(tmp_path: Path) -> None:
@@ -449,7 +454,15 @@ def test_resolve_lsp_root_glob_and_literal_markers(tmp_path: Path) -> None:
 
 
 def test_resolve_lsp_binary_discovers_dotnet_and_ruby_tool_dirs(tmp_path: Path) -> None:
-    """Verify _resolve_lsp_binary finds csharp-ls in ~/.dotnet/tools and ruby-lsp alongside ruby."""
+    """Verify _resolve_lsp_binary finds csharp-ls and ruby-lsp in tool dirs when mode='global'."""
+    proj = tmp_path / "proj"
+    proj.mkdir(parents=True)
+    (proj / ".vibetrace.toml").write_text(
+        '[lsp.servers.csharp]\nmode = "global"\npath = ""\n\n'
+        '[lsp.servers.ruby]\nmode = "global"\npath = ""\n',
+        encoding="utf-8",
+    )
+
     fake_home = tmp_path / "home"
     dotnet_tools = fake_home / ".dotnet" / "tools"
     dotnet_tools.mkdir(parents=True)
@@ -474,14 +487,14 @@ def test_resolve_lsp_binary_discovers_dotnet_and_ruby_tool_dirs(tmp_path: Path) 
         patch("vibetrace.indexer.lsp_bridge.Path.home", return_value=fake_home),
         patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which),
     ):
-        assert _resolve_lsp_binary("csharp-ls") == str(csharp_bin)
-        assert get_lsp_command_for_language("csharp") == [str(csharp_bin)]
-        assert _resolve_lsp_binary("ruby-lsp") == str(ruby_lsp_bin)
-        assert get_lsp_command_for_language("ruby") == [str(ruby_lsp_bin)]
+        assert _resolve_lsp_binary("csharp-ls", project_root=proj) == str(csharp_bin)
+        assert get_lsp_command_for_language("csharp", project_root=proj) == [str(csharp_bin)]
+        assert _resolve_lsp_binary("ruby-lsp", project_root=proj) == str(ruby_lsp_bin)
+        assert get_lsp_command_for_language("ruby", project_root=proj) == [str(ruby_lsp_bin)]
 
 
 def test_tools_manager_install_lsp_secondary_ecosystems(tmp_path: Path) -> None:
-    """Verify ToolsManager installs csharp-ls/ruby-lsp and emits clear hints for clangd/jdtls."""
+    """Verify project-local pinned csharp-ls/ruby-lsp installs and global hints."""
     cs_rb = tmp_path / "cs_rb"
     cs_rb.mkdir()
     (cs_rb / "Demo.csproj").write_text("<Project />", encoding="utf-8")
@@ -505,11 +518,34 @@ def test_tools_manager_install_lsp_secondary_ecosystems(tmp_path: Path) -> None:
     ):
         ok, msg = ToolsManager.install("lsp", cs_rb)
 
+    local_bin = str(cs_rb / ".vibetrace" / "bin")
+    ruby_dir = str(cs_rb / ".vibetrace" / "tools" / "ruby")
     assert ok is True
-    assert "csharp-ls (C#)" in msg
-    assert "ruby-lsp (Ruby)" in msg
-    assert ["/usr/bin/dotnet", "tool", "install", "-g", "csharp-ls"] in calls
-    assert ["/usr/bin/gem", "install", "--no-document", "ruby-lsp"] in calls
+    assert "csharp-ls@0.16.0" in msg
+    assert "ruby-lsp@0.26.11" in msg
+    assert [
+        "/usr/bin/dotnet",
+        "tool",
+        "install",
+        "csharp-ls",
+        "--version",
+        "0.16.0",
+        "--tool-path",
+        local_bin,
+    ] in calls
+    assert [
+        "/usr/bin/gem",
+        "install",
+        "--no-document",
+        "--install-dir",
+        ruby_dir,
+        "--bindir",
+        local_bin,
+        "ruby-lsp",
+        "-v",
+        "0.26.11",
+    ] in calls
+    assert all("-g" not in cmd for cmd in calls)
 
     cpp_only = tmp_path / "cpp_only"
     cpp_only.mkdir()
@@ -522,3 +558,112 @@ def test_tools_manager_install_lsp_secondary_ecosystems(tmp_path: Path) -> None:
 
     assert ok_cpp is False
     assert "clangd" in msg_cpp
+
+
+def test_resolve_lsp_binary_hybrid_local_and_global_modes(tmp_path: Path) -> None:
+    """Verify local mode uses .vibetrace/bin while global mode supports PATH or explicit path."""
+    proj = tmp_path / "hybrid"
+    proj.mkdir()
+    local_bin = proj / ".vibetrace" / "bin"
+    local_bin.mkdir(parents=True)
+    bin_name = "basedpyright-langserver.exe" if os.name == "nt" else "basedpyright-langserver"
+    local_exe = local_bin / bin_name
+    local_exe.write_text("", encoding="utf-8")
+
+    global_exe = tmp_path / "global_tools" / bin_name
+    global_exe.parent.mkdir(parents=True)
+    global_exe.write_text("", encoding="utf-8")
+
+    custom_exe = tmp_path / "custom" / "my-pyright.exe"
+    custom_exe.parent.mkdir(parents=True)
+    custom_exe.write_text("", encoding="utf-8")
+
+    def fake_which(name: str) -> str | None:
+        if name == "basedpyright-langserver":
+            return str(global_exe)
+        if name == "gopls":
+            return str(tmp_path / "global_tools" / ("gopls.exe" if os.name == "nt" else "gopls"))
+        return None
+
+    # 1. Default mode="local": finds .vibetrace/bin binary, ignores PATH-only binary
+    with patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which):
+        assert _resolve_lsp_binary("basedpyright-langserver", project_root=proj) == str(local_exe)
+        assert _resolve_lsp_binary("gopls", project_root=proj, language="go") is None
+
+    # 2. Explicit mode="global" + path="" resolves via PATH
+    (proj / ".vibetrace.toml").write_text(
+        '[lsp.servers.python]\nmode = "global"\npath = ""\n\n'
+        '[lsp.servers.go]\nmode = "global"\npath = ""\n',
+        encoding="utf-8",
+    )
+    with patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which):
+        assert _resolve_lsp_binary("basedpyright-langserver", project_root=proj) == str(global_exe)
+        assert _resolve_lsp_binary("gopls", project_root=proj, language="go") is not None
+
+    # 3. Explicit mode="global" + explicit path resolves strictly that binary
+    (proj / ".vibetrace.toml").write_text(
+        f'[lsp.servers.python]\nmode = "global"\npath = "{custom_exe.as_posix()}"\n',
+        encoding="utf-8",
+    )
+    with patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which):
+        assert _resolve_lsp_binary("basedpyright-langserver", project_root=proj) == str(custom_exe)
+
+    # 4. Explicit mode="global" + missing custom path returns None (does not silently fall back)
+    missing_path = (tmp_path / "missing" / "pyright").as_posix()
+    (proj / ".vibetrace.toml").write_text(
+        f'[lsp.servers.python]\nmode = "global"\npath = "{missing_path}"\n',
+        encoding="utf-8",
+    )
+    with patch("vibetrace.indexer.lsp_bridge.shutil.which", side_effect=fake_which):
+        assert _resolve_lsp_binary("basedpyright-langserver", project_root=proj) is None
+
+
+def test_tools_manager_install_lsp_primary_ecosystems_local_pinned(tmp_path: Path) -> None:
+    """Verify Python/TS/Go/PHP LSP installs are project-local and version-pinned."""
+    proj = tmp_path / "poly"
+    proj.mkdir()
+    (proj / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (proj / "app.ts").write_text("export const x = 1;\n", encoding="utf-8")
+    (proj / "main.go").write_text("package main\n", encoding="utf-8")
+    (proj / "index.php").write_text("<?php\n", encoding="utf-8")
+
+    recorded: list[tuple[list[str], dict[str, str] | None]] = []
+
+    def fake_run(cmd: list[str], env: dict[str, str] | None = None, **_kwargs: object) -> MagicMock:
+        recorded.append((cmd, env))
+        return MagicMock(returncode=0)
+
+    def fake_which(name: str) -> str | None:
+        if name in ("uv", "npm", "go"):
+            return f"/usr/bin/{name}"
+        return None
+
+    with (
+        patch("vibetrace.indexer.lsp_bridge._resolve_lsp_binary", return_value=None),
+        patch("vibetrace.tools_manager.shutil.which", side_effect=fake_which),
+        patch("vibetrace.tools_manager.subprocess.run", side_effect=fake_run),
+    ):
+        ok, _msg = ToolsManager.install("lsp", proj)
+
+    assert ok is True
+    cmds = [c for c, _ in recorded]
+    assert all("-g" not in c for c in cmds)
+
+    uv_calls = [(c, e) for c, e in recorded if c[0] == "/usr/bin/uv"]
+    assert len(uv_calls) == 1
+    assert uv_calls[0][0] == ["/usr/bin/uv", "tool", "install", "basedpyright==1.40.2"]
+    assert uv_calls[0][1] is not None
+    assert uv_calls[0][1]["UV_TOOL_BIN_DIR"] == str(proj / ".vibetrace" / "bin")
+
+    npm_cmds = [c for c, _ in recorded if c[0] == "/usr/bin/npm"]
+    assert any(
+        "typescript-language-server@6.1.0" in c and "typescript@7.0.2" in c for c in npm_cmds
+    )
+    assert any("intelephense@1.18.5" in c for c in npm_cmds)
+    assert any(str(proj / ".vibetrace" / "tools" / "node") in c for c in npm_cmds)
+
+    go_calls = [(c, e) for c, e in recorded if c[0] == "/usr/bin/go"]
+    assert len(go_calls) == 1
+    assert go_calls[0][0] == ["/usr/bin/go", "install", "golang.org/x/tools/gopls@v0.24.0"]
+    assert go_calls[0][1] is not None
+    assert go_calls[0][1]["GOBIN"] == str(proj / ".vibetrace" / "bin")

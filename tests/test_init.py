@@ -116,8 +116,9 @@ def test_cli_init_interactive_answers(tmp_path: Path, monkeypatch) -> None:
     import tomllib
     from unittest.mock import patch
 
-    # Answers: exclude_tests: 'n'; enable_embeddings: 'y'; device: 'gpu'; enable_sonar: 'y'
-    inputs = iter(["n", "y", "gpu", "y"])
+    # Answers: exclude_tests: 'n'; enable_embeddings: 'y'; device: 'gpu';
+    #          enable_sonar: 'y'; install_lsp: 'n'; lsp choice: '' (skip)
+    inputs = iter(["n", "y", "gpu", "y", "n", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     # Mock isatty to simulate terminal
@@ -158,3 +159,21 @@ def test_cli_init_default_automatic_on_tty(tmp_path: Path, monkeypatch) -> None:
     with (tmp_path / ".vibetrace.toml").open("rb") as f:
         data = tomllib.load(f)
     assert data["vectors"]["device"] == "gpu"
+    assert data["lsp"]["bin_dir"] == ".vibetrace/bin"
+
+
+def test_initialize_workspace_generates_detected_lsp_blocks(tmp_path: Path) -> None:
+    """Verify init emits local mode for Python and global mode for system toolchain Rust."""
+    import tomllib
+
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "Cargo.toml").write_text(
+        '[package]\nname = "demo"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
+
+    initialize_workspace(tmp_path, no_index=True)
+    with (tmp_path / ".vibetrace.toml").open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["lsp"]["servers"]["python"]["mode"] == "local"
+    assert data["lsp"]["servers"]["rust"]["mode"] == "global"

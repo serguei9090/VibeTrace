@@ -30,6 +30,10 @@ def test_production_python_ast_vs_lsp_100pct(tmp_path: Path) -> None:
 
     proj = tmp_path / "py_workspace"
     proj.mkdir(parents=True)
+    (proj / ".vibetrace.toml").write_text(
+        '[lsp.servers.python]\nmode = "global"\npath = ""\n',
+        encoding="utf-8",
+    )
 
     # 1. Two different gateways with the EXACT same method signature: process_payment
     (proj / "gateways").mkdir(parents=True)
@@ -136,6 +140,10 @@ def test_production_typescript_ast_vs_lsp_100pct(tmp_path: Path) -> None:
 
     proj = tmp_path / "ts_workspace"
     proj.mkdir(parents=True)
+    (proj / ".vibetrace.toml").write_text(
+        '[lsp.servers.typescript]\nmode = "global"\npath = ""\n',
+        encoding="utf-8",
+    )
 
     # 1. Config tsconfig.json
     (proj / "tsconfig.json").write_text(

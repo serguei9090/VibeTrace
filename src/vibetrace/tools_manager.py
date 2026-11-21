@@ -16,6 +16,41 @@ from pathlib import Path
 
 PHPSTAN_PHAR_URL = "https://github.com/phpstan/phpstan/releases/latest/download/phpstan.phar"
 
+PINNED_LSP_VERSIONS: dict[str, str] = {
+    "basedpyright": "1.40.2",
+    "pyright": "1.1.400",
+    "typescript-language-server": "6.1.0",
+    "typescript": "7.0.2",
+    "gopls": "v0.24.0",
+    "intelephense": "1.18.5",
+    "csharp-ls": "0.16.0",
+    "ruby-lsp": "0.26.11",
+    "solargraph": "0.62.2",
+}
+
+
+def _install_local_npm_packages(
+    node_dir: Path,
+    packages: list[str],
+    which_bun: str | None,
+    which_npm: str | None,
+) -> bool:
+    """Install version-pinned npm LSP packages strictly under `<project>/.vibetrace/tools/node`."""
+    pm = which_bun or which_npm
+    if not pm:
+        return False
+    node_dir.mkdir(parents=True, exist_ok=True)
+    pkg_json = node_dir / "package.json"
+    if not pkg_json.exists():
+        pkg_json.write_text('{"name":"vibetrace-local-lsp","private":true}\n', encoding="utf-8")
+    cmd = (
+        [pm, "add", "--cwd", str(node_dir), *packages]
+        if which_bun
+        else [pm, "install", "--prefix", str(node_dir), "--no-save", *packages]
+    )
+    res = subprocess.run(cmd, check=False)
+    return res.returncode == 0
+
 
 @dataclass
 class ToolStatus:
@@ -499,224 +534,291 @@ class ToolsManager:
 
         if lang in ("lsp", "install-lsp", "lsp-server"):
             from vibetrace.indexer.lsp_bridge import _resolve_lsp_binary
-            from vibetrace.skill_installer import detect_project_ecosystems
+            from vibetrace.skill_installer import detect_project_languages
 
-            ecosystems = detect_project_ecosystems(root)
-            has_py = (
-                any("Python" in e for e in ecosystems)
-                or any(root.glob("*.py"))
-                or any(root.glob("*/*.py"))
-            )
-            has_ts = (
-                any("JavaScript/TypeScript" in e for e in ecosystems)
-                or any(root.glob("*.ts"))
-                or any(root.glob("*.tsx"))
-                or any(root.glob("*/*.ts"))
-            )
-            has_go = (
-                any("Go" in e for e in ecosystems)
-                or any(root.glob("*.go"))
-                or any(root.glob("*/*.go"))
-            )
-            has_rs = any("Rust" in e for e in ecosystems) or any(root.glob("*.rs"))
-            has_php = any(root.glob("*.php")) or (root / "composer.json").exists()
-            has_c_cpp = (
-                any(root.glob("*.c"))
-                or any(root.glob("*.cpp"))
-                or any(root.glob("*.cc"))
-                or any(root.glob("*/*.c"))
-                or any(root.glob("*/*.cpp"))
-                or any(root.glob("*/*.cc"))
-                or (root / "CMakeLists.txt").exists()
-                or (root / "compile_commands.json").exists()
-            )
-            has_cs = (
-                any(root.glob("*.cs"))
-                or any(root.glob("*.sln"))
-                or any(root.glob("*.csproj"))
-                or any(root.glob("*/*.cs"))
-                or any(root.glob("*/*.csproj"))
-                or any(root.glob("src/*/*.csproj"))
-            )
-            has_rb = (
-                any(root.glob("*.rb"))
-                or any(root.glob("*/*.rb"))
-                or (root / "Gemfile").exists()
-                or any(root.glob("*.gemspec"))
-            )
-            has_java = (
-                any(root.glob("*.java"))
-                or any(root.glob("*/*.java"))
-                or (root / "pom.xml").exists()
-                or (root / "build.gradle").exists()
-                or (root / "build.gradle.kts").exists()
-            )
+            detected_langs = detect_project_languages(root)
+            has_py = "python" in detected_langs
+            has_ts = "typescript" in detected_langs
+            has_go = "go" in detected_langs
+            has_rs = "rust" in detected_langs
+            has_php = "php" in detected_langs
+            has_c_cpp = "c" in detected_langs or "cpp" in detected_langs
+            has_cs = "csharp" in detected_langs
+            has_rb = "ruby" in detected_langs
+            has_java = "java" in detected_langs
 
+            local_bin = root / ".vibetrace" / "bin"
+            local_tools = root / ".vibetrace" / "tools"
             results: list[str] = []
             hints: list[str] = []
             which_uv = shutil.which("uv")
             which_npm = shutil.which("npm")
             which_bun = shutil.which("bun")
 
-            # Python LSP (basedpyright or pyright)
+            # Python LSP (basedpyright or pyright) -> <root>/.vibetrace/bin
             if has_py or not any(
                 (has_ts, has_go, has_rs, has_php, has_c_cpp, has_cs, has_rb, has_java)
             ):
                 if which_uv:
-                    res = subprocess.run([which_uv, "tool", "install", "basedpyright"], check=False)
+                    local_bin.mkdir(parents=True, exist_ok=True)
+                    uv_tools = local_tools / "uv"
+                    uv_tools.mkdir(parents=True, exist_ok=True)
+                    uv_env = os.environ.copy()
+                    uv_env["UV_TOOL_DIR"] = str(uv_tools)
+                    uv_env["UV_TOOL_BIN_DIR"] = str(local_bin)
+                    res = subprocess.run(
+                        [
+                            which_uv,
+                            "tool",
+                            "install",
+                            f"basedpyright=={PINNED_LSP_VERSIONS['basedpyright']}",
+                        ],
+                        env=uv_env,
+                        check=False,
+                    )
                     if res.returncode == 0:
-                        results.append("basedpyright (Python)")
+                        results.append(
+                            f"basedpyright@{PINNED_LSP_VERSIONS['basedpyright']} "
+                            f"(Python -> {local_bin})"
+                        )
                     else:
-                        res2 = subprocess.run([which_uv, "tool", "install", "pyright"], check=False)
+                        res2 = subprocess.run(
+                            [
+                                which_uv,
+                                "tool",
+                                "install",
+                                f"pyright=={PINNED_LSP_VERSIONS['pyright']}",
+                            ],
+                            env=uv_env,
+                            check=False,
+                        )
                         if res2.returncode == 0:
-                            results.append("pyright (Python)")
+                            results.append(
+                                f"pyright@{PINNED_LSP_VERSIONS['pyright']} (Python -> {local_bin})"
+                            )
                 else:
                     print(
                         "⚠️  Python project detected, but 'uv' is not on PATH — skipping "
                         "basedpyright/pyright install."
                     )
 
-            # TypeScript LSP (typescript-language-server)
+            # TypeScript LSP (typescript-language-server) -> <root>/.vibetrace/tools/node
             if has_ts:
-                pm = which_bun or which_npm
-                if pm:
-                    cmd_install = (
-                        [pm, "add", "-g", "typescript-language-server", "typescript"]
-                        if which_bun
-                        else [pm, "install", "-g", "typescript-language-server", "typescript"]
-                    )
-                    res = subprocess.run(cmd_install, check=False)
-                    if res.returncode == 0:
-                        results.append("typescript-language-server (TypeScript/JS)")
+                node_dir = local_tools / "node"
+                if which_bun or which_npm:
+                    if _install_local_npm_packages(
+                        node_dir,
+                        [
+                            f"typescript-language-server@{PINNED_LSP_VERSIONS['typescript-language-server']}",
+                            f"typescript@{PINNED_LSP_VERSIONS['typescript']}",
+                        ],
+                        which_bun,
+                        which_npm,
+                    ):
+                        results.append(
+                            "typescript-language-server@"
+                            f"{PINNED_LSP_VERSIONS['typescript-language-server']} "
+                            f"(TypeScript/JS -> {node_dir})"
+                        )
                 else:
                     print(
                         "⚠️  TypeScript/JS project detected, but neither 'bun' nor 'npm' is on "
                         "PATH — skipping typescript-language-server install."
                     )
 
-            # Go LSP (gopls) — install locally into <project>/.vibetrace/bin
+            # Go LSP (gopls) — install locally into <root>/.vibetrace/bin
             if has_go:
                 which_go = shutil.which("go")
                 if which_go:
-                    local_bin = root / ".vibetrace" / "bin"
                     local_bin.mkdir(parents=True, exist_ok=True)
                     env = os.environ.copy()
                     env["GOBIN"] = str(local_bin)
                     res = subprocess.run(
-                        [which_go, "install", "golang.org/x/tools/gopls@latest"],
+                        [
+                            which_go,
+                            "install",
+                            f"golang.org/x/tools/gopls@{PINNED_LSP_VERSIONS['gopls']}",
+                        ],
                         env=env,
                         check=False,
                     )
                     if res.returncode == 0:
-                        results.append(f"gopls (Go -> {local_bin})")
+                        results.append(f"gopls@{PINNED_LSP_VERSIONS['gopls']} (Go -> {local_bin})")
                 else:
                     print(
                         "⚠️  Go project detected, but 'go' is not on PATH — skipping gopls "
                         "install. Ensure 'go' is on PATH and run 'vibetrace tools install-lsp'."
                     )
 
-            # Rust LSP (rust-analyzer)
+            # Rust LSP (rust-analyzer — system rustup component; configure mode = "global")
             if has_rs:
-                which_rustup = shutil.which("rustup")
-                if which_rustup:
-                    res = subprocess.run(
-                        [which_rustup, "component", "add", "rust-analyzer"], check=False
-                    )
-                    if res.returncode == 0:
-                        results.append("rust-analyzer (Rust)")
+                if _resolve_lsp_binary("rust-analyzer", root, language="rust"):
+                    results.append("rust-analyzer (Rust)")
                 else:
-                    print(
-                        "⚠️  Rust project detected, but 'rustup' is not on PATH — skipping "
-                        "rust-analyzer install."
-                    )
+                    which_rustup = shutil.which("rustup")
+                    if which_rustup:
+                        res = subprocess.run(
+                            [which_rustup, "component", "add", "rust-analyzer"], check=False
+                        )
+                        if res.returncode == 0:
+                            results.append(
+                                'rust-analyzer (Rust; set [lsp.servers.rust] mode = "global")'
+                            )
+                    else:
+                        msg = (
+                            "Rust project detected: run 'rustup component add rust-analyzer' "
+                            'and set [lsp.servers.rust] mode = "global" in .vibetrace.toml.'
+                        )
+                        print(f"⚠️  {msg}")
+                        hints.append(msg)
 
-            # PHP LSP (intelephense)
+            # PHP LSP (intelephense) -> <root>/.vibetrace/tools/node
             if has_php:
-                pm = which_bun or which_npm
-                if pm:
-                    cmd_install = (
-                        [pm, "add", "-g", "intelephense"]
-                        if which_bun
-                        else [pm, "install", "-g", "intelephense"]
-                    )
-                    res = subprocess.run(cmd_install, check=False)
-                    if res.returncode == 0:
-                        results.append("intelephense (PHP)")
+                node_dir = local_tools / "node"
+                if which_bun or which_npm:
+                    if _install_local_npm_packages(
+                        node_dir,
+                        [f"intelephense@{PINNED_LSP_VERSIONS['intelephense']}"],
+                        which_bun,
+                        which_npm,
+                    ):
+                        results.append(
+                            f"intelephense@{PINNED_LSP_VERSIONS['intelephense']} "
+                            f"(PHP -> {node_dir})"
+                        )
 
-            # C# LSP (csharp-ls)
+            # C# LSP (csharp-ls@0.16.0) -> <root>/.vibetrace/bin via --tool-path
             if has_cs:
-                if _resolve_lsp_binary("csharp-ls", root) or _resolve_lsp_binary("OmniSharp", root):
+                if _resolve_lsp_binary("csharp-ls", root, language="csharp") or _resolve_lsp_binary(
+                    "OmniSharp", root, language="csharp"
+                ):
                     results.append("csharp-ls (C#)")
                 else:
                     which_dotnet = shutil.which("dotnet")
                     if which_dotnet:
+                        local_bin.mkdir(parents=True, exist_ok=True)
+                        cs_ver = PINNED_LSP_VERSIONS["csharp-ls"]
                         res = subprocess.run(
-                            [which_dotnet, "tool", "install", "-g", "csharp-ls"],
+                            [
+                                which_dotnet,
+                                "tool",
+                                "install",
+                                "csharp-ls",
+                                "--version",
+                                cs_ver,
+                                "--tool-path",
+                                str(local_bin),
+                            ],
                             check=False,
                         )
                         if res.returncode != 0:
                             res = subprocess.run(
-                                [which_dotnet, "tool", "update", "-g", "csharp-ls"],
+                                [
+                                    which_dotnet,
+                                    "tool",
+                                    "update",
+                                    "csharp-ls",
+                                    "--version",
+                                    cs_ver,
+                                    "--tool-path",
+                                    str(local_bin),
+                                ],
                                 check=False,
                             )
                         if res.returncode == 0:
-                            results.append("csharp-ls (C#)")
+                            results.append(f"csharp-ls@{cs_ver} (C# -> {local_bin})")
                     else:
+                        cs_ver = PINNED_LSP_VERSIONS["csharp-ls"]
                         msg = (
                             "C#/.NET project detected: install .NET SDK and run "
-                            "'dotnet tool install -g csharp-ls'."
+                            f"'dotnet tool install csharp-ls --version {cs_ver} "
+                            f"--tool-path {local_bin}'."
                         )
                         print(f"⚠️  {msg}")
                         hints.append(msg)
 
-            # Ruby LSP (ruby-lsp, with solargraph fallback for older Ruby)
+            # Ruby LSP (ruby-lsp / solargraph) -> <root>/.vibetrace/tools/ruby + .vibetrace/bin
             if has_rb:
-                if _resolve_lsp_binary("ruby-lsp", root):
+                if _resolve_lsp_binary("ruby-lsp", root, language="ruby"):
                     results.append("ruby-lsp (Ruby)")
-                elif _resolve_lsp_binary("solargraph", root):
+                elif _resolve_lsp_binary("solargraph", root, language="ruby"):
                     results.append("solargraph (Ruby)")
                 else:
                     which_gem = shutil.which("gem")
                     if which_gem:
+                        local_bin.mkdir(parents=True, exist_ok=True)
+                        ruby_dir = local_tools / "ruby"
+                        ruby_dir.mkdir(parents=True, exist_ok=True)
+                        rb_ver = PINNED_LSP_VERSIONS["ruby-lsp"]
+                        sg_ver = PINNED_LSP_VERSIONS["solargraph"]
                         res = subprocess.run(
-                            [which_gem, "install", "--no-document", "ruby-lsp"],
+                            [
+                                which_gem,
+                                "install",
+                                "--no-document",
+                                "--install-dir",
+                                str(ruby_dir),
+                                "--bindir",
+                                str(local_bin),
+                                "ruby-lsp",
+                                "-v",
+                                rb_ver,
+                            ],
                             check=False,
                         )
                         if res.returncode == 0:
-                            results.append("ruby-lsp (Ruby)")
+                            results.append(f"ruby-lsp@{rb_ver} (Ruby -> {local_bin})")
                         else:
                             res2 = subprocess.run(
-                                [which_gem, "install", "--no-document", "solargraph"],
+                                [
+                                    which_gem,
+                                    "install",
+                                    "--no-document",
+                                    "--install-dir",
+                                    str(ruby_dir),
+                                    "--bindir",
+                                    str(local_bin),
+                                    "solargraph",
+                                    "-v",
+                                    sg_ver,
+                                ],
                                 check=False,
                             )
                             if res2.returncode == 0:
-                                results.append("solargraph (Ruby)")
+                                results.append(f"solargraph@{sg_ver} (Ruby -> {local_bin})")
                     else:
-                        msg = "Ruby project detected: run 'gem install ruby-lsp' (or 'solargraph')."
+                        rb_ver = PINNED_LSP_VERSIONS["ruby-lsp"]
+                        msg = (
+                            "Ruby project detected: run 'gem install --install-dir "
+                            ".vibetrace/tools/ruby --bindir .vibetrace/bin ruby-lsp "
+                            f"-v {rb_ver}'."
+                        )
                         print(f"⚠️  {msg}")
                         hints.append(msg)
 
-            # C/C++ LSP (clangd — OS/LLVM toolchain package)
+            # C/C++ LSP (clangd — system/LLVM toolchain; configure mode = "global")
             if has_c_cpp:
-                if _resolve_lsp_binary("clangd", root):
+                if _resolve_lsp_binary("clangd", root, language="c"):
                     results.append("clangd (C/C++)")
                 else:
                     msg = (
                         "C/C++ project detected: install 'clangd' "
                         "(Windows: 'winget install LLVM.LLVM', macOS: 'brew install llvm', "
-                        "Linux: 'apt install clangd') and ensure compile_commands.json exists."
+                        "Linux: 'apt install clangd'), ensure compile_commands.json exists, "
+                        'and set [lsp.servers.c]/[lsp.servers.cpp] mode = "global".'
                     )
                     print(f"⚠️  {msg}")
                     hints.append(msg)
 
-            # Java LSP (jdtls — Eclipse JDT.LS)
+            # Java LSP (jdtls — Eclipse JDT.LS system toolchain; configure mode = "global")
             if has_java:
-                if _resolve_lsp_binary("jdtls", root):
+                if _resolve_lsp_binary("jdtls", root, language="java"):
                     results.append("jdtls (Java)")
                 else:
                     msg = (
                         "Java project detected: install Eclipse 'jdtls' "
-                        "(macOS: 'brew install jdtls', Windows: 'scoop install jdtls')."
+                        "(macOS: 'brew install jdtls', Windows: 'scoop install jdtls') "
+                        'and configure [lsp.servers.java] mode = "global" in .vibetrace.toml.'
                     )
                     print(f"⚠️  {msg}")
                     hints.append(msg)
@@ -727,8 +829,8 @@ class ToolsManager:
                 "; ".join(hints)
                 if hints
                 else (
-                    "Run 'uv tool install pyright', 'npm i -g typescript-language-server', "
-                    "'dotnet tool install -g csharp-ls', or 'gem install ruby-lsp'."
+                    "Run 'vibetrace tools install-lsp' or configure [lsp.servers.<lang>] "
+                    'mode = "global" in .vibetrace.toml.'
                 )
             )
             return False, f"Could not automatically install LSP. {hint}"

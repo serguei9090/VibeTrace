@@ -46,6 +46,88 @@ def detect_project_ecosystems(project_root: Path) -> list[str]:
     return ecosystems
 
 
+def detect_project_languages(project_root: Path) -> list[str]:
+    """Detect canonical LSP language keys present in a repository (root + shallow probes)."""
+    root = project_root.resolve()
+    ecosystems = detect_project_ecosystems(root)
+    langs: list[str] = []
+
+    checks = (
+        (
+            "python",
+            any("Python" in e for e in ecosystems)
+            or any(root.glob("*.py"))
+            or any(root.glob("*/*.py")),
+        ),
+        (
+            "typescript",
+            any("JavaScript/TypeScript" in e for e in ecosystems)
+            or (root / "tsconfig.json").exists()
+            or any(root.glob("*.ts"))
+            or any(root.glob("*.tsx"))
+            or any(root.glob("*.js"))
+            or any(root.glob("*.jsx"))
+            or any(root.glob("*/*.ts")),
+        ),
+        (
+            "go",
+            any("Go" in e for e in ecosystems)
+            or any(root.glob("*.go"))
+            or any(root.glob("*/*.go")),
+        ),
+        (
+            "rust",
+            any("Rust" in e for e in ecosystems)
+            or any(root.glob("*.rs"))
+            or any(root.glob("src/*.rs")),
+        ),
+        (
+            "php",
+            any(root.glob("*.php"))
+            or any(root.glob("*/*.php"))
+            or (root / "composer.json").exists(),
+        ),
+        ("c", any(root.glob("*.c")) or any(root.glob("*/*.c"))),
+        (
+            "cpp",
+            any(root.glob("*.cpp"))
+            or any(root.glob("*.cc"))
+            or any(root.glob("*/*.cpp"))
+            or any(root.glob("*/*.cc"))
+            or (root / "CMakeLists.txt").exists()
+            or (root / "compile_commands.json").exists(),
+        ),
+        (
+            "csharp",
+            any(root.glob("*.cs"))
+            or any(root.glob("*.sln"))
+            or any(root.glob("*.csproj"))
+            or any(root.glob("*/*.cs"))
+            or any(root.glob("*/*.csproj"))
+            or any(root.glob("src/*/*.csproj")),
+        ),
+        (
+            "ruby",
+            any(root.glob("*.rb"))
+            or any(root.glob("*/*.rb"))
+            or (root / "Gemfile").exists()
+            or any(root.glob("*.gemspec")),
+        ),
+        (
+            "java",
+            any(root.glob("*.java"))
+            or any(root.glob("*/*.java"))
+            or (root / "pom.xml").exists()
+            or (root / "build.gradle").exists()
+            or (root / "build.gradle.kts").exists(),
+        ),
+    )
+    for lang, matched in checks:
+        if matched:
+            langs.append(lang)
+    return langs
+
+
 VIBETRACE_IGNORE_PATTERNS = [
     "vibetrace.db",
     "vibetrace.db-wal",
@@ -239,6 +321,7 @@ def initialize_workspace(
     # 3. Create root .vibetrace.toml configuration file
     from vibetrace.config import save_default_config
 
+    detected_languages = detect_project_languages(root)
     config_path = save_default_config(
         root,
         project_name=root.name,
@@ -248,6 +331,7 @@ def initialize_workspace(
         enable_sonar=enable_sonar,
         enable_semgrep=enable_semgrep,
         enable_trivy=enable_trivy,
+        detected_languages=detected_languages,
     )
 
     # 4. Create .vibetrace local directory if needed
