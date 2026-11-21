@@ -281,6 +281,7 @@ def test_incremental_doc_index_backfills_missing_embeddings(doc_workspace):
     """Incremental index_catalog automatically backfills NULL embeddings without force=True."""
     proj_root = doc_workspace["proj_root"]
     docs_dir = doc_workspace["docs_dir"]
+    (proj_root / ".vibetrace.toml").write_text('[vectors]\ndevice = "cpu"\n', encoding="utf-8")
     doc_db = DocDB(proj_root / ".vibetrace" / "vibetrace.db")
 
     # Initial index populates chunks + embeddings

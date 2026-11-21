@@ -217,6 +217,7 @@ CLI_ONLY_COMMANDS: set[str] = {
 
 REST_ONLY_ROUTES: set[str] = {
     # Map Room Web UI & WebSocket routes
+    "GET /",
     "GET /api/graph",
     "GET /api/node/{node_id}/neighbors",
     "GET /api/reachable",

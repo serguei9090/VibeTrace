@@ -222,8 +222,8 @@ def test_rust_native_parallel_embeddings(tmp_path: Path):
     from vibetrace.indexer.embeddings import cosine_similarity
 
     db = _populate_sample_db(tmp_path)
-    config = EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=128)
-    engine = EmbeddingEngine(config=config)
+    config = EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=128, device="cpu")
+    engine = EmbeddingEngine(config=config, device="cpu")
 
     assert engine.is_available() is True
     v1 = engine.embed_texts(["AuthService.authenticate_jwt", "DatabasePool.connect_pool"])
@@ -281,7 +281,8 @@ def test_embeddinggemma2_zero_overlap_paraphrase(tmp_path: Path):
     ):
         db.upsert_node(node)
     engine = EmbeddingEngine(
-        config=EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=256)
+        config=EmbeddingConfig(model_id="google/embeddinggemma-2", dimensions=256, device="cpu"),
+        device="cpu",
     )
     assert engine.index_missing_embeddings(db) == 3
 

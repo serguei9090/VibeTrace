@@ -69,8 +69,8 @@ def test_codespace_fastapi_endpoints_extracted(indexed_codespace_db):
     endpoint_names = [ep["name"] for ep in endpoints]
     # Check core API routes
     assert any("GET /api/search" in name for name in endpoint_names), "Missing /api/search"
-    assert any("GET /graph" in name for name in endpoint_names), "Missing /graph"
-    assert any("GET /trace" in name for name in endpoint_names), "Missing /trace"
+    assert any("GET /api/graph" in name for name in endpoint_names), "Missing /api/graph"
+    assert any("GET /api/trace" in name for name in endpoint_names), "Missing /api/trace"
     assert any("POST /api/agent-focus" in name for name in endpoint_names), (
         "Missing /api/agent-focus"
     )
@@ -112,9 +112,9 @@ def test_codespace_recursive_cte_pathfinding(indexed_codespace_db):
 
 
 def test_codespace_bidirectional_trace(indexed_codespace_db):
-    """Trace execution path between real endpoint GET /trace and IndexerDB."""
+    """Trace execution path between real endpoint GET /api/trace and IndexerDB."""
     db, _ = indexed_codespace_db
-    trace = trace_execution_path(db, "GET /trace", "trace_execution_path", max_depth=4)
+    trace = trace_execution_path(db, "GET /api/trace", "trace_execution_path", max_depth=4)
     assert trace.found is True
     assert len(trace.hops) >= 1
     assert trace.hops[0].relation_type in ("routes", "calls")

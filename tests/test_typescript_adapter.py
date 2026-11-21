@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,10 +11,22 @@ from vibetrace.quality.adapters.typescript_tsc import TSC_TO_SONAR, TypeScriptAd
 from vibetrace.quality.models import QualityCategory, QualitySeverity
 
 
-def test_typescript_adapter_availability() -> None:
-    adapter = TypeScriptAdapter()
-    root = Path.cwd()
-    assert adapter.is_available(root) is True
+def test_typescript_adapter_availability(tmp_path: Path) -> None:
+    (tmp_path / "tsconfig.json").write_text('{"compilerOptions": {}}\n', encoding="utf-8")
+    bin_dir = tmp_path / "node_modules" / ".bin"
+    bin_dir.mkdir(parents=True)
+    tsc_bin = bin_dir / ("tsc.cmd" if os.name == "nt" else "tsc")
+    tsc_bin.write_text("", encoding="utf-8")
+
+    with patch(
+        "vibetrace.quality.adapters.typescript_tsc.subprocess.run",
+        return_value=subprocess.CompletedProcess(args=["tsc", "--version"], returncode=0),
+    ):
+        assert TypeScriptAdapter().is_available(tmp_path) is True
+
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    assert TypeScriptAdapter().is_available(empty_dir) is False
 
 
 def test_tsc_maps_deprecated_and_type_rules() -> None:
