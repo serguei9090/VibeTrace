@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.27] - 2026-11-21
+
+### Added
+- **Project-Local Pinned LSPs & TypeScript 7 Native Go LSP**: Added `vibetrace tools install-lsp` local provisioning (`.vibetrace/bin`, `.vibetrace/tools`), hybrid `[lsp.servers.<lang>]` `local`/`global` overrides, C/C++/C#/Ruby/Java LSP support, and TypeScript 7 native Go `tsc@7.0.2 --lsp --stdio`.
+- **MCP & REST Parity Expansion**: Added `vibetrace_audit_quality`, `vibetrace_approve_quality_exception`, `vibetrace_dead_code`, `vibetrace_audit_pr_taint`, `vibetrace_add_doc_catalog`, `vibetrace_remove_doc_catalog`, `vibetrace_index_docs`, `GET /api/dead-code`, and argument parity (`--locale`, `--device`, `--sonar`, `--skip-semgrep`, `--skip-trivy`, `--image`).
+- **Parity & Native Test Gates**: Added automated CLI ↔ MCP ↔ REST parity contract gate (`tests/test_surface_parity.py`), dedicated federation tests (`tests/test_federation.py`), and expanded offline Rust unit tests in `crates/vibetrace-core` (`17` tests).
+
+### Changed
+- **Default Audit Scope & Explicit GPU Embeddings**: Changed `audit quality` and `audit security` defaults to Git-modified/untracked files (`--all` for whole repository); removed `"auto"` device mode and silent CPU fallback in favor of explicit `--device gpu|cpu` with active provider logging.
+- **Startup & Binary Size Optimizations**: Lazy-loaded CLI subcommand handlers (~11.8x faster cold startup) and pruned the unused Rust AST parser prototype and tree-sitter Cargo deps (`-14.8%` `_rust_core.pyd`).
+- **Documentation Sync**: Documented prebuilt `abi3-py310` PyPI wheels for Windows/Linux/macOS and labeled PostgreSQL federation backend as Beta.
+
+### Fixed
+- **Federation & API Diagnostics**: Wired `PostgresStorageBackend` into `ProjectWorkspace.engine`, fixed `FederatedSQLiteEngine.get_cross_repo_guard` (`edge_targets` join and excluding `defines` edges), and fixed `GET /api/security/audit` writing split reports to `domain="security"`.
+- **Indexer & LSP Stability**: Scoped C/C++ module node IDs by file path to prevent header/source collisions, made `install-lsp` idempotent, fixed `vibetrace init` Go LSP resolution, added actionable Ruby C-extension install guidance on Windows, and isolated split-audit API/MCP tests from `.vibetrace/splits.toml`.
+
+### Removed
+- **Deprecated Refactor Module & Legacy REST Aliases**: Removed the Python-only `refactor` module and CLI/MCP/REST endpoints, and removed legacy unprefixed REST aliases (`/graph`, `/trace`, `/call-tree`, `/call-stack`, `/source`) in favor of `/api/*`.
+
 ## [0.1.26] - 2026-11-17
 
 ### Fixed
