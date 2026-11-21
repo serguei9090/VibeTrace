@@ -446,10 +446,13 @@ def test_index_missing_embeddings_coalesces_lancedb_flushes(tmp_path: Path) -> N
     assert len(db.get_all_embeddings("mock-coalesce")) == 5
 
 
-def test_embedding_provider_logging_and_gpu_error(caplog) -> None:
+def test_embedding_provider_logging_and_gpu_error(caplog, monkeypatch) -> None:
     """Verify explicit GPU failure raises without silent CPU fallback and active provider logs."""
     import logging
     from unittest.mock import patch
+
+    monkeypatch.setattr(logging.getLogger("vibetrace"), "propagate", True)
+    monkeypatch.setattr(logging.getLogger("vibetrace.indexer.embeddings"), "propagate", True)
 
     gpu_err = (
         "GPU execution provider is not available (no DirectML device). "
