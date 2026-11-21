@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 
 from vibetrace.cli_audit import cmd_audit_splits
 from vibetrace.indexer.db import IndexerDB
+from vibetrace.indexer.main import index_file
 from vibetrace.mcp.schemas import ApproveSplitInput, AuditSplitsInput, ResponseFormat
 from vibetrace.mcp.server import vibetrace_approve_split, vibetrace_audit_splits
 from vibetrace.server_api import app
@@ -164,7 +165,17 @@ def test_split_audit_lifecycle(temp_project: Path):
     assert rep3.splits[0].status == "MODIFIED_CODE"
 
 
-def test_server_api_splits():
+def test_server_api_splits(temp_project: Path, monkeypatch: pytest.MonkeyPatch):
+    db_dir = temp_project / ".vibetrace"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(db_dir / "graph.db"))
+    index_file(
+        db, str(temp_project / "src" / "service.py"), project_root=temp_project, verbose=False
+    )
+
+    monkeypatch.setenv("VIBETRACE_PROJECT_ROOT", str(temp_project))
+    monkeypatch.setattr("vibetrace.server_api.db", db)
+    monkeypatch.setattr("vibetrace.server_api.project_root", temp_project)
     client = TestClient(app)
 
     # Test audit endpoint
@@ -188,6 +199,7 @@ def test_server_api_splits():
     post_res = client.post("/api/splits/approve", json=approve_payload)
     assert post_res.status_code == 200
     assert post_res.json()["status"] == "ok"
+    assert (temp_project / ".vibetrace" / "splits.toml").is_file()
 
 
 def test_cli_audit_splits_json(temp_project: Path):
@@ -205,9 +217,19 @@ def test_cli_audit_splits_json(temp_project: Path):
 
 
 @pytest.mark.asyncio
-async def test_mcp_splits_tools():
+async def test_mcp_splits_tools(temp_project: Path):
+    db_dir = temp_project / ".vibetrace"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db = IndexerDB(str(db_dir / "graph.db"))
+    index_file(
+        db, str(temp_project / "src" / "service.py"), project_root=temp_project, verbose=False
+    )
+
     # Test audit tool
-    audit_inp = AuditSplitsInput(scope_path=".", response_format=ResponseFormat.JSON)
+    audit_inp = AuditSplitsInput(
+        scope_path=str(temp_project),
+        response_format=ResponseFormat.JSON,
+    )
     audit_res = await vibetrace_audit_splits(audit_inp)
     assert "total_splits" in audit_res
 
@@ -217,11 +239,12 @@ async def test_mcp_splits_tools():
         code_hash="d" * 64,
         file_path="src/mcp_test.py",
         branches=["b1", "b2"],
-        scope_path=".",
+        scope_path=str(temp_project),
         response_format=ResponseFormat.JSON,
     )
     approve_res = await vibetrace_approve_split(approve_inp)
     assert "status" in approve_res
+    assert (temp_project / ".vibetrace" / "splits.toml").is_file()
 
 
 def test_split_audit_ignores_references_and_duplicate_calls_to_same_target(temp_project: Path):
