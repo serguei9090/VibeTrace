@@ -337,4 +337,152 @@ mod tests {
             .collect();
         assert_eq!(sub_paths, vec!["lib/app.rb"]);
     }
+
+    #[test]
+    fn test_is_supported_source_file_extensions() {
+        for supported in [
+            "app.py",
+            "App.PY",
+            "mod.tsx",
+            "header.HPP",
+            "Program.cs",
+            "lib.rb",
+            "index.php",
+            "main.rs",
+            "main.go",
+            "App.java",
+        ] {
+            assert!(
+                is_supported_source_file(supported),
+                "expected supported: {supported}"
+            );
+        }
+
+        for unsupported in [
+            "README.md",
+            "config.toml",
+            "data.json",
+            "Makefile",
+            "src/LICENSE",
+        ] {
+            assert!(
+                !is_supported_source_file(unsupported),
+                "expected unsupported: {unsupported}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_has_skipped_dir_component() {
+        assert!(has_skipped_dir_component("node_modules/pkg/a.js", false));
+        assert!(has_skipped_dir_component("src\\target\\out.rs", false));
+        assert!(has_skipped_dir_component(".venv/lib/x.py", false));
+        assert!(has_skipped_dir_component("dist/app.js", false));
+        assert!(has_skipped_dir_component(".hidden/a.py", false));
+        assert!(has_skipped_dir_component(".hidden", true));
+
+        assert!(!has_skipped_dir_component("src/app.py", false));
+        assert!(!has_skipped_dir_component(".env", false));
+        assert!(!has_skipped_dir_component("", false));
+        assert!(!has_skipped_dir_component("/", false));
+    }
+
+    #[test]
+    fn test_normalize_rel_path_inside_and_outside_root() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path();
+        let inside = root.join("src").join("mod.py");
+        assert_eq!(normalize_rel_path(&inside, root), "src/mod.py");
+
+        let outside = Path::new("C:\\elsewhere\\other.py");
+        assert_eq!(normalize_rel_path(outside, root), "C:/elsewhere/other.py");
+    }
+
+    #[test]
+    fn test_extra_excludes_glob_and_dir_patterns() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("vendor/lib")).unwrap();
+        fs::create_dir_all(root.join("nested/custom_out")).unwrap();
+
+        fs::write(root.join("src/keep.py"), b"def keep(): pass\n").unwrap();
+        fs::write(root.join("src/auto.generated.py"), b"x = 1\n").unwrap();
+        fs::write(root.join("vendor/lib/dep.py"), b"y = 2\n").unwrap();
+        fs::write(
+            root.join("nested/custom_out/a.ts"),
+            b"export const a = 1;\n",
+        )
+        .unwrap();
+
+        let excludes = vec![
+            "*.generated.py".to_string(),
+            "vendor".to_string(),
+            "/custom_out/".to_string(),
+            "# comment".to_string(),
+            "   ".to_string(),
+        ];
+        let res = scan_and_hash_workspace(root, root, &HashMap::new(), &excludes, false);
+
+        assert_eq!(res.total_seen, 1);
+        assert_eq!(res.dirty_files.len(), 1);
+        assert_eq!(res.dirty_files[0].rel_path, "src/keep.py");
+    }
+
+    #[test]
+    fn test_force_mode_marks_unchanged_files_dirty() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path();
+        fs::write(root.join("a.py"), b"def a(): return 1\n").unwrap();
+
+        let first = scan_and_hash_workspace(root, root, &HashMap::new(), &[], false);
+        assert_eq!(first.dirty_files.len(), 1);
+
+        let mut known = HashMap::new();
+        known.insert(
+            first.dirty_files[0].rel_path.clone(),
+            first.dirty_files[0].content_hash.clone(),
+        );
+
+        let forced = scan_and_hash_workspace(root, root, &known, &[], true);
+        assert_eq!(forced.dirty_files.len(), 1);
+        assert_eq!(forced.dirty_files[0].rel_path, "a.py");
+        assert!(forced.unchanged_files.is_empty());
+    }
+
+    #[test]
+    fn test_single_file_target_and_scoped_deleted_reconciliation() {
+        let tmp = TempDir::new().expect("tempdir");
+        let root = tmp.path();
+        fs::create_dir_all(root.join("pkg_a")).unwrap();
+        fs::create_dir_all(root.join("pkg_b")).unwrap();
+
+        let keep_file = root.join("pkg_a/keep.py");
+        let other_file = root.join("pkg_b/other.py");
+        let ignored_ext = root.join("notes.txt");
+        fs::write(&keep_file, b"def keep(): pass\n").unwrap();
+        fs::write(&other_file, b"def other(): pass\n").unwrap();
+        fs::write(&ignored_ext, b"plain text\n").unwrap();
+
+        let mut known = HashMap::new();
+        known.insert("pkg_b/other.py".to_string(), "deadbeef".to_string());
+
+        let single_py = scan_and_hash_workspace(&keep_file, root, &known, &[], false);
+        assert_eq!(single_py.total_seen, 1);
+        assert_eq!(single_py.dirty_files.len(), 1);
+        assert_eq!(single_py.dirty_files[0].rel_path, "pkg_a/keep.py");
+        assert!(single_py.deleted_files.is_empty());
+
+        let single_txt = scan_and_hash_workspace(&ignored_ext, root, &known, &[], false);
+        assert_eq!(single_txt.total_seen, 0);
+        assert!(single_txt.dirty_files.is_empty());
+
+        let mut scoped_known = HashMap::new();
+        scoped_known.insert("pkg_a/gone.py".to_string(), "cafe".to_string());
+        scoped_known.insert("pkg_b/other.py".to_string(), "deadbeef".to_string());
+
+        let sub_res = scan_and_hash_workspace(&root.join("pkg_a"), root, &scoped_known, &[], false);
+        assert_eq!(sub_res.deleted_files, vec!["pkg_a/gone.py"]);
+    }
 }

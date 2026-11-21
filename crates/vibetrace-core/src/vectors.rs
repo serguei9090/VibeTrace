@@ -675,6 +675,33 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvVarGuard {
+        key: &'static str,
+        prev: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, val: Option<&std::ffi::OsStr>) -> Self {
+            let prev = std::env::var_os(key);
+            match val {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+            Self { key, prev }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(v) => std::env::set_var(self.key, v),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
     #[test]
     fn test_search_vectors_parallel_ranking() {
         let to_bytes = |v: &[f32]| -> Vec<u8> { v.iter().flat_map(|f| f.to_le_bytes()).collect() };
@@ -692,16 +719,16 @@ mod tests {
 
     #[test]
     fn test_offline_missing_model_returns_explicit_urls_error() {
+        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _offline = EnvVarGuard::set("VIBETRACE_OFFLINE", Some(std::ffi::OsStr::new("1")));
         let tmp = TempDir::new().expect("temp dir");
-        std::env::set_var("VIBETRACE_OFFLINE", "1");
         let res = embed_texts_parallel(&["hello world".to_string()], 256, "cpu", Some(tmp.path()));
-        std::env::remove_var("VIBETRACE_OFFLINE");
 
         let err = res.expect_err("expected explicit error without model files");
         assert!(err.contains(URL_TOKENIZER));
         assert!(err.contains(URL_ONNX_MODEL));
         assert!(err.contains(URL_ONNX_DATA));
-        assert!(err.contains(&tmp.path().to_string_lossy().to_string()));
+        assert!(err.contains(tmp.path().to_string_lossy().as_ref()));
     }
 
     #[test]
@@ -714,5 +741,116 @@ mod tests {
         let err = normalize_device_request("auto").expect_err("auto must be rejected");
         assert!(err.contains("Invalid compute device"));
         assert!(normalize_device_request("tpu").is_err());
+    }
+
+    #[test]
+    fn test_l2_normalize_in_place_unit_and_zero_vectors() {
+        let mut unit = vec![3.0f32, 4.0f32];
+        l2_normalize_in_place(&mut unit);
+        assert!((unit[0] - 0.6).abs() < 1e-6);
+        assert!((unit[1] - 0.8).abs() < 1e-6);
+        let norm = (unit[0] * unit[0] + unit[1] * unit[1]).sqrt();
+        assert!((norm - 1.0).abs() < 1e-6);
+
+        let mut zero = vec![0.0f32, 0.0f32, 0.0f32];
+        l2_normalize_in_place(&mut zero);
+        assert!(zero.iter().all(|v| v.is_finite() && *v == 0.0));
+    }
+
+    #[test]
+    fn test_search_vectors_parallel_edge_cases() {
+        let to_bytes = |v: &[f32]| -> Vec<u8> { v.iter().flat_map(|f| f.to_le_bytes()).collect() };
+        let candidates = vec![
+            ("short".to_string(), to_bytes(&[1.0f32, 0.0])),
+            (
+                "matryoshka_pos".to_string(),
+                to_bytes(&[0.5f32, 0.5, 99.0, 99.0]),
+            ),
+            ("neg".to_string(), to_bytes(&[-1.0f32, 0.0, 0.0])),
+            ("best".to_string(), to_bytes(&[1.0f32, 0.0, 0.0])),
+        ];
+
+        assert!(search_vectors_parallel(&[1.0, 0.0, 0.0], &candidates, 3, 0).is_empty());
+        assert!(search_vectors_parallel(&[], &candidates, 0, 5).is_empty());
+        assert!(search_vectors_parallel(&[1.0, 0.0], &candidates, 3, 5).is_empty());
+
+        let hits = search_vectors_parallel(&[1.0, 0.0, 0.0], &candidates, 3, 2);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].0, "best");
+        assert!((hits[0].1 - 1.0).abs() < 1e-6);
+        assert_eq!(hits[1].0, "matryoshka_pos");
+        assert!((hits[1].1 - 0.5).abs() < 1e-6);
+
+        let all_hits = search_vectors_parallel(&[1.0, 0.0, 0.0], &candidates, 3, 10);
+        assert_eq!(all_hits.len(), 3);
+        assert_eq!(all_hits[2].0, "neg");
+        assert!(all_hits[2].1 < 0.0);
+    }
+
+    #[test]
+    fn test_resolve_model_dir_and_runtime_info_cache_detection() {
+        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = TempDir::new().expect("temp dir");
+        assert_eq!(resolve_model_dir(Some(tmp.path())), tmp.path());
+
+        {
+            let env_path = tmp.path().join("custom_models");
+            let _model_env = EnvVarGuard::set("VIBETRACE_MODEL_DIR", Some(env_path.as_os_str()));
+            assert_eq!(resolve_model_dir(Some(Path::new(""))), env_path);
+        }
+
+        let info_empty = embedding_runtime_info(Some(tmp.path()));
+        assert_eq!(
+            info_empty.get("files_present").map(String::as_str),
+            Some("false")
+        );
+
+        fs::write(tmp.path().join(TOKENIZER_FILE), b"").unwrap();
+        fs::write(tmp.path().join(ONNX_MODEL_FILE), b"onnx").unwrap();
+        fs::write(tmp.path().join(ONNX_DATA_FILE), b"weights").unwrap();
+        let info_zero_byte = embedding_runtime_info(Some(tmp.path()));
+        assert_eq!(
+            info_zero_byte.get("files_present").map(String::as_str),
+            Some("false")
+        );
+
+        fs::write(tmp.path().join(TOKENIZER_FILE), b"{}").unwrap();
+        assert!(missing_model_files(tmp.path()).is_empty());
+        let info_ready = embedding_runtime_info(Some(tmp.path()));
+        assert_eq!(
+            info_ready.get("files_present").map(String::as_str),
+            Some("true")
+        );
+        assert_eq!(
+            info_ready.get("model").map(String::as_str),
+            Some(MODEL_REPO_ID)
+        );
+    }
+
+    #[test]
+    fn test_embed_texts_parallel_short_circuits_and_device_validation() {
+        let tmp = TempDir::new().expect("temp dir");
+        assert!(embed_texts_parallel(&[], 256, "cpu", Some(tmp.path()))
+            .unwrap()
+            .is_empty());
+        assert!(
+            embed_texts_parallel(&["hi".to_string()], 0, "cpu", Some(tmp.path()))
+                .unwrap()
+                .is_empty()
+        );
+        assert!(embed_texts_parallel(&[], 256, "auto", Some(tmp.path())).is_err());
+    }
+
+    #[test]
+    fn test_device_aliases_and_gpu_unavailable_error_message() {
+        assert_eq!(normalize_device_request("  GPU  ").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("CUDA").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("DML").unwrap(), "gpu");
+        assert_eq!(normalize_device_request("  CPU ").unwrap(), "cpu");
+
+        let msg = gpu_unavailable_error("test detail");
+        assert!(msg.contains("test detail"));
+        assert!(msg.contains("--device cpu"));
+        assert!(msg.contains(".vibetrace.toml"));
     }
 }
