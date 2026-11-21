@@ -653,3 +653,12 @@ def test_quality_audit_git_changed_default_vs_all_and_non_git(tmp_path: Path) ->
     assert s_args.scan_all is True
     with pytest.raises(SystemExit):
         parser.parse_args(["audit", "quality", "--sonar-all"])
+
+    # 6. Non-code config-only changes (.gitignore / .vibetrace.toml) keep fast 0-finding hint
+    untracked.unlink()
+    (git_repo / ".vibetrace.toml").write_text("[project]\nname = 'git_repo'\n", encoding="utf-8")
+    rep_non_code = QualityService.audit_project(db=None, project_root=git_repo)
+    assert rep_non_code.scope_mode == "changed"
+    assert rep_non_code.total_findings == 0
+    assert rep_non_code.scope_note is not None
+    assert "--all" in rep_non_code.scope_note

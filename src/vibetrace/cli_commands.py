@@ -661,13 +661,15 @@ def cmd_init(args: argparse.Namespace) -> int:
     ]
     if res.get("ecosystems"):
         lines.append(f"- **Detected Ecosystems**: {', '.join(res['ecosystems'])}")
-        import shutil
+        from vibetrace.indexer.lsp_bridge import get_lsp_command_for_language
 
-        if any("Go" in eco for eco in res["ecosystems"]) and not shutil.which("gopls"):
+        if any("Go" in eco for eco in res["ecosystems"]) and not get_lsp_command_for_language(
+            "go", root
+        ):
             if getattr(args, "install_lsp", True):
                 from vibetrace.cli_tools import cmd_tools
 
-                cmd_tools(argparse.Namespace(action="install-lsp", language="lsp"))
+                cmd_tools(argparse.Namespace(action="install-lsp", language="lsp", path=str(root)))
             elif not getattr(args, "json", False):
                 lines.append(
                     "- **LSP Tip**: `gopls` not found. Run `vibetrace tools install-lsp` "

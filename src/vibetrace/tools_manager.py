@@ -559,7 +559,13 @@ class ToolsManager:
             if has_py or not any(
                 (has_ts, has_go, has_rs, has_php, has_c_cpp, has_cs, has_rb, has_java)
             ):
-                if which_uv:
+                if (
+                    _resolve_lsp_binary("basedpyright-langserver", root, language="python")
+                    or _resolve_lsp_binary("pyright-langserver", root, language="python")
+                    or _resolve_lsp_binary("pyright", root, language="python")
+                ):
+                    results.append("basedpyright/pyright (Python)")
+                elif which_uv:
                     local_bin.mkdir(parents=True, exist_ok=True)
                     uv_tools = local_tools / "uv"
                     uv_tools.mkdir(parents=True, exist_ok=True)
@@ -605,7 +611,9 @@ class ToolsManager:
             # TypeScript LSP (typescript-language-server) -> <root>/.vibetrace/tools/node
             if has_ts:
                 node_dir = local_tools / "node"
-                if which_bun or which_npm:
+                if _resolve_lsp_binary("typescript-language-server", root, language="typescript"):
+                    results.append("typescript-language-server (TypeScript/JS)")
+                elif which_bun or which_npm:
                     if _install_local_npm_packages(
                         node_dir,
                         [
@@ -628,27 +636,32 @@ class ToolsManager:
 
             # Go LSP (gopls) — install locally into <root>/.vibetrace/bin
             if has_go:
-                which_go = shutil.which("go")
-                if which_go:
-                    local_bin.mkdir(parents=True, exist_ok=True)
-                    env = os.environ.copy()
-                    env["GOBIN"] = str(local_bin)
-                    res = subprocess.run(
-                        [
-                            which_go,
-                            "install",
-                            f"golang.org/x/tools/gopls@{PINNED_LSP_VERSIONS['gopls']}",
-                        ],
-                        env=env,
-                        check=False,
-                    )
-                    if res.returncode == 0:
-                        results.append(f"gopls@{PINNED_LSP_VERSIONS['gopls']} (Go -> {local_bin})")
+                if _resolve_lsp_binary("gopls", root, language="go"):
+                    results.append("gopls (Go)")
                 else:
-                    print(
-                        "⚠️  Go project detected, but 'go' is not on PATH — skipping gopls "
-                        "install. Ensure 'go' is on PATH and run 'vibetrace tools install-lsp'."
-                    )
+                    which_go = shutil.which("go")
+                    if which_go:
+                        local_bin.mkdir(parents=True, exist_ok=True)
+                        env = os.environ.copy()
+                        env["GOBIN"] = str(local_bin)
+                        res = subprocess.run(
+                            [
+                                which_go,
+                                "install",
+                                f"golang.org/x/tools/gopls@{PINNED_LSP_VERSIONS['gopls']}",
+                            ],
+                            env=env,
+                            check=False,
+                        )
+                        if res.returncode == 0:
+                            results.append(
+                                f"gopls@{PINNED_LSP_VERSIONS['gopls']} (Go -> {local_bin})"
+                            )
+                    else:
+                        print(
+                            "⚠️  Go project detected, but 'go' is not on PATH — skipping gopls "
+                            "install. Ensure 'go' is on PATH and run 'vibetrace tools install-lsp'."
+                        )
 
             # Rust LSP (rust-analyzer — system rustup component; configure mode = "global")
             if has_rs:
@@ -675,7 +688,9 @@ class ToolsManager:
             # PHP LSP (intelephense) -> <root>/.vibetrace/tools/node
             if has_php:
                 node_dir = local_tools / "node"
-                if which_bun or which_npm:
+                if _resolve_lsp_binary("intelephense", root, language="php"):
+                    results.append("intelephense (PHP)")
+                elif which_bun or which_npm:
                     if _install_local_npm_packages(
                         node_dir,
                         [f"intelephense@{PINNED_LSP_VERSIONS['intelephense']}"],

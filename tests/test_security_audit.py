@@ -698,3 +698,12 @@ def test_security_audit_git_changed_default_vs_all_and_non_git(tmp_path: Path) -
     )
     assert rep_all.scope_mode == "all"
     assert "legacy.py" in {f.file_path for f in rep_all.findings}
+
+    # 5. Non-code config-only changes (.vibetrace.toml) emit --all hint with 0 findings
+    (git_repo / "new_vuln.py").unlink()
+    (git_repo / ".vibetrace.toml").write_text("[project]\nname = 'sec_git'\n", encoding="utf-8")
+    rep_non_code = SecurityService.audit_project(db=db_g, project_root=git_repo)
+    assert rep_non_code.scope_mode == "changed"
+    assert rep_non_code.total_findings == 0
+    assert rep_non_code.scope_note is not None
+    assert "--all" in rep_non_code.scope_note

@@ -50,6 +50,35 @@ class SecurityService:
         }
     )
 
+    @classmethod
+    def _is_scannable_changed_file(cls, rel_path: str) -> bool:
+        """Return True if a changed file is a source, IaC, or dependency file worth auditing."""
+        from vibetrace.indexer.parsers import ParserFactory
+        from vibetrace.quality.collector import SUPPORTED_EXTS
+
+        p = Path(rel_path)
+        name_lower = p.name.lower()
+        if (
+            p.name in cls._DEPENDENCY_FILENAMES
+            or name_lower in cls._CONTAINER_FILENAMES
+            or name_lower.startswith("dockerfile")
+        ):
+            return True
+        suffix = p.suffix.lower()
+        return (
+            suffix in ParserFactory.SUPPORTED_EXTENSIONS
+            or suffix in SUPPORTED_EXTS
+            or suffix
+            in (
+                ".tf",
+                ".tfvars",
+                ".hcl",
+                ".xml",
+                ".gradle",
+                ".kts",
+            )
+        )
+
     @staticmethod
     def _is_test_path(
         rel_path: str,
@@ -185,6 +214,17 @@ class SecurityService:
                     f for f in all_files if not cls._is_test_path(f, exclude_spec=exclude_spec)
                 ]
                 target_files = non_tests if non_tests else all_files
+
+        if (
+            scope_mode == "changed"
+            and not sarif_file
+            and not image_tag
+            and not any(cls._is_scannable_changed_file(f) for f in target_files)
+        ):
+            return SecurityAuditReport(
+                scope_mode=scope_mode,
+                scope_note="No changed source files to scan (pass --all for whole repository).",
+            )
 
         # 1. Source code AST + declarative rule catalog inspection
         decl_rules = RuleCatalogManager.sync_and_load_rules(

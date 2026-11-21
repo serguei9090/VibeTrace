@@ -238,6 +238,11 @@ class QualityService:
             file_list=effective_file_list,
             include_tests=include_tests,
         )
+        if scope_mode == "changed" and not target_files:
+            return QualityAuditReport(
+                scope_mode=scope_mode,
+                scope_note="No changed source files to scan (pass --all for whole repository).",
+            )
 
         decl_rules = DeclarativeQualityRuleManager.get_rules(db=db)
 

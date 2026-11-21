@@ -667,3 +667,64 @@ def test_tools_manager_install_lsp_primary_ecosystems_local_pinned(tmp_path: Pat
     assert go_calls[0][0] == ["/usr/bin/go", "install", "golang.org/x/tools/gopls@v0.24.0"]
     assert go_calls[0][1] is not None
     assert go_calls[0][1]["GOBIN"] == str(proj / ".vibetrace" / "bin")
+
+
+def test_tools_manager_install_lsp_skips_when_already_local_and_init_go_uses_root(
+    tmp_path: Path,
+) -> None:
+    """Verify already-local LSPs skip reinstall and cmd_init Go check uses root path."""
+    import argparse
+
+    from vibetrace.cli_commands import cmd_init
+
+    proj = tmp_path / "cached_poly"
+    proj.mkdir()
+    (proj / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (proj / "app.ts").write_text("export const x = 1;\n", encoding="utf-8")
+    (proj / "main.go").write_text("package main\n", encoding="utf-8")
+    (proj / "index.php").write_text("<?php\n", encoding="utf-8")
+
+    local_bin = proj / ".vibetrace" / "bin"
+    node_bin = proj / ".vibetrace" / "tools" / "node" / "node_modules" / ".bin"
+    local_bin.mkdir(parents=True)
+    node_bin.mkdir(parents=True)
+
+    exe_ext = ".exe" if os.name == "nt" else ""
+    cmd_ext = ".cmd" if os.name == "nt" else ""
+    (local_bin / f"basedpyright-langserver{exe_ext}").write_text("", encoding="utf-8")
+    (local_bin / f"gopls{exe_ext}").write_text("", encoding="utf-8")
+    (node_bin / f"typescript-language-server{cmd_ext}").write_text("", encoding="utf-8")
+    (node_bin / f"intelephense{cmd_ext}").write_text("", encoding="utf-8")
+
+    with patch("vibetrace.tools_manager.subprocess.run") as spy_run:
+        ok, msg = ToolsManager.install("lsp", proj)
+
+    assert ok is True
+    assert spy_run.call_count == 0
+    assert "basedpyright/pyright" in msg
+    assert "typescript-language-server" in msg
+    assert "gopls" in msg
+    assert "intelephense" in msg
+
+    go_proj = tmp_path / "go_only"
+    go_proj.mkdir()
+    (go_proj / "go.mod").write_text("module demo\n", encoding="utf-8")
+    captured_ns: list[argparse.Namespace] = []
+
+    with (
+        patch("vibetrace.cli_tools.cmd_tools", side_effect=lambda ns: captured_ns.append(ns) or 0),
+        patch("vibetrace.indexer.lsp_bridge.get_lsp_command_for_language", return_value=None),
+    ):
+        ret = cmd_init(
+            argparse.Namespace(
+                path=str(go_proj),
+                no_index=True,
+                install_lsp=True,
+                json=False,
+            )
+        )
+
+    assert ret == 0
+    assert len(captured_ns) == 1
+    assert captured_ns[0].action == "install-lsp"
+    assert Path(captured_ns[0].path).resolve() == go_proj.resolve()
