@@ -171,3 +171,111 @@ def test_refactor_cli_integration(tmp_path: Path):
     # Verify applied file
     mod_text = f.read_text(encoding="utf-8")
     assert "_helper_sum" in mod_text
+
+
+def test_refactor_class_method_self_and_static_helpers(tmp_path: Path):
+    src = """\
+class Calculator:
+    def __init__(self, multiplier: int) -> None:
+        self.multiplier = multiplier
+
+    def compute(self, items: list[int]) -> int:
+        total = 0
+        for item in items:
+            if item > 0:
+                total += item * self.multiplier
+        return total
+"""
+    f = tmp_path / "calc.py"
+    f.write_text(src, encoding="utf-8")
+
+    plan = RefactorService.build_refactor_plan(
+        project_root=tmp_path,
+        file_path="calc.py",
+        func_name="Calculator.compute",
+        start_line=7,
+        end_line=9,
+    )
+
+    assert plan.can_auto_apply is True
+    assert plan.helper_name == "_compute_helper"
+    assert "def _compute_helper(self, items, total):" in plan.helper_code
+    assert "total = self._compute_helper(items, total)" in plan.call_replacement
+    ast.parse(plan.refactored_full_source)
+
+    namespace: dict = {}
+    exec(plan.refactored_full_source, namespace)
+    calc = namespace["Calculator"](3)
+    assert calc.compute([1, -2, 4]) == 15
+
+
+def test_refactor_rejects_global_and_path_traversal(tmp_path: Path):
+    import pytest
+
+    f = tmp_path / "glob.py"
+    f.write_text(
+        "counter = 0\n\n"
+        "def bump(val):\n"
+        "    if val > 0:\n"
+        "        global counter\n"
+        "        counter += val\n"
+        "    return counter\n",
+        encoding="utf-8",
+    )
+
+    plan = RefactorService.build_refactor_plan(
+        project_root=tmp_path,
+        file_path="glob.py",
+        func_name="bump",
+        start_line=4,
+        end_line=6,
+    )
+    assert plan.can_auto_apply is False
+    assert plan.rejection_reason is not None
+    assert "global" in plan.rejection_reason.lower()
+
+    with pytest.raises(ValueError, match="escapes project root"):
+        RefactorService.suggest_split_candidates(
+            project_root=tmp_path,
+            file_path="../escape.py",
+            func_name="bump",
+        )
+
+
+def test_refactor_class_method_disambiguation(tmp_path: Path):
+    src = """\
+class ClassA:
+    def compute(self, x):
+        total = 0
+        if x > 0:
+            total = x * 2
+        return total
+
+
+class ClassB:
+    def compute(self, x):
+        total = 0
+        if x > 0:
+            total = x * 10
+        return total
+"""
+    f = tmp_path / "multi.py"
+    f.write_text(src, encoding="utf-8")
+
+    plan = RefactorService.build_refactor_plan(
+        project_root=tmp_path,
+        file_path="multi.py",
+        func_name="ClassB.compute",
+        start_line=12,
+        end_line=13,
+    )
+    assert plan.can_auto_apply is True
+    assert "x * 10" in plan.helper_code
+    assert "@staticmethod" in plan.helper_code
+    assert "total = self._compute_helper(x)" in plan.call_replacement
+    ast.parse(plan.refactored_full_source)
+
+    namespace: dict = {}
+    exec(plan.refactored_full_source, namespace)
+    assert namespace["ClassA"]().compute(3) == 6
+    assert namespace["ClassB"]().compute(3) == 30

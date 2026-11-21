@@ -133,14 +133,49 @@ def _compute_block_complexity(stmts: list[ast.stmt]) -> int:
     return visitor.cognitive_score
 
 
+def _resolve_contained_path(project_root: Path, file_path: str) -> Path:
+    """Resolve `file_path` under `project_root` and reject directory traversal."""
+    root_resolved = project_root.resolve()
+    abs_path = (root_resolved / file_path).resolve()
+    if not abs_path.is_relative_to(root_resolved):
+        raise ValueError(f"Source file path escapes project root: {file_path}")
+    return abs_path
+
+
 def _find_target_function(
     tree: ast.AST, func_name: str
-) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, int] | None:
-    """Locates the target function definition and its start line."""
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
-            return node, node.lineno
-    return None
+) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, int, ast.ClassDef | None] | None:
+    """Locates the target function definition, start line, and enclosing class."""
+    target_class: str | None = None
+    target_func = func_name
+    if "." in func_name:
+        target_class, target_func = func_name.rsplit(".", 1)
+
+    def _walk(
+        node: ast.AST, enclosing_class: ast.ClassDef | None
+    ) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, int, ast.ClassDef | None] | None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                found = _walk(child, child)
+                if found is not None:
+                    return found
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                class_matches = target_class is None or (
+                    enclosing_class is not None and enclosing_class.name == target_class
+                )
+                if class_matches and child.name == target_func:
+                    return child, child.lineno, enclosing_class
+                if target_class is None:
+                    found = _walk(child, enclosing_class)
+                    if found is not None:
+                        return found
+            else:
+                found = _walk(child, enclosing_class)
+                if found is not None:
+                    return found
+        return None
+
+    return _walk(tree, None)
 
 
 class RefactorService:
@@ -151,7 +186,7 @@ class RefactorService:
         cls, project_root: Path, file_path: str, func_name: str
     ) -> list[CandidateSplitBlock]:
         """Analyzes a function and returns ranked statement blocks suitable for extraction."""
-        abs_path = (project_root / file_path).resolve()
+        abs_path = _resolve_contained_path(project_root, file_path)
         if not abs_path.is_file():
             raise FileNotFoundError(f"Source file not found: {abs_path}")
 
@@ -161,7 +196,7 @@ class RefactorService:
         if not target_info:
             raise ValueError(f"Function '{func_name}' not found in {file_path}")
 
-        func_def, _ = target_info
+        func_def, _, _ = target_info
         func_params = _extract_func_parameters(func_def)
         body = func_def.body
 
@@ -279,6 +314,8 @@ class RefactorService:
             return [], [], "Block contains yield or yield from expressions"
         if block_visitor.has_nonlocal:
             return [], [], "Block contains nonlocal declarations"
+        if block_visitor.has_global:
+            return [], [], "Block contains global declarations"
         if block_visitor.unscoped_loop_jump:
             return [], [], "Block contains break/continue targeting an outer loop"
         if block_visitor.returns:
@@ -318,7 +355,7 @@ class RefactorService:
         helper_name: str | None = None,
     ) -> RefactorPlan:
         """Constructs an executable refactoring plan with extracted code and caller replacement."""
-        abs_path = (project_root / file_path).resolve()
+        abs_path = _resolve_contained_path(project_root, file_path)
         if not abs_path.is_file():
             raise FileNotFoundError(f"Source file not found: {abs_path}")
 
@@ -328,7 +365,7 @@ class RefactorService:
         if not target_info:
             raise ValueError(f"Function '{func_name}' not found in {file_path}")
 
-        func_def, _ = target_info
+        func_def, _, enclosing_class = target_info
         func_params = _extract_func_parameters(func_def)
         body = func_def.body
 
@@ -377,7 +414,7 @@ class RefactorService:
         original_snippet = "".join(lines[actual_start_line - 1 : actual_end_line])
 
         if not helper_name:
-            helper_name = f"_{func_name}_helper"
+            helper_name = f"_{func_def.name}_helper"
 
         if rejection is not None:
             return RefactorPlan(
@@ -404,52 +441,105 @@ class RefactorService:
         first_line_raw = lines[actual_start_line - 1]
         block_indent = len(first_line_raw) - len(first_line_raw.lstrip())
 
-        # Determine function definition indentation
+        # Determine insertion point & function definition indentation
+        insert_line = (
+            func_def.decorator_list[0].lineno if func_def.decorator_list else func_def.lineno
+        )
         func_line_raw = lines[func_def.lineno - 1]
         func_indent = len(func_line_raw) - len(func_line_raw.lstrip())
         indent_str = " " * func_indent
 
+        # Inspect receiver usage for methods inside a class
+        all_pos_args = func_def.args.posonlyargs + func_def.args.args
+        receiver: str | None = None
+        if enclosing_class is not None and all_pos_args and all_pos_args[0].arg in ("self", "cls"):
+            receiver = all_pos_args[0].arg
+
+        target_usage = _BlockUsageVisitor()
+        for s in target_stmts:
+            target_usage.visit(s)
+        uses_receiver = receiver is not None and (
+            receiver in target_usage.read_vars or receiver in target_usage.written_vars
+        )
+
         # Format helper function code
         dedented_block = textwrap.dedent(original_snippet)
-        indented_body = textwrap.indent(dedented_block, "    ")
+        indented_body = textwrap.indent(dedented_block, f"{indent_str}    ")
 
-        return_stmt = ""
-        if outputs:
-            return_stmt = f"    return {', '.join(outputs)}\n"
+        return_stmt = f"{indent_str}    return {', '.join(outputs)}\n" if outputs else ""
 
         args_str = ", ".join(inputs)
-        helper_code = f"{indent_str}def {helper_name}({args_str}):\n{indented_body}"
+        if enclosing_class is not None:
+            if receiver == "self" and uses_receiver:
+                helper_params = f"self, {args_str}" if args_str else "self"
+                helper_header = f"{indent_str}def {helper_name}({helper_params}):\n"
+                call_expr = f"self.{helper_name}({args_str})"
+            elif receiver == "cls" and uses_receiver:
+                helper_params = f"cls, {args_str}" if args_str else "cls"
+                helper_header = (
+                    f"{indent_str}@classmethod\n{indent_str}def {helper_name}({helper_params}):\n"
+                )
+                call_expr = f"cls.{helper_name}({args_str})"
+            else:
+                helper_header = (
+                    f"{indent_str}@staticmethod\n{indent_str}def {helper_name}({args_str}):\n"
+                )
+                call_target = receiver or enclosing_class.name
+                call_expr = f"{call_target}.{helper_name}({args_str})"
+        else:
+            helper_header = f"{indent_str}def {helper_name}({args_str}):\n"
+            call_expr = f"{helper_name}({args_str})"
+
+        helper_code = f"{helper_header}{indented_body}"
         if not helper_code.endswith("\n"):
             helper_code += "\n"
         if return_stmt:
-            helper_code += textwrap.indent(return_stmt, indent_str)
+            helper_code += return_stmt
 
         # Format call replacement statement
         call_indent_str = " " * block_indent
         if len(outputs) == 1:
-            call_replacement = f"{call_indent_str}{outputs[0]} = {helper_name}({args_str})\n"
+            call_replacement = f"{call_indent_str}{outputs[0]} = {call_expr}\n"
         elif len(outputs) > 1:
-            call_replacement = (
-                f"{call_indent_str}{', '.join(outputs)} = {helper_name}({args_str})\n"
-            )
+            call_replacement = f"{call_indent_str}{', '.join(outputs)} = {call_expr}\n"
         else:
-            call_replacement = f"{call_indent_str}{helper_name}({args_str})\n"
+            call_replacement = f"{call_indent_str}{call_expr}\n"
 
         # Reconstruct full refactored source
         new_lines: list[str] = []
-        # 1. Lines before function definition
-        new_lines.extend(lines[: func_def.lineno - 1])
+        # 1. Lines before function definition (or its first decorator)
+        new_lines.extend(lines[: insert_line - 1])
         # 2. Inject helper definition above function
         new_lines.append(helper_code)
         new_lines.append("\n")
         # 3. Lines from function definition up to start of extracted block
-        new_lines.extend(lines[func_def.lineno - 1 : actual_start_line - 1])
+        new_lines.extend(lines[insert_line - 1 : actual_start_line - 1])
         # 4. Replacement call site
         new_lines.append(call_replacement)
         # 5. Lines after extracted block
         new_lines.extend(lines[actual_end_line:])
 
         refactored_full_source = "".join(new_lines)
+
+        try:
+            ast.parse(refactored_full_source, filename=file_path)
+        except SyntaxError as exc:
+            return RefactorPlan(
+                target_function=func_name,
+                file_path=file_path,
+                start_line=actual_start_line,
+                end_line=actual_end_line,
+                helper_name=helper_name,
+                helper_code=helper_code,
+                call_replacement=call_replacement,
+                original_snippet=original_snippet,
+                refactored_full_source=refactored_full_source,
+                can_auto_apply=False,
+                rejection_reason=f"Generated code failed AST syntax validation: {exc}",
+                diff="",
+                inputs=inputs,
+                outputs=outputs,
+            )
 
         # Generate unified diff
         diff_lines = difflib.unified_diff(
@@ -483,5 +573,6 @@ class RefactorService:
         if not plan.can_auto_apply:
             raise ValueError(f"Cannot apply refactor plan: {plan.rejection_reason}")
 
-        abs_path = (project_root / plan.file_path).resolve()
+        abs_path = _resolve_contained_path(project_root, plan.file_path)
+        ast.parse(plan.refactored_full_source, filename=plan.file_path)
         abs_path.write_text(plan.refactored_full_source, encoding="utf-8")
