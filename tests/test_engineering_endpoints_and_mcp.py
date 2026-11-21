@@ -11,16 +11,24 @@ from starlette.testclient import TestClient
 from vibetrace.indexer.db import IndexerDB
 from vibetrace.indexer.main import reindex_all
 from vibetrace.mcp.schemas import (
+    AddDocCatalogInput,
     ApproveQualityExceptionInput,
     AuditPRTaintInput,
     AuditQualityInput,
     DeadCodeInput,
+    DocCatalogsInput,
     ExplainDependencyInput,
+    IndexDocsInput,
+    RemoveDocCatalogInput,
     ResponseFormat,
 )
 from vibetrace.mcp.server import (
+    vibetrace_add_doc_catalog,
     vibetrace_approve_quality_exception,
     vibetrace_audit_quality,
+    vibetrace_index_docs,
+    vibetrace_list_doc_catalogs,
+    vibetrace_remove_doc_catalog,
 )
 from vibetrace.mcp.tools_engineering import (
     vibetrace_audit_pr_taint,
@@ -220,3 +228,57 @@ def test_rest_security_audit_writes_security_report_domain(
         assert not (vt_dir / "reports" / "quality").exists()
     finally:
         db.close()
+
+
+async def test_mcp_doc_catalog_add_index_remove(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VIBETRACE_GLOBAL_ROOT", str(tmp_path / "global_vt"))
+    proj = tmp_path / "proj"
+    docs_dir = proj / "docs"
+    (proj / ".vibetrace").mkdir(parents=True)
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "guide.md").write_text(
+        "# Auth Flow\n\nJWT verification runs in middleware.\n",
+        encoding="utf-8",
+    )
+
+    add_res = await vibetrace_add_doc_catalog(
+        AddDocCatalogInput(
+            name="guides",
+            path="docs",
+            scope_path=str(proj),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    add_data = json.loads(add_res)
+    assert add_data["status"] == "ok"
+    assert add_data["catalog"] == "guides"
+
+    idx_res = await vibetrace_index_docs(
+        IndexDocsInput(
+            catalog="guides",
+            scope_path=str(proj),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    idx_data = json.loads(idx_res)
+    assert idx_data["status"] == "ok"
+    assert idx_data["total_files"] >= 1
+    assert idx_data["total_chunks"] >= 1
+
+    list_res = await vibetrace_list_doc_catalogs(
+        DocCatalogsInput(scope_path=str(proj), response_format=ResponseFormat.JSON)
+    )
+    cats = json.loads(list_res)
+    assert any(c["name"] == "guides" for c in cats)
+
+    rem_res = await vibetrace_remove_doc_catalog(
+        RemoveDocCatalogInput(
+            name="guides",
+            scope_path=str(proj),
+            response_format=ResponseFormat.JSON,
+        )
+    )
+    rem_data = json.loads(rem_res)
+    assert rem_data["removed"] is True

@@ -31,6 +31,7 @@ from vibetrace.mcp.formatters import (
     format_vibe_bundle_markdown,
 )
 from vibetrace.mcp.schemas import (
+    AddDocCatalogInput,
     ApproveQualityExceptionInput,
     ApproveSecurityExceptionInput,
     ApproveSplitInput,
@@ -46,10 +47,12 @@ from vibetrace.mcp.schemas import (
     DocCatalogsInput,
     DocSearchInput,
     ImpactAnalysisInput,
+    IndexDocsInput,
     ListSavedTracesInput,
     ReferencesInput,
     ReindexInput,
     RemediateVulnerabilityInput,
+    RemoveDocCatalogInput,
     ResponseFormat,
     ReviewChangesInput,
     SaveTraceInput,
@@ -598,6 +601,106 @@ async def vibetrace_list_doc_catalogs(params: DocCatalogsInput) -> str:
         return format_doc_catalogs_md(catalogs)
     except Exception as e:
         return handle_error(e, "listing documentation catalogs")
+
+
+@mcp.tool(name="vibetrace_add_doc_catalog", annotations=_MUTATION)
+async def vibetrace_add_doc_catalog(params: AddDocCatalogInput) -> str:
+    """Register a directory path in a local or global documentation catalog."""
+    try:
+        from vibetrace.docs.service import DocCatalogManager
+
+        _, root = get_context_for_path(params.scope_path)
+        DocCatalogManager.add_path(
+            catalog_name=params.name,
+            path_str=params.path,
+            global_scope=params.global_scope,
+            project_root=root,
+        )
+        payload = {
+            "status": "ok",
+            "catalog": params.name,
+            "path": params.path,
+            "global_scope": params.global_scope,
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(payload, indent=2)
+        scope_label = "global" if params.global_scope else "local"
+        return f"✅ Added `{params.path}` to {scope_label} doc catalog `{params.name}`."
+    except Exception as e:
+        return handle_error(e, f"adding documentation catalog '{params.name}'")
+
+
+@mcp.tool(name="vibetrace_remove_doc_catalog", annotations=_DESTRUCTIVE)
+async def vibetrace_remove_doc_catalog(params: RemoveDocCatalogInput) -> str:
+    """Remove a local or global documentation catalog from configuration."""
+    try:
+        from vibetrace.docs.service import DocCatalogManager
+
+        _, root = get_context_for_path(params.scope_path)
+        ok = DocCatalogManager.remove_catalog(
+            catalog_name=params.name,
+            global_scope=params.global_scope,
+            project_root=root,
+        )
+        payload = {
+            "status": "ok" if ok else "not_found",
+            "removed": ok,
+            "catalog": params.name,
+            "global_scope": params.global_scope,
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(payload, indent=2)
+        if not ok:
+            return f"Error: Documentation catalog '{params.name}' was not found."
+        scope_label = "global" if params.global_scope else "local"
+        return f"✅ Removed {scope_label} doc catalog `{params.name}`."
+    except Exception as e:
+        return handle_error(e, f"removing documentation catalog '{params.name}'")
+
+
+@mcp.tool(name="vibetrace_index_docs", annotations=_MUTATION)
+async def vibetrace_index_docs(params: IndexDocsInput) -> str:
+    """Chunk and index registered local or global documentation catalogs for hybrid RAG."""
+    try:
+        from vibetrace.docs.db import get_global_doc_db, get_local_doc_db
+        from vibetrace.docs.service import DocCatalogManager, DocIndexService
+
+        _, root = get_context_for_path(params.scope_path)
+        cats = DocCatalogManager.list_catalogs(project_root=root)
+        if params.catalog:
+            cats = [c for c in cats if c.name == params.catalog]
+            if not cats:
+                return f"Error: Documentation catalog '{params.catalog}' was not found."
+        if params.global_scope:
+            cats = [c for c in cats if c.scope == "global"]
+
+        total_files = 0
+        total_chunks = 0
+        results: dict[str, dict[str, int]] = {}
+        for c in cats:
+            doc_db = get_global_doc_db() if c.scope == "global" else get_local_doc_db(root)
+            base_dir = Path.home() if c.scope == "global" else root
+            res = DocIndexService.index_catalog(
+                c.name, c.paths, doc_db, base_dir, force=params.force
+            )
+            results[c.name] = res
+            total_files += int(res.get("files", 0))
+            total_chunks += int(res.get("chunks", 0))
+
+        payload = {
+            "status": "ok",
+            "total_files": total_files,
+            "total_chunks": total_chunks,
+            "catalogs": results,
+        }
+        if params.response_format == ResponseFormat.JSON:
+            return json.dumps(payload, indent=2)
+        return (
+            f"✅ Indexed {total_files} documentation file(s) ({total_chunks} chunk(s)) "
+            f"across {len(results)} catalog(s)."
+        )
+    except Exception as e:
+        return handle_error(e, "indexing documentation catalogs")
 
 
 @mcp.tool()

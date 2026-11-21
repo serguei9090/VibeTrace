@@ -462,6 +462,74 @@ class DocCatalogsInput(BaseModel):
     )
 
 
+class AddDocCatalogInput(BaseModel):
+    """Input model for adding a folder path to a local or global documentation catalog."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    name: str = Field(..., min_length=1, description="Documentation catalog name (e.g. 'core')")
+    path: str = Field(..., min_length=1, description="Directory path containing docs to register")
+    global_scope: bool = Field(
+        default=False,
+        description="Register in global ~/.vibetrace config instead of local .vibetrace.toml",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class RemoveDocCatalogInput(BaseModel):
+    """Input model for removing a documentation catalog from configuration."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    name: str = Field(..., min_length=1, description="Catalog name to remove")
+    global_scope: bool = Field(
+        default=False,
+        description="Remove from global config instead of local project config",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
+class IndexDocsInput(BaseModel):
+    """Input model for indexing local or global documentation catalogs."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True)
+
+    catalog: str | None = Field(
+        default=None,
+        description="Optional single catalog name to index (omits to index all matching catalogs)",
+    )
+    global_scope: bool = Field(
+        default=False,
+        description="Restrict indexing to global catalogs only",
+    )
+    force: bool = Field(
+        default=False,
+        description="Force full re-chunking and re-embedding regardless of mtime",
+    )
+    scope_path: str = Field(
+        default=".",
+        description="Project root or relevant path to scope the context",
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' or 'json'",
+    )
+
+
 class CallerGuardInput(BaseModel):
     """Input model for pre-flight caller blast-radius guard."""
 
