@@ -2,7 +2,7 @@
 
 ## Overview
 
-Domain service layer for VibeTrace. Holds the pure-Python workflows that sit between the indexer database and the CLI, MCP server, and REST API: graph traversal and impact analysis, execution-path tracing, code slicing, call-tree construction, hybrid search, caller guarding, coverage gating, unified review, predictive test selection, architectural split auditing, AST refactoring, saved trace persistence, reindex orchestration, repo-map generation, and token-budgeted context bundling.
+Domain service layer for VibeTrace. Holds the pure-Python workflows that sit between the indexer database and the CLI, MCP server, and REST API: graph traversal and impact analysis, execution-path tracing, code slicing, call-tree construction, hybrid search, caller guarding, coverage gating, unified review, predictive test selection, architectural split auditing, saved trace persistence, reindex orchestration, repo-map generation, and token-budgeted context bundling.
 
 ## Interface
 
@@ -13,7 +13,6 @@ Domain service layer for VibeTrace. Holds the pure-Python workflows that sit bet
 - [`graph_service.py`](./graph_service.py) — `GraphTraverser` (`traverse`); `ensure_index_fresh`, `get_context_for_path`, `normalize_path`, `safe_str`, `handle_error`, `build_call_stack`, `find_symbol_references`, `compute_impact_analysis`, `categorize_file_dependencies`, `analyze_file_dependencies`, `find_dead_symbols`.
 - [`hybrid_search.py`](./hybrid_search.py) — `SearchResult` (Pydantic); `hybrid_search`.
 - [`predictive_test_service.py`](./predictive_test_service.py) — `ImpactedTest`, `PredictiveTestReport` (Pydantic); `PredictiveTestService` (`resolve_impacted_tests`, `_build_runner_args`, `execute_impacted_tests`); `get_git_modified_ranges`; private `_detect_runner_for_file`, `_is_executable_test`.
-- [`refactor_service.py`](./refactor_service.py) — `RefactorService` (`suggest_split_candidates`, `_analyze_block_lifetimes`, `build_refactor_plan`, `apply_refactor_plan`); private `_BlockUsageVisitor`, `_extract_func_parameters`, `_compute_block_complexity`, `_find_target_function`.
 - [`reindex_service.py`](./reindex_service.py) — `ReindexService` (`execute_reindex`).
 - [`repo_map_service.py`](./repo_map_service.py) — `RepoMapService` (`generate_budgeted_repo_map`); `estimate_tokens`.
 - [`report_store.py`](./report_store.py) — `ReportStore` (`get_report_dir`, `read_summary`, `save_split_report`); `VALID_STATUSES`.
@@ -61,12 +60,6 @@ Domain service layer for VibeTrace. Holds the pure-Python workflows that sit bet
 - `PredictiveTestService.resolve_impacted_tests` traverses the reverse call graph up to `max_hops` (default 6) and follows relation types `calls`, `call`, `invokes`, and `references` [src/vibetrace/services/predictive_test_service.py:PredictiveTestService.resolve_impacted_tests].
 - `PredictiveTestService.resolve_impacted_tests` includes a modified symbol directly when it is already a test, recorded with `hops=0` [src/vibetrace/services/predictive_test_service.py:PredictiveTestService.resolve_impacted_tests].
 - `PredictiveTestService._build_runner_args` selects `uv run python -m pytest` when `uv` is on PATH, otherwise plain `pytest`; JavaScript and TypeScript tests use `bun test`, Rust uses `cargo test` [src/vibetrace/services/predictive_test_service.py:PredictiveTestService._build_runner_args].
-- `RefactorService._analyze_block_lifetimes` rejects a block containing `yield`/`yield from`, `nonlocal` declarations, `break`/`continue` targeting an outer loop, or `return` statements [src/vibetrace/services/refactor_service.py:RefactorService._analyze_block_lifetimes].
-- `RefactorService._analyze_block_lifetimes` computes inputs as variables read in the block that were defined before it or are function parameters, and outputs as variables written in the block that are read afterwards; Python builtins are excluded from both [src/vibetrace/services/refactor_service.py:RefactorService._analyze_block_lifetimes].
-- `RefactorService.suggest_split_candidates` requires a block complexity of at least 1 with a span of at least 4 lines, or a block complexity of at least 2 with a span of at least 6 lines, and sorts candidates by highest complexity reduction first [src/vibetrace/services/refactor_service.py:RefactorService.suggest_split_candidates].
-- `RefactorService.build_refactor_plan` returns a plan with `can_auto_apply=False` and a populated `rejection_reason` instead of raising when the block fails the pre-flight lifetime checks [src/vibetrace/services/refactor_service.py:RefactorService.build_refactor_plan].
-- `RefactorService.build_refactor_plan` defaults the helper name to `_<func_name>_helper` and raises `ValueError` when the requested line range contains no statements [src/vibetrace/services/refactor_service.py:RefactorService.build_refactor_plan].
-- `RefactorService.apply_refactor_plan` refuses to write when `plan.can_auto_apply` is `False` [src/vibetrace/services/refactor_service.py:RefactorService.apply_refactor_plan].
 - `ReindexService.execute_reindex` raises `PermissionError` when the target file resolves outside the project root and `FileNotFoundError` when it does not exist [src/vibetrace/services/reindex_service.py:ReindexService.execute_reindex].
 - `ReindexService.execute_reindex` resolves the LSP mode from the project config when the flag is not set: `always` enables it, `auto` enables it only when an LSP command is available [src/vibetrace/services/reindex_service.py:ReindexService.execute_reindex].
 - `ReindexService.execute_reindex` runs the documentation sync only for `scope == "local"` catalogs and generates super-batched native EmbeddingGemma 2 ONNX vectors via `vibetrace._rust_core` without `sentence-transformers` [src/vibetrace/services/reindex_service.py:ReindexService.execute_reindex].
@@ -102,7 +95,6 @@ Domain service layer for VibeTrace. Holds the pure-Python workflows that sit bet
 - `_parse_external_line_coverage` reads `coverage.xml`, `lcov.info`, or `coverage/lcov.info` from the project root [src/vibetrace/services/coverage_service.py:_parse_external_line_coverage].
 - `PredictiveTestService.resolve_impacted_tests` shells out to Git to collect modified line ranges when `target_symbols` is not supplied [src/vibetrace/services/predictive_test_service.py:get_git_modified_ranges].
 - `PredictiveTestService.execute_impacted_tests` runs the selected test runner as a subprocess; it is skipped entirely when no impacted tests were found [src/vibetrace/services/predictive_test_service.py:PredictiveTestService.execute_impacted_tests].
-- `RefactorService.apply_refactor_plan` writes the refactored full source back to the target file with UTF-8 encoding [src/vibetrace/services/refactor_service.py:RefactorService.apply_refactor_plan].
 - `ReindexService.execute_reindex` rewrites the index database, prunes orphaned graph edges, purges orphaned vector embeddings, and may write new symbol embeddings [src/vibetrace/services/reindex_service.py:ReindexService.execute_reindex].
 - `ReindexService.execute_reindex` indexes local documentation catalogs into the documentation store and prints progress lines to stdout/stderr unless `is_json` is set [src/vibetrace/services/reindex_service.py:ReindexService.execute_reindex].
 - `run_unified_review` shells out to `git status --porcelain` and `git diff HEAD -U0` to detect changed files [src/vibetrace/services/review_service.py:_detect_git_changed_files].

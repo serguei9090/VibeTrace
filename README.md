@@ -63,7 +63,6 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif` with bundled offline `semgrep_security.yml` preset and SARIF CWE deduplication, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), optional Tier-2 **SonarLint** (`--sonar`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`). Scans modified/untracked Git files by default (pass `--all` for whole repository or `--file PATH` for an explicit target; falls back to whole repository outside Git).
 - **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar` with 12-file wave chunking). Scans modified/untracked Git files by default (pass `--all` for whole repository or `--file PATH`). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
-- **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: Python AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
 - **🤖 Automated PR Taint Bot (`vibetrace audit pr-taint`)**: Scans pull request diffs, checks inter-procedural taint reachability, and synthesizes ready-to-merge inline code comments with parameterized remediations.
 - **🔗 Live Codebase Symbol $\leftrightarrow$ Documentation Linking (`vibetrace docs check`)**: Establishes bi-directional SQLite links between AST symbols and Markdown specifications, attaches relevant architectural contracts to source slices, and flags documentation drift when documented symbols are removed.
@@ -323,7 +322,7 @@ Add VibeTrace to your agent's MCP configuration:
 }
 ```
 
-The agent gains access to 33 surgical FastMCP code intelligence tools:
+The agent gains access to surgical FastMCP code intelligence tools:
 - `vibetrace_review_changes` (Unified 1-call review: Security, Taint, Split Integrity, Caller Guard & 80% Test Gate)
 - `vibetrace_get_vibe_bundle` (One-shot task context packed within token budget $\le 1,500$ tokens)
 - `vibetrace_diagnose_symbol` (Consolidated 360° symbol diagnosis: slice, callers, blast radius, specs, tests)
@@ -334,7 +333,6 @@ The agent gains access to 33 surgical FastMCP code intelligence tools:
 - `vibetrace_audit_splits` (Scan codebase for execution bifurcations and check status against baseline)
 - `vibetrace_approve_split` (Approve a split path into `.vibetrace/splits.toml` with SHA-256 hash)
 - `vibetrace_explain_dependency` (Transitive dependency root causation, dependency tree, and diamond conflicts)
-- `vibetrace_refactor_method` (AST variable lifetime analysis and surgical helper method extraction)
 - `vibetrace_patch_dependency` (Automated dependency upgrade plan and dormant CVE suppression)
 - `vibetrace_check_docs_drift` (Audit documentation for broken symbol references and sync live AST links)
 - `vibetrace_search_docs` (Hybrid documentation RAG search with local/global scope)

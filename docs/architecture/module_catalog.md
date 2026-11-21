@@ -72,7 +72,6 @@ flowchart TD
 | **Documentation & RAG** | [`src/vibetrace/docs/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/docs/) | Documentation chunking, FTS5 markdown indexing, and bidirectional symbol-to-document linking (`symbol_doc_links`). |
 | **Federation Subsystem** | [`src/vibetrace/federation/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/federation/) | Enterprise multi-repository index synchronization, cross-repo dependency resolution, and centralized PostgreSQL backend. |
 | **Model Context Protocol (MCP)** | [`src/vibetrace/mcp/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/mcp/) | FastMCP server exposing token-efficient tools for AI assistants (Antigravity, Cursor, Claude Desktop). |
-| **Refactoring Engine** | [`src/vibetrace/refactor/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/vibetrace/refactor/) | AST-safe refactoring models and automated symbol renaming/patching. |
 | **Web UI Dashboard** | [`src/web/`](file:///i:/01-Master_Code/Apps/VibeGraph/src/web/) | React + TypeScript interactive Map Room, dependency visualizer, and code intelligence dashboard. |
 
 ---

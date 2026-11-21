@@ -75,35 +75,26 @@ Locate upstream causation paths for any sub-dependency, render direct manifest t
   uv run vibetrace deps conflicts
   ```
 
-### 7. AST Method Extraction & Cognitive Complexity Refactor (`refactor`)
-Analyze AST variable lifetimes and execute surgical helper method extraction for complex functions with automated parameter and return tuple resolution:
-- **MCP Tool (Split Suggestions):** `vibetrace_refactor_method(file_path="src/parser.py", symbol_name="parse_file")`
-- **MCP Tool (Apply Extraction):** `vibetrace_refactor_method(file_path="src/parser.py", symbol_name="parse_file", start_line=45, end_line=72, helper_name="_extract_header", apply=True)`
-- **CLI:**
-  ```bash
-  uv run vibetrace refactor --file src/parser.py --symbol parse_file
-  uv run vibetrace refactor --file src/parser.py --symbol parse_file --split-method --lines 45:72 --name _extract_header --write
-  ```
-
-### 8. Dependency Vulnerability Auto-Patcher & Reachability Triage (`audit fix-deps`)
+### 7. Dependency Vulnerability Auto-Patcher & Reachability Triage (`audit fix-deps`)
 Automatically bump vulnerable packages via native package managers (`uv`, `bun`, `cargo`, `go`) or safely record unpatched CVEs with 0 call edges in `.vibetrace/security.toml`:
 - **MCP Tool:** `vibetrace_patch_dependency(package_name="requests", apply=True)`
 - **CLI:** `uv run vibetrace audit fix-deps --apply`
 - **CLI (Suppress Unpatched):** `uv run vibetrace audit fix-deps --suppress-unpatched`
 
-### 9. Automated PR Taint Bot & Inline Remediation Generator (`audit pr-taint`)
+### 8. Automated PR Taint Bot & Inline Remediation Generator (`audit pr-taint`)
 Generate ready-to-merge GitHub PR comments containing complete 3-hop taint traces and synthesized parameterized replacements:
+- **MCP Tool:** `vibetrace_audit_pr_taint(base_ref="main")`
 - **CLI (Inspect PR diff):** `uv run vibetrace audit pr-taint --base main`
 - **CLI (Auto-apply remediations):** `uv run vibetrace audit pr-taint --apply`
 - **CLI (CI Summary):** `uv run vibetrace audit pr-taint --output-md pr-review.md`
 
-### 10. Unified 1-Call AI Self-Review & Quality Gate (`review`)
+### 9. Unified 1-Call AI Self-Review & Quality Gate (`review`)
 Before completing any coding task or committing, run the single unified Quality Gate that executes **Security + IaC + Git Secret + Inter-Procedural Taint**, **Split Path Audit**, **Hybrid Test Coverage Gate** (instant AST test-caller reachability + `coverage.xml`/`lcov.info` line coverage with an 80% default target), and **Caller Guard** in one pass:
 - **MCP Tool:** `vibetrace_review_changes(scope="changed", check_dependencies=False, min_coverage=80.0, enforce_coverage=False)`
 - **REST API:** `GET /api/review?scope=changed&min_coverage=80`
 - **CLI:** `uv run vibetrace review` / `uv run vibetrace review --ci --strict --min-coverage 80`
 
-### 11. Sonar-Grade Code Quality & Cognitive Complexity Audit (`audit quality`)
+### 10. Sonar-Grade Code Quality & Cognitive Complexity Audit (`audit quality`)
 Audit code for Cognitive Complexity (RSPEC-3776), deeply nested control flow (RSPEC-134), mergeable conditionals (RSPEC-1066), identical function bodies (RSPEC-4144), string literal duplication (RSPEC-1192), regex complexity & backtracking (RSPEC-6353, RSPEC-5843, RSPEC-8786), POSIX file permissions (RSPEC-2612), and dead code (RSPEC-1144) using native AST visitors combined with polyglot linters (Ruff, Biome, Clippy, PHPStan, RuboCop, ShellCheck, SQLFluff):
 
 #### 🤖 AI Agent Token-Efficient 2-Step Remediation Workflow:
@@ -132,7 +123,7 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    ```
    *Records unapproved findings into `.vibetrace/quality.toml`.*
 
-### 12. Automated Polyglot Tool & LSP Binary Installer (`tools`)
+### 11. Automated Polyglot Tool & LSP Binary Installer (`tools`)
 Auto-detects project languages and installs missing quality sub-engines (`ruff`, `biome`, `phpstan`, `sonarlint-ls.jar`) and Language Server Protocol binaries (`basedpyright`, `typescript@7.0.2` native Go `tsc --lsp`) via `vibetrace tools`:
 - **CLI:**
   ```bash

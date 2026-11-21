@@ -31,7 +31,6 @@ vibetrace --help
 | `vibetrace diagnose` | `<symbol> [--depth N] [--no-code]` | 360° symbol investigation: slice, callee contracts, callers with lines, blast radius, specs, and tests. | `vibetrace diagnose upsert_node` |
 | `vibetrace review` | `[--ci] [--strict] [--min-coverage N]` | Unified 1-call AI review gate: Security/Taint, Splits, Caller Guard, and 80% test coverage. | `vibetrace review --ci --min-coverage 80` |
 | `vibetrace deps` | `why <pkg> \| tree \| conflicts` | Transitive dependency graph resolution, root causation chains, and diamond conflict detection. | `vibetrace deps why certifi` |
-| `vibetrace refactor` | `--split-method [--lines START:END] [--name HELPER] [--write]` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. | `vibetrace refactor --file src/db.py --symbol run --split-method --lines 20:45 --write` |
 | `vibetrace audit` | `splits \| security \| quality \| fix-deps \| pr-taint` | Comprehensive code & security audits: splits, AST SAST/taint, auto-patching, and PR inline reviews. | `vibetrace audit security --summary` |
 | `vibetrace audit splits` | `[--symbol NAME] [--max-lines N] [--margin N] [--approve] [--ci] [--strict]` | Detect cross-module execution splits and oversized-file monoliths (`max_lines + margin`), persisted in `.vibetrace/splits.toml`. | `vibetrace audit splits --max-lines 600 --margin 100` |
 | `vibetrace audit security` | `[--summary] [--file PATH] [--all] [--staged] [--image TAG] [--skip-semgrep] [--skip-trivy] [--sonar] [--json] [--sarif] [--ci] [--skip-deps] [--approve]` | Polyglot SAST, taint reachability, Semgrep, SonarLint, container OS CVEs (Trivy), staged blocker, and baseline triage. Defaults to changed Git files; `--all` scans whole repository. | `vibetrace audit security --summary` |
@@ -148,7 +147,7 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 }
 ```
 
-### Complete MCP Tools Catalog (33 FastMCP Tools)
+### Complete MCP Tools Catalog
 
 | Tool Name | Key Parameters | Functionality |
 | :--- | :--- | :--- |
@@ -162,7 +161,6 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 | `vibetrace_audit_splits` | `scope_path`, `response_format` | Scans repository for cross-module execution splits and validates each against `.vibetrace/splits.toml` baseline. |
 | `vibetrace_approve_split` | `caller_name`, `callee_a`, `callee_b`, `reason`, `scope_path` | Approves a split path into `.vibetrace/splits.toml` with normalized SHA-256 caller hash tripwire. |
 | `vibetrace_explain_dependency` | `package_name`, `action`, `max_depth`, `scope_path` | Transitive dependency graph resolution: explains why a sub-dependency is installed, renders dependency trees, or detects diamond collisions. |
-| `vibetrace_refactor_method` | `file_path`, `symbol_name`, `start_line`, `end_line`, `helper_name`, `apply` | AST variable lifetime analysis and surgical helper method extraction for cognitive complexity reduction. |
 | `vibetrace_patch_dependency` | `package_name`, `apply`, `suppress_unpatched`, `scope_path` | Builds and applies dependency upgrade plans via native package managers, or suppresses unpatched CVEs with 0 call edges. |
 | `vibetrace_check_docs_drift` | `sync`, `scope_path`, `response_format` | Audits documentation for broken or dead codebase symbol references and synchronizes bi-directional AST links. |
 | `vibetrace_trace_path` | `from_symbol`, `to_symbol`, `max_depth`, `include_divergent` | Bidirectional BFS shortest and alternative execution pathfinding with exact call-site coordinates. |
@@ -205,8 +203,6 @@ Add to `claude_desktop_config.json`, `antigravity.json`, or Cursor MCP settings:
 | `/api/deps/tree` | `GET` | `package?: string, max_depth?: int` | Top-down dependency hierarchy from root manifests to leaves. |
 | `/api/deps/conflicts` | `GET` | _none_ | Detects diamond version collisions across project lockfiles. |
 | `/api/diagnose` | `GET` | `symbol: string, depth?: int` | Consolidated 360° symbol diagnosis (slice, callers, blast radius, specs, tests). |
-| `/api/refactor/candidates` | `GET` | `file_path: string, symbol_name: string` | Suggests candidate statement blocks for method extraction. |
-| `/api/refactor/split` | `POST` | `RefactorSplitRequest` body | Executes AST-based helper method extraction refactoring. |
 | `/api/docs/search` | `GET` | `q: string, scope?: string, limit?: int` | 2-stream hybrid RRF documentation search. |
 | `/api/docs/check` | `GET` | _none_ | Audits documentation for broken or dead codebase symbol references. |
 | `/api/docs/sync-links` | `POST` | _none_ | Synchronizes bi-directional links between documentation and AST symbols. |
