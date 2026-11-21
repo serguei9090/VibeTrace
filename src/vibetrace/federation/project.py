@@ -21,6 +21,7 @@ from vibetrace.federation.models import (
     RepoMember,
 )
 from vibetrace.federation.storage import FederatedSQLiteEngine
+from vibetrace.federation.storage_base import StorageBackend
 
 
 class ProjectWorkspace:
@@ -29,7 +30,7 @@ class ProjectWorkspace:
     def __init__(self, root: Path, manifest: ProjectManifest) -> None:
         self.root = root.resolve()
         self.manifest = manifest
-        self._engine: FederatedSQLiteEngine | None = None
+        self._engine: StorageBackend | None = None
 
     @classmethod
     def load(cls, root: Path | None = None) -> ProjectWorkspace:
@@ -69,10 +70,19 @@ class ProjectWorkspace:
         return cls(root_resolved, manifest)
 
     @property
-    def engine(self) -> FederatedSQLiteEngine:
-        """Lazy-loaded federated SQLite engine."""
+    def engine(self) -> StorageBackend:
+        """Lazy-loaded federated storage engine (SQLite or PostgreSQL)."""
         if self._engine is None:
-            self._engine = FederatedSQLiteEngine(self.root, self.manifest.members)
+            if self.manifest.settings.storage_backend == "postgres":
+                from vibetrace.federation.storage_postgres import PostgresStorageBackend
+
+                self._engine = PostgresStorageBackend(
+                    postgres_url=self.manifest.settings.postgres_url or "",
+                    project_id=self.manifest.name,
+                    members=self.manifest.members,
+                )
+            else:
+                self._engine = FederatedSQLiteEngine(self.root, self.manifest.members)
         return self._engine
 
     def close(self) -> None:

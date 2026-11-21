@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from vibetrace.federation.models import (
     FederatedGuardReport,
     FederatedNode,
     MemberStatus,
 )
+
+if TYPE_CHECKING:
+    from vibetrace.federation.cross_repo_linker import CrossRepoLink
 
 
 @runtime_checkable
@@ -38,4 +41,8 @@ class StorageBackend(Protocol):
         target_repo: str | None = None,
     ) -> FederatedGuardReport:
         """Trace callers of a symbol across all attached member repositories."""
+        ...
+
+    def get_cross_repo_links(self) -> list[CrossRepoLink]:
+        """Correlate HTTP routes and client invocations across member repositories."""
         ...

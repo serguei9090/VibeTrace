@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vibetrace.federation.models import (
     FederatedCaller,
@@ -12,6 +12,9 @@ from vibetrace.federation.models import (
     MemberStatus,
     RepoMember,
 )
+
+if TYPE_CHECKING:
+    from vibetrace.federation.cross_repo_linker import CrossRepoLink
 
 logger = logging.getLogger(__name__)
 
@@ -319,3 +322,10 @@ class PostgresStorageBackend:
             risk_level=risk,
             safety_advisory=advisory,
         )
+
+    def get_cross_repo_links(self) -> list[CrossRepoLink]:
+        """Return cross-repository HTTP links when supported by the backend."""
+        logger.debug(
+            "CrossRepoLinker route correlation is only implemented for local SQLite federation."
+        )
+        return []

@@ -238,20 +238,27 @@ class FederatedSQLiteEngine:
             repo_callers: list[dict[str, Any]] = []
             try:
                 where_clause = (
-                    "WHERE (e.to_node_id = ? OR e.to_node_id = ? "
-                    "OR e.to_node_id LIKE ? OR e.to_node_id LIKE ?)"
+                    "WHERE e.relation_type != 'defines' "
+                    "AND (e.to_node_id = ? OR e.to_node_id = ? "
+                    "OR e.to_node_id LIKE ? OR e.to_node_id LIKE ? "
+                    "OR tn.name = ? OR et.target_symbol = ? OR et.target_symbol LIKE ?)"
                 )
                 cursor = conn.execute(
-                    f"SELECT e.from_node_id, e.call_line, n.name AS caller_name, "
+                    f"SELECT DISTINCT e.from_node_id, e.call_line, n.name AS caller_name, "
                     f"n.file_path AS caller_file, n.kind AS caller_kind "
                     f"FROM {alias}.edges e "
                     f"JOIN {alias}.nodes n ON e.from_node_id = n.id "
+                    f"LEFT JOIN {alias}.nodes tn ON e.to_node_id = tn.id "
+                    f"LEFT JOIN {alias}.edge_targets et ON e.to_node_id = et.target_id "
                     f"{where_clause} "
                     f"ORDER BY e.call_line ASC",
                     (
                         target_id or symbol_name,
                         symbol_name,
                         f"%::{symbol_name}",
+                        f"%.{symbol_name}",
+                        symbol_name,
+                        symbol_name,
                         f"%.{symbol_name}",
                     ),
                 )
