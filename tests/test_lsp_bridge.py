@@ -12,7 +12,6 @@ from vibetrace.indexer.lsp_bridge import (
     EXT_TO_LANGUAGE,
     LSP_SERVER_CANDIDATES,
     LSPClient,
-    _discover_tsserver_path,
     _resolve_lsp_binary,
     _resolve_lsp_root,
     get_default_lsp_command,
@@ -389,16 +388,6 @@ def test_lsp_client_definitions_batch_pipelined(tmp_path: Path) -> None:
             assert len(client._pending_requests) == 0
 
 
-def test_discover_tsserver_path_prefers_workspace_local(tmp_path: Path) -> None:
-    """Verify _discover_tsserver_path finds workspace-local node_modules tsserver.js first."""
-    tsserver_js = tmp_path / "node_modules" / "typescript" / "lib" / "tsserver.js"
-    tsserver_js.parent.mkdir(parents=True)
-    tsserver_js.write_text("// stub tsserver\n", encoding="utf-8")
-
-    discovered = _discover_tsserver_path(tmp_path, tmp_path)
-    assert discovered == str(tsserver_js)
-
-
 def test_secondary_languages_registered_in_lsp_candidates() -> None:
     """Verify C, C++, C#, Ruby, and Java LSP servers and extensions are registered."""
     for lang in ("c", "cpp", "csharp", "ruby", "java"):
@@ -656,9 +645,7 @@ def test_tools_manager_install_lsp_primary_ecosystems_local_pinned(tmp_path: Pat
     assert uv_calls[0][1]["UV_TOOL_BIN_DIR"] == str(proj / ".vibetrace" / "bin")
 
     npm_cmds = [c for c, _ in recorded if c[0] == "/usr/bin/npm"]
-    assert any(
-        "typescript-language-server@6.1.0" in c and "typescript@5.9.3" in c for c in npm_cmds
-    )
+    assert any("typescript@7.0.2" in c for c in npm_cmds)
     assert any("intelephense@1.18.5" in c for c in npm_cmds)
     assert any(str(proj / ".vibetrace" / "tools" / "node") in c for c in npm_cmds)
 
@@ -693,7 +680,7 @@ def test_tools_manager_install_lsp_skips_when_already_local_and_init_go_uses_roo
     cmd_ext = ".cmd" if os.name == "nt" else ""
     (local_bin / f"basedpyright-langserver{exe_ext}").write_text("", encoding="utf-8")
     (local_bin / f"gopls{exe_ext}").write_text("", encoding="utf-8")
-    (node_bin / f"typescript-language-server{cmd_ext}").write_text("", encoding="utf-8")
+    (node_bin / f"tsc{exe_ext}").write_text("", encoding="utf-8")
     (node_bin / f"intelephense{cmd_ext}").write_text("", encoding="utf-8")
 
     with patch("vibetrace.tools_manager.subprocess.run") as spy_run:
@@ -702,9 +689,30 @@ def test_tools_manager_install_lsp_skips_when_already_local_and_init_go_uses_roo
     assert ok is True
     assert spy_run.call_count == 0
     assert "basedpyright/pyright" in msg
-    assert "typescript-language-server" in msg
+    assert "tsc (TypeScript/JS)" in msg
     assert "gopls" in msg
     assert "intelephense" in msg
+
+    # Ruby C-ext build failure emits actionable toolchain hint
+    rb_proj = tmp_path / "rb_fail"
+    rb_proj.mkdir()
+    (rb_proj / "Gemfile").write_text('source "https://rubygems.org"\n', encoding="utf-8")
+    with (
+        patch("vibetrace.indexer.lsp_bridge._resolve_lsp_binary", return_value=None),
+        patch(
+            "vibetrace.tools_manager.shutil.which",
+            side_effect=lambda n: "/usr/bin/gem" if n == "gem" else None,
+        ),
+        patch(
+            "vibetrace.tools_manager.subprocess.run",
+            return_value=MagicMock(returncode=1),
+        ),
+    ):
+        ok_rb, msg_rb = ToolsManager.install("lsp", rb_proj)
+
+    assert ok_rb is False
+    assert "RubyInstaller 3.3+" in msg_rb
+    assert "UCRT64" in msg_rb
 
     go_proj = tmp_path / "go_only"
     go_proj.mkdir()

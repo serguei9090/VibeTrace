@@ -116,7 +116,7 @@ VibeTrace provides first-class multi-language AST extraction:
 | Language | Extensions | AST Indexing | Quality & Linter Bridges | Optional LSP Bridge |
 | :--- | :--- | :---: | :--- | :--- |
 | **Python** | `.py` | 🔥 Full | Native AST + Ruff + Pyright + Tree-sitter Cognitive Complexity (`S3776`) | `basedpyright` / `pyright` / `pylsp` |
-| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | Biome + `tsc` + Tree-sitter Cognitive Complexity (`S3776`) | `typescript-language-server` / `vtsls` |
+| **JavaScript / TypeScript** | `.js`, `.jsx`, `.ts`, `.tsx` | 💎 High | Biome + `tsc` + Tree-sitter Cognitive Complexity (`S3776`) | TypeScript 7 native Go `tsc --lsp` |
 | **Go** | `.go` | ✅ Solid | `golangci-lint` (revive, unused, staticcheck) + Tree-sitter (`S3776`) | `gopls` |
 | **Rust** | `.rs` | ✅ Solid | `cargo clippy` + Tree-sitter Cognitive Complexity (`S3776`) | `rust-analyzer` |
 | **PHP** | `.php`, `.phtml` | ✅ Solid | `PHPStan` 2.x + `Pint` + Tree-sitter Cognitive Complexity (`S3776`) | `intelephense` / `phpactor` |

@@ -19,8 +19,7 @@ PHPSTAN_PHAR_URL = "https://github.com/phpstan/phpstan/releases/latest/download/
 PINNED_LSP_VERSIONS: dict[str, str] = {
     "basedpyright": "1.40.2",
     "pyright": "1.1.400",
-    "typescript-language-server": "6.1.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "gopls": "v0.24.0",
     "intelephense": "1.18.5",
     "csharp-ls": "0.16.0",
@@ -608,30 +607,26 @@ class ToolsManager:
                         "basedpyright/pyright install."
                     )
 
-            # TypeScript LSP (typescript-language-server) -> <root>/.vibetrace/tools/node
+            # TypeScript LSP (TypeScript 7 native Go `tsc --lsp --stdio`) -> .vibetrace/tools/node
             if has_ts:
                 node_dir = local_tools / "node"
-                if _resolve_lsp_binary("typescript-language-server", root, language="typescript"):
-                    results.append("typescript-language-server (TypeScript/JS)")
+                if _resolve_lsp_binary("tsc", root, language="typescript"):
+                    results.append("tsc (TypeScript/JS)")
                 elif which_bun or which_npm:
                     if _install_local_npm_packages(
                         node_dir,
-                        [
-                            f"typescript-language-server@{PINNED_LSP_VERSIONS['typescript-language-server']}",
-                            f"typescript@{PINNED_LSP_VERSIONS['typescript']}",
-                        ],
+                        [f"typescript@{PINNED_LSP_VERSIONS['typescript']}"],
                         which_bun,
                         which_npm,
                     ):
                         results.append(
-                            "typescript-language-server@"
-                            f"{PINNED_LSP_VERSIONS['typescript-language-server']} "
+                            f"typescript@{PINNED_LSP_VERSIONS['typescript']} "
                             f"(TypeScript/JS -> {node_dir})"
                         )
                 else:
                     print(
                         "⚠️  TypeScript/JS project detected, but neither 'bun' nor 'npm' is on "
-                        "PATH — skipping typescript-language-server install."
+                        "PATH — skipping typescript native LSP install."
                     )
 
             # Go LSP (gopls) — install locally into <root>/.vibetrace/bin
@@ -801,6 +796,17 @@ class ToolsManager:
                             )
                             if res2.returncode == 0:
                                 results.append(f"solargraph@{sg_ver} (Ruby -> {local_bin})")
+                            else:
+                                msg = (
+                                    "Ruby LSP install failed (native C-extension gems "
+                                    "rbs/racc require a working toolchain). On Windows, "
+                                    "install RubyInstaller 3.3+ with UCRT64 DevKit "
+                                    "('ridk install 3') or use WSL2; on Linux/macOS, "
+                                    "use Ruby 3.2+ with build-essential/Xcode CLI "
+                                    "tools. VibeTrace continues cleanly with AST indexing."
+                                )
+                                print(f"⚠️  {msg}")
+                                hints.append(msg)
                     else:
                         rb_ver = PINNED_LSP_VERSIONS["ruby-lsp"]
                         msg = (

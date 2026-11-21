@@ -92,9 +92,6 @@ class LSPClient:
                     }
                 },
             }
-            if "typescript-language-server" in Path(executable).name.lower():
-                if tsserver_path := _discover_tsserver_path(self.root_path, self.project_root):
-                    init_params["initializationOptions"] = {"tsserver": {"path": tsserver_path}}
             init_res = self.send_request("initialize", init_params, timeout=timeout)
             if init_res is not None:
                 self.send_notification("initialized", {})
@@ -465,8 +462,7 @@ LSP_SERVER_CANDIDATES: dict[str, list[tuple[str, list[str]]]] = {
         ("pylsp", ["pylsp"]),
     ],
     "typescript": [
-        ("typescript-language-server", ["typescript-language-server", "--stdio"]),
-        ("vtsls", ["vtsls", "--stdio"]),
+        ("tsc", ["tsc", "--lsp", "--stdio"]),
     ],
     "rust": [
         ("rust-analyzer", ["rust-analyzer"]),
@@ -521,64 +517,6 @@ EXT_TO_LANGUAGE: dict[str, str] = {
     ".rake": "ruby",
     ".java": "java",
 }
-
-
-def _discover_tsserver_path(root_path: Path, project_root: Path) -> str | None:
-    """Locate `tsserver.js` from `.vibetrace/tools/node`, workspace node_modules, or global."""
-    from vibetrace.config import load_config
-
-    candidates: list[Path] = [
-        project_root
-        / ".vibetrace"
-        / "tools"
-        / "node"
-        / "node_modules"
-        / "typescript"
-        / "lib"
-        / "tsserver.js",
-        root_path
-        / ".vibetrace"
-        / "tools"
-        / "node"
-        / "node_modules"
-        / "typescript"
-        / "lib"
-        / "tsserver.js",
-        root_path / "node_modules" / "typescript" / "lib" / "tsserver.js",
-        project_root / "node_modules" / "typescript" / "lib" / "tsserver.js",
-    ]
-    ts_cfg = _resolve_server_config(load_config(project_root).lsp, "typescript")
-    if ts_cfg.mode == "global":
-        if tsserver_bin := shutil.which("tsserver"):
-            bin_path = Path(tsserver_bin)
-            candidates.extend(
-                [
-                    bin_path.parent / "node_modules" / "typescript" / "lib" / "tsserver.js",
-                    bin_path.resolve().parent.parent / "lib" / "tsserver.js",
-                ]
-            )
-        if appdata := os.environ.get("APPDATA"):
-            candidates.append(
-                Path(appdata) / "npm" / "node_modules" / "typescript" / "lib" / "tsserver.js"
-            )
-        candidates.extend(
-            [
-                Path.home()
-                / ".bun"
-                / "install"
-                / "global"
-                / "node_modules"
-                / "typescript"
-                / "lib"
-                / "tsserver.js",
-                Path("/usr/local/lib/node_modules/typescript/lib/tsserver.js"),
-                Path("/usr/lib/node_modules/typescript/lib/tsserver.js"),
-            ]
-        )
-    for cand in candidates:
-        if cand.is_file():
-            return str(cand)
-    return None
 
 
 def _infer_language_for_binary(binary: str) -> str | None:

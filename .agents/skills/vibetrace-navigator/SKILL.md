@@ -133,7 +133,7 @@ To avoid context/terminal truncation on large repositories, follow this 2-step w
    *Records unapproved findings into `.vibetrace/quality.toml`.*
 
 ### 12. Automated Polyglot Tool & LSP Binary Installer (`tools`)
-Auto-detects project languages and installs missing quality sub-engines (`ruff`, `biome`, `phpstan`, `sonarlint-ls.jar`) and Language Server Protocol binaries (`pyright`, `typescript-language-server`) via `vibetrace tools`:
+Auto-detects project languages and installs missing quality sub-engines (`ruff`, `biome`, `phpstan`, `sonarlint-ls.jar`) and Language Server Protocol binaries (`basedpyright`, `typescript@7.0.2` native Go `tsc --lsp`) via `vibetrace tools`:
 - **CLI:**
   ```bash
   uv run vibetrace tools status                       # Check status of all ecosystem engines & SonarLint

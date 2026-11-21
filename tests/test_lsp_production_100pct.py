@@ -1,6 +1,6 @@
 """Production Test Suite for 100% Polyglot AST + Multi-Daemon LSP Resolution.
 
-Tests real language servers (basedpyright, typescript-language-server) against the 4
+Tests real language servers (basedpyright, TypeScript 7 native Go tsc --lsp) against the 4
 impossible patterns for static AST:
 1. Polymorphism / Interface dispatch with identical method names across classes.
 2. Barrel re-exports across multi-level packages (__init__.py / index.ts).
@@ -133,9 +133,9 @@ def test_production_python_ast_vs_lsp_100pct(tmp_path: Path) -> None:
 
 
 def test_production_typescript_ast_vs_lsp_100pct(tmp_path: Path) -> None:
-    """Verifies TypeScript polymorphism reaches 100% with typescript-language-server."""
-    has_tsserver = shutil.which("typescript-language-server") is not None
-    if not has_tsserver:
+    """Verifies TypeScript polymorphism reaches 100% with native Go `tsc --lsp`."""
+    has_tsc = shutil.which("tsc") is not None
+    if not has_tsc:
         return
 
     proj = tmp_path / "ts_workspace"
