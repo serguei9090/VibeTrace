@@ -20,7 +20,7 @@ PINNED_LSP_VERSIONS: dict[str, str] = {
     "basedpyright": "1.40.2",
     "pyright": "1.1.400",
     "typescript-language-server": "6.1.0",
-    "typescript": "7.0.2",
+    "typescript": "5.9.3",
     "gopls": "v0.24.0",
     "intelephense": "1.18.5",
     "csharp-ls": "0.16.0",

@@ -657,7 +657,7 @@ def test_tools_manager_install_lsp_primary_ecosystems_local_pinned(tmp_path: Pat
 
     npm_cmds = [c for c, _ in recorded if c[0] == "/usr/bin/npm"]
     assert any(
-        "typescript-language-server@6.1.0" in c and "typescript@7.0.2" in c for c in npm_cmds
+        "typescript-language-server@6.1.0" in c and "typescript@5.9.3" in c for c in npm_cmds
     )
     assert any("intelephense@1.18.5" in c for c in npm_cmds)
     assert any(str(proj / ".vibetrace" / "tools" / "node") in c for c in npm_cmds)
