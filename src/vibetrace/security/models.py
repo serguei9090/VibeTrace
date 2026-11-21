@@ -89,4 +89,6 @@ class SecurityAuditReport(BaseModel):
     unapproved_count: int = 0
     modified_count: int = 0
     approved_count: int = 0
+    scope_mode: str = "changed"
+    scope_note: str | None = None
     findings: list[SecurityFinding] = Field(default_factory=list)

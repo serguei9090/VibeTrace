@@ -22,6 +22,34 @@ from vibetrace.taxonomy import CweTaxonomyManager
 class SecurityService:
     """Provides high-level security audit and exception recording workflows."""
 
+    _DEPENDENCY_FILENAMES = frozenset(
+        {
+            "package.json",
+            "package-lock.json",
+            "yarn.lock",
+            "pnpm-lock.yaml",
+            "bun.lock",
+            "bun.lockb",
+            "requirements.txt",
+            "poetry.lock",
+            "uv.lock",
+            "pyproject.toml",
+            "go.mod",
+            "Cargo.lock",
+            "composer.lock",
+            "Gemfile.lock",
+        }
+    )
+    _CONTAINER_FILENAMES = frozenset(
+        {
+            "dockerfile",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+            "compose.yml",
+            "compose.yaml",
+        }
+    )
+
     @staticmethod
     def _is_test_path(
         rel_path: str,
@@ -83,10 +111,21 @@ class SecurityService:
         enable_trivy: bool = True,
         enable_semgrep: bool = True,
         enable_sonar: bool = False,
-        sonar_all: bool = False,
+        scan_all: bool = False,
         image_tag: str | None = None,
     ) -> SecurityAuditReport:
         """Runs AST security scanner and lockfile CVE checks, then applies Git baseline."""
+        from vibetrace.indexer.git_utils import resolve_git_audit_scope
+
+        scope_mode, scope_note, effective_file_list, empty_fast_exit = resolve_git_audit_scope(
+            project_root=project_root,
+            file_filter=file_filter,
+            file_list=file_list,
+            scan_all=scan_all,
+        )
+        if empty_fast_exit and not sarif_file and not image_tag:
+            return SecurityAuditReport(scope_mode=scope_mode, scope_note=scope_note)
+
         findings: list[SecurityFinding] = []
 
         from vibetrace.config import load_config
@@ -122,11 +161,15 @@ class SecurityService:
                 )
             else:
                 target_files = [file_filter]
-        elif file_list is not None:
+        elif effective_file_list is not None:
             target_files = (
-                file_list
+                effective_file_list
                 if effective_include_tests
-                else [f for f in file_list if not cls._is_test_path(f, exclude_spec=exclude_spec)]
+                else [
+                    f
+                    for f in effective_file_list
+                    if not cls._is_test_path(f, exclude_spec=exclude_spec)
+                ]
             )
         else:
             with db._get_conn() as conn:
@@ -172,11 +215,27 @@ class SecurityService:
                 project_root=project_root,
             )
 
+        changed_rel_set = {p.replace("\\", "/").lstrip("./") for p in (effective_file_list or [])}
+        has_changed_dep = any(Path(p).name in cls._DEPENDENCY_FILENAMES for p in changed_rel_set)
+        has_changed_container = any(
+            Path(p).name.lower() in cls._CONTAINER_FILENAMES
+            or Path(p).name.lower().startswith("dockerfile.")
+            or Path(p).suffix.lower() in (".yaml", ".yml", ".tf")
+            for p in changed_rel_set
+        )
+
         # 1c. Zero-dependency IaC scanning (Dockerfile, docker-compose, K8s, GitHub Actions)
-        findings.extend(IacScanner.scan_project(project_root, file_filter=file_filter))
+        iac_findings = IacScanner.scan_project(project_root, file_filter=file_filter)
+        if scope_mode == "changed" and not file_filter:
+            iac_findings = [
+                f
+                for f in iac_findings
+                if f.file_path.replace("\\", "/").lstrip("./") in changed_rel_set
+            ]
+        findings.extend(iac_findings)
 
         # 1d. Gitleaks-style Secret & Shannon Entropy scanning (working tree + last N commits)
-        if not file_filter:
+        if not file_filter and scope_mode == "all":
             findings.extend(
                 GitSecretScanner.scan_repository(
                     project_root=project_root,
@@ -186,7 +245,7 @@ class SecurityService:
             )
 
         # 2. Dependency lockfile CVE scanning (Google OSV)
-        if check_dependencies and not file_filter:
+        if check_dependencies and not file_filter and (scope_mode == "all" or has_changed_dep):
             packages = LockfileParser.parse_all_lockfiles(project_root)
             if packages:
                 cve_findings = OsvClient.query_vulnerabilities(
@@ -237,18 +296,24 @@ class SecurityService:
 
             if image_tag:
                 findings.extend(TrivyAdapter.scan_image(image_tag, project_root, db=db))
-            elif TrivyAdapter.has_container_configs(project_root) and TrivyAdapter.is_available():
+            elif (
+                (scope_mode == "all" or has_changed_container)
+                and TrivyAdapter.has_container_configs(project_root)
+                and TrivyAdapter.is_available()
+            ):
                 findings.extend(TrivyAdapter.scan_filesystem(project_root, db=db))
 
         # 4. Optional external Semgrep CLI SAST adapter (deduplicated against native findings)
-        if enable_semgrep and not sarif_file:
+        if enable_semgrep and not sarif_file and (target_files or scope_mode == "all"):
             from vibetrace.security.adapters.semgrep import SemgrepAdapter
 
             if SemgrepAdapter.is_available():
                 semgrep_findings = SemgrepAdapter.scan_project(
                     project_root=project_root,
                     db=db,
-                    target_files=target_files if (file_filter or file_list) else None,
+                    target_files=(
+                        target_files if (file_filter or effective_file_list is not None) else None
+                    ),
                 )
                 seen_cwe_keys: set[tuple[str, int, str]] = set()
                 for existing in findings:
@@ -268,7 +333,7 @@ class SecurityService:
                     findings.append(sf)
 
         # 5. Optional Tier-2 SonarLint Headless Java Engine (--sonar or config.quality.enable_sonar)
-        if enable_sonar or cfg.quality.enable_sonar:
+        if (enable_sonar or cfg.quality.enable_sonar) and target_files:
             from vibetrace.quality.adapters.sonar_lint import (
                 SonarLintAdapter,
                 extract_rspec_short,
@@ -279,8 +344,8 @@ class SecurityService:
                 project_root=project_root,
                 candidates=[project_root / f for f in target_files],
                 file_filter=file_filter,
-                file_list=file_list,
-                sonar_all=sonar_all,
+                file_list=effective_file_list,
+                scan_all=True,
             )
             if sonar_paths:
                 sonar_engine = SonarLintAdapter()
@@ -307,7 +372,10 @@ class SecurityService:
         for f in findings:
             CweTaxonomyManager.enrich_finding(f)
 
-        return SecurityBaselineManager.apply_baseline_to_findings(findings, project_root)
+        report = SecurityBaselineManager.apply_baseline_to_findings(findings, project_root)
+        report.scope_mode = scope_mode
+        report.scope_note = scope_note
+        return report
 
     @classmethod
     def record_exception(
@@ -355,6 +423,7 @@ class SecurityService:
             project_root=project_root,
             file_filter=file_filter,
             check_dependencies=finding_id is not None,
+            scan_all=file_filter is None,
         )
         targets = [
             f

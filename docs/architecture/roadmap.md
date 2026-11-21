@@ -101,8 +101,8 @@ The following 5 strategic capabilities have been fully implemented, integrated a
    - Sliding Window JSON-RPC Pipelining (`batch_size=32`) eliminating OS pipe buffer deadlocks.
    - Batch document pre-warming (`ensure_documents_opened_batch`) reducing disk reads.
    - Best-effort static and LSP bridging for dynamic types, cross-file aliases, and re-exports across multi-module codebases.
-6. **Optional Codebase Vector Embeddings with Auto Hardware Detection**:
-   - Declarative `[vectors] codebase = false` (default) and `device = "auto" | "gpu" | "cpu"`.
+6. **Optional Codebase Vector Embeddings with Explicit GPU/CPU Control**:
+   - Declarative `[vectors] codebase = false` (default) and `device = "gpu" | "cpu"` (GPU DirectML by default without silent CPU fallback).
    - Real-time batch progress monitoring `[X/Total %]` preventing UI freezing.
    - Automatic purging of orphaned vectors when symbols are removed in Git (`purge_orphaned_embeddings`).
    - Agent-guided next steps (`vibetrace slice`, `trace`, `impact`) in hybrid search results.

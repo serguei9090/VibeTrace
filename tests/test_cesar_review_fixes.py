@@ -267,7 +267,7 @@ def test_go_pkg_symbol_discovery_cached(tmp_path: Path) -> None:
 
 
 def test_filter_sonar_targets_git_diff_and_wave_chunking(tmp_path: Path) -> None:
-    """Verify bare --sonar scopes to git-changed files while --sonar-all/--file keep all."""
+    """Verify bare --sonar scopes to git-changed files while --all/--file keep all."""
     from types import SimpleNamespace
 
     from vibetrace.quality.adapters.sonar_lint import (
@@ -281,11 +281,11 @@ def test_filter_sonar_targets_git_diff_and_wave_chunking(tmp_path: Path) -> None
     f_a.write_text("x = 1\n", encoding="utf-8")
     f_b.write_text("y = 2\n", encoding="utf-8")
 
-    # 1. Clean git working tree -> returns [] unless --sonar-all or --file is passed
+    # 1. Clean git working tree -> returns [] unless scan_all (--all) or --file is passed
     clean_proc = SimpleNamespace(returncode=0, stdout="")
     with patch("subprocess.run", return_value=clean_proc):
         assert filter_sonar_targets(tmp_path, [f_a, f_b]) == []
-        assert filter_sonar_targets(tmp_path, [f_a, f_b], sonar_all=True) == [f_a, f_b]
+        assert filter_sonar_targets(tmp_path, [f_a, f_b], scan_all=True) == [f_a, f_b]
         assert filter_sonar_targets(tmp_path, [f_a, f_b], file_filter="a.py") == [f_a, f_b]
 
     # 2. Modified b.py in git status -> selects only b.py

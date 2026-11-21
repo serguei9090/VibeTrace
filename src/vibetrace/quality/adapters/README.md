@@ -49,7 +49,7 @@ than reported under an invented identifier.
 - `SonarLintAdapter` - Optional Tier-2 SonarLint Language Server session.
   Exposes `audit_file`, `audit_project`, `scan_security_findings`; companion
   `filter_sonar_targets` scopes default scans to git-changed files unless
-  `sonar_all` is requested, and `_SONAR_WAVE_SIZE = 12` caps concurrent LSP
+  `scan_all` is requested, and `_SONAR_WAVE_SIZE = 12` caps concurrent LSP
   document waves (`_open_wave_documents`, `_await_wave_diagnostics`,
   `_close_wave_documents`).
 - `SqlFluffAdapter` - SQL via SQLFluff JSON output. Exposes

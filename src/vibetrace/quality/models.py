@@ -85,6 +85,8 @@ class QualityAuditReport(BaseModel):
     average_complexity: float = 0.0
     max_complexity: int = 0
     max_complexity_symbol: str | None = None
+    scope_mode: str = "changed"
+    scope_note: str | None = None
     findings: list[QualityFinding] = Field(default_factory=list)
 
 

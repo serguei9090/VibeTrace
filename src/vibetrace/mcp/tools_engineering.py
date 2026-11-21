@@ -207,6 +207,7 @@ def vibetrace_patch_dependency(params: PatchDependencyInput) -> str:
             db=db,
             project_root=root,
             check_dependencies=True,
+            scan_all=True,
         )
         plan = DependencyAutoPatcher.build_patch_plan(
             project_root=root,

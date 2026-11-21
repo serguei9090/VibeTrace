@@ -110,6 +110,7 @@ def run_unified_review(
         git_commit_depth=25 if norm_scope == "full" else 5,
         sarif_file=sarif_file,
         enable_sonar=enable_sonar,
+        scan_all=(norm_scope == "full"),
     )
     active_sec: list[SecurityFinding] = []
     for f in sec_report.findings:
@@ -138,6 +139,7 @@ def run_unified_review(
         include_tests=False,
         typecheck=typecheck,
         enable_sonar=enable_sonar,
+        scan_all=(norm_scope == "full"),
     )
     active_qual: list[QualityFinding] = []
     for f in qual_report.findings:

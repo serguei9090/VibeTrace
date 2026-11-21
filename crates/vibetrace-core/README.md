@@ -18,7 +18,7 @@ Native PyO3 (`abi3-py310`) Rust extension module (`vibetrace._rust_core`) that e
 
 - Directory traversal disables ancestor `.gitignore` inheritance (`parents(false)`) so parent repository rules never hide files inside nested projects [crates/vibetrace-core/src/walker.rs].
 - All heavy PyO3 entry points (`py_scan_and_hash_workspace`, `py_embed_texts_parallel`, `py_search_vectors_parallel`) release the Python GIL via `py.allow_threads` [crates/vibetrace-core/src/lib.rs].
-- Embedding inference targets `onnx-community/embeddinggemma-2-ONNX` (`tokenizer.json`, `model_quantized.onnx`, `model_quantized.onnx_data`) with `MAX_SEQ_LEN = 512`, `MICRO_BATCH_SIZE = 16`, DirectML GPU on Windows with automatic CPU fallback, Matryoshka truncation, and L2 normalization [crates/vibetrace-core/src/vectors.rs].
+- Embedding inference targets `onnx-community/embeddinggemma-2-ONNX` (`tokenizer.json`, `model_quantized.onnx`, `model_quantized.onnx_data`) with `MAX_SEQ_LEN = 512`, `MICRO_BATCH_SIZE = 16`, explicit `"gpu"` (DirectML on Windows without silent CPU fallback) or `"cpu"` device selection (rejecting `"auto"`), Matryoshka truncation, and L2 normalization [crates/vibetrace-core/src/vectors.rs].
 - `resolve_model_dir` checks explicit `model_dir`, then `VIBETRACE_MODEL_DIR`, then `~/.vibetrace/models/embeddinggemma-2-onnx` [crates/vibetrace-core/src/vectors.rs:resolve_model_dir].
 
 ## Side Effects

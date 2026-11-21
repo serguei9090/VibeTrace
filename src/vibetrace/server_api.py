@@ -386,6 +386,7 @@ def get_security_audit_endpoint(
     skip_deps: bool = Query(default=False),
     update: bool = Query(default=False),
     no_taint: bool = Query(default=False),
+    scan_all: bool = Query(default=False),
 ):
     """Audits codebase and dependencies for security flaws against .vibetrace/security.toml."""
     from vibetrace.security.service import SecurityService
@@ -397,6 +398,7 @@ def get_security_audit_endpoint(
         check_dependencies=not skip_deps,
         force_update_cves=update,
         analyze_taint=not no_taint,
+        scan_all=scan_all,
     )
     from vibetrace.services.report_store import ReportStore
 
@@ -449,6 +451,7 @@ def get_quality_audit_endpoint(
     file_path: str | None = Query(default=None),
     threshold: int = Query(default=15),
     include_tests: bool = Query(default=False),
+    scan_all: bool = Query(default=False),
 ):
     """Audits codebase for complexity and smells against .vibetrace/quality.toml."""
     from vibetrace.quality.service import QualityService
@@ -459,6 +462,7 @@ def get_quality_audit_endpoint(
         file_filter=file_path,
         complexity_threshold=threshold,
         include_tests=include_tests,
+        scan_all=scan_all,
     )
     from vibetrace.services.report_store import ReportStore
 

@@ -576,3 +576,80 @@ def test_ruff_alias_bridge_resolution() -> None:
     spec = get_rule_spec("S1066")
     assert spec is not None
     assert spec.rspec_id == "RSPEC-1066"
+
+
+def _init_git_repo(root: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+
+
+def test_quality_audit_git_changed_default_vs_all_and_non_git(tmp_path: Path) -> None:
+    """Verify quality audit defaults to changed Git files, supports --all, and handles non-Git."""
+    import subprocess
+
+    from vibetrace.quality.service import QualityService
+
+    # 1. Non-Git directory falls back cleanly to whole-repo scan
+    non_git = tmp_path / "non_git"
+    (non_git / "src").mkdir(parents=True)
+    (non_git / "src" / "bad.py").write_text(
+        "def f(a, b, c, d, e, f, g, h, i):\n    pass\n",
+        encoding="utf-8",
+    )
+    rep_non_git = QualityService.audit_project(db=None, project_root=non_git)
+    assert rep_non_git.scope_mode == "all"
+    assert rep_non_git.scope_note is not None
+    assert "Not a Git repository" in rep_non_git.scope_note
+    assert rep_non_git.total_findings >= 1
+
+    # 2. Git repository: clean tree -> fast 0 findings + --all hint
+    git_repo = tmp_path / "git_repo"
+    (git_repo / "src").mkdir(parents=True)
+    committed = git_repo / "src" / "committed_bad.py"
+    committed.write_text(
+        "def old_bad(a, b, c, d, e, f, g, h, i):\n    pass\n",
+        encoding="utf-8",
+    )
+    _init_git_repo(git_repo)
+    subprocess.run(["git", "add", "."], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=git_repo, check=True)
+
+    rep_clean = QualityService.audit_project(db=None, project_root=git_repo)
+    assert rep_clean.scope_mode == "changed"
+    assert rep_clean.total_findings == 0
+    assert rep_clean.scope_note is not None
+    assert "--all" in rep_clean.scope_note
+
+    # 3. Adding an untracked file scans ONLY the untracked file (not committed_bad.py)
+    untracked = git_repo / "src" / "new_bad.py"
+    untracked.write_text(
+        "def fresh_bad(a, b, c, d, e, f, g, h, i):\n    pass\n",
+        encoding="utf-8",
+    )
+    rep_dirty = QualityService.audit_project(db=None, project_root=git_repo)
+    assert rep_dirty.scope_mode == "changed"
+    dirty_files = {f.file_path for f in rep_dirty.findings}
+    assert "src/new_bad.py" in dirty_files
+    assert "src/committed_bad.py" not in dirty_files
+
+    # 4. scan_all=True (--all) scans the whole repository including committed_bad.py
+    rep_all = QualityService.audit_project(db=None, project_root=git_repo, scan_all=True)
+    assert rep_all.scope_mode == "all"
+    all_files = {f.file_path for f in rep_all.findings}
+    assert {"src/committed_bad.py", "src/new_bad.py"}.issubset(all_files)
+
+    # 5. CLI parser exposes --all and removes --sonar-all
+    import pytest
+
+    from vibetrace.cli import build_parser
+
+    parser = build_parser()
+    q_args = parser.parse_args(["audit", "quality", "--all"])
+    assert q_args.scan_all is True
+    s_args = parser.parse_args(["audit", "security", "--all"])
+    assert s_args.scan_all is True
+    with pytest.raises(SystemExit):
+        parser.parse_args(["audit", "quality", "--sonar-all"])

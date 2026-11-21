@@ -727,6 +727,7 @@ async def vibetrace_audit_security(params: AuditSecurityInput) -> str:
             check_dependencies=not params.skip_deps,
             force_update_cves=params.update,
             analyze_taint=not params.no_taint,
+            scan_all=params.scan_all,
         )
 
         if params.response_format == ResponseFormat.JSON:

@@ -103,15 +103,17 @@ these modules call into.
   `RefactorSplitRequest`
   (`[src/vibetrace/server_api_engineering.py:PatchDepsRequest]`).
 - Configuration models: `ProjectConfig`, `DatabaseConfig`, `VectorConfig`,
-  `DocsConfig`, `DeadCodeConfig`, `SplitsConfig`, `IndexerConfig`, `LinterConfigs`,
-  `QualityConfig`, `SecurityConfig`, `VibeTraceConfig`
-  (`[src/vibetrace/config.py:VibeTraceConfig]`, `[src/vibetrace/config.py:SplitsConfig]`,
+  `DocsConfig`, `LspServerConfig`, `LspConfig`, `DeadCodeConfig`, `SplitsConfig`,
+  `IndexerConfig`, `LinterConfigs`, `QualityConfig`, `SecurityConfig`,
+  `VibeTraceConfig` (`[src/vibetrace/config.py:VibeTraceConfig]`,
+  `[src/vibetrace/config.py:LspConfig]`, `[src/vibetrace/config.py:SplitsConfig]`,
   `[src/vibetrace/config.py:DocsConfig]`), with `load_config`, `save_default_config`,
-  `resolve_linter_mode`, and `save_linter_mode` (`[src/vibetrace/config.py:load_config]`).
-- Additional CLI flags across audit and docs subcommands include
-  `docs search --locale`, `audit splits --max-lines` / `--margin`,
-  `audit quality --sonar-all`, and `audit security --sonar-all`
-  (`[src/vibetrace/cli.py:build_parser]`).
+  `normalize_embedding_device`, `resolve_linter_mode`, and `save_linter_mode`
+  (`[src/vibetrace/config.py:load_config]`).
+- Additional CLI flags across index, audit, and docs subcommands include
+  `index --device gpu|cpu`, `docs search --locale`,
+  `audit splits --max-lines` / `--margin`, `audit quality --all`, and
+  `audit security --all` (`[src/vibetrace/cli.py:build_parser]`).
 - Shared limits: `CHARS_PER_TOKEN`, `DEFAULT_VIBE_BUNDLE_BUDGET`,
   `DEFAULT_REPO_MAP_BUDGET`, `DEFAULT_MAX_DEPTH`, `MAX_TRAVERSAL_DEPTH`, and
   `DEFAULT_SAVED_TRACE_DEPTH` (`[src/vibetrace/constants.py:CHARS_PER_TOKEN]`).

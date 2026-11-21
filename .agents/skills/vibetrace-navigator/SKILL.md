@@ -108,9 +108,10 @@ Audit code for Cognitive Complexity (RSPEC-3776), deeply nested control flow (RS
 
 #### 🤖 AI Agent Token-Efficient 2-Step Remediation Workflow:
 To avoid context/terminal truncation on large repositories, follow this 2-step workflow:
-1. **Phase 1: Executive Overview (`--summary`)**:
+1. **Phase 1: Executive Overview (`--summary`, changed Git files by default or `--all` for full repo)**:
    ```bash
    uv run vibetrace audit quality --summary
+   uv run vibetrace audit quality --all --summary
    ```
    *Returns a 20-line matrix table (<1 KB) summarizing unapproved and approved counts by rule across all languages, without dumping full text.*
 2. **Phase 2: Surgical Target Extraction (`--file <path>` / `--file <path> --json`)**:
@@ -259,7 +260,14 @@ lsp_mode = "auto"   # "auto" | "always" | "off"
 
 [vectors]
 codebase = false    # true to compute 256d EmbeddingGemma 2 vectors during index
-device = "auto"     # "auto" | "gpu" | "cpu"
+device = "gpu"      # "gpu" (default, DirectML) | "cpu"
+
+[lsp]
+bin_dir = ".vibetrace/bin"
+
+[lsp.servers.python]
+mode = "local"      # "local" (.vibetrace/bin or .vibetrace/tools) | "global" (PATH or explicit path)
+path = ""
 
 [quality]
 include_tests = false

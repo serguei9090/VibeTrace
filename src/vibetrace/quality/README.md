@@ -174,11 +174,11 @@ IDs through the alias index built from that catalog.
   the project root, and inserts comments from the last line upward so earlier
   line numbers stay valid
   [src/vibetrace/quality/service.py:QualityService].
-- `QualityService.audit_project` runs the TypeScript engine only when
-  `typecheck` is requested, and runs the SonarLint engine only when
-  `enable_sonar` is set or `config.quality.enable_sonar` is true; when enabled
-  without explicit `file_filter`/`file_list` or `sonar_all=True` (`--sonar-all`),
-  SonarLint targets git-changed files via `filter_sonar_targets`
+- `QualityService.audit_project` resolves Git changed/untracked scope via
+  `resolve_git_audit_scope` (fast empty exit `0` on clean Git repos, whole-repo
+  fallback outside Git, or full-repo when `scan_all=True` / `--all`), runs the
+  TypeScript engine only when `typecheck` is requested, and runs SonarLint only
+  when `enable_sonar` or `config.quality.enable_sonar` is true
   [src/vibetrace/quality/service.py:QualityService],
   [src/vibetrace/quality/adapters/sonar_lint.py:filter_sonar_targets].
 

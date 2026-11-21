@@ -643,6 +643,10 @@ class AuditSecurityInput(BaseModel):
         default=False,
         description="Force refresh vulnerability intelligence from Google OSV",
     )
+    scan_all: bool = Field(
+        default=False,
+        description="Scan all project files instead of only changed/untracked Git files",
+    )
     scope_path: str = Field(default=".", description="Project root path")
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,

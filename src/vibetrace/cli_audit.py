@@ -310,6 +310,8 @@ def _render_security_output(
             domain="security",
             findings=report.findings,
         )
+        if getattr(report, "scope_note", None):
+            print(safe_str(str(report.scope_note)))
         print(safe_str(summary if is_summary else format_security_audit_md(report)))
 
 
@@ -377,7 +379,7 @@ def cmd_audit_security(args: argparse.Namespace) -> int:
         enable_trivy=not skip_trivy,
         enable_semgrep=not skip_semgrep,
         enable_sonar=getattr(args, "sonar", False),
-        sonar_all=getattr(args, "sonar_all", False),
+        scan_all=getattr(args, "scan_all", False),
         image_tag=image_tag,
     )
 
@@ -538,7 +540,7 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
         include_tests=include_tests,
         typecheck=getattr(args, "typecheck", False),
         enable_sonar=getattr(args, "sonar", False),
-        sonar_all=getattr(args, "sonar_all", False),
+        scan_all=getattr(args, "scan_all", False),
     )
 
     if getattr(args, "approve", False):
@@ -575,6 +577,8 @@ def cmd_audit_quality(args: argparse.Namespace) -> int:
     elif is_json:
         print(report.model_dump_json(indent=2))
     else:
+        if getattr(report, "scope_note", None):
+            print(safe_str(str(report.scope_note)))
         print(safe_str(format_quality_audit_md(report, summary_only=is_summary)))
 
     if is_ci:

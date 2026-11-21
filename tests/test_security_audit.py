@@ -610,3 +610,91 @@ def test_expanded_modern_tokens_and_staged_scan(tmp_path: Path):
     assert len(findings) == 5
     rules = {f.rule_id for f in findings}
     assert "git:leaked-api-token" in rules
+
+
+def test_security_audit_git_changed_default_vs_all_and_non_git(tmp_path: Path) -> None:
+    """Verify security audit defaults to changed Git files, supports --all, and handles non-Git."""
+    import subprocess
+
+    from vibetrace.indexer.db import IndexerDB
+    from vibetrace.indexer.models import Node
+    from vibetrace.security.service import SecurityService
+
+    # 1. Non-Git directory falls back cleanly to whole-repo scan
+    non_git = tmp_path / "sec_non_git"
+    non_git.mkdir(parents=True)
+    (non_git / "app.py").write_text("import os\ndef run(x):\n    os.system(x)\n", encoding="utf-8")
+    db_ng = IndexerDB(str(non_git / "v.db"))
+    db_ng.upsert_node(
+        Node(
+            id="ng_run",
+            name="run",
+            qualified_name="run",
+            kind="function",
+            file_path="app.py",
+            start_line=2,
+            end_line=3,
+        )
+    )
+    rep_ng = SecurityService.audit_project(
+        db=db_ng, project_root=non_git, check_dependencies=False, enable_semgrep=False
+    )
+    assert rep_ng.scope_mode == "all"
+    assert rep_ng.scope_note is not None
+    assert "Not a Git repository" in rep_ng.scope_note
+    assert rep_ng.total_findings >= 1
+
+    # 2. Clean Git repo -> fast 0 findings + --all hint
+    git_repo = tmp_path / "sec_git"
+    git_repo.mkdir(parents=True)
+    committed = git_repo / "legacy.py"
+    committed.write_text("def danger():\n    return eval('1+1')\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=git_repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=git_repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=git_repo, check=True)
+    subprocess.run(["git", "add", "legacy.py"], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=git_repo, check=True)
+
+    (git_repo / ".vibetrace").mkdir(exist_ok=True)
+    db_g = IndexerDB(str(git_repo / ".vibetrace" / "vibetrace.db"))
+    db_g.upsert_node(
+        Node(
+            id="g_legacy",
+            name="danger",
+            qualified_name="danger",
+            kind="function",
+            file_path="legacy.py",
+            start_line=1,
+            end_line=2,
+        )
+    )
+    rep_clean = SecurityService.audit_project(
+        db=db_g, project_root=git_repo, check_dependencies=False, enable_semgrep=False
+    )
+    assert rep_clean.scope_mode == "changed"
+    assert rep_clean.total_findings == 0
+    assert rep_clean.scope_note is not None
+    assert "--all" in rep_clean.scope_note
+
+    # 3. Untracked file scans ONLY the new/modified file
+    (git_repo / "new_vuln.py").write_text(
+        "import os\ndef bad(x):\n    os.system(x)\n", encoding="utf-8"
+    )
+    rep_dirty = SecurityService.audit_project(
+        db=db_g, project_root=git_repo, check_dependencies=False, enable_semgrep=False
+    )
+    assert rep_dirty.scope_mode == "changed"
+    dirty_files = {f.file_path for f in rep_dirty.findings}
+    assert "new_vuln.py" in dirty_files
+    assert "legacy.py" not in dirty_files
+
+    # 4. scan_all=True (--all) includes committed legacy findings
+    rep_all = SecurityService.audit_project(
+        db=db_g,
+        project_root=git_repo,
+        check_dependencies=False,
+        enable_semgrep=False,
+        scan_all=True,
+    )
+    assert rep_all.scope_mode == "all"
+    assert "legacy.py" in {f.file_path for f in rep_all.findings}

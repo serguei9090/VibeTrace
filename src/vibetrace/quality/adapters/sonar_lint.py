@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from vibetrace.indexer.git_utils import filter_paths_to_git_changed
 from vibetrace.quality.adapters.base import LinterSubEngine
 from vibetrace.quality.models import QualityCategory, QualityFinding, QualitySeverity
 from vibetrace.quality.rules import get_rule_spec
@@ -46,52 +47,13 @@ def filter_sonar_targets(
     candidates: list[Path],
     file_filter: str | None = None,
     file_list: list[str] | None = None,
-    sonar_all: bool = False,
+    scan_all: bool = False,
 ) -> list[Path]:
-    """Scope SonarLint targets to git-changed files unless explicit filter or --sonar-all."""
-    if file_filter or file_list is not None or sonar_all:
+    """Scope SonarLint targets to git-changed files unless explicit filter or --all."""
+    if file_filter or file_list is not None or scan_all:
         return candidates
-    try:
-        res = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=str(project_root),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=5.0,
-        )
-        if res.returncode != 0:
-            return candidates
-    except (OSError, subprocess.SubprocessError):
-        return candidates
-
-    changed_rel: set[str] = set()
-    for line in res.stdout.splitlines():
-        if len(line) < 4:
-            continue
-        raw_path = line[3:].strip()
-        if " -> " in raw_path:
-            raw_path = raw_path.split(" -> ", 1)[1].strip()
-        clean = raw_path.strip('"').replace("\\", "/").lstrip("./")
-        if clean:
-            changed_rel.add(clean)
-
-    if not changed_rel:
-        return []
-
-    proj_res = project_root.resolve()
-    matched: list[Path] = []
-    for p in candidates:
-        abs_p = p if p.is_absolute() else (proj_res / p)
-        try:
-            rel = abs_p.resolve().relative_to(proj_res).as_posix().lstrip("./")
-        except ValueError:
-            rel = str(p).replace("\\", "/").lstrip("./")
-        if rel in changed_rel:
-            matched.append(p)
-    return matched
+    matched = filter_paths_to_git_changed(project_root, candidates)
+    return candidates if matched is None else matched
 
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(

@@ -1088,9 +1088,10 @@ examples:
         help="Enable optional Tier-2 SonarLint Headless Java Engine for security & ReDoS rules",
     )
     p_security.add_argument(
-        "--sonar-all",
+        "--all",
+        dest="scan_all",
         action="store_true",
-        help="Scan all project files with SonarLint instead of only git-changed files",
+        help="Scan all project files instead of only changed/untracked Git files",
     )
     p_security.add_argument(
         "--status",
@@ -1177,9 +1178,10 @@ examples:
         help="Enable optional Tier-2 SonarLint Headless Java Engine (sonarlint-ls.jar)",
     )
     p_quality.add_argument(
-        "--sonar-all",
+        "--all",
+        dest="scan_all",
         action="store_true",
-        help="Scan all project files with SonarLint instead of only git-changed files",
+        help="Scan all project files instead of only changed/untracked Git files",
     )
     p_quality.add_argument(
         "--approve",

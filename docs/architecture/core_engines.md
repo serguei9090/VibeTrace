@@ -175,7 +175,7 @@ To detect cognitive complexity and code smells without requiring a SonarQube ser
    - Computes RSPEC-inspired structural metrics — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), String Duplication (`S1192`), and Async Without Await (`S7503`) — in $<15\text{ms}$ across Python, JavaScript, TypeScript, Go, Rust, Java, C/C++, C#, PHP, and Ruby.
 2. **Layer 2 — Optional Native Ecosystem Linter Bridges & Tier-2 SonarLint:**
    - Automatically invokes installed ecosystem linters (`Ruff`, `Pyright`, `Biome`, `Clippy`, `GolangCI-Lint`, `PHPStan`, `RuboCop`, `ShellCheck`, `SQLFluff`) and maps their diagnostics into unified rule IDs.
-   - Optional headless SonarLint (`--sonar`) defaults to git-changed files (`--sonar-all` for full workspace) and processes files in 12-file LSP waves (`_SONAR_WAVE_SIZE = 12`).
+   - Optional headless SonarLint (`--sonar`), along with all other `audit quality`/`audit security` analyzers, defaults to git-changed files (`--all` for full workspace) and processes files in 12-file LSP waves (`_SONAR_WAVE_SIZE = 12`).
 3. **Two-Step "Target & Verify" Remediation Workflow:**
    - **Step 1: Executive Findings Matrix (`--summary`):** Emits a `< 1 KB` high-density matrix summarizing findings by severity, rule ID, unapproved counts, and top impacted files. Completely eliminates terminal truncation and AI context window overflow.
    - **Step 2: Surgical JSON Extraction (`--file <path> --json`):** Emits machine-readable JSON containing exact line spans, code snippets, compliant solutions, and remediation advice for automated AI patching.

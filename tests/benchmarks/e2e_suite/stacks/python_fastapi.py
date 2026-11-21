@@ -143,6 +143,31 @@ def _validate_sonar_count(expect_positive: bool) -> Callable[[str], str | None]:
     return _validate
 
 
+def _validate_audit_scope(
+    expected_mode: str,
+    expect_zero_findings: bool = False,
+    expect_positive_findings: bool = False,
+) -> Callable[[str], str | None]:
+    def _validate(stdout: str) -> str | None:
+        try:
+            data = json.loads(stdout)
+        except Exception as exc:
+            return f"audit JSON parse failed: {exc}"
+        if not isinstance(data, dict):
+            return "audit output is not a JSON object"
+        mode = data.get("scope_mode")
+        if mode != expected_mode:
+            return f"expected scope_mode={expected_mode!r}, got {mode!r}"
+        total = int(data.get("total_findings") or 0)
+        if expect_zero_findings and total != 0:
+            return f"expected 0 findings on clean tree, got {total}"
+        if expect_positive_findings and total <= 0:
+            return f"expected >0 findings for --all, got {total}"
+        return None
+
+    return _validate
+
+
 def run_python_fastapi() -> list[StepResult]:
     """Run all core VibeTrace CLI commands against fastapi/fastapi."""
     repo = REPOS_DIR / "fastapi"
@@ -247,30 +272,44 @@ def run_python_fastapi() -> list[StepResult]:
             None,
         ),
         (
-            "audit security (normal)",
+            "audit security (git-diff default)",
             ["audit", "security", "--skip-semgrep", "--skip-trivy", "--json"],
-            120,
+            60,
             None,
-            None,
+            _validate_audit_scope("changed", expect_zero_findings=True),
         ),
         (
-            "audit security (semgrep)",
-            ["audit", "security", "--skip-trivy", "--json"],
+            "audit security (--all normal)",
+            ["audit", "security", "--all", "--skip-semgrep", "--skip-trivy", "--json"],
             120,
             None,
-            None,
+            _validate_audit_scope("all"),
         ),
         (
-            "audit quality (normal)",
-            ["audit", "quality", "--file", "fastapi", "--json"],
+            "audit security (--all semgrep)",
+            ["audit", "security", "--all", "--skip-trivy", "--json"],
             120,
             None,
+            _validate_audit_scope("all"),
+        ),
+        (
+            "audit quality (git-diff default)",
+            ["audit", "quality", "--json"],
+            60,
             None,
+            _validate_audit_scope("changed", expect_zero_findings=True),
+        ),
+        (
+            "audit quality (--all whole repo)",
+            ["audit", "quality", "--all", "--json"],
+            120,
+            None,
+            _validate_audit_scope("all", expect_positive_findings=True),
         ),
         (
             "audit quality (sonar git-diff default)",
             ["audit", "quality", "--sonar", "--json"],
-            120,
+            60,
             None,
             _validate_sonar_count(expect_positive=False),
         ),

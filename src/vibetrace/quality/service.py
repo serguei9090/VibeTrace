@@ -215,16 +215,27 @@ class QualityService:
         include_tests: bool = False,
         typecheck: bool = False,
         enable_sonar: bool = False,
-        sonar_all: bool = False,
+        scan_all: bool = False,
     ) -> QualityAuditReport:
         """Audits project source files for cognitive complexity and clean code smells."""
+        from vibetrace.indexer.git_utils import resolve_git_audit_scope
+
+        scope_mode, scope_note, effective_file_list, empty_fast_exit = resolve_git_audit_scope(
+            project_root=project_root,
+            file_filter=file_filter,
+            file_list=file_list,
+            scan_all=scan_all,
+        )
+        if empty_fast_exit:
+            return QualityAuditReport(scope_mode=scope_mode, scope_note=scope_note)
+
         raw_findings: list[QualityFinding] = []
         all_complexities: list[FunctionComplexity] = []
 
         target_files = _collect_source_files(
             project_root=project_root,
             file_filter=file_filter,
-            file_list=file_list,
+            file_list=effective_file_list,
             include_tests=include_tests,
         )
 
@@ -327,13 +338,13 @@ class QualityService:
         from vibetrace.config import load_config
 
         cfg_sonar = load_config(project_root).quality.enable_sonar
-        if enable_sonar or cfg_sonar:
+        if (enable_sonar or cfg_sonar) and target_files:
             sonar_targets = filter_sonar_targets(
                 project_root=project_root,
                 candidates=target_files,
                 file_filter=file_filter,
-                file_list=file_list,
-                sonar_all=sonar_all,
+                file_list=effective_file_list,
+                scan_all=True,
             )
             if sonar_targets:
                 sonar_engine = SonarLintAdapter()
@@ -341,7 +352,7 @@ class QualityService:
                     raw_findings.extend(sonar_engine.audit_project(project_root, sonar_targets))
 
         # Collect dead / uncalled private functions from Call Graph (RSPEC-1144)
-        if db is not None:
+        if db is not None and target_files:
             dead_nodes = db.get_uncalled_private_functions(include_tests=include_tests)
             target_rel_paths = {p.relative_to(project_root).as_posix() for p in target_files}
             for dn in dead_nodes:
@@ -432,6 +443,8 @@ class QualityService:
             findings=raw_findings,
             project_root=project_root,
         )
+        report.scope_mode = scope_mode
+        report.scope_note = scope_note
 
         if all_complexities:
             report.average_complexity = sum(c.cognitive_complexity for c in all_complexities) / len(

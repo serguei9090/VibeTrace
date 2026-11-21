@@ -60,8 +60,8 @@ Designed from the ground up for **AI Coding Agents** (Antigravity, Claude, Curso
 - **✂️ Surgical Source Slicing (`vibetrace slice`)**: Returns only the exact lines of a symbol and its outgoing callee signatures, saving ~70–90% of LLM context window tokens compared to full-file dumps.
 - **🌳 Top-Down Recursive Call Hierarchy (`vibetrace call-tree`)**: Generates an ASCII call tree from an entry point down to leaf database or system primitives with cycle detection.
 - **💥 Transitive Blast Radius (`vibetrace impact`)**: 3-level caller impact analysis (Direct, Secondary, Deep) to evaluate the ripple effect before refactoring.
-- **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif` with bundled offline `semgrep_security.yml` preset and SARIF CWE deduplication, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), optional Tier-2 **SonarLint** (`--sonar` / `--sonar-all`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`).
-- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar`, scoped to git-changed files by default with 12-file wave chunking, or `--sonar-all` for full repo). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
+- **🛡️ Security Audit (`vibetrace audit security`)**: Two-layer security architecture combining a zero-config Tree-sitter AST & heuristic scanner (`CWE-22/78/89/95/327/502/798`), modern API secret token detector (OpenAI, Anthropic, Mistral, Perplexity, Cohere, Tailscale, Postman, Supabase), Git pre-commit staged blocker (`--staged`), lightweight YAML heuristic rule evaluation (`pattern-not`, `pattern-inside`), syntactic call-graph taint reachability across helper calls, and lockfile CVE lookup via Google OSV.dev across 7 lockfiles — plus optional external adapters for **Semgrep CLI** (`semgrep scan --sarif` with bundled offline `semgrep_security.yml` preset and SARIF CWE deduplication, bypassed via `--skip-semgrep`), **Trivy** (`--image <tag>`, bypassed via `--skip-trivy`), optional Tier-2 **SonarLint** (`--sonar`), OASIS SARIF 2.1.0 ingestion/export, and Git baselines (`.vibetrace/security.toml`). Scans modified/untracked Git files by default (pass `--all` for whole repository or `--file PATH` for an explicit target; falls back to whole repository outside Git).
+- **🏆 Polyglot Code Quality & Maintainability (`vibetrace audit quality`)**: Two-layer quality architecture across 8 languages (Python, TS/JS, Go, Rust, PHP, Ruby, Shell, SQL): (1) high-speed native Tree-sitter & Call Graph engine evaluating structural rules — Cognitive Complexity (`S3776`), Deep Nesting (`S134`), Collapsible Ifs (`S1066`), and String Duplication (`S1192`) across languages, plus Python AST rules (`S1144`, `S4144`, `S2612`, `S7503`) — paired with (2) direct adapters executing installed native ecosystem linters (Ruff, Pyright, Biome, Clippy, GolangCI-Lint, PHPStan, RuboCop, ShellCheck, SQLFluff) using curated presets (`ruff_sonar.toml`, `biome_sonar.json`), plus optional Tier-2 headless SonarLint (`--sonar` with 12-file wave chunking). Scans modified/untracked Git files by default (pass `--all` for whole repository or `--file PATH`). Emits high-density Executive Findings Summary matrices (`--summary`), single-file JSON (`--json`), safe codemods (`--fix`), and OASIS SARIF 2.1.0 exports.
 - **🌳 Transitive Dependency Graph & Diamond Conflict Detector (`vibetrace deps`)**: Resolves lockfile dependency graphs across `uv.lock`, `package-lock.json`, `bun.lock`, and `Cargo.lock`. Inverted BFS pinpoints root direct manifest causation paths (`deps why <pkg>`), renders dependency hierarchies (`deps tree`), and flags diamond version collisions (`deps conflicts`).
 - **✂️ AST Method Extraction & Cognitive Complexity Refactor (`vibetrace refactor`)**: Python AST variable lifetime analysis identifies block input parameters and output return tuples, automatically extracting complex blocks into standalone helper functions with pre-flight static verification.
 - **🔧 Automated Dependency Auto-Patcher (`vibetrace audit fix-deps`)**: Executes native ecosystem package managers (`uv`, `bun`, `cargo`, `go`) to safely bump vulnerable packages, or automatically suppresses unpatched CVEs with 0 reachable call edges.
@@ -170,7 +170,7 @@ vibetrace init --interactive
 
 `vibetrace init` configures:
 - **Test exclusion:** Exclude tests from Quality/Security gates by default (override with `--include-tests`).
-- **Codebase embeddings:** Optional pre-computed vectors for code symbols (`--embed` with `--device auto|gpu|cpu`).
+- **Codebase embeddings:** Optional pre-computed vectors for code symbols (`--embed` with `--device gpu|cpu`, defaulting to GPU DirectML without silent CPU fallback, and logging the active execution provider).
 - **Quality & Security tier selection:** Fast, 0-dependency native Tree-sitter quality rules with optional Tier-2 SonarLint (`--sonar`) and SAST/container integrations.
 
 That's it! `vibetrace.db` is created locally inside that project and never shared across projects.
@@ -185,8 +185,8 @@ That's it! `vibetrace.db` is created locally inside that project and never share
 vibetrace index
 # Force cold index + LSP hybrid resolution (deterministic AST + LSP definition bridge; best-effort for dynamic dispatch)
 vibetrace index --force --lsp
-# Index with optional code embeddings (or disable via --no-embed)
-vibetrace index --embed
+# Index with optional code embeddings (GPU DirectML by default, or pass --device cpu)
+vibetrace index --embed --device gpu
 
 # 1. One-Shot Vibe Bundle (docs + code slice + caller guard + test fixture)
 vibetrace bundle "add auth token to middleware" --budget 1500
@@ -238,13 +238,15 @@ vibetrace audit security --sarif
 vibetrace audit security --approve --tag no-alternative --rationale "Verified safe"
 
 # 6c. Code Quality & Maintainability Audit (Native Tree-sitter Metrics + Fast Linter Presets)
-# Fast native audit (Cognitive Complexity, Deep Nesting, Unused Private Methods, etc.)
+# Audit modified/untracked Git files (default scope)
 vibetrace audit quality
+# Audit the entire repository across all analyzers
+vibetrace audit quality --all
 # Run with optional Tier-2 headless SonarLint Java engine (git-changed files by default)
 vibetrace audit quality --sonar
-# Force SonarLint over every source file (12-file wave chunking)
-vibetrace audit quality --sonar --sonar-all
-# Provision primary & secondary language servers (Python, TS, Go, Rust, PHP, C#, Ruby; hints for C/C++, Java)
+# Force full-repo analysis including SonarLint (12-file wave chunking)
+vibetrace audit quality --sonar --all
+# Provision pinned project-local LSPs into .vibetrace/bin & .vibetrace/tools (and configure hybrid [lsp.servers.<lang>] modes in .vibetrace.toml)
 vibetrace tools install-lsp
 # High-density summary matrix roadmap (<1 KB) to prevent terminal truncation
 vibetrace audit quality --summary
